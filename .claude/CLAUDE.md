@@ -55,6 +55,7 @@
 1. **派發前**：主 agent `EnterWorktree(name="<task-name>")` → cwd 切到 `.claude/worktrees/<task-name>/`，新分支 `worktree-<task-name>`。
 2. **編輯**：subagent / team 在 worktree 內改檔 + commit（明確列檔名 `git add <files>`，禁用 `-A` / `.`）。
 3. **審查**：主 agent Read worktree 內檔案，逐項對照 CLAUDE.md 規範。不合規退回重做。
+3a. **（條件性）撰寫 Pi 端操作說明書**：階段 3 審查通過後，主 agent 統整「subagent 回報 + 自身判斷」，確認本輪變更**實際**涉及任何 Pi 端動作（見下方「🚦 Pi 端操作觸發條件」節）→ **新增一個檔**到 `resources/pineedtodo/<檔名>.md`（**append-only：既有檔不動**），在 worktree 內 `git add` + `git commit`（subagent 的 code commit 之上多一個 commit）。不觸發直接進階段 4。
 4. **收尾（合規後）**：
    - `ExitWorktree(action="keep")` → 切回主 checkout
    - `git merge worktree-<task-name> --ff-only`
@@ -87,10 +88,37 @@
 
 **觸發時依序執行（5 步）：**
 1. `git status` + `git diff` 確認變更範圍
+1a. **（條件性）撰寫 Pi 端操作說明書**：若本輪變更涉及 Pi 端動作（見下方「🚦 Pi 端操作觸發條件」節），主 agent **新增一個檔**到 `resources/pineedtodo/<檔名>.md`（**append-only：既有檔不動**），納入下一步的 `git add`。不觸發直接跳過。
 2. `git add <具體檔名>`（不用 `-A` / `.`）
 3. `git commit -m "..."` 英文簡短訊息，附 `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>`
 4. `git push origin main`
 5. **`& "C:\Users\LIN HONG\Desktop\Project_01\sync_pi.ps1"`** — SSH 自動 pull 到 Pi（退出碼 0 = 完成）
+
+---
+
+## 🚦 Pi 端操作觸發條件（給上面兩個工作流程內 1a / 3a 步驟參考）
+
+主 agent 在審查後須判斷本輪變更**實際**會否導致使用者要在 Pi 終端手動做事。
+
+**觸發 ✅：**
+- 新增 / 移除 Python 套件 import → `pip install / uninstall`
+- 新增 / 移除 apt 系統套件 → `sudo apt install / remove`
+- 硬體介面啟用（I2C / Camera / Audio / SPI）→ `raspi-config`
+- 音訊裝置 / 音量設定（`alsamixer`、raspi-config Audio）
+- 新增 systemd service / 自啟動腳本
+- 一次性測試 / 校準 / 配置流程
+- 任何修改 Pi 系統設定 / 環境變數 / 檔案權限的指令
+
+**不觸發 ❌：**
+- 純程式邏輯修改 / 重構（無新依賴）
+- 純文件 / markdown / memory / `.claude/` 內檔案更新
+- `.gitignore` / `sync_pi.ps1` / git 相關設定變動
+- CLAUDE.md / 規範自身修訂
+
+**輸出位置與行為：**
+- 位置固定：`resources/pineedtodo/<檔名>.md`
+- **Append-only**：每輪只**新增**新檔，**既有檔不動、不改、不刪**。即使發現先前檔內容有誤，也是新開一個檔做修正紀錄，不回頭改既有檔。理由：當作歷史紀錄，方便日後查閱「某輪在 Pi 上做了什麼事」。
+- 檔名格式 / 內容結構 → **TODO，下輪討論再補上**（目前以現有 `2026-05-22_TTS_setup.md` 為非正式參考）。
 
 ---
 
@@ -102,14 +130,6 @@
 | Pi 路徑 | `/home/pi/Desktop/project_jiqiren` |
 | GitHub Repo | `https://github.com/leon13018/project_jiqiren.git` |
 | 部署方式 | 本機 push → 跑 `sync_pi.ps1` → SSH 自動 `git pull` |
-
----
-
-## 📝 Pi 端要做的事 → 寫進 markdown，不執行
-
-所有 `apt install` / `pip install` / `raspi-config` / systemd / 一次性指令
-→ **條列到 `resources/requirements/raspberry_pi_setup.md`**，由使用者在 Pi 終端手動執行。
-寫程式引入新套件時，**同步**更新該檔。
 
 ---
 
