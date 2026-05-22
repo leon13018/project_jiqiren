@@ -75,12 +75,14 @@
 
 ## ✅ 標準任務收尾循環（滿足條件才做）
 
+> **派 subagent / team 寫 code 時** → 改用上面「🌳 Worktree 工作流程」的 5 階段；本節是**主 agent 自己改檔**（不派 subagent）時用的。
+
 **觸發條件：** 本輪有任何 **git 會追蹤的檔案**改動（即 `.gitignore` 之外的檔案，新增 / 修改 / 刪除皆算）。判斷依據：`git status` 是否非空。
 
 **不觸發 → 直接結束，跳過收尾：**
 - 純聊天 / 解答問題 / 上網查資料
 - Plan mode 規劃討論（尚未動手實作）
-- 變更全在 ignored 路徑（`resources/` / `sync_pi.ps1` / `.claude/settings.local.json`）→ `git status` 看不到任何 diff
+- 變更全在 ignored 路徑（`resources/presentation/` / `resources/userPrompt/` / `sync_pi.ps1` / `.claude/settings.local.json` / `.claude/worktrees/`）→ `git status` 看不到任何 diff
 - 沒有任何檔案改動
 
 **觸發時依序執行（5 步）：**
