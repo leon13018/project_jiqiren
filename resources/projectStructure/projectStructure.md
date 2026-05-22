@@ -1,7 +1,7 @@
 # 專案目錄結構
 
 > 本檔案記錄整個專案的資料夾與檔案結構，方便日後快速查閱。
-> 最後更新：2026-05-21
+> 最後更新：2026-05-23
 
 ---
 
@@ -10,44 +10,59 @@
 ```
 Project_01/
 ├── .claude/                              # Claude Code 設定資料夾
-│   ├── CLAUDE.md                         # 📌 每輪載入的專案上下文（路徑規範 / 工作流 / 禁令）
-│   └── settings.local.json               # 本機 Claude 設定（.gitignore 排除）
+│   ├── CLAUDE.md                         # 📌 每輪載入的專案上下文 — tracked
+│   ├── settings.local.json               # 本機 Claude 設定（gitignored）
+│   └── worktrees/                        # 暫存 worktree 目錄（gitignored；2026-05-22 加入）
 │
-├── .gitignore                            # Git 忽略清單
+├── .gitignore                            # Git 忽略清單（2026-05-22 重構為精準排除）
 │
-├── sync_pi.ps1                           # Windows 端 SSH 部署腳本（.gitignore 排除）
-│                                         # 用途：push 後執行，SSH 到 Pi 自動 git pull / clone
+├── sync_pi.ps1                           # Windows 端 SSH 部署腳本（gitignored）
 │
 ├── myProgram/                            # 主程式資料夾（所有 .py 在此）
 │   ├── myProgram.py                      # ✍️ 自寫 — 主程式：狀態機、規則匹配、點餐、結帳
 │   ├── screen_display.py                 # ✍️ 自寫 — Tkinter POS 螢幕（訂單、QR Code）
 │   ├── robot_actions.py                  # ✍️ 自寫 — 機器人動作封裝（頭部 / 四肢）
+│   ├── tts.py                            # ✍️ 自寫 — edge-tts 雲端 TTS 封裝（zh-TW-HsiaoChenNeural）
 │   ├── ActionGroupControl.py             # 🚫 廠商 SDK — Hiwonder TonyPi，禁止修改
 │   └── Board.py                          # 🚫 廠商 SDK — Hiwonder TonyPi，禁止修改
 │
-└── resources/                            # 開發參考資源（.gitignore 排除）
-    ├── presentation/
-    │   └── 人形機器人期末專題5.7進度報告.pdf   # 5/7 進度報告簡報
+└── resources/                            # 開發 / 部署參考資源（2026-05-22 重構：大部分 tracked）
+    ├── presentation/                     # gitignored — 大檔不入 git
+    │   └── 人形機器人期末專題5.7進度報告.pdf
     │
-    ├── requirements/
-    │   └── raspberry_pi_setup.md         # Pi 端依賴清單與部署操作（apt / pip / raspi-config 等）
+    ├── userPrompt/                       # gitignored — 個人 prompt 草稿
+    │   ├── main_01
+    │   ├── main_02
+    │   └── 系统设定_01
     │
-    └── projectStructure/
-        └── projectStructure.md           # 本檔案
+    ├── requirements/                     # tracked
+    │   └── raspberry_pi_setup.md         # Pi 已安裝清單（被動更新，使用者回報後 main agent 寫入）
+    │
+    ├── pineedtodo/                       # tracked — per-task Pi 端操作說明書（append-only）
+    │   └── 2026-05-22_TTS_setup.md       # edge-tts + mpg123 + 音訊裝置設定 + 測試
+    │
+    ├── projectStructure/                 # tracked
+    │   └── projectStructure.md           # 本檔案
+    │
+    └── plans/                            # tracked — plan 草稿
+        └── plan_tts_1                    # 初版 edge-tts 接入 plan 草稿
 ```
 
 ---
 
-## `.gitignore` 排除清單
+## `.gitignore` 排除清單（2026-05-22 重構）
 
 ```
 .claude/settings.local.json
+.claude/worktrees/
 sync_pi.ps1
-resources/
+resources/presentation/
+resources/userPrompt/
 ```
 
-⚠️ `resources/` 整個被 ignore，本資料夾下的所有檔案（PDF、Pi 依賴清單、本結構圖）僅作為 **本機開發參考**，不會 push 到 GitHub / Pi。
-✅ `.claude/CLAUDE.md` **會** push 上去（2026-05-21 起），讓專案上下文跟著 repo 走；只有 `.claude/settings.local.json`（本機 Claude 設定）保持 ignore。
+- ✅ `.claude/CLAUDE.md` tracked，push 上 GitHub + sync 到 Pi。
+- ✅ `resources/requirements/`、`resources/pineedtodo/`、`resources/projectStructure/`、`resources/plans/` 全 tracked，會 sync 到 Pi。
+- 🚫 `resources/presentation/`（大 PDF）+ `resources/userPrompt/`（個人草稿）+ `sync_pi.ps1`（Windows-only）+ `.claude/settings.local.json`（本機設定）+ `.claude/worktrees/`（暫存）保持 ignored。
 
 ---
 
@@ -57,9 +72,10 @@ resources/
 
 | 檔案 | 職責 |
 |---|---|
-| `myProgram.py` | 主程式入口；全域狀態（`has_customer`, `waiting`）、商品目錄、規則匹配、叫賣循環、顧客服務流程 |
+| `myProgram.py` | 主程式入口；全域狀態（`has_customer`, `waiting_for_order`）、商品目錄、規則匹配、叫賣循環、顧客服務流程 |
 | `screen_display.py` | `POSScreen` 類別；Tkinter 視窗、queue 執行緒安全、`show_welcome()` / `update_order()` |
 | `robot_actions.py` | 動作封裝；`nod_head` / `shake_head` / `look_forward` / `action_idle` / `action_greet` / `action_pay` |
+| `tts.py` | edge-tts 雲端 TTS 封裝；同步阻塞 `speak()`、`threading.Lock` 序列化、自動退回純 print（套件 / 網路失敗時） |
 
 ### 廠商 SDK（myProgram/，禁止修改）
 
@@ -75,17 +91,21 @@ resources/
 | 檔案 | 職責 |
 |---|---|
 | `sync_pi.ps1` | SSH 到 `pi@raspberrypi.local`，自動 `git pull` / clone 到 `/home/pi/Desktop/project_jiqiren` |
-| `.gitignore` | 排除 `.claude/settings.local.json`, `sync_pi.ps1`, `resources/` |
+| `.gitignore` | 排除清單（見上方） |
 | `.claude/CLAUDE.md` | 每輪載入的專案上下文（禁令 / 工作流 / 路徑規範 / 廠商 API）|
-| `.claude/settings.local.json` | Claude Code 本機設定（.gitignore 排除）|
+| `.claude/settings.local.json` | Claude Code 本機設定（gitignored）|
+| `.claude/worktrees/` | EnterWorktree 建立的暫存工作目錄（gitignored；任務完成後 cleanup） |
 
 ### 文件 / 參考（resources/）
 
-| 檔案 | 職責 |
+| 檔案 / 資料夾 | 職責 |
 |---|---|
-| `resources/presentation/人形機器人期末專題5.7進度報告.pdf` | 5/7 期末專題進度報告簡報 |
-| `resources/requirements/raspberry_pi_setup.md` | Pi 端需要的 apt / pip 依賴、raspi-config 設定、bash 操作 |
-| `resources/projectStructure/projectStructure.md` | 本檔案 — 專案目錄結構 |
+| `presentation/人形機器人期末專題5.7進度報告.pdf` | 5/7 期末專題進度報告簡報 |
+| `userPrompt/` | 使用者個人 prompt 草稿（與 Claude Code 溝通時的輸入備份） |
+| `requirements/raspberry_pi_setup.md` | **Pi 已安裝清單** — Pi 上實際完成安裝並經使用者回報確認的項目 snapshot；被動更新 |
+| `pineedtodo/` | **per-task Pi 端操作說明書** — append-only，每輪有 Pi 動作時新增一檔（檔名 `<YYYY-MM-DD>_<short_name>.md`）|
+| `projectStructure/projectStructure.md` | 本檔案 — 專案目錄結構 |
+| `plans/` | plan 草稿（plan mode 討論結果 / 任務藍圖）|
 
 ---
 
@@ -94,3 +114,5 @@ resources/
 | 日期 | 變更 |
 |---|---|
 | 2026-05-21 | 建立初版；`resource/` 已重新命名為 `resources/` |
+| 2026-05-22 | edge-tts 接入（`tts.py` 新建）；`.gitignore` 重構（精準排除 `presentation/` + `userPrompt/`，其他 `resources/` 改 tracked）；`.claude/worktrees/` 加入 ignore；CLAUDE.md 新增 Worktree 工作流程 + Subagent 派發協議 + Pi 端操作觸發條件 |
+| 2026-05-23 | `raspberry_pi_setup.md` 重新定位為「Pi 已安裝清單」（被動更新）；CLAUDE.md「📝 Pi 端要做的事」節廢除，整合進工作流程 1a / 3a；查閱表加 `pineedtodo/` 行；memory 對齊現行規則 |

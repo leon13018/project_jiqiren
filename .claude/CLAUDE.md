@@ -76,7 +76,8 @@
 
 ## ✅ 標準任務收尾循環（滿足條件才做）
 
-> **派 subagent / team 寫 code 時** → 改用上面「🌳 Worktree 工作流程」的 5 階段；本節是**主 agent 自己改檔**（不派 subagent）時用的。
+> **背景 session 限制：所有 tracked 檔的編輯都要走「🌳 Worktree 工作流程」5 階段**（不論派 subagent 或主 agent 自己改純文件 / memory bootstrap）。本節定義 git 收尾的**內核步驟**，會內嵌在 Worktree 階段 2 / 3a（commit）與階段 4（push / sync）內。差別只在「誰寫」 — 派 subagent 寫 vs 主 agent 自己寫。
+> 改 gitignored 檔則不需進 worktree（worktree 看不到該檔）。
 
 **觸發條件：** 本輪有任何 **git 會追蹤的檔案**改動（即 `.gitignore` 之外的檔案，新增 / 修改 / 刪除皆算）。判斷依據：`git status` 是否非空。
 
@@ -186,7 +187,7 @@
 
 - 優先 `Read` / `Edit` / `Write` / `Glob` / `Grep` —— Windows shell 只給 git 用。
 - 規劃階段（還沒確定要做什麼）→ 暫停確認，不要先 commit。
-- 任務完成回報用 1-2 句話：改了什麼、Pi 是否同步成功。
+- 任務完成回報應包含：(1) 改了什麼、(2) 是否觸發 1a / 3a 寫了 pineedtodo、(3) Pi 是否同步成功、(4) 是否需要使用者後續行動（Pi 端操作 + 回報安裝狀況）。如有 Pi 動作，明確標示「請完成後回報哪些成功裝上」。
 
 ---
 
