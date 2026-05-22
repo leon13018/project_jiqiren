@@ -129,6 +129,14 @@
   - 其他章節（Step 1..N / 故障排除 / 完成後）→ 主 agent 視任務性質自由決定
   - 參考範例：`resources/pineedtodo/2026-05-22_TTS_setup.md`
 
+**寫完 pineedtodo 後 → 主 agent 必須提醒使用者回報安裝狀況：**
+> 「請在 Pi 上完成操作後跟我回報哪些**成功**裝上 / 啟用了（apt / pip 套件名、raspi-config 啟用項、systemd service 等），我會更新 `resources/requirements/raspberry_pi_setup.md`（Pi 已安裝清單）。失敗 / 未完成的不必回報，我們再討論。」
+
+**收到使用者回報成功 → 主 agent 更新已安裝清單：**
+- Read `resources/requirements/raspberry_pi_setup.md` → 把使用者**明確**回報成功的項目（套件名 / 啟用項 / 服務名）加進對應區塊 → 標準 5 步收尾流程（純文件編輯例外，主 agent 自己改）
+- **禁止自動推測 / 假設使用者已裝什麼**，必須有明確回報才寫
+- 失敗 / 未回報項目絕不寫入
+
 ---
 
 ## 🌐 部署資訊
@@ -147,7 +155,8 @@
 | 我要找... | 路徑 |
 |---|---|
 | 完整目錄結構 / 每檔職責 | `resources/projectStructure/projectStructure.md` |
-| Pi 安裝什麼 / 跑什麼 bash | `resources/requirements/raspberry_pi_setup.md` |
+| Pi 上目前已安裝什麼（snapshot） | `resources/requirements/raspberry_pi_setup.md` |
+| 過去每一輪 Pi 上做了什麼操作（歷史細節） | `resources/pineedtodo/` |
 | 專案背景 / 進度報告 | `resources/presentation/人形機器人期末專題5.7進度報告.pdf` |
 | 廠商 SDK 完整 API 清單 | memory: `vendor-files` |
 | 完整 5 步收尾流程細節 | memory: `standard-workflow` |
