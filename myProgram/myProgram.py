@@ -8,6 +8,7 @@ import threading
 import re
 import robot_actions as ra
 from screen_display import POSScreen
+from tts import speak
 
 # ── 全域狀態 ───────────────────────────────────────────────────
 screen            = POSScreen()
@@ -72,11 +73,6 @@ def detect_qty(text: str):
 def item_price(name: str, qty: int) -> int:
     p = PRODUCTS[name]
     return round(p["price"] * qty * p["discount"])
-
-
-# ── 語音輸出（之後換 Piper TTS）──────────────────────────────
-def speak(text: str):
-    print(f"[語音] {text}")
 
 
 # ── 叫賣模式（後台循環）────────────────────────────────────────
