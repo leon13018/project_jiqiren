@@ -116,9 +116,18 @@
 - CLAUDE.md / 規範自身修訂
 
 **輸出位置與行為：**
-- 位置固定：`resources/pineedtodo/<檔名>.md`
+- 位置固定：`resources/pineedtodo/<YYYY-MM-DD>_<short_name>.md`
 - **Append-only**：每輪只**新增**新檔，**既有檔不動、不改、不刪**。即使發現先前檔內容有誤，也是新開一個檔做修正紀錄，不回頭改既有檔。理由：當作歷史紀錄，方便日後查閱「某輪在 Pi 上做了什麼事」。
-- 檔名格式 / 內容結構 → **TODO，下輪討論再補上**（目前以現有 `2026-05-22_TTS_setup.md` 為非正式參考）。
+- **檔名規範：**
+  - `<YYYY-MM-DD>` = 該輪 commit 日期（台灣時區）
+  - `<short_name>` = 主 agent 依任務性質決定的英數 + 底線描述（如 `TTS` / `camera_install` / `whisper_debug`）
+  - **不強制 `_setup` 後綴**，保留彈性適應 install / config / test / debug 各種任務
+  - 同日多輪用更具體 `short_name` 區隔（例：`2026-05-23_TTS_install.md` 與 `2026-05-23_TTS_debug.md`）
+- **內容結構（鬆散指引 + 2 個固定要素）：**
+  - **檔頭區（必有，置頂）**：`**建立日期：** YYYY-MM-DD` + `**對應提交：** <commit_hash> — <commit 標題>`
+  - **驗證段（必有，置尾）**：跑什麼指令確認 Pi 端操作成功 + 預期輸出 / 行為
+  - 其他章節（Step 1..N / 故障排除 / 完成後）→ 主 agent 視任務性質自由決定
+  - 參考範例：`resources/pineedtodo/2026-05-22_TTS_setup.md`
 
 ---
 
