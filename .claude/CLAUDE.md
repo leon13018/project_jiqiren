@@ -41,18 +41,22 @@
 
 ---
 
-## ✅ 標準任務收尾循環（每次都做）
+## ✅ 標準任務收尾循環（滿足條件才做）
 
-1. 編輯檔案
-2. `git status` + `git diff` 確認變更範圍
-3. `git add <具體檔名>`
-4. `git commit -m "..."` 英文簡短訊息，附：
-   `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>`
-5. `git push origin main`
-6. **`& "C:\Users\LIN HONG\Desktop\Project_01\sync_pi.ps1"`** — SSH 自動 pull 到 Pi
-7. 檢查退出碼 0 = 任務完成
+**觸發條件：** 本輪有任何 **git 會追蹤的檔案**改動（即 `.gitignore` 之外的檔案，新增 / 修改 / 刪除皆算）。判斷依據：`git status` 是否非空。
 
-> 若變更全在 ignored 路徑（`resources/` / `sync_pi.ps1` / `.claude/`）→ git 看不到 diff，跳過 commit/push/sync，但仍要告知使用者。
+**不觸發 → 直接結束，跳過收尾：**
+- 純聊天 / 解答問題 / 上網查資料
+- Plan mode 規劃討論（尚未動手實作）
+- 變更全在 ignored 路徑（`resources/` / `sync_pi.ps1` / `.claude/settings.local.json`）→ `git status` 看不到任何 diff
+- 沒有任何檔案改動
+
+**觸發時依序執行（5 步）：**
+1. `git status` + `git diff` 確認變更範圍
+2. `git add <具體檔名>`（不用 `-A` / `.`）
+3. `git commit -m "..."` 英文簡短訊息，附 `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>`
+4. `git push origin main`
+5. **`& "C:\Users\LIN HONG\Desktop\Project_01\sync_pi.ps1"`** — SSH 自動 pull 到 Pi（退出碼 0 = 完成）
 
 ---
 
