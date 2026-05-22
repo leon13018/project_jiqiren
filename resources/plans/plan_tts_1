@@ -1,0 +1,145 @@
+# Plan：接入 edge-tts (zh-TW-HsiaoChenNeural) 取代 speak() 樁
+
+## Context
+
+`myProgram/myProgram.py:78-79` 的 `speak()` 目前只是 `print("[語音] ...")` 樁，註解寫著「之後換 Piper TTS」。經過討論，因為使用者要**台灣國語口音 + 免費 + 不需 API key**，最終選定 **edge-tts** 搭配 `zh-TW-HsiaoChenNeural`（台灣女聲）。代價是 demo 當天需連網（使用 Microsoft Edge 雲端 TTS，逆向其朗讀功能，免費無 quota）。
+
+這是「先把核心功能跑起來」階段的第一步 — 30+ 處現有 `speak(...)` 呼叫保持不動，只換 `speak()` 函式本身。
+
+---
+
+## 結構圖
+
+```
+myProgram.py (FSM / 30+ speak 呼叫端)
+    │
+    │  from tts import speak   ← 唯一改動入口
+    ▼
+tts.py (新檔)
+    │
+    ├─ threading.Lock()           # 序列化，避免兩條 thread 同時播音
+    ├─ asyncio.run(_synthesize)   # edge-tts 是 async-only
+    │     │
+    │     └─ edge_tts.Communicate(text, voice=HsiaoChen).save(/tmp/last_tts.mp3)
+    │            │
+    │            └── HTTPS ──▶ Microsoft Edge TTS 雲端 ──▶ MP3 stream
+    │
+    └─ subprocess.run(['mpg123', '-q', '/tmp/last_tts.mp3'])  # 同步阻塞直到播完
+           │
+           └──▶ Pi 喇叭
+
+★ 同步阻塞語意：speak() 必須等音檔播完才 return，否則 get_customer_input() 會在
+  機器人還在講話時就開始聽，造成自我打斷。
+```
+
+---
+
+## 改動清單
+
+### 1. 新檔 `myProgram/tts.py`
+
+完整檔案內容：
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""edge-tts 包裝：合成 zh-TW-HsiaoChenNeural 台灣女聲並阻塞播放。"""
+
+import asyncio
+import subprocess
+import threading
+
+import edge_tts
+
+VOICE   = "zh-TW-HsiaoChenNeural"
+TMP_MP3 = "/tmp/last_tts.mp3"
+_lock   = threading.Lock()
+
+
+async def _synthesize(text: str, out_path: str) -> None:
+    await edge_tts.Communicate(text=text, voice=VOICE).save(out_path)
+
+
+def speak(text: str) -> None:
+    """同步播放台灣國語語音；失敗時 fallback 為文字輸出，不讓 demo 中斷。"""
+    print(f"[語音] {text}")
+    with _lock:
+        try:
+            asyncio.run(_synthesize(text, TMP_MP3))
+            subprocess.run(["mpg123", "-q", TMP_MP3], check=True)
+        except Exception as e:
+            print(f"[語音] TTS 失敗：{e}")
+```
+
+設計重點：
+- **`_lock`**：`hawking_loop` 與 `customer_mode` 雖然由 `has_customer` 互斥，鎖是廉價的雙保險，防止未來 race。
+- **`asyncio.run` 每次新開 event loop**：edge-tts 是 async-only。單次合成 0.5–1s 額外開銷可接受；不引入長駐 loop 增加複雜度。
+- **`subprocess.run(check=True)`**：阻塞直到 mp3 播完，符合對話流預期。
+- **try/except 包整段**：網路失敗 / `mpg123` 缺失 → 退回文字輸出（與目前樁行為一致），demo 不會崩。
+- **`/tmp/last_tts.mp3` 固定路徑**：Pi 上 `/tmp` 是 tmpfs，不寫 SD 卡；每次覆寫，無清理負擔。
+
+### 2. 改 `myProgram/myProgram.py:77-79`
+
+把這三行：
+```python
+# ── 語音輸出（之後換 Piper TTS）──────────────────────────────
+def speak(text: str):
+    print(f"[語音] {text}")
+```
+
+換成：
+```python
+# ── 語音輸出（edge-tts / zh-TW-HsiaoChenNeural）──────────────
+from tts import speak  # noqa: E402
+```
+
+下方 30+ 處 `speak(...)` 全部不動。
+
+> 註：`from tts import speak` 放在檔案頂端 import 區更乾淨，但為了讓 diff 最小、且符合「先實現再優化」的階段目標，先就地替換；後續整理 import 區時一併搬上去。
+
+### 3. Pi 端依賴（不在這次 commit 內執行）
+
+由於 `resources/` 已 gitignored 且在 remote container 看不到，**請使用者自行**在 Windows 本機把以下兩行補進 `resources/requirements/raspberry_pi_setup.md`：
+
+```bash
+pip install edge-tts
+sudo apt install -y mpg123
+```
+
+或者直接在 Pi 上手動跑這兩行也行 — 反正 `resources/` 不會 sync 到 Pi。
+
+---
+
+## 為什麼這樣選（簡短）
+
+- **edge-tts vs Piper**：使用者要台灣口音 → Piper 只有大陸普通話 huayan，淘汰。
+- **mpg123 vs playsound / pygame**：mpg123 是 Pi 上極輕量的 CLI 播放器，純 subprocess 呼叫，無 Python 端依賴鏈，且天然阻塞，正好符合需求。
+- **不用 OpenCC**：edge-tts 的 zh-TW 神經模型原生吃繁體，無須繁→簡轉換。
+- **不分離 async**：`speak()` 維持同步 API → 30+ 呼叫端零修改。
+
+---
+
+## 驗證（Pi 端，sync 後）
+
+1. `cd /home/pi/Desktop/project_jiqiren/myProgram && python3 myProgram.py`
+2. 看到 `=====` 啟動畫面後，**叫賣模式**會循環講「來喔！冰紅茶27元、刮刮樂180元…」 → 確認從喇叭聽到台灣女聲。
+3. 按 `y` 進顧客模式 → 聽到「歡迎光臨！…」。
+4. 輸入「冰紅茶 一杯」→ 聽到「好的，冰紅茶×1，共27元！請問還需要其他嗎？」
+5. 輸入「結帳」→ 聽到「好的，總共27元，這邊掃碼付款喔！」 + 螢幕跳 QR Code。
+6. **斷網測試**：拔網路線重跑步驟 1，叫賣模式應 print「[語音] 來喔！…」+「TTS 失敗：…」，但程式不崩、其他功能（動作、螢幕）正常。
+7. **同時觸發測試**：按 `y` 進入顧客模式，再快速嘗試讓叫賣與顧客語音重疊 → 應該不會聽到兩段音重疊（lock 生效）。
+
+---
+
+## 收尾（依 CLAUDE.md 標準 5 步）
+
+```
+1. git status / git diff
+2. git add myProgram/tts.py myProgram/myProgram.py
+3. git commit -m "Add edge-tts (zh-TW-HsiaoChenNeural) for speak()" 附 Co-Authored-By
+4. git push origin main
+5. & "C:\Users\LIN HONG\Desktop\Project_01\sync_pi.ps1"   ← 在使用者本機跑
+```
+
+第 5 步只有使用者能跑（在 Windows 終端），我這邊跑完第 4 步就停。

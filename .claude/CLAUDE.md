@@ -26,10 +26,15 @@
 
 我（主對話 agent）是工程部「總負責人」，subagent / agent teams 是底下執行任務的工程師團隊。
 
+**派發時機（預設行為）：** plan mode 完成後 → 一律派 subagent（單一任務）/ agent teams（複雜任務）執行，**除非使用者明確要求主 agent 直接寫**。主 agent 留做規劃 / 審查 / 邊界判斷。
+
+**預設模型：** `Agent({model: "sonnet"})`。Agent 工具不接受 `effort` / `thinking` / context window 參數，要 high effort 必須**在 prompt 內明確要求**「extended thinking、仔細思考、嚴格依規範執行」。
+
 **派發前必做：**
-1. **挑選當前任務可能涉及的 CLAUDE.md 規則**塞進他們的 context — subagent 是全新 context window，預設讀不到本檔。不要全塞，只塞**可能踩到**的部分（路徑規範 / 禁改廠商檔 / 繁中規範 / git 收尾等）。原則：寧可多塞，不要漏。
-2. **附上 `karpathy-guidelines` Skill** — 編寫程式碼的最佳實踐。
-3. **明確要求他們嚴格遵守以上全部規範。**
+1. **EnterWorktree** — 派發前主 agent 先進 worktree，subagent 繼承 cwd 自動在隔離環境內工作。完整流程見下方「🌳 Worktree 工作流程」。
+2. **挑選當前任務可能涉及的 CLAUDE.md 規則** 塞進他們的 context — subagent 是全新 context window，預設讀不到本檔。不要全塞，只塞**可能踩到**的部分。原則：寧多勿漏。
+3. **附上 `karpathy-guidelines` Skill** — 編寫程式碼的最佳實踐。
+4. **明確要求他們嚴格遵守以上全部規範。**
 
 **派發後必做：**
 - 逐項核對產出是否符合 CLAUDE.md。
@@ -38,6 +43,33 @@
 - **絕不直接把不符合規範的產出交給使用者。**
 
 詳細協議 → memory `subagent-dispatch`
+
+---
+
+## 🌳 Worktree 工作流程（派發 subagent / team 寫程式時必用）
+
+每次派發 subagent / agent teams 編寫或修改程式碼，**主 agent 必須先 EnterWorktree**，提供隔離工作環境。Subagent 在 worktree 內改檔 / commit，避免污染主 checkout 與其他平行任務。
+
+**5 個階段：**
+
+1. **派發前**：主 agent `EnterWorktree(name="<task-name>")` → cwd 切到 `.claude/worktrees/<task-name>/`，新分支 `worktree-<task-name>`。
+2. **編輯**：subagent / team 在 worktree 內改檔 + commit（明確列檔名 `git add <files>`，禁用 `-A` / `.`）。
+3. **審查**：主 agent Read worktree 內檔案，逐項對照 CLAUDE.md 規範。不合規退回重做。
+4. **收尾（合規後）**：
+   - `ExitWorktree(action="keep")` → 切回主 checkout
+   - `git merge worktree-<task-name> --ff-only`
+   - `git push origin main`
+   - `& "C:\Users\LIN HONG\Desktop\Project_01\sync_pi.ps1"`
+5. **清理（push + sync 成功後立即執行）**：
+   - `git worktree remove .claude/worktrees/<task-name>`
+   - `git branch -d worktree-<task-name>`
+   - 確認 `git worktree list` 與 `git branch` 乾淨
+
+**例外：**
+- Merge 衝突或非 FF → 保留 worktree，跟使用者討論。
+- 任務只涉及 gitignored 檔（`resources/userPrompt/`、`resources/presentation/`）→ subagent **不受 worktree 隔離限制**，可直接編輯主 checkout 路徑下的 gitignored 檔；但主 agent 在 worktree mode 下 Edit/Write 主 checkout 會被擋。所以這類任務派 subagent 處理最順。
+
+詳細協議 → memory `worktree-workflow`
 
 ---
 
@@ -91,6 +123,7 @@
 | 工作邊界（能做不能做） | memory: `workflow-constraints` |
 | 使用者背景 | memory: `user-profile` |
 | 部署細節（IP / repo / 路徑） | memory: `project-deployment` |
+| Worktree 完整流程 + cleanup 規則 | memory: `worktree-workflow` |
 
 ---
 

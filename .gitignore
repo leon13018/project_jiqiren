@@ -1,3 +1,5 @@
 .claude/settings.local.json
+.claude/worktrees/
 sync_pi.ps1
-resources/
+resources/presentation/
+resources/userPrompt/
