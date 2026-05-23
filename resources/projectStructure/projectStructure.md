@@ -1,7 +1,7 @@
 # 專案目錄結構
 
 > 本檔案記錄整個專案的資料夾與檔案結構，方便日後快速查閱。
-> 最後更新：2026-05-24（S1 v2 預備：清空 myProgram.py + 新增空 sales_logic.py 骨架）
+> 最後更新：2026-05-24（業務邏輯規格書 L1-L5.md 納入 git tracked）
 
 ---
 
@@ -58,7 +58,13 @@ Project_01/
     │   └── projectStructure.md           # 本檔案
     │
     ├── plans/                            # tracked — plan 草稿
-    │   └── plan_tts_1                    # 初版 edge-tts 接入 plan 草稿
+    │   ├── plan_tts_1                    # 初版 edge-tts 接入 plan 草稿
+    │   └── 業務程式邏輯規劃/             # S1 v2 業務邏輯規格書（2026-05-24 加入）
+    │       ├── L1.md                     # 第 1 層：模式選擇（叫賣 / 待機 / 客服）— 商家操作
+    │       ├── L2.md                     # 第 2 層：詢問需求（拒絕 / 無法判斷循環 / 點到商品 → L3）
+    │       ├── L3.md                     # 第 3 層：詢問額外需求（拒絕 / 循環 / 準備結帳 → L4）
+    │       ├── L4.md                     # 第 4 層：印金額 + 等掃碼（含 4 次循環提醒、客服特殊返回語義）
+    │       └── L5.md                     # 第 5 層：謝謝惠顧 → 等 3s → 回 L1 叫賣
     │
     └── examples/                         # tracked — 廠商已驗證範例代碼（2026-05-23 加入）
         ├── 機器人動作結合opencv的多線程使用范例.py  # 廠商多線程範例：cv2 主線程 + 動作背景線程
@@ -160,3 +166,4 @@ resources/userPrompt/
 | 2026-05-23 | 第一輪多線程重構（commit `42291c8` + `a95507f`）後實測「按 y 不一致 / 動作 / 語音被打斷 / 反覆切換亂掉」，根因為 vendor `stop_action` sticky 旗號 + `has_customer` 雙 queue 分流 race。決定 incremental rebuild：歸檔 4 個自寫 .py 到 `resources/examples/legacy_threading_v1/`（含 README 紀錄踩坑）；新增 `.claude/rules/incremental-rebuild.md`（S1-S7 模板 + 核心原則）；CLAUDE.md 加 🔁 Incremental rebuild 段 + pointer；memory 新增 3 條（`incremental-rebuild-pattern` / `vendor-stop-action-sticky` / `single-queue-preference`）|
 | 2026-05-23 | **S1 完成**：新建 `myProgram/myProgram.py`（115 行純單線程對話骨架）— PRODUCTS / 關鍵字 / 識別函數 / customer_session / main 主迴圈；無 timeout / 無 threading / 不 import 任何後續 .py。商品與舊版一致（冰紅茶 + 刮刮樂全場九折）。等待使用者測 OK 才開 S2（同步語音）|
 | 2026-05-24 | **S1 v2 預備**：S1 v1 經實測發現業務邏輯瑕疵（重複加單 / 無修改數量機制 / 無確認流程），決定重做為 5 層狀態機。本輪僅做架構準備：清空 `myProgram/myProgram.py`、新增空 `myProgram/sales_logic.py`（之後業務邏輯都寫此檔，`myProgram.py` 只當入口 import）|
+| 2026-05-24 | **業務邏輯規格書納 tracked**：使用者手寫的 5 層狀態機規格 `resources/plans/業務程式邏輯規劃/L1-L5.md` 從 untracked 納入 git；S1 v2 後續實作以此為準 |
