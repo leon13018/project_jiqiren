@@ -13,9 +13,14 @@ Project_01/
 │   ├── CLAUDE.md                         # 📌 每輪載入的專案上下文 — tracked
 │   ├── settings.local.json               # 本機 Claude 設定（gitignored）
 │   ├── worktrees/                        # 暫存 worktree 目錄（gitignored；2026-05-22 加入）
-│   └── rules/                            # path-scoped 規則（2026-05-23 加入）— tracked
-│       ├── vendor-sdk-api.md             # 廠商 SDK API；paths: myProgram/**/*.py
-│       └── path-conventions.md           # Linux 路徑規範；paths: 程式碼 / 腳本 / Pi setup docs
+│   └── rules/                            # 規則檔（2026-05-23 加入）— tracked
+│       ├── vendor-sdk-api.md             # 廠商 SDK API；path-scoped, paths: myProgram/**/*.py
+│       ├── path-conventions.md           # Linux 路徑規範；path-scoped, paths: code / scripts / Pi docs
+│       ├── subagent-dispatch-protocol.md # Subagent 派發協議完整版（無 paths，啟動載入）
+│       ├── worktree-workflow.md          # Worktree 5 階段流程完整版（無 paths）
+│       ├── standard-workflow.md          # 標準收尾循環 5 步完整版（無 paths）
+│       ├── pi-side-trigger.md            # 🚦 Pi 端操作觸發條件完整版（無 paths）
+│       └── projectstructure-trigger.md   # 📂 結構維護觸發條件完整版（無 paths）
 │
 ├── .gitignore                            # Git 忽略清單（2026-05-22 重構為精準排除）
 │
@@ -95,10 +100,15 @@ resources/userPrompt/
 |---|---|
 | `sync_pi.ps1` | SSH 到 `pi@raspberrypi.local`，自動 `git pull` / clone 到 `/home/pi/Desktop/project_jiqiren` |
 | `.gitignore` | 排除清單（見上方） |
-| `.claude/CLAUDE.md` | 每輪載入的專案上下文（禁令 / 工作流 / 觸發條件） |
-| `.claude/rules/` | path-scoped 規則 — Claude 動到符合路徑的檔案才載入（省 context）|
-| `.claude/rules/vendor-sdk-api.md` | 廠商 SDK 關鍵 API；paths: `myProgram/**/*.py` |
-| `.claude/rules/path-conventions.md` | Linux 路徑規範；paths: 程式碼 / `.ps1` / `.gitignore` / Pi setup & 操作 markdown |
+| `.claude/CLAUDE.md` | 每輪載入的專案上下文（大標題 + pointer 指向 rules / memory） |
+| `.claude/rules/` | 規則檔目錄 — path-scoped 規則動到符合檔案才載入；無 paths 的跟 CLAUDE.md 同等啟動載入 |
+| `.claude/rules/vendor-sdk-api.md` | 廠商 SDK 關鍵 API；path-scoped, paths: `myProgram/**/*.py` |
+| `.claude/rules/path-conventions.md` | Linux 路徑規範；path-scoped, paths: 程式碼 / `.ps1` / `.gitignore` / Pi setup & 操作 markdown |
+| `.claude/rules/subagent-dispatch-protocol.md` | Subagent 派發協議完整版（無 paths，啟動載入） |
+| `.claude/rules/worktree-workflow.md` | Worktree 5 階段流程完整版（無 paths） |
+| `.claude/rules/standard-workflow.md` | 標準收尾循環 5 步完整版（無 paths） |
+| `.claude/rules/pi-side-trigger.md` | 🚦 Pi 端操作觸發條件完整版（無 paths） |
+| `.claude/rules/projectstructure-trigger.md` | 📂 結構維護觸發條件完整版（無 paths） |
 | `.claude/settings.local.json` | Claude Code 本機設定（gitignored）|
 | `.claude/worktrees/` | EnterWorktree 建立的暫存工作目錄（gitignored；任務完成後 cleanup） |
 
@@ -122,4 +132,5 @@ resources/userPrompt/
 | 2026-05-21 | 建立初版；`resource/` 已重新命名為 `resources/` |
 | 2026-05-22 | edge-tts 接入（`tts.py` 新建）；`.gitignore` 重構（精準排除 `presentation/` + `userPrompt/`，其他 `resources/` 改 tracked）；`.claude/worktrees/` 加入 ignore；CLAUDE.md 新增 Worktree 工作流程 + Subagent 派發協議 + Pi 端操作觸發條件 |
 | 2026-05-23 | `raspberry_pi_setup.md` 重新定位為「Pi 已安裝清單」（被動更新）；CLAUDE.md「📝 Pi 端要做的事」節廢除，整合進工作流程 1a / 3a；查閱表加 `pineedtodo/` 行；memory 對齊現行規則 |
+| 2026-05-23 | 三層架構建立：CLAUDE.md 各章節詳細內容拆到 `.claude/rules/` 新增 5 個檔（subagent-dispatch-protocol / worktree-workflow / standard-workflow / pi-side-trigger / projectstructure-trigger，無 paths frontmatter）；CLAUDE.md 從 ~210 行降到 ~112 行，只留標題 + 一句描述 + pointer |
 | 2026-05-23 | 新增 `.claude/rules/` 子資料夾 + 2 個 path-scoped 規則檔（`vendor-sdk-api.md` / `path-conventions.md`）；CLAUDE.md 拆出 🛠️ 廠商 SDK API + 📍 路徑規範 兩節，加 📋 維護原則；CLAUDE.md 從 ~236 行降到 ~210 行 |
