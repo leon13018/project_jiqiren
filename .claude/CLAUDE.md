@@ -190,22 +190,8 @@
 | 使用者背景 | memory: `user-profile` |
 | 部署細節（IP / repo / 路徑） | memory: `project-deployment` |
 | Worktree 完整流程 + cleanup 規則 | memory: `worktree-workflow` |
-
----
-
-## 🛠️ 廠商 SDK 關鍵 API（直接 import 使用）
-
-**`ActionGroupControl`**（播放 `/home/pi/TonyPi/ActionGroups/*.d6a` 動作）
-- `runAction(actName, lock_servos='')`
-- `runActionGroup(actName, times=1, with_stand=False, lock_servos='')`
-- `stopAction()` / `stopActionGroup()`
-
-**`Board`**（舵機 / 蜂鳴器）
-- `setBusServoPulse(id, pulse, use_time)` — 總線舵機，pulse 0–1000
-- `setPWMServoPulse(servo_id, pulse, use_time)` — PWM 舵機 1–2，pulse 500–2500
-- `setBuzzer(state)`
-- 各種 servo getter/setter（deviation / angle limit / temp / vin / pulse）
-
+| 廠商 SDK 關鍵 API（編 .py 時 path-scoped 自動載入） | `.claude/rules/vendor-sdk-api.md` |
+| Linux 路徑規範（寫 code / Pi 設定時 path-scoped 自動載入） | `.claude/rules/path-conventions.md` |
 ---
 
 ## ⚙️ 操作習慣
@@ -216,21 +202,9 @@
 
 ---
 
-## 📍 路徑規範（寫程式 / 設定檔時必遵守）
+## 📋 維護原則
 
-程式最終在 **Raspberry Pi 4 (Linux)** 上執行，所有檔案路徑必須符合：
-
-1. **Linux 路徑格式** — 正斜線 `/`，不用反斜線 `\`；大小寫敏感。
-2. **絕對路徑** — 從 `/` 開始的完整路徑；**不要**用：
-   - Windows 路徑（`C:\Users\...`）
-   - 相對路徑（依賴執行時 cwd，容易在不同呼叫方式下失效）
-   - `~` 或 `~/`（bash 引號內 / subprocess / 某些 context 不會展開）
-
-### 常用 Pi 端絕對路徑
-
-| 用途 | 路徑 |
-|---|---|
-| 專案根目錄 | `/home/pi/Desktop/project_jiqiren` |
-| 廠商動作檔（`.d6a`） | `/home/pi/TonyPi/ActionGroups/` |
-| 廠商 SDK | `/home/pi/TonyPi/HiwonderSDK/` |
-| Pi 使用者家目錄 | `/home/pi` |
+- **本檔保持 < 200 行**（官方建議；超過會消耗 context 並降低遵守度）。
+- **條件性 / 路徑特定規則**（只在編特定檔案類型才需要的）→ 拆到 `.claude/rules/<topic>.md` 加 `paths: [...]` frontmatter，做 path-scoped 載入（Claude 動到符合檔案時才進 context）。
+- **意圖觸發規則**（如 🚦 Pi 端動作判斷、📂 結構變更判斷）→ 留 CLAUDE.md，因為無法用 file path 描述觸發條件。
+- 維護用 metadata（最後審查日期、人類備註）可用 `<!-- HTML 註解 -->` — 不會進 Claude context；但 git log 通常已足，不必過度使用。
