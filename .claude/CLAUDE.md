@@ -56,6 +56,7 @@
 2. **編輯**：subagent / team 在 worktree 內改檔 + commit（明確列檔名 `git add <files>`，禁用 `-A` / `.`）。
 3. **審查**：主 agent Read worktree 內檔案，逐項對照 CLAUDE.md 規範。不合規退回重做。
 3a. **（條件性）撰寫 Pi 端操作說明書**：階段 3 審查通過後，主 agent 統整「subagent 回報 + 自身判斷」，確認本輪變更**實際**涉及任何 Pi 端動作（見下方「🚦 Pi 端操作觸發條件」節）→ **新增一個檔**到 `resources/pineedtodo/<檔名>.md`（**append-only：既有檔不動**），在 worktree 內 `git add` + `git commit`（subagent 的 code commit 之上多一個 commit）。不觸發直接進階段 4。
+3b. **（條件性）更新 projectStructure.md**：階段 3 審查通過後，主 agent 判斷本輪變更是否**改動到專案資料結構**（觸發清單見下方「📂 專案資料結構維護觸發條件」節）→ 觸發則編輯 `resources/projectStructure/projectStructure.md`（目錄樹 + 職責表 + 更新紀錄），在 worktree 內一併 `git add` + `git commit`（可與 3a 的 commit 合併為單一 commit）。不觸發直接進階段 4。
 4. **收尾（合規後）**：
    - `ExitWorktree(action="keep")` → 切回主 checkout
    - `git merge worktree-<task-name> --ff-only`
@@ -90,6 +91,7 @@
 **觸發時依序執行（5 步）：**
 1. `git status` + `git diff` 確認變更範圍
 1a. **（條件性）撰寫 Pi 端操作說明書**：若本輪變更涉及 Pi 端動作（見下方「🚦 Pi 端操作觸發條件」節），主 agent **新增一個檔**到 `resources/pineedtodo/<檔名>.md`（**append-only：既有檔不動**），納入下一步的 `git add`。不觸發直接跳過。
+1b. **（條件性）更新 projectStructure.md**：若本輪變更改動到專案資料結構（見下方「📂 專案資料結構維護觸發條件」節），主 agent 編輯 `resources/projectStructure/projectStructure.md`（目錄樹 + 職責表 + 更新紀錄），納入下一步的 `git add`。不觸發直接跳過。
 2. `git add <具體檔名>`（不用 `-A` / `.`）
 3. `git commit -m "..."` 英文簡短訊息，附 `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>`
 4. `git push origin main`
@@ -137,6 +139,29 @@
 - Read `resources/requirements/raspberry_pi_setup.md` → 把使用者**明確**回報成功的項目（套件名 / 啟用項 / 服務名）加進對應區塊 → 標準 5 步收尾流程（純文件編輯例外，主 agent 自己改）
 - **禁止自動推測 / 假設使用者已裝什麼**，必須有明確回報才寫
 - 失敗 / 未回報項目絕不寫入
+
+---
+
+## 📂 專案資料結構維護觸發條件（給上面兩個工作流程內 1b / 3b 步驟參考）
+
+主 agent 在審查後須判斷本輪變更是否會**動到專案目錄結構**（不論 tracked 或 gitignored）。
+
+**觸發 ✅：**
+- 新增 / 刪除 / 移動 / 改名 **檔案**
+- 新增 / 刪除 / 移動 / 改名 **資料夾**
+- **包括 gitignored 路徑下的變動**（例如 `resources/userPrompt/` 內新增檔案）
+- 修改 `.gitignore`（會改變 projectStructure.md 內 tracked vs ignored 標註）
+
+**不觸發 ❌：**
+- 純內容修改（檔名 / 路徑不變）
+- commit message / git config 等不影響結構的變動
+
+**輸出位置與主 agent 動作：**
+- 編輯 `resources/projectStructure/projectStructure.md`
+- 同步更新：(1) 完整結構目錄樹、(2) 對應職責表（新檔加職責；刪掉的撤行）、(3) 「更新紀錄」加一行 `<YYYY-MM-DD>` 簡述變更
+
+**場景 B：使用者手動改結構 → 回報 → 主 agent 更新**
+使用者在 VSCode / 檔案總管手動改了目錄結構 → 跟主 agent 回報「我改了 X」→ 主 agent 觸發此事件，純文件編輯例外，走「✅ 標準任務收尾循環」5 步收尾。
 
 ---
 
