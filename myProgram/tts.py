@@ -64,6 +64,17 @@ class TtsWorker:
             except Exception as e:
                 print(f"[語音] TTS 失敗：{e}")
 
+    def shutdown(self) -> None:
+        """主程式退出時呼叫：終止當前播放 + 清空 queue（mpg123 孤兒不會自動退）。"""
+        with self._lock:
+            if self._proc and self._proc.poll() is None:
+                self._proc.terminate()
+            while not self._q.empty():
+                try:
+                    self._q.get_nowait()
+                except queue.Empty:
+                    break
+
 
 tts_worker = TtsWorker()
 
@@ -71,6 +82,11 @@ tts_worker = TtsWorker()
 def say(text: str) -> None:
     """對外 API：非阻塞語音播放。"""
     tts_worker.say(text)
+
+
+def shutdown() -> None:
+    """對外 API：終止當前播放與佇列。"""
+    tts_worker.shutdown()
 
 
 # 保留舊名稱以相容（若有其他 import）

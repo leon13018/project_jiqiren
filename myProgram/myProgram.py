@@ -9,7 +9,7 @@ import time
 import ActionGroupControl as Act
 import robot_actions as ra
 from screen_display import POSScreen
-from tts import say
+from tts import say, shutdown as tts_shutdown
 
 # ── 全域狀態 ───────────────────────────────────────────────────
 screen        = POSScreen()
@@ -65,11 +65,15 @@ class ActionWorker:
     def do(self, fn, *args, **kwargs):
         """非阻塞：終止當前動作 + 清空 queue + 入新任務。"""
         self._cancel.set()
-        try:
-            Act.stopAction()
-            Act.stopActionGroup()
-        except Exception:
-            pass
+        # 重要：vendor stop_action 是 sticky 旗號（只在 runAction 迴圈內消耗），
+        # 若空轉時呼叫會污染下一次 runAction → 一進入就被打斷。
+        # 因此只在實際有動作執行中才呼叫 stopAction。
+        if Act.runningAction:
+            try:
+                Act.stopAction()
+                Act.stopActionGroup()
+            except Exception:
+                pass
         while not self._q.empty():
             try:
                 self._q.get_nowait()
@@ -294,6 +298,15 @@ def command_dispatcher():
         line = cmd_queue.get()
         cmd = line.lower()
         if cmd == 'q':
+            # 主動終止當前 TTS（mpg123 是孤兒進程，父程序退出不會自動殺）
+            tts_shutdown()
+            # 主動停止任何進行中的廠商動作組
+            if Act.runningAction:
+                try:
+                    Act.stopAction()
+                    Act.stopActionGroup()
+                except Exception:
+                    pass
             # 切回主線程關閉 tkinter
             screen.root.after(0, screen.close)
             break
