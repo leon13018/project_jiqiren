@@ -28,11 +28,12 @@ Project_01/
 │
 ├── sync_pi.ps1                           # Windows 端 SSH 部署腳本（gitignored）
 │
-├── myProgram/                            # 主程式資料夾（incremental rebuild 中；S1 後將新增主程式）
+├── myProgram/                            # 主程式資料夾（incremental rebuild 中：S1 已完成）
+│   ├── myProgram.py                      # ✍️ 自寫 S1 — 純單線程對話骨架（無語音 / 動作 / UI / threading）
 │   ├── ActionGroupControl.py             # 🚫 廠商 SDK — Hiwonder TonyPi，禁止修改
 │   └── Board.py                          # 🚫 廠商 SDK — Hiwonder TonyPi，禁止修改
-│   # 2026-05-23 incremental rebuild：myProgram.py / tts.py / robot_actions.py / screen_display.py
-│   # 歸檔到 resources/examples/legacy_threading_v1/。從 S1 起逐步新建。
+│   # 2026-05-23 incremental rebuild：tts.py / robot_actions.py / screen_display.py 歸檔
+│   # 到 resources/examples/legacy_threading_v1/。後續 S2-S7 逐步加層。
 │
 └── resources/                            # 開發 / 部署參考資源（2026-05-22 重構：大部分 tracked）
     ├── presentation/                     # gitignored — 大檔不入 git
@@ -89,11 +90,11 @@ resources/userPrompt/
 
 ### 自寫程式碼（myProgram/）
 
-**狀態（2026-05-23 incremental rebuild 進行中）**：myProgram/ 下自寫的 4 個 .py 已歸檔到 `resources/examples/legacy_threading_v1/`，從 S1 起逐步新建。預計檔案：
+**狀態（2026-05-23 incremental rebuild 進行中）**：myProgram/ 下自寫的 4 個 .py 已歸檔到 `resources/examples/legacy_threading_v1/`，從 S1 起逐步新建。
 
-| 檔案 | 引入階段 | 預計職責 |
+| 檔案 | 引入階段 | 職責 |
 |---|---|---|
-| `myProgram.py` | S1 | 主迴圈 + dialogue 邏輯（純單線程）|
+| `myProgram.py` | **S1 ✅ 已建** | 純單線程對話：PRODUCTS / 識別函數 / customer_session / main（無 timeout / 無 threading）|
 | `tts.py` | S2 | 同步阻塞 `speak()`（S4 起擴為非阻塞 TtsWorker）|
 | `robot_actions.py` | S3 | 同步動作（S5 起擴為非阻塞 ActionWorker）|
 
@@ -154,3 +155,4 @@ resources/userPrompt/
 | 2026-05-23 | TTS 沒聲音 debug → 發現 Python interpreter mismatch（3.11 缺 pyserial 等廠商 SDK 依賴，3.7 缺 edge-tts）；新增 pineedtodo `2026-05-23_python311_vendor_deps.md` 統整所有廠商 SDK pip 依賴補裝指令 + 迭代驗證流程 |
 | 2026-05-23 | 接續上輪 debug，實際迭代踩了 3 個 Buster + piwheels 坑（RPi.GPIO piwheels GLIBC_2.34 不相容 / Python 3.11.9 source build 沒含 `_tkinter` / piwheels 連 Pillow 9 都連結 libtiff.so.6）；新增 pineedtodo `2026-05-23_python311_rebuild_pillow_libtiff.md` 記錄修補（source build pip / apt tk-dev+tcl-dev 並 rebuild Python / apt libtiff5-dev 並 source build Pillow 9）；`raspberry_pi_setup.md` 補進確認裝上的 8 個 apt + 9 個 pip 套件 |
 | 2026-05-23 | 第一輪多線程重構（commit `42291c8` + `a95507f`）後實測「按 y 不一致 / 動作 / 語音被打斷 / 反覆切換亂掉」，根因為 vendor `stop_action` sticky 旗號 + `has_customer` 雙 queue 分流 race。決定 incremental rebuild：歸檔 4 個自寫 .py 到 `resources/examples/legacy_threading_v1/`（含 README 紀錄踩坑）；新增 `.claude/rules/incremental-rebuild.md`（S1-S7 模板 + 核心原則）；CLAUDE.md 加 🔁 Incremental rebuild 段 + pointer；memory 新增 3 條（`incremental-rebuild-pattern` / `vendor-stop-action-sticky` / `single-queue-preference`）|
+| 2026-05-23 | **S1 完成**：新建 `myProgram/myProgram.py`（115 行純單線程對話骨架）— PRODUCTS / 關鍵字 / 識別函數 / customer_session / main 主迴圈；無 timeout / 無 threading / 不 import 任何後續 .py。商品與舊版一致（冰紅茶 + 刮刮樂全場九折）。等待使用者測 OK 才開 S2（同步語音）|
