@@ -1,7 +1,7 @@
 # 專案目錄結構
 
 > 本檔案記錄整個專案的資料夾與檔案結構，方便日後快速查閱。
-> 最後更新：2026-05-23（incremental rebuild bootstrap：歸檔 legacy_threading_v1 + 新增 incremental-rebuild rule）
+> 最後更新：2026-05-24（S1 v2 預備：清空 myProgram.py + 新增空 sales_logic.py 骨架）
 
 ---
 
@@ -28,12 +28,14 @@ Project_01/
 │
 ├── sync_pi.ps1                           # Windows 端 SSH 部署腳本（gitignored）
 │
-├── myProgram/                            # 主程式資料夾（incremental rebuild 中：S1 已完成）
-│   ├── myProgram.py                      # ✍️ 自寫 S1 — 純單線程對話骨架（無語音 / 動作 / UI / threading）
+├── myProgram/                            # 主程式資料夾（S1 v2 重做中：業務邏輯改 5 層狀態機）
+│   ├── myProgram.py                      # ✍️ 入口（暫空）— S1 v2 完成後負責 import sales_logic 並啟動
+│   ├── sales_logic.py                    # ✍️ 業務邏輯主檔（暫空）— S1 v2 將實作 5 層狀態機
 │   ├── ActionGroupControl.py             # 🚫 廠商 SDK — Hiwonder TonyPi，禁止修改
 │   └── Board.py                          # 🚫 廠商 SDK — Hiwonder TonyPi，禁止修改
 │   # 2026-05-23 incremental rebuild：tts.py / robot_actions.py / screen_display.py 歸檔
 │   # 到 resources/examples/legacy_threading_v1/。後續 S2-S7 逐步加層。
+│   # 2026-05-24 S1 v1（115 行單檔）清空重做為「入口 + 業務邏輯」分離結構。
 │
 └── resources/                            # 開發 / 部署參考資源（2026-05-22 重構：大部分 tracked）
     ├── presentation/                     # gitignored — 大檔不入 git
@@ -90,11 +92,12 @@ resources/userPrompt/
 
 ### 自寫程式碼（myProgram/）
 
-**狀態（2026-05-23 incremental rebuild 進行中）**：myProgram/ 下自寫的 4 個 .py 已歸檔到 `resources/examples/legacy_threading_v1/`，從 S1 起逐步新建。
+**狀態（2026-05-24 S1 v2 重做進行中）**：S1 v1（115 行單檔）2026-05-24 清空。改為「入口 + 業務邏輯」分離結構；業務邏輯按 5 層狀態機重做（L1 模式選擇 / L2 詢問需求 / L3 額外需求 / L4 印金額掃碼 / L5 謝謝惠顧）。
 
 | 檔案 | 引入階段 | 職責 |
 |---|---|---|
-| `myProgram.py` | **S1 ✅ 已建** | 純單線程對話：PRODUCTS / 識別函數 / customer_session / main（無 timeout / 無 threading）|
+| `myProgram.py` | S1 v2（暫空）| 入口：未來 `from sales_logic import run; run()`，保持簡潔 |
+| `sales_logic.py` | S1 v2（暫空）| 業務邏輯主檔：5 層狀態機（純單線程、無語音 / 動作 / threading；時間 / 視覺 stub）|
 | `tts.py` | S2 | 同步阻塞 `speak()`（S4 起擴為非阻塞 TtsWorker）|
 | `robot_actions.py` | S3 | 同步動作（S5 起擴為非阻塞 ActionWorker）|
 
@@ -156,3 +159,4 @@ resources/userPrompt/
 | 2026-05-23 | 接續上輪 debug，實際迭代踩了 3 個 Buster + piwheels 坑（RPi.GPIO piwheels GLIBC_2.34 不相容 / Python 3.11.9 source build 沒含 `_tkinter` / piwheels 連 Pillow 9 都連結 libtiff.so.6）；新增 pineedtodo `2026-05-23_python311_rebuild_pillow_libtiff.md` 記錄修補（source build pip / apt tk-dev+tcl-dev 並 rebuild Python / apt libtiff5-dev 並 source build Pillow 9）；`raspberry_pi_setup.md` 補進確認裝上的 8 個 apt + 9 個 pip 套件 |
 | 2026-05-23 | 第一輪多線程重構（commit `42291c8` + `a95507f`）後實測「按 y 不一致 / 動作 / 語音被打斷 / 反覆切換亂掉」，根因為 vendor `stop_action` sticky 旗號 + `has_customer` 雙 queue 分流 race。決定 incremental rebuild：歸檔 4 個自寫 .py 到 `resources/examples/legacy_threading_v1/`（含 README 紀錄踩坑）；新增 `.claude/rules/incremental-rebuild.md`（S1-S7 模板 + 核心原則）；CLAUDE.md 加 🔁 Incremental rebuild 段 + pointer；memory 新增 3 條（`incremental-rebuild-pattern` / `vendor-stop-action-sticky` / `single-queue-preference`）|
 | 2026-05-23 | **S1 完成**：新建 `myProgram/myProgram.py`（115 行純單線程對話骨架）— PRODUCTS / 關鍵字 / 識別函數 / customer_session / main 主迴圈；無 timeout / 無 threading / 不 import 任何後續 .py。商品與舊版一致（冰紅茶 + 刮刮樂全場九折）。等待使用者測 OK 才開 S2（同步語音）|
+| 2026-05-24 | **S1 v2 預備**：S1 v1 經實測發現業務邏輯瑕疵（重複加單 / 無修改數量機制 / 無確認流程），決定重做為 5 層狀態機。本輪僅做架構準備：清空 `myProgram/myProgram.py`、新增空 `myProgram/sales_logic.py`（之後業務邏輯都寫此檔，`myProgram.py` 只當入口 import）|
