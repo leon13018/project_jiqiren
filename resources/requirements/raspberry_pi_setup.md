@@ -13,10 +13,27 @@
 ## apt 系統套件
 
 - mpg123
+- tk-dev
+- tcl-dev
+- libjpeg-dev
+- zlib1g-dev
+- libfreetype6-dev
+- liblcms2-dev
+- libtiff5-dev
+- libwebp-dev
 
-## pip Python 套件
+## pip Python 套件（Python 3.11）
 
 - edge-tts
+- pyserial
+- RPi.GPIO（source build，跳過 piwheels）
+- pigpio
+- smbus2
+- numpy
+- Pillow 9.5.0（source build with libtiff5-dev，連結系統 libtiff.so.5）
+- qrcode
+- opencv-python
+- wheel
 
 ## raspi-config 啟用項
 
@@ -28,4 +45,4 @@
 
 ## 其他手動設定（音量 / 權限 / 設定檔 / 服務啟動等）
 
-- Python 3.11.9（edge-tts 依賴，原 Pi OS 內建版本不足）
+- Python 3.11.9 source build（edge-tts 依賴，原 Pi OS 內建版本不足；2026-05-23 加裝 tk-dev / tcl-dev 後 rebuild，使 `_tkinter` 編進 stdlib）
