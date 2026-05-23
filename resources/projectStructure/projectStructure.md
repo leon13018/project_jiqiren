@@ -1,7 +1,7 @@
 # 專案目錄結構
 
 > 本檔案記錄整個專案的資料夾與檔案結構，方便日後快速查閱。
-> 最後更新：2026-05-23（python3.11 rebuild + Pillow source build 補記）
+> 最後更新：2026-05-23（incremental rebuild bootstrap：歸檔 legacy_threading_v1 + 新增 incremental-rebuild rule）
 
 ---
 
@@ -21,19 +21,18 @@ Project_01/
 │       ├── standard-workflow.md          # 標準收尾循環 5 步完整版（無 paths）
 │       ├── pi-side-trigger.md            # 🚦 Pi 端操作觸發條件完整版（無 paths）
 │       ├── projectstructure-trigger.md   # 📂 結構維護觸發條件完整版（無 paths）
-│       └── threading-conventions.md      # 多線程規範；path-scoped, paths: myProgram/**/*.py
+│       ├── threading-conventions.md      # 多線程規範；path-scoped, paths: myProgram/**/*.py
+│       └── incremental-rebuild.md        # 🔁 Incremental rebuild 流程 + S1-S7 模板（無 paths）
 │
 ├── .gitignore                            # Git 忽略清單（2026-05-22 重構為精準排除）
 │
 ├── sync_pi.ps1                           # Windows 端 SSH 部署腳本（gitignored）
 │
-├── myProgram/                            # 主程式資料夾（所有 .py 在此）
-│   ├── myProgram.py                      # ✍️ 自寫 — 主程式：狀態機、規則匹配、點餐、結帳
-│   ├── screen_display.py                 # ✍️ 自寫 — Tkinter POS 螢幕（訂單、QR Code）
-│   ├── robot_actions.py                  # ✍️ 自寫 — 機器人動作封裝（頭部 / 四肢）
-│   ├── tts.py                            # ✍️ 自寫 — edge-tts 雲端 TTS 封裝（zh-TW-HsiaoChenNeural）
+├── myProgram/                            # 主程式資料夾（incremental rebuild 中；S1 後將新增主程式）
 │   ├── ActionGroupControl.py             # 🚫 廠商 SDK — Hiwonder TonyPi，禁止修改
 │   └── Board.py                          # 🚫 廠商 SDK — Hiwonder TonyPi，禁止修改
+│   # 2026-05-23 incremental rebuild：myProgram.py / tts.py / robot_actions.py / screen_display.py
+│   # 歸檔到 resources/examples/legacy_threading_v1/。從 S1 起逐步新建。
 │
 └── resources/                            # 開發 / 部署參考資源（2026-05-22 重構：大部分 tracked）
     ├── presentation/                     # gitignored — 大檔不入 git
@@ -59,7 +58,13 @@ Project_01/
     │   └── plan_tts_1                    # 初版 edge-tts 接入 plan 草稿
     │
     └── examples/                         # tracked — 廠商已驗證範例代碼（2026-05-23 加入）
-        └── 機器人動作結合opencv的多線程使用范例.py  # 廠商多線程範例：cv2 主線程 + 動作背景線程
+        ├── 機器人動作結合opencv的多線程使用范例.py  # 廠商多線程範例：cv2 主線程 + 動作背景線程
+        └── legacy_threading_v1/          # 2026-05-23 歸檔：第一輪多線程重構成果（incremental rebuild 前）
+            ├── README.md                  # 設計重點、踩到的坑、可參考的 pattern
+            ├── myProgram.py               # 主迴圈 + ActionWorker + input_reader + command_dispatcher
+            ├── tts.py                     # TtsWorker（中斷式 say + Popen handle + terminate）
+            ├── robot_actions.py           # 組合動作 + cancel event
+            └── screen_display.py          # tkinter POSScreen + thread-safe _poll_queue
 ```
 
 ---
@@ -84,12 +89,13 @@ resources/userPrompt/
 
 ### 自寫程式碼（myProgram/）
 
-| 檔案 | 職責 |
-|---|---|
-| `myProgram.py` | 主程式入口；全域狀態（`has_customer`, `waiting_for_order`）、商品目錄、規則匹配、叫賣循環、顧客服務流程 |
-| `screen_display.py` | `POSScreen` 類別；Tkinter 視窗、queue 執行緒安全、`show_welcome()` / `update_order()` |
-| `robot_actions.py` | 動作封裝；`nod_head` / `shake_head` / `look_forward` / `action_idle` / `action_greet` / `action_pay` |
-| `tts.py` | edge-tts 雲端 TTS 封裝；同步阻塞 `speak()`、`threading.Lock` 序列化、自動退回純 print（套件 / 網路失敗時） |
+**狀態（2026-05-23 incremental rebuild 進行中）**：myProgram/ 下自寫的 4 個 .py 已歸檔到 `resources/examples/legacy_threading_v1/`，從 S1 起逐步新建。預計檔案：
+
+| 檔案 | 引入階段 | 預計職責 |
+|---|---|---|
+| `myProgram.py` | S1 | 主迴圈 + dialogue 邏輯（純單線程）|
+| `tts.py` | S2 | 同步阻塞 `speak()`（S4 起擴為非阻塞 TtsWorker）|
+| `robot_actions.py` | S3 | 同步動作（S5 起擴為非阻塞 ActionWorker）|
 
 ### 廠商 SDK（myProgram/，禁止修改）
 
@@ -116,6 +122,7 @@ resources/userPrompt/
 | `.claude/rules/pi-side-trigger.md` | 🚦 Pi 端操作觸發條件完整版（無 paths） |
 | `.claude/rules/projectstructure-trigger.md` | 📂 結構維護觸發條件完整版（無 paths） |
 | `.claude/rules/threading-conventions.md` | 多線程規範（cv2 / tkinter 主線程、動作 / TTS 背景線程、asyncio / subprocess 地雷區）；path-scoped, paths: `myProgram/**/*.py` |
+| `.claude/rules/incremental-rebuild.md` | 🔁 架構難收斂時的 S1-S7 重做模板 + 核心原則（無 paths，啟動載入）|
 | `.claude/settings.local.json` | Claude Code 本機設定（gitignored）|
 | `.claude/worktrees/` | EnterWorktree 建立的暫存工作目錄（gitignored；任務完成後 cleanup） |
 
@@ -129,7 +136,8 @@ resources/userPrompt/
 | `pineedtodo/` | **per-task Pi 端操作說明書** — append-only，每輪有 Pi 動作時新增一檔（檔名 `<YYYY-MM-DD>_<short_name>.md`）|
 | `projectStructure/projectStructure.md` | 本檔案 — 專案目錄結構 |
 | `plans/` | plan 草稿（plan mode 討論結果 / 任務藍圖）|
-| `examples/` | **廠商已驗證範例代碼** — 廠商寫好且在機器人上測試成功的示範碼；可參考做 pattern、可仿、可改（與 `myProgram/` 的廠商 SDK 本體不同，那些禁改）|
+| `examples/` | **廠商已驗證範例代碼 + 歸檔舊版** — 廠商寫好且在機器人上測試成功的示範碼；可參考做 pattern、可仿、可改（與 `myProgram/` 的廠商 SDK 本體不同，那些禁改）|
+| `examples/legacy_threading_v1/` | 2026-05-23 第一輪多線程重構成果歸檔（4 個 .py + README）；incremental rebuild 前的舊版設計，留作參考。內含 README 說明踩到的坑（vendor stop_action sticky / has_customer 分流 race）|
 
 ---
 
@@ -145,3 +153,4 @@ resources/userPrompt/
 | 2026-05-23 | 使用者新增 `resources/examples/` 資料夾收納廠商已驗證範例代碼，加入第 1 份廠商範例（cv2 + 動作多線程）；主 agent 由此範例抽出多線程規範 `.claude/rules/threading-conventions.md`（path-scoped to `myProgram/**/*.py`）；CLAUDE.md 🔗 查閱表加 2 行 |
 | 2026-05-23 | TTS 沒聲音 debug → 發現 Python interpreter mismatch（3.11 缺 pyserial 等廠商 SDK 依賴，3.7 缺 edge-tts）；新增 pineedtodo `2026-05-23_python311_vendor_deps.md` 統整所有廠商 SDK pip 依賴補裝指令 + 迭代驗證流程 |
 | 2026-05-23 | 接續上輪 debug，實際迭代踩了 3 個 Buster + piwheels 坑（RPi.GPIO piwheels GLIBC_2.34 不相容 / Python 3.11.9 source build 沒含 `_tkinter` / piwheels 連 Pillow 9 都連結 libtiff.so.6）；新增 pineedtodo `2026-05-23_python311_rebuild_pillow_libtiff.md` 記錄修補（source build pip / apt tk-dev+tcl-dev 並 rebuild Python / apt libtiff5-dev 並 source build Pillow 9）；`raspberry_pi_setup.md` 補進確認裝上的 8 個 apt + 9 個 pip 套件 |
+| 2026-05-23 | 第一輪多線程重構（commit `42291c8` + `a95507f`）後實測「按 y 不一致 / 動作 / 語音被打斷 / 反覆切換亂掉」，根因為 vendor `stop_action` sticky 旗號 + `has_customer` 雙 queue 分流 race。決定 incremental rebuild：歸檔 4 個自寫 .py 到 `resources/examples/legacy_threading_v1/`（含 README 紀錄踩坑）；新增 `.claude/rules/incremental-rebuild.md`（S1-S7 模板 + 核心原則）；CLAUDE.md 加 🔁 Incremental rebuild 段 + pointer；memory 新增 3 條（`incremental-rebuild-pattern` / `vendor-stop-action-sticky` / `single-queue-preference`）|
