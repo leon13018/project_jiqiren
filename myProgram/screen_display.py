@@ -15,7 +15,7 @@ class POSScreen:
         self.root.protocol("WM_DELETE_WINDOW", self.close)
 
         self._q = queue.Queue()      # 唯一執行緒安全的通道
-        self._poll_queue()           # 從主執行緒啟動輪詢（安全）
+        self.root.after(50, self._poll_queue)  # 排入 mainloop 後啟動輪詢
 
         self.title_label = tk.Label(self.root, font=("微軟正黑體", 24, "bold"), bg='white')
         self.order_label = tk.Label(self.root, font=("微軟正黑體", 18), bg='white')
