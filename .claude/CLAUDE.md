@@ -57,6 +57,13 @@ git 內核 5 步（status → add → commit → push → sync），內嵌在 Wo
 
 ---
 
+## 🔁 Incremental rebuild 流程
+
+當架構出現「多線程 + 多 queue + 旗號狀態交互產生不穩 bug」、debug 範圍難收斂時，**不要繼續打補丁**，改走 S1-S7 incremental rebuild：每步只加一層複雜度、實機測完才下一步。
+→ **詳細：`.claude/rules/incremental-rebuild.md`**
+
+---
+
 ## 🌐 部署資訊
 
 | 項目 | 值 |
@@ -84,6 +91,7 @@ git 內核 5 步（status → add → commit → push → sync），內嵌在 Wo
 | 廠商 SDK 關鍵 API（編 .py 時 path-scoped 自動載入） | `.claude/rules/vendor-sdk-api.md` |
 | Linux 路徑規範（寫 code / Pi 設定時 path-scoped 自動載入） | `.claude/rules/path-conventions.md` |
 | 多線程規範（編 `myProgram/*.py` path-scoped 自動載入） | `.claude/rules/threading-conventions.md` |
+| Incremental rebuild 流程（架構難收斂時的 S1-S7 模板） | `.claude/rules/incremental-rebuild.md` |
 | 廠商已驗證範例代碼（學 pattern 用，可讀可仿） | `resources/examples/` |
 | 廠商 SDK 完整 API 清單 + 禁改背景 | memory: `vendor-files` |
 | 派發協議：心態原則 / 規則對應表 | memory: `subagent-dispatch` |
