@@ -83,6 +83,8 @@ git 內核 5 步（status → add → commit → push → sync），內嵌在 Wo
 | 專案資料結構維護觸發完整條件 | `.claude/rules/projectstructure-trigger.md` |
 | 廠商 SDK 關鍵 API（編 .py 時 path-scoped 自動載入） | `.claude/rules/vendor-sdk-api.md` |
 | Linux 路徑規範（寫 code / Pi 設定時 path-scoped 自動載入） | `.claude/rules/path-conventions.md` |
+| 多線程規範（編 `myProgram/*.py` path-scoped 自動載入） | `.claude/rules/threading-conventions.md` |
+| 廠商已驗證範例代碼（學 pattern 用，可讀可仿） | `resources/examples/` |
 | 廠商 SDK 完整 API 清單 + 禁改背景 | memory: `vendor-files` |
 | 派發協議：心態原則 / 規則對應表 | memory: `subagent-dispatch` |
 | Worktree：視野範圍速查 / cleanup 原理 | memory: `worktree-workflow` |

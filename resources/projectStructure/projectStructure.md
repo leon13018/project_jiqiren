@@ -1,7 +1,7 @@
 # 專案目錄結構
 
 > 本檔案記錄整個專案的資料夾與檔案結構，方便日後快速查閱。
-> 最後更新：2026-05-23
+> 最後更新：2026-05-23（threading-conventions + examples/）
 
 ---
 
@@ -20,7 +20,8 @@ Project_01/
 │       ├── worktree-workflow.md          # Worktree 5 階段流程完整版（無 paths）
 │       ├── standard-workflow.md          # 標準收尾循環 5 步完整版（無 paths）
 │       ├── pi-side-trigger.md            # 🚦 Pi 端操作觸發條件完整版（無 paths）
-│       └── projectstructure-trigger.md   # 📂 結構維護觸發條件完整版（無 paths）
+│       ├── projectstructure-trigger.md   # 📂 結構維護觸發條件完整版（無 paths）
+│       └── threading-conventions.md      # 多線程規範；path-scoped, paths: myProgram/**/*.py
 │
 ├── .gitignore                            # Git 忽略清單（2026-05-22 重構為精準排除）
 │
@@ -52,8 +53,11 @@ Project_01/
     ├── projectStructure/                 # tracked
     │   └── projectStructure.md           # 本檔案
     │
-    └── plans/                            # tracked — plan 草稿
-        └── plan_tts_1                    # 初版 edge-tts 接入 plan 草稿
+    ├── plans/                            # tracked — plan 草稿
+    │   └── plan_tts_1                    # 初版 edge-tts 接入 plan 草稿
+    │
+    └── examples/                         # tracked — 廠商已驗證範例代碼（2026-05-23 加入）
+        └── 機器人動作結合opencv的多線程使用范例.py  # 廠商多線程範例：cv2 主線程 + 動作背景線程
 ```
 
 ---
@@ -69,7 +73,7 @@ resources/userPrompt/
 ```
 
 - ✅ `.claude/CLAUDE.md` tracked，push 上 GitHub + sync 到 Pi。
-- ✅ `resources/requirements/`、`resources/pineedtodo/`、`resources/projectStructure/`、`resources/plans/` 全 tracked，會 sync 到 Pi。
+- ✅ `resources/requirements/`、`resources/pineedtodo/`、`resources/projectStructure/`、`resources/plans/`、`resources/examples/` 全 tracked，會 sync 到 Pi。
 - 🚫 `resources/presentation/`（大 PDF）+ `resources/userPrompt/`（個人草稿）+ `sync_pi.ps1`（Windows-only）+ `.claude/settings.local.json`（本機設定）+ `.claude/worktrees/`（暫存）保持 ignored。
 
 ---
@@ -109,6 +113,7 @@ resources/userPrompt/
 | `.claude/rules/standard-workflow.md` | 標準收尾循環 5 步完整版（無 paths） |
 | `.claude/rules/pi-side-trigger.md` | 🚦 Pi 端操作觸發條件完整版（無 paths） |
 | `.claude/rules/projectstructure-trigger.md` | 📂 結構維護觸發條件完整版（無 paths） |
+| `.claude/rules/threading-conventions.md` | 多線程規範（cv2 / tkinter 主線程、動作 / TTS 背景線程、asyncio / subprocess 地雷區）；path-scoped, paths: `myProgram/**/*.py` |
 | `.claude/settings.local.json` | Claude Code 本機設定（gitignored）|
 | `.claude/worktrees/` | EnterWorktree 建立的暫存工作目錄（gitignored；任務完成後 cleanup） |
 
@@ -122,6 +127,7 @@ resources/userPrompt/
 | `pineedtodo/` | **per-task Pi 端操作說明書** — append-only，每輪有 Pi 動作時新增一檔（檔名 `<YYYY-MM-DD>_<short_name>.md`）|
 | `projectStructure/projectStructure.md` | 本檔案 — 專案目錄結構 |
 | `plans/` | plan 草稿（plan mode 討論結果 / 任務藍圖）|
+| `examples/` | **廠商已驗證範例代碼** — 廠商寫好且在機器人上測試成功的示範碼；可參考做 pattern、可仿、可改（與 `myProgram/` 的廠商 SDK 本體不同，那些禁改）|
 
 ---
 
@@ -134,3 +140,4 @@ resources/userPrompt/
 | 2026-05-23 | 新增 `.claude/rules/` 子資料夾 + 2 個 path-scoped 規則檔（`vendor-sdk-api.md` / `path-conventions.md`）；CLAUDE.md 拆出 🛠️ 廠商 SDK API + 📍 路徑規範 兩節，加 📋 維護原則；CLAUDE.md 從 ~236 行降到 ~210 行 |
 | 2026-05-23 | `raspberry_pi_setup.md` 重新定位為「Pi 已安裝清單」（被動更新）；CLAUDE.md「📝 Pi 端要做的事」節廢除，整合進工作流程 1a / 3a；查閱表加 `pineedtodo/` 行；memory 對齊現行規則 |
 | 2026-05-23 | 三層架構建立：CLAUDE.md 各章節詳細內容拆到 `.claude/rules/` 新增 5 個檔（subagent-dispatch-protocol / worktree-workflow / standard-workflow / pi-side-trigger / projectstructure-trigger，無 paths frontmatter）；CLAUDE.md 從 ~210 行降到 ~112 行，只留標題 + 一句描述 + pointer |
+| 2026-05-23 | 使用者新增 `resources/examples/` 資料夾收納廠商已驗證範例代碼，加入第 1 份廠商範例（cv2 + 動作多線程）；主 agent 由此範例抽出多線程規範 `.claude/rules/threading-conventions.md`（path-scoped to `myProgram/**/*.py`）；CLAUDE.md 🔗 查閱表加 2 行 |
