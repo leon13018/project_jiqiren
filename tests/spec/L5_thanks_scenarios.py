@@ -1,0 +1,78 @@
+"""L5 謝謝惠顧（致謝層）BDD scenarios。
+
+對應規格書：resources/plans/業務程式邏輯規劃/L5.md
+階段：BDD（Stage 1）— 僅含 Gherkin 格式行為注解 + 空函式 pass，無實際斷言。
+TDD（Stage 3）由 subagent 把這些 scenarios 搬到 tests/sales/test_states.py 並補實作。
+
+對應 prod 模組（subagent Stage 3 階段決定如何分配）：
+    - 全部 4 scenarios → myProgram/sales/states.py（加 run_l5）
+    - constants.py 追加 `L5_THANKS` 字串
+
+L5 設計約束（最簡單一層）：
+    - **唯一進入**：L4 鏈路 A 掃碼成功
+    - **無顧客互動**：3s 等待期間不接受任何顧客輸入（除全域 q 退出，屬主迴圈級）
+    - **唯一出口**：3s 後自動套用 L0 子例程 A 回 L1
+    - **OpenCV mute**：L5 進入時 mute THANK_DELAY(3s)，與子例程 A 自身 mute OPENCV_MUTE(12s)
+      串接形成總 15s 屏蔽期，防下一顧客在致謝期間誤觸 L2
+    - **cart 清空**：L5 進入時清空（規格敲定 — vs L4-A 不清，由 L5 統一負責）
+
+callback 集合（subagent 自決細節）：
+    - speak(text) — 致謝語音
+    - do_action(name) — 動作 TBD（stub no-op）
+    - mute_opencv(seconds) — 屏蔽 OpenCV
+    - cart — 既有 cart dict（L5 內 clear_cart）
+    - sleep / read_customer_input(timeout) / schedule — 等 3s 的時間排程（任一可選，
+      推薦 sleep callback 因 L5 不需中斷 + 語義最明確）
+
+回傳：tuple `("L1_via_subroutine_a", 0, 0)`（沿用 L4 三態 return tuple shape，
+loop_count 與 unclear_count reset 為 0）
+"""
+
+
+# ============================================================
+# L5-ENTRY：進入時動作（4 個獨立可驗證行為，但「do_action」TBD 不入測試）
+# ============================================================
+
+## L5-ENTRY-001
+### Scenario: 進入 L5 立即啟動 OpenCV mute 屏蔽致謝期間
+### Given 從 L4 鏈路 A（掃碼成功）進入 L5
+### When run_l5 啟動執行進入時動作
+### Then mute_opencv 被呼叫一次，屏蔽 THANK_DELAY（3）秒
+###      （與子例程 A 自身 mute OPENCV_MUTE 串接形成總 15s 屏蔽期）
+def test_l5_entry_mutes_opencv_for_thank_delay() -> None:
+    pass
+
+
+## L5-ENTRY-002
+### Scenario: 進入 L5 播致謝語音
+### Given 從 L4 鏈路 A 進入 L5
+### When run_l5 啟動執行進入時動作
+### Then 系統 speak「謝謝您的光臨，歡迎再度光臨」（L5_THANKS 常數）
+def test_l5_entry_speaks_thanks_message() -> None:
+    pass
+
+
+## L5-ENTRY-003
+### Scenario: 進入 L5 清空 cart 完成交易重置
+### Given 從 L4 鏈路 A 進入 L5，cart 含商品（例：{冰紅茶: 2, 刮刮樂: 1}）
+### When run_l5 啟動執行進入時動作
+### Then cart 被清空（cart_module.clear_cart 被呼叫；cart 內無任何商品）
+###      （規格敲定 — cart 在 L5 進入時清，非 L4-A 掃碼成功時）
+def test_l5_entry_clears_cart() -> None:
+    pass
+
+
+# ============================================================
+# L5-A：致謝完成 → 套子例程 A 回 L1
+# ============================================================
+
+## L5-A-001
+### Scenario: 等待 THANK_DELAY 秒後自動套用子例程 A 回 L1
+### Given L5 進入時動作完成（已 mute / speak / 清空 cart）
+### When 等待 THANK_DELAY（3）秒過後
+### Then 自動套用 L0 子例程 A 回 L1 叫賣，
+###      回傳 ("L1_via_subroutine_a", 0, 0)（沿用 L4 三態 return tuple shape，
+###      loop_count + unclear_count 皆 reset 為 0）
+###      （本層無顧客互動，3s 期間不解析任何關鍵字，除全域 q 屬主迴圈級）
+def test_l5_a_returns_to_l1_via_subroutine_a_after_thank_delay() -> None:
+    pass

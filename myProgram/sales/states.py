@@ -47,6 +47,8 @@ from myProgram.sales.constants import (
     L4_D_VOICE_WARNING,
     L4_SERVICE_TIMEOUT,
     L4_MAX_LOOPS,
+    THANK_DELAY,
+    L5_THANKS,
 )
 from myProgram.sales.nlu import classify_intent, parse_quantity
 from myProgram.sales import cart as cart_module
@@ -942,6 +944,51 @@ def _l4_service_mode(
         # 不命中 → 重複提示
         speak(L4_C_OPTIONS_PROMPT)
         print_terminal(L4_C_OPTIONS_PROMPT)
+
+
+# ============================================================
+# L5：謝謝惠顧（致謝層）
+# ============================================================
+
+def run_l5(
+    speak,
+    do_action,
+    mute_opencv,
+    cart,
+    sleep,
+) -> tuple:
+    """L5 致謝層：最簡單一層，純序列動作，無顧客互動。
+
+    進入時動作（依規格書 L5.md）：
+        1. 立即啟動 OpenCV mute THANK_DELAY 秒（致謝屏蔽期）
+        2. speak 致謝語音（L5_THANKS）
+        3. 清空 cart（交易完成重置）
+        4. 等 THANK_DELAY 秒（sleep callback）
+        5. 套用子例程 A 回 L1（return ("L1_via_subroutine_a", 0, 0)）
+
+    Args:
+        speak: callback(text: str) — 語音播放
+        do_action: callback(name: str) — 動作（規格 TBD，stub no-op）
+        mute_opencv: callback(seconds: float) — 屏蔽 OpenCV 偵測
+        cart: 購物車 dict（L5 內清空）
+        sleep: callback(seconds: float) — 等待（純睡眠，無回傳值）
+
+    Returns:
+        ("L1_via_subroutine_a", 0, 0)
+        （沿用 L4 三態 return tuple shape，loop_count + unclear_count reset 為 0）
+    """
+    # ENTRY-001：進入時立即屏蔽 OpenCV THANK_DELAY 秒
+    mute_opencv(THANK_DELAY)
+
+    # ENTRY-002：speak 致謝語音
+    speak(L5_THANKS)
+
+    # ENTRY-003：清空 cart（交易完成）
+    cart_module.clear_cart(cart)
+
+    # A-001：等 THANK_DELAY 秒後套用子例程 A 回 L1
+    sleep(THANK_DELAY)
+    return ("L1_via_subroutine_a", 0, 0)
 
 
 def _l4_dispatch_response(
