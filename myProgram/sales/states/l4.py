@@ -92,6 +92,8 @@ def run_l4(
             # E 類（unclear_count 更新）
             if isinstance(result, int):
                 unclear_count = result
+                # QR 刷新：E 鏈路顧客無法判斷，重印金額明細模擬 QR code 重新顯示
+                _l4_print_entry_detail(cart, total, print_terminal)
             continue
 
         # 一般等待
@@ -120,6 +122,8 @@ def run_l4(
         # E 類回傳 int（更新後的 unclear_count）
         if isinstance(result, int):
             unclear_count = result
+            # QR 刷新：E 鏈路顧客無法判斷，重印金額明細模擬 QR code 重新顯示
+            _l4_print_entry_detail(cart, total, print_terminal)
             continue
 
         # result is None → C 繼續（loop_count / unclear_count 已在 _l4_service_mode 內 reset）
@@ -127,6 +131,8 @@ def run_l4(
         # 這裡 None 代表繼續（客服繼續後 reset 兩個計數器）
         loop_count = 0
         unclear_count = 0
+        # QR 刷新：客服繼續後重印金額明細，幫助顧客回到 L4 主場景對齊狀態
+        _l4_print_entry_detail(cart, total, print_terminal)
 
 
 def _l4_print_entry_detail(cart, total: int, print_terminal) -> None:

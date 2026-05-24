@@ -52,7 +52,7 @@ def _build_callbacks(state: _S1State) -> dict:
         raw = input("[商家] > ").strip().lower()
         if raw == "c":
             state.opencv_dwell = OPENCV_DWELL + 0.5
-            print("[模擬] OpenCV 偵測到顧客 — 請按任意鍵（或直接 Enter）讓 L1 主迴圈下次 check opencv 觸發轉 L2")
+            print("[模擬] OpenCV 偵測到顧客 → 已自動觸發 L2（hawk loop 下次迭代立即 check opencv，無需再按鍵）")
             return ""  # 不返回有效鍵；由 L1 hawk 主迴圈下次 check opencv
         return raw[:1] if raw else ""
 
