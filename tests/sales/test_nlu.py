@@ -139,6 +139,16 @@ def test_nlu_mei_le_classified_as_checkout() -> None:
     assert nlu.classify_intent("沒有了") == "結帳"
 
 
+def test_nlu_english_no_nope_classified_as_checkout() -> None:
+    """L3 顧客講「no」/「nope」表示「沒了，不想追加」→ 結帳意圖。
+
+    2026-05-25 從 _KEYWORDS_REJECT 移至 _KEYWORDS_CHECKOUT：使用者實測 L3 講 no
+    被誤判 鏈路 A 整單作廢；改 checkout 後 L3 進 L4，L2 變 B-1 clarify（可接受）。
+    """
+    assert nlu.classify_intent("no") == "結帳"
+    assert nlu.classify_intent("nope") == "結帳"
+
+
 # ============================================================
 # L0-NLU-011
 # ============================================================

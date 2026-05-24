@@ -59,9 +59,14 @@ def _build_callbacks(state: _S1State) -> dict:
     def read_customer_input(timeout):
         """讀顧客輸入（語音模擬）。
 
-        空 Enter → 模擬 timeout（return None）；其他 → 返回字串。
+        空 Enter → 模擬 timeout（return None）
+        'q' → S1 wire-up 便利：直接退出程式（production 不會有人講「q」當顧客語音）
+        其他 → 返回字串
         """
-        raw = input(f"[顧客 timeout={timeout}s，空 Enter=timeout] > ").strip()
+        raw = input(f"[顧客 timeout={timeout}s，空 Enter=timeout / q=退出] > ").strip()
+        if raw == "q":
+            print("[系統] 程式結束（顧客層 q 退出）")
+            sys.exit(0)
         return None if raw == "" else raw
 
     # === OpenCV 模擬 ===
