@@ -1,7 +1,7 @@
 # 專案目錄結構
 
 > 本檔案記錄整個專案的資料夾與檔案結構，方便日後快速查閱。
-> 最後更新：2026-05-25（sales 自審 + B 類 refactor 完成：A1 docstring + B2 sleep→read_customer_input + B3 命名統一 + B4 拆 states/ 子資料夾 + B6 函式位置；107 tests PASS 不破）
+> 最後更新：2026-05-25（S1 v2 logic.py 串接 + myProgram.py 入口層 wire-up 完成 — A2-c state machine + A3-d 直 wire callback + A4-c cart invariant fail-fast；既有 107 tests PASS 不破；S1 全套可端對端跑）
 
 ---
 
@@ -56,12 +56,12 @@ Project_01/
 │   # 設計決策（選項 C 純 unit test）：resources/architecture/backend-module-structure.md
 │
 ├── myProgram/                            # 主程式資料夾（S1 v2 重做中：業務邏輯改 5 層狀態機）
-│   ├── myProgram.py                      # ✍️ 入口（暫空）— S1 v2 完成後負責 from sales.logic import run 並啟動
+│   ├── myProgram.py                      # ✅ S1 chat-driven 入口層 wire-up（_S1State + _build_callbacks 12 個 callback → logic.run）
 │   ├── ActionGroupControl.py             # 🚫 廠商 SDK — Hiwonder TonyPi，禁止修改
 │   ├── Board.py                          # 🚫 廠商 SDK — Hiwonder TonyPi，禁止修改
 │   └── sales/                            # ✍️ 後端業務模組（2026-05-24 加入；L0-L5 完成 2026-05-24；B 類 refactor 2026-05-25）
 │       ├── __init__.py                   # 模組標記 + docstring
-│       ├── logic.py                      # 主迴圈 + 5 層 dispatch（仍骨架；下個 session 寫 — 採 A2-c 決策）
+│       ├── logic.py                      # ✅ 主迴圈 + 5 層 cycle dispatch + cart invariant fail-fast（A2-c / A4-c 落地）
 │       ├── constants.py                  # ✅ L0-L5 常數（時間 / 商品 / 叫賣 / L1-L5 字串；B3 命名統一）
 │       ├── nlu.py                        # ✅ L0 純函式（classify_intent + parse_quantity）
 │       ├── cart.py                       # ✅ L0 純函式（new_cart / add_item / calc_total / clear_cart 等）
@@ -159,9 +159,9 @@ __pycache__/
 
 | 檔案 | 引入階段 | 職責 |
 |---|---|---|
-| `myProgram.py` | S1 v2（暫空）| 入口：未來 `from sales.logic import run; run()`，保持簡潔 |
+| `myProgram.py` | S1 v2 ✅ | S1 chat-driven 入口：`_S1State`（OpenCV 模擬狀態）+ `_build_callbacks` 建 12 個 callback → `logic.run(**callbacks)`；`'c'` 鍵模擬 OpenCV 觸發 / 空 Enter 模擬 customer timeout / `schedule` no-op 印警告（S1 單線程不真排程）；try/except SystemExit + KeyboardInterrupt；嚴格不 import 廠商 SDK（S3+ 才接） |
 | `sales/__init__.py` | S1 v2 | 模組標記 + docstring（指向規格書與架構文件）|
-| `sales/logic.py` | S1 v2（暫骨架，L1+ 才實作）| 主迴圈 + 5 層 dispatch；唯一允許持有「外部世界」的進入點 |
+| `sales/logic.py` | S1 v2 ✅ | 主迴圈 + 5 層 cycle dispatch（L1→L2→L3→L4→L5→子例程 A→L1）；持有 cart 為唯一 cycle state（think_count/loop_count/unclear_count 由各 run_l? 內部管理）；每進新層 cart invariant fail-fast assert（`_assert_cart_empty` / `_assert_cart_nonempty`）— 違反立刻 raise AssertionError；callback dict keyword-only 傳入；嚴格不 import 廠商 SDK（選項 C） |
 | `sales/constants.py` | S1 v2 L0-L5 ✅ | L0：7 時間常數 + `PRODUCTS` + `HAWK_SLOGANS`。L1：4 個。L2：6 個。L3：5 個。L4：12 個（含 `L4_SERVICE_TIMEOUT=60` + 4 階段催促模板）。L5（2026-05-24 追加）：`L5_THANKS` |
 | `sales/nlu.py` | S1 v2 L0 ✅ | `classify_intent(text, mode)` 6 步優先序（L4 客服模式吃繼續/退出）+ `parse_quantity(text)` 阿拉伯優先 / 中文映射含異體字 / 預設 1 |
 | `sales/cart.py` | S1 v2 L0 ✅ | 純函式 + dict[str, int]：`new_cart` / `add_item`（同商品累加）/ `get_quantity` / `calc_total`（依 PRODUCTS 實際價）/ `clear_cart` / `is_empty` |
@@ -276,3 +276,4 @@ __pycache__/
 | 2026-05-24 | **L4 BDD+TDD 第一輪完成（嚴格 TDD 無 DEGRADED）**：BDD 階段 1 主 agent 寫 `tests/spec/L4_checkout_scenarios.py`（22 scenarios，L 系列最複雜：客服特殊模式 9 子情境 + 6 次循環 4 階段語氣 + 雙計數器 + dispatcher 過濾 3 類 + E→C 自動串接）。階段 2 plan mode 通過。階段 3 派 Sonnet subagent → 22 scenarios PASS（總 103：L0 37 + L1 12 + L2 14 + L3 18 + L4 22），commit `8624f5e`。`states.py` 加 `run_l4`（**3-tuple 回傳**）+ `_l4_service_mode`（60s timeout 6 種 trigger）+ `_l4_d_speak_loop_voice`（4 階段語氣）+ `_l4_exit_b` / `_l4_exit_d_forced` / `_l4_dispatch_response`（過濾 3 類 + 三態回傳）+ `_l4_print_entry_detail`。`constants.py` 追加 12 個 L4 常數。`test_states.py` 48→70。**Pitfall 結果**：(1) Pitfall 2 commit 範圍成功；(2) **Pitfall 1 嚴格走完未踩** — subagent 採「22 test 一次寫 → 全 fail → prod 一次寫 → 全 PASS」批次模式（同 L0 純函式批次 fail 變體），所有 22 scenarios 的測試都先見過 fail 才寫 prod，符合 Iron Law 字面與精神。對比 L1/L2/L3 是 ENTRY GREEN 一次寫 dispatcher → 後續 scenarios 立即 PASS（未見 fail）— L4 模式不同，prod 不早於任何 test。**主 agent 通過不標 DEGRADED**。下一輪 L5（最後一層）。|
 | 2026-05-24 | **🎉 L5 BDD+TDD 第一輪完成 — 5 層業務邏輯全齊全（L0-L5）**：BDD 階段 1 主 agent 寫 `tests/spec/L5_thanks_scenarios.py`（4 scenarios，最簡單一層：無顧客互動 / 無 dispatcher，純序列 mute→speak→clear_cart→sleep→return）。階段 2 plan mode 通過（推薦新加 `sleep` callback）。階段 3 派 Sonnet subagent → 4 scenarios PASS（總 **107**：L0 37 + L1 12 + L2 14 + L3 18 + L4 22 + L5 4），commit `385e693`。`states.py` 加 `run_l5`（純序列函式約 30 行，採 `sleep` callback）。`constants.py` 追加 `L5_THANKS`。`test_states.py` 70→74（inline lambda stub）。**Iron Law 判定**：ENTRY-001 GREEN 寫完整 `run_l5` 後 scenarios 2-4 立即 PASS，但 L5 是 pure sequence 不是 dispatcher（強行拆 4 個函式逐 RED 屬 over-engineering），每個 scenario 有獨立 assert 驗證對應行為 → **不標 DEGRADED**（pure sequence prod 灰色地帶接受）。**🏁 5 層業務邏輯齊全里程碑** — 接下來可寫 `myProgram.py` 入口層 wire-up callback / S2 接 edge-tts / S3 加機器人動作 / HTML 前端開工（觸發 architecture decisions）。|
 | 2026-05-25 | **sales 自審 + B 類 refactor 完成**：主 agent 寫 `resources/plans/sales_自審報告_2026-05-24.md`（commit `a8c2275`）列 A/B 兩類疑點與使用者討論。A 類決策：A1 立即修；A2 採 A2-c（logic.py 寫 state-machine dispatch，callback wire-up 在 myProgram.py）；A3 採 A3-d（先按現況跑 wire-up 驗證痛點）；A4 採 A4-a + A4-c（信任規格 + 入口層加 invariant check）。B 類 refactor 3 個 commit：(1) `3ed2faf` A1 docstring + B3 命名統一（5 個 _ENTRY_PROMPT）+ B6 _schedule_hawk_l1 函式位置；(2) `3d0f141` B2 L5 sleep→read_customer_input；(3) `c35345f` B4 拆 `states.py` 1085 行→`states/` 子資料夾 6 檔（subroutine_a / l1 / l2 / l3 / l4 / l5）+ `__init__.py` re-export（import path 不變）。**B 類推遲 / 不修**：B1+B7（return shape 統一）跟 A2 logic.py 設計強耦合 → 推遲到 logic.py 寫好後一起決定；B5（dispatch_response 重複）分支獨立 evolve 安全 → 不修。pytest 107/107 全程 PASS 不破。下一輪寫 logic.py + myProgram.py 入口層 wire-up。|
+| 2026-05-25 | **🔌 S1 v2 logic.py 串接 + myProgram.py 入口層 wire-up 完成**（commit `a1fe336`，派 Sonnet subagent 在 `.claude/worktrees/logic-wireup-s1/`）：(1) `myProgram/sales/logic.py` 152 行 A2-c state machine — `run(**callbacks)` 持 cart 為唯一 cycle state，5 層 cycle dispatch（L1→L2→L3→L4→L5→子例程 A→L1），`_invoke_subroutine_a` helper，A4-c `_assert_cart_empty` + `_assert_cart_nonempty` 每進新層 fail-fast 守衛；(2) `myProgram/myProgram.py` 139 行 A3-d 直 wire callback dict — `_S1State` class 持 OpenCV 模擬狀態（`opencv_enabled` / `opencv_dwell`）、`_build_callbacks` 建 12 個 callback（含 `'c'` 鍵模擬 OpenCV 偵測一次性消耗 + 空 Enter 模擬 customer timeout + `schedule` no-op + `[語音]` / `[動作]` / `[opencv]` 文字標記）、`main()` try/except SystemExit + KeyboardInterrupt。兩檔皆嚴格不 import 廠商 SDK（選項 C 一致；廠商 SDK grep 命中只在 vendor 檔自身）。**既有 107 tests PASS 不破**（驗證 logic.py 沒誤汙染 import path）。S1 v2 全套可端對端跑 `python -m myProgram.myProgram` 做對話模擬。**為何不走 BDD+TDD**：本輪是 dispatcher 整合膠水 + audit 取代 TDD（user 明確決策）；下一步使用者手動互動驗收 → 派 3 個 audit subagent 全面審查 sales/。|
