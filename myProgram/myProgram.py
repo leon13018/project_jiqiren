@@ -44,10 +44,10 @@ def _build_callbacks(state: _S1State) -> dict:
 
         特殊 'c' 鍵：模擬 OpenCV 偵測到顧客 → 設 dwell ≥ OPENCV_DWELL，下次 check 觸發 L2。
         """
-        raw = input("[商家] 請輸入鍵（1/2/3/q）> ").strip().lower()
+        raw = input("[商家] > ").strip().lower()
         if raw == "c":
             state.opencv_dwell = OPENCV_DWELL + 0.5
-            print("[模擬] OpenCV 偵測到顧客（dwell ≥ 1.5s），下次 check 將轉 L2")
+            print("[模擬] OpenCV 偵測到顧客 — 請按任意鍵（或直接 Enter）讓 L1 主迴圈下次 check opencv 觸發轉 L2")
             return ""  # 不返回有效鍵；由 L1 hawk 主迴圈下次 check opencv
         return raw[:1] if raw else ""
 
@@ -122,6 +122,13 @@ def main():
     print("=" * 50)
     print("Project_01 互動式銷售輔助機器人 — S1 v2 模擬模式")
     print("（純單線程對話、無語音 / 動作 / OpenCV / 廠商 SDK）")
+    print("=" * 50)
+    print("操作小抄（S1 chat-driven 模擬）：")
+    print("  [L1 商家層] 1=叫賣 / 2=待機 / 3=客服 / q=退出")
+    print("    └ 進叫賣後按 'c' 模擬 OpenCV 偵測顧客 → 轉 L2 對話")
+    print("    └ 進待機後按 'r' 回主選單（其他鍵無效）")
+    print("    └ 進客服印電話後自動回主選單")
+    print("  [L2-L5 顧客對話層] 打字=顧客語音回應 / 空 Enter=模擬 6s timeout")
     print("=" * 50)
 
     state = _S1State()
