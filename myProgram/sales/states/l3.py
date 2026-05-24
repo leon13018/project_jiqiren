@@ -228,14 +228,17 @@ def _l3_dispatch_response(
         print_terminal(SERVICE_PHONE)
         return None  # 回主等待
 
-    # 優先序 6：商品 → 鏈路 B-3（加單繼續循環；若無數量自動追問「您要幾瓶/張？」）
+    # 優先序 6：商品 → 鏈路 B-3（無數量自動追問；追問內 客服/拒絕/亂說 各自分流）
     if intent in ("商品:冰紅茶", "商品:刮刮樂"):
+        # added True/False 兩條都 speak L3_REASK + 回主等待（user 要求：取消後一樣 re-prompt）
         resolve_and_add_product(
             intent=intent,
             response=response,
             cart=cart,
             speak=speak,
+            print_terminal=print_terminal,
             read_customer_input=read_customer_input,
+            classify_intent_mode="normal",
         )
         speak(L3_REASK)
         return None  # 回主等待

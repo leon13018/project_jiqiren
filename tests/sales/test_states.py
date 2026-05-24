@@ -46,6 +46,7 @@ from myProgram.sales.constants import (
     L4_E_CLARIFY,
     L4_E_AUTO_SERVICE,
     QTY_PROMPT_TEMPLATE,
+    QTY_CLARIFY_TEMPLATE,
     L4_D_VOICE_NEUTRAL,
     L4_D_VOICE_GENTLE,
     L4_D_VOICE_MODERATE,
@@ -1107,6 +1108,76 @@ def test_l2_c_iced_tea_with_chinese_quantity_parses_and_adds() -> None:
 # Then 數量解析為 1，cart = {刮刮樂: 1}，轉到 L3
 # ============================================================
 
+def test_l2_c_qty_followup_gibberish_speaks_clarify_then_uses_next_quantity() -> None:
+    """2026-05-25 加：qty 追問內顧客講亂碼（無 intent / 無數量）→ speak clarify → 再追問。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 紅茶 → ask 幾瓶 → "d" 亂說 → clarify → "兩瓶" → add 2
+    customer_input = FakeCustomerInput(["紅茶", "d", "兩瓶"])
+
+    next_state, _ = states.run_l2(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    assert next_state == "L3"
+    assert cart_module.get_quantity(cart, "冰紅茶") == 2, f"應加 2，實際：{cart}"
+    assert QTY_CLARIFY_TEMPLATE.format(unit="瓶") in speak_calls, (
+        f"亂說後應 speak QTY_CLARIFY_TEMPLATE，實際：{speak_calls}"
+    )
+
+
+def test_l2_c_qty_followup_service_intent_prints_phone_then_reclarifies() -> None:
+    """2026-05-25 加：qty 追問內顧客講「客服」→ print 電話 + speak clarify → 再追問。"""
+    speak_calls: list = []
+    printed: list = []
+    cart = cart_module.new_cart()
+    # 紅茶 → ask → "客服" → print phone + clarify → "兩瓶" → add 2
+    customer_input = FakeCustomerInput(["紅茶", "客服", "兩瓶"])
+
+    next_state, _ = states.run_l2(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: printed.append(text),
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    assert next_state == "L3"
+    assert cart_module.get_quantity(cart, "冰紅茶") == 2
+    assert SERVICE_PHONE in printed, f"客服 intent 應 print SERVICE_PHONE，實際 printed：{printed}"
+    assert QTY_CLARIFY_TEMPLATE.format(unit="瓶") in speak_calls
+
+
+def test_l2_c_qty_followup_reject_cancels_addition_and_reprompts_l2() -> None:
+    """2026-05-25 加：qty 追問內顧客講拒絕（L2 mode '不要' → 拒絕）→ 取消加單 + speak L2_B3_REASK。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 紅茶 → ask → "不要" → cancel → L2_B3_REASK → 主迴圈 continue → None → L2-A timeout reject → L1
+    customer_input = FakeCustomerInput(["紅茶", "不要", None])
+
+    next_state, _ = states.run_l2(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    # cancel 後 cart 未變（紅茶未加），最後 None timeout → L1
+    assert next_state == "L1_via_subroutine_a"
+    assert cart_module.is_empty(cart), f"cancel 後 cart 應為空，實際：{cart}"
+    assert L2_B3_REASK in speak_calls, (
+        f"cancel 後應 speak L2_B3_REASK，實際：{speak_calls}"
+    )
+
+
 def test_l2_c_iced_tea_no_quantity_asks_then_uses_followup() -> None:
     """2026-05-25 加：商品意圖無數量 → 系統追問「您要幾瓶？」→ 用 follow-up 數量加 cart。"""
     speak_calls: list = []
@@ -1379,6 +1450,33 @@ def test_l3_b3_product_default_quantity_adds_cart_and_stays_in_l3() -> None:
 ### When 顧客輸入「冰紅茶兩個」（命中商品 + 中文數量「兩」= 2）
 ### Then 數量解析為 2，cart 同商品累加 = {冰紅茶: 3}，保持在 L3
 # ============================================================
+
+def test_l3_b3_qty_followup_reject_cancels_addition_and_reprompts_l3() -> None:
+    """2026-05-25 加：L3 qty 追問內顧客講「我不要了」（L3 嚴格 reject）→ 取消加單 + speak L3_REASK + 主迴圈繼續。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # "我要刮刮樂" → ask 幾張 → "我不要了" → cancel → L3_REASK → None → C-2 → None → L4
+    customer_input = FakeCustomerInput(["我要刮刮樂", "我不要了", None, None])
+
+    next_state, _ = states.run_l3(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    # 刮刮樂 cancel 未加；既有冰紅茶 1 保留
+    assert cart_module.get_quantity(cart, "刮刮樂") == 0, (
+        f"刮刮樂應 cancel 未加，實際：{cart}"
+    )
+    assert cart_module.get_quantity(cart, "冰紅茶") == 1
+    assert L3_REASK in speak_calls
+    # 最終經 C-2 → L4
+    assert next_state == "L4"
+
 
 def test_l3_b3_product_no_quantity_asks_then_uses_followup() -> None:
     """2026-05-25 加：L3 商品意圖無數量 → 系統追問「您要幾張？」→ 用 follow-up 數量加 cart。"""

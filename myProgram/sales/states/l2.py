@@ -85,17 +85,23 @@ def run_l2(
             print_terminal(SERVICE_PHONE)
             continue  # 自動回 L2 循環
 
-        # 優先序 5：商品 → C（若無數量自動追問「您要幾瓶/張？」）
+        # 優先序 5：商品 → C（無數量自動追問；追問內 客服/拒絕/亂說 各自分流）
         if intent in ("商品:冰紅茶", "商品:刮刮樂"):
-            resolve_and_add_product(
+            added = resolve_and_add_product(
                 intent=intent,
                 response=response,
                 cart=cart,
                 speak=speak,
+                print_terminal=print_terminal,
                 read_customer_input=read_customer_input,
+                classify_intent_mode="l2",
             )
-            speak(L2_C_ADDED)
-            return ("L3", 0)
+            if added:
+                speak(L2_C_ADDED)
+                return ("L3", 0)
+            # 顧客在追問內取消 → re-prompt L2，繼續主迴圈等下一個商品意圖
+            speak(L2_B3_REASK)
+            continue
 
         # 優先序 6：無法判斷 → B-1
         speak(L2_B1_CLARIFY)
@@ -189,15 +195,21 @@ def _l2_dispatch_response(
         return None  # 回主等待
 
     if intent in ("商品:冰紅茶", "商品:刮刮樂"):
-        resolve_and_add_product(
+        added = resolve_and_add_product(
             intent=intent,
             response=response,
             cart=cart,
             speak=speak,
+            print_terminal=print_terminal,
             read_customer_input=read_customer_input,
+            classify_intent_mode="l2",
         )
-        speak(L2_C_ADDED)
-        return ("L3", 0)
+        if added:
+            speak(L2_C_ADDED)
+            return ("L3", 0)
+        # 顧客在追問內取消 → re-prompt L2 + 回主等待
+        speak(L2_B3_REASK)
+        return None
 
     # 無法判斷 → B-1
     speak(L2_B1_CLARIFY)
