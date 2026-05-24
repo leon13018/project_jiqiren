@@ -1,7 +1,7 @@
 # 專案目錄結構
 
 > 本檔案記錄整個專案的資料夾與檔案結構，方便日後快速查閱。
-> 最後更新：2026-05-24（新增 TDD skill + BDD/Gherkin 規範與範例：S1 v2 實作前的測試先行框架就位）
+> 最後更新：2026-05-24（後端模組化骨架就位：myProgram/sales/ 6 檔建立 + resources/architecture/ 收納整體架構決策）
 
 ---
 
@@ -33,13 +33,20 @@ Project_01/
 ├── sync_pi.ps1                           # Windows 端 SSH 部署腳本（gitignored）
 │
 ├── myProgram/                            # 主程式資料夾（S1 v2 重做中：業務邏輯改 5 層狀態機）
-│   ├── myProgram.py                      # ✍️ 入口（暫空）— S1 v2 完成後負責 import sales_logic 並啟動
-│   ├── sales_logic.py                    # ✍️ 業務邏輯主檔（暫空）— S1 v2 將實作 5 層狀態機
+│   ├── myProgram.py                      # ✍️ 入口（暫空）— S1 v2 完成後負責 from sales.logic import run 並啟動
 │   ├── ActionGroupControl.py             # 🚫 廠商 SDK — Hiwonder TonyPi，禁止修改
-│   └── Board.py                          # 🚫 廠商 SDK — Hiwonder TonyPi，禁止修改
+│   ├── Board.py                          # 🚫 廠商 SDK — Hiwonder TonyPi，禁止修改
+│   └── sales/                            # ✍️ 後端業務模組（2026-05-24 加入，骨架已就位）
+│       ├── __init__.py                   # 模組標記 + docstring
+│       ├── logic.py                      # 主迴圈 + 5 層 dispatch（暫骨架）
+│       ├── constants.py                  # L0 常數：時間 / 商品 / 7 類白名單（暫骨架）
+│       ├── nlu.py                        # 意圖識別純函式（暫骨架）— BDD/TDD 切入點
+│       ├── cart.py                       # 購物車資料模型（暫骨架）
+│       └── states.py                     # L1-L5 鏈路實作（暫骨架）
 │   # 2026-05-23 incremental rebuild：tts.py / robot_actions.py / screen_display.py 歸檔
 │   # 到 resources/examples/legacy_threading_v1/。後續 S2-S7 逐步加層。
 │   # 2026-05-24 S1 v1（115 行單檔）清空重做為「入口 + 業務邏輯」分離結構。
+│   # 2026-05-24 sales_logic.py 拆成 sales/ 模組（6 檔），詳見 resources/architecture/backend-module-structure.md。
 │
 └── resources/                            # 開發 / 部署參考資源（2026-05-22 重構：大部分 tracked）
     ├── presentation/                     # gitignored — 大檔不入 git
@@ -72,6 +79,11 @@ Project_01/
     │   │   └── L5.md                     # 第 5 層：謝謝惠顧 → 等 3s → 回 L1 叫賣
     │   ├── 業務邏輯規劃_終審報告_2026-05-24.md  # 兩個 Opus 4.7 subagent 平行審查上述規格書的完整原始報告 + 整合清單（debug / 優化 / S 階段檢查時對照）
     │   └── bdd規範.txt                   # BDD/Gherkin 規範（2026-05-24 加入）— 寫測試前必先用 Given-When-Then 注釋骨架 + AskUserQuestion 確認
+    │
+    ├── architecture/                     # tracked — 跨檔 / 跨層架構決策（2026-05-24 加入）
+    │   ├── README.md                     # 資料夾說明 + 與 plans/ 的區別
+    │   ├── backend-module-structure.md   # myProgram/sales/ 模組拆分方案 + 每檔職責 + 擴展觸發條件
+    │   └── frontend-backend-contract.md  # 三層願景 + 推薦框架（FastAPI + Pydantic + Repository）+ 接口框架延後決策
     │
     └── examples/                         # tracked — 廠商已驗證範例代碼（2026-05-23 加入）
         ├── 機器人動作結合opencv的多線程使用范例.py  # 廠商多線程範例：cv2 主線程 + 動作背景線程
@@ -110,8 +122,13 @@ resources/userPrompt/
 
 | 檔案 | 引入階段 | 職責 |
 |---|---|---|
-| `myProgram.py` | S1 v2（暫空）| 入口：未來 `from sales_logic import run; run()`，保持簡潔 |
-| `sales_logic.py` | S1 v2（暫空）| 業務邏輯主檔：5 層狀態機（純單線程、無語音 / 動作 / threading；時間 / 視覺 stub）|
+| `myProgram.py` | S1 v2（暫空）| 入口：未來 `from sales.logic import run; run()`，保持簡潔 |
+| `sales/__init__.py` | S1 v2 | 模組標記 + docstring（指向規格書與架構文件）|
+| `sales/logic.py` | S1 v2（暫骨架）| 主迴圈 + 5 層 dispatch；唯一允許持有「外部世界」的進入點 |
+| `sales/constants.py` | S1 v2（暫骨架）| L0 共通常數：時間 / 商品 / 7 類關鍵字白名單；純資料無 IO |
+| `sales/nlu.py` | S1 v2（暫骨架）| 意圖識別純函式（6 步判定優先序 + 數量解析）；BDD/TDD 切入點 |
+| `sales/cart.py` | S1 v2（暫骨架）| 購物車資料模型 + 操作；未來上 DB 介面不變（Repository Pattern） |
+| `sales/states.py` | S1 v2（暫骨架）| L1-L5 各鏈路實作；對外動作以 callback 注入（speak / do_action / show）|
 | `tts.py` | S2 | 同步阻塞 `speak()`（S4 起擴為非阻塞 TtsWorker）|
 | `robot_actions.py` | S3 | 同步動作（S5 起擴為非阻塞 ActionWorker）|
 
@@ -158,6 +175,10 @@ resources/userPrompt/
 | `projectStructure/projectStructure.md` | 本檔案 — 專案目錄結構 |
 | `plans/` | plan 草稿（plan mode 討論結果 / 任務藍圖）|
 | `plans/bdd規範.txt` | **BDD 規範**（2026-05-24 加入）— 規定寫測試前必先用 Gherkin schema 寫 Given-When-Then 空骨架 + AskUserQuestion 確認後再實作；引用 `examples/bdd-寫法範例.txt` |
+| `architecture/` | **整體架構決策**（2026-05-24 加入）— 跨檔 / 跨層方向；與 `plans/`（單一任務執行計劃）區別在時效（長期 vs 短中期）|
+| `architecture/README.md` | 資料夾說明 + 與 `plans/` 的區別 + 維護原則 |
+| `architecture/backend-module-structure.md` | `myProgram/sales/` 模組拆分方案 + 每檔職責 + 擴展觸發條件（>300 行拆 states/ / HTML 上線加 api.py+schemas.py / DB 上線加 repository.py）|
+| `architecture/frontend-backend-contract.md` | 三層願景（前端 HTML+TS / 後端 Python / 未來 DB）+ 推薦框架（FastAPI + Pydantic + REST + Repository Pattern）+ 接口框架延後決策紀錄 |
 | `examples/` | **廠商已驗證範例代碼 + 歸檔舊版** — 廠商寫好且在機器人上測試成功的示範碼；可參考做 pattern、可仿、可改（與 `myProgram/` 的廠商 SDK 本體不同，那些禁改）|
 | `examples/bdd-寫法範例.txt` | **BDD/Gherkin 寫法範例**（2026-05-24 加入）— 毒蛇技能 demo 5 個 scenario：`## ID` + `### Scenario` + `### Given/When/Then` + 空 func。供 BDD 規範引用作模板 |
 | `examples/legacy_threading_v1/` | 2026-05-23 第一輪多線程重構成果歸檔（4 個 .py + README）；incremental rebuild 前的舊版設計，留作參考。內含 README 說明踩到的坑（vendor stop_action sticky / has_customer 分流 race）|
@@ -184,3 +205,4 @@ resources/userPrompt/
 | 2026-05-24 | **業務邏輯規格書終審報告歸檔**：S1 v2 實作前派出兩個 Opus 4.7 subagent（Agent A 狀態機 / 跨層一致性、Agent B UX / 待釐清點）以獨立平行方式審查 L0-L5 規格書；產出 23 + 39 = 62 項發現（含 12 項高優先 / 17 項中優先 / 13 項低優先 + 13 項待釐清點選項）。完整原始報告 + 主 agent 整合清單存至 `resources/plans/業務邏輯規劃_終審報告_2026-05-24.md`，作為後續實作 / debug / 優化的權威對照依據。|
 | 2026-05-24 | **規格三輪整合修訂**：分三輪 push commit `f3c0304` / `04c9eef` / `f664d37`，把終審報告 62 項發現裡的高優先 12 項 + 中優先 17 項 + 低優先 9 項 + 13 項待釐清點全部處理完。L0/L1/L2/L3/L4/L5 全部敲定，所有「設計推論（待 review）」標記消除，S1 v2 程式實作有完整無歧義的權威規格依據。|
 | 2026-05-24 | **TDD skill + BDD/Gherkin 規範與範例就位**（使用者手動加入）：新增 `.claude/skills/test-driven-development/`（SKILL.md + testing-anti-patterns.md，TDD 實踐 skill 含 Red-Green-Refactor 與測試反模式）+ `resources/plans/bdd規範.txt`（寫測試前必先 Gherkin 骨架 + AskUserQuestion 確認）+ `resources/examples/bdd-寫法範例.txt`（毒蛇技能 demo 範例）。S1 v2 實作將走 BDD 骨架 → AskUserQuestion → TDD 實作流程。|
+| 2026-05-24 | **後端模組化骨架就位 + 架構規劃資料夾建立**：S1 v2 業務邏輯實作前敲定後端分層 — 刪除 `myProgram/sales_logic.py`，新增 `myProgram/sales/` 模組含 6 檔骨架（`__init__.py` / `logic.py` / `constants.py` / `nlu.py` / `cart.py` / `states.py`，全為 docstring + TODO 占位）。新增 `resources/architecture/` 資料夾收納整體架構決策（README + `backend-module-structure.md` + `frontend-backend-contract.md`），CLAUDE.md 🔗 查閱表加 2 行 pointer，memory 新增 `project-architecture-vision`。三層願景定案（前端 HTML+TS / 後端 Python / 未來 DB），接口框架（FastAPI + Pydantic）延後到 HTML 前端開工時敲定。|

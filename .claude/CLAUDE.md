@@ -93,6 +93,7 @@ git 內核 5 步（status → add → commit → push → sync），內嵌在 Wo
 | 多線程規範（編 `myProgram/*.py` path-scoped 自動載入） | `.claude/rules/threading-conventions.md` |
 | Incremental rebuild 流程（架構難收斂時的 S1-S7 模板） | `.claude/rules/incremental-rebuild.md` |
 | 廠商已驗證範例代碼（學 pattern 用，可讀可仿） | `resources/examples/` |
+| 架構規劃（後端模組結構 / 前後端契約 / 擴展觸發條件） | `resources/architecture/` |
 | 廠商 SDK 完整 API 清單 + 禁改背景 | memory: `vendor-files` |
 | 派發協議：心態原則 / 規則對應表 | memory: `subagent-dispatch` |
 | Worktree：視野範圍速查 / cleanup 原理 | memory: `worktree-workflow` |
@@ -102,6 +103,7 @@ git 內核 5 步（status → add → commit → push → sync），內嵌在 Wo
 | 使用者背景 | memory: `user-profile` |
 | 部署細節（IP / repo / 路徑） | memory: `project-deployment` |
 | 輸出語言規範（簡繁對照） | memory: `output-language` |
+| 架構願景（三層願景 / 後端模組決議 / 接口框架延後） | memory: `project-architecture-vision` |
 
 ---
 
