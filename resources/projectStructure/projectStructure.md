@@ -1,7 +1,7 @@
 # 專案目錄結構
 
 > 本檔案記錄整個專案的資料夾與檔案結構，方便日後快速查閱。
-> 最後更新：2026-05-24（L3 BDD+TDD 第一輪完成：18 scenarios PASS（總 81）；[DEGRADED-TDD-PARTIAL-L3]）
+> 最後更新：2026-05-24（L4 BDD+TDD 第一輪完成：22 scenarios PASS（總 103）；嚴格 TDD 無 DEGRADED）
 
 ---
 
@@ -43,7 +43,8 @@ Project_01/
 │   │   ├── L0_common_scenarios.py        # L0 共通規則 37 個 scenarios（CONST/PROD/HAWK/NLU/QTY/CART/SUB-A）
 │   │   ├── L1_mode_select_scenarios.py   # L1 商家模式選擇 12 個 scenarios（ENTRY/A/B/C/Q；2026-05-24 加入）
 │   │   ├── L2_first_order_scenarios.py   # L2 詢問需求 14 個 scenarios（ENTRY/A/B-1/B-2/B-3/C/PRIO；2026-05-24 加入）
-│   │   └── L3_add_loop_scenarios.py      # L3 加單迴圈 18 個 scenarios（ENTRY/A/B-1/B-2/B-3/B-4/C-1/C-2/PRIO；2026-05-24 加入）
+│   │   ├── L3_add_loop_scenarios.py      # L3 加單迴圈 18 個 scenarios（ENTRY/A/B-1/B-2/B-3/B-4/C-1/C-2/PRIO；2026-05-24 加入）
+│   │   └── L4_checkout_scenarios.py      # L4 結帳層 22 個 scenarios（ENTRY/A/B/C 客服特殊×9/D 6 次循環×5/E 無法判斷×5；2026-05-24 加入）
 │   └── sales/                            # TDD 階段產出（按 prod 模組；L0 第一輪 2026-05-24 建）
 │       ├── __init__.py                   # 子資料夾說明
 │       ├── test_constants.py             # 5 scenarios：L0-CONST + L0-PROD + L0-HAWK
@@ -152,10 +153,10 @@ __pycache__/
 | `myProgram.py` | S1 v2（暫空）| 入口：未來 `from sales.logic import run; run()`，保持簡潔 |
 | `sales/__init__.py` | S1 v2 | 模組標記 + docstring（指向規格書與架構文件）|
 | `sales/logic.py` | S1 v2（暫骨架，L1+ 才實作）| 主迴圈 + 5 層 dispatch；唯一允許持有「外部世界」的進入點 |
-| `sales/constants.py` | S1 v2 L0+L1+L2+L3 ✅ | L0：7 時間常數 + `PRODUCTS` + `HAWK_SLOGANS`。L1：`L1_MENU_BANNER` / `L1_HAWK_ENTER_PROMPT` / `L1_STANDBY_ENTER_PROMPT` / `SERVICE_PHONE`。L2：`L2_GREETING_PROMPT` / `L2_REJECT_THANKS` / `L2_B1_CLARIFY` / `L2_B3_REASK` / `L2_B3_THIRD_REJECT` / `L2_C_ADDED`。L3（2026-05-24 追加）：`L3_FOLLOWUP_PROMPT` / `L3_REJECT_THANKS` / `L3_B1_CLARIFY` / `L3_REASK`（B-3/B-4 共用）/ `L3_C1_CHECKOUT_GO`（C-2 警告語音用 f-string 即時組） |
+| `sales/constants.py` | S1 v2 L0+L1+L2+L3+L4 ✅ | L0：7 時間常數 + `PRODUCTS` + `HAWK_SLOGANS`。L1：4 個（選單 / 提示 / 客服電話）。L2：6 個。L3：5 個。L4（2026-05-24 追加 12 個）：`L4_ENTRY_VOICE_TEMPLATE` / `L4_A_PAY_SUCCESS` / `L4_B_CANCEL_THANKS` / `L4_C_OPTIONS_PROMPT` / `L4_D_FORCED_EXIT` / `L4_E_CLARIFY` / `L4_E_AUTO_SERVICE` / 4 階段催促模板（`L4_D_VOICE_NEUTRAL/GENTLE/MODERATE/WARNING`）/ `L4_SERVICE_TIMEOUT=60` |
 | `sales/nlu.py` | S1 v2 L0 ✅ | `classify_intent(text, mode)` 6 步優先序（L4 客服模式吃繼續/退出）+ `parse_quantity(text)` 阿拉伯優先 / 中文映射含異體字 / 預設 1 |
 | `sales/cart.py` | S1 v2 L0 ✅ | 純函式 + dict[str, int]：`new_cart` / `add_item`（同商品累加）/ `get_quantity` / `calc_total`（依 PRODUCTS 實際價）/ `clear_cart` / `is_empty` |
-| `sales/states.py` | S1 v2 L0+L1+L2+L3 ✅ | L0：`run_subroutine_a`。L1：`run_l1` + 4 私有。L2：`run_l2` + `_l2_exit_a` / `_l2_b3` / `_l2_dispatch_response`（L2 跳過結帳）。L3（2026-05-24 加）：`run_l3` + `_l3_main_loop`（內部主等待，C-2 / B-4 復用避免遞迴）+ `_l3_exit_a`（清空 cart）+ `_l3_b4`（第 3 次走 C-2 第二段）+ `_l3_c2_second_stage`（兩段機制 + f-string 警告語音）+ `_l3_dispatch_response`（全 6 步 dispatcher + 三態回傳 tuple/int/None）。L4-L5 TODO |
+| `sales/states.py` | S1 v2 L0+L1+L2+L3+L4 ✅ | L0：`run_subroutine_a`。L1：`run_l1` + 4 私有。L2：`run_l2` + 3 私有（L2 跳過結帳）。L3：`run_l3` + 5 私有（`_l3_main_loop` 抽出避免遞迴 / 三態 dispatcher / C-2 兩段 / B-4 第 3 次走 C-2）。L4（2026-05-24 加）：`run_l4` 主迴圈（**3-tuple 回傳** `(next_state, loop_count, unclear_count)`）+ `_l4_service_mode`（60s timeout 客服特殊模式 6 種 trigger）+ `_l4_d_speak_loop_voice`（4 階段語氣 dispatcher）+ `_l4_exit_b` / `_l4_exit_d_forced` / `_l4_dispatch_response`（過濾 3 類 + 三態回傳）+ `_l4_print_entry_detail`。L5 TODO |
 | `tts.py` | S2 | 同步阻塞 `speak()`（S4 起擴為非阻塞 TtsWorker）|
 | `robot_actions.py` | S3 | 同步動作（S5 起擴為非阻塞 ActionWorker）|
 
@@ -179,11 +180,12 @@ __pycache__/
 | `tests/spec/L1_mode_select_scenarios.py` | 2026-05-24（L1 第一輪 BDD）| 12 個 Gherkin scenarios（ENTRY 1 / A 1 / B 4 / C 5 / Q 1），對應 `resources/plans/業務程式邏輯規劃/L1.md`；唯讀 |
 | `tests/spec/L2_first_order_scenarios.py` | 2026-05-24（L2 第一輪 BDD）| 14 個 Gherkin scenarios（ENTRY 1 / A 2 / B-1 1 / B-2 1 / B-3 5 / C 3 / PRIO 1），對應 `resources/plans/業務程式邏輯規劃/L2.md`；唯讀 |
 | `tests/spec/L3_add_loop_scenarios.py` | 2026-05-24（L3 第一輪 BDD）| 18 個 Gherkin scenarios（ENTRY 1 / A 1 / B-1 1 / B-2 1 / B-3 2 / B-4 5 / C-1 1 / C-2 5 / PRIO 1），對應 `resources/plans/業務程式邏輯規劃/L3.md`；唯讀 |
+| `tests/spec/L4_checkout_scenarios.py` | 2026-05-24（L4 第一輪 BDD）| 22 個 Gherkin scenarios（ENTRY 1 / A 1 / B 1 / C 9 / D 5 / E 5），對應 `resources/plans/業務程式邏輯規劃/L4.md`；唯讀 |
 | `tests/sales/__init__.py` | 2026-05-24（L0 第一輪 TDD）| sales/ 子資料夾組織說明 |
 | `tests/sales/test_constants.py` | 2026-05-24（L0 第一輪 TDD）| 5 個測試：時間常數值 / 商品價錢 / 6 組叫賣 / mod 6 輪替 |
 | `tests/sales/test_nlu.py` | 2026-05-24（L0 第一輪 TDD）| 22 個測試：意圖分類 6 大類 + 優先序 + L4 客服模式 + 中文 / 阿拉伯數量解析 |
 | `tests/sales/test_cart.py` | 2026-05-24（L0 第一輪 TDD）| 6 個測試：新建 / 加入 / 累加 / 單品總額 / 多品總額 / 清空 |
-| `tests/sales/test_states.py` | 2026-05-24（L0+L1+L2+L3 TDD）| L0：4 SUB-A + FakeScheduler。L1：12 + FakeKeyboardInput + FakeOpencv。L2：14 + FakeCustomerInput。L3（2026-05-24 加）：18 個（ENTRY 1 / A 1 / B-1 1 / B-2 1 / B-3 2 / B-4 5 / C-1 1 / C-2 5 / PRIO 1）；總共 48 個 |
+| `tests/sales/test_states.py` | 2026-05-24（L0+L1+L2+L3+L4 TDD）| L0：4 SUB-A + FakeScheduler。L1：12 + FakeKeyboardInput + FakeOpencv。L2：14 + FakeCustomerInput。L3：18 + 三態 dispatcher pattern。L4（2026-05-24 加）：22 個（ENTRY 1 / A 1 / B 1 / C 9 / D 5 / E 5）；總共 70 個 |
 | `pytest.ini` | 2026-05-24（L0 第一輪 TDD）| pytest 設定：`testpaths = tests/sales`；確保 `python -m pytest tests/sales/ -v` 正確找到測試 |
 
 > **測試環境（選項 C）：** Windows 全域 Python 3.14.4 + pytest（使用者 2026-05-24 手動裝）；`myProgram/sales/` 內任何檔禁 import 廠商 SDK，所有對外動作（speak / do_action / show）以 callback 注入。跑指令 `python -m pytest tests/sales/ -v`。完整流程：`.claude/rules/bdd-tdd-workflow.md`。
@@ -261,3 +263,4 @@ __pycache__/
 | 2026-05-24 | **L1 BDD+TDD 第一輪完成 + 狀態機 pitfall 規則補強**：BDD 階段 1 主 agent 寫 `tests/spec/L1_mode_select_scenarios.py`（12 scenarios）。階段 2 plan mode 通過。階段 3 派 Sonnet subagent → 12 scenarios 全 PASS（總 49 PASS：L0 37 + L1 12）。`states.py` 加 `run_l1` + 4 個私有函式；`constants.py` 追加 4 個 L1 文字常數；`test_states.py` 加 12 個 L1 測試 + 2 個 inline stub class（FakeKeyboardInput / FakeOpencv）。**[DEGRADED-TDD-PARTIAL-L1]** subagent 寫 L1-ENTRY GREEN 時一次寫完整個路由骨架，導致後續 L1-A/B/C/Q 11 個 scenarios 加入時直接 PASS（未見 RED，prod code 早於 test）— Iron Law 部分違反。已接受 commit 不退回（49 PASS 品質 OK）。**規則補強**：`.claude/rules/bdd-tdd-workflow.md` 加「狀態機 / dispatcher 類型 prod code 的 RED 排程 pitfall」段（ENTRY GREEN 只寫最小印選單 + q 退，後續鏈路須親見 RED）+ 「Subagent commit 範圍 pitfall」段（subagent commit `3cff233` 漏 add `tests/spec/L1_mode_select_scenarios.py`，主 agent 階段 3b 補 add；prompt 模板須明列 git add 範圍含 `tests/spec/L?_*.py`）。memory `bdd-tdd-workflow` 同步補兩段。下一輪 L2。|
 | 2026-05-24 | **L2 BDD+TDD 第一輪完成 + DEGRADED 容許條款入規**：BDD 階段 1 主 agent 寫 `tests/spec/L2_first_order_scenarios.py`（14 scenarios，5 鏈路 + ENTRY + 判定優先序 dispatcher，跳過結帳意圖）。階段 2 plan mode 通過。階段 3 派 Sonnet subagent → 14 scenarios PASS（總 63：L0 37 + L1 12 + L2 14）。`states.py` 加 `run_l2`（caller 注入 think_count + cart，return tuple `(next_state, next_think_count)`） + `_l2_exit_a` / `_l2_b3`（想一下狀態機 + 第 3 次跳沉默走 A）/ `_l2_dispatch_response`（B-3 沉默期中斷後重跑判定）。`constants.py` 追加 6 個 L2 字串常數。`test_states.py` 16→30 + FakeCustomerInput inline stub。**Pitfall 預防結果**：Pitfall 2（commit 範圍）成功，spec 檔有 add；Pitfall 1（狀態機 ENTRY 一次寫完 dispatcher）即使 prompt 明確警告 subagent 仍踩到 → **[DEGRADED-TDD-PARTIAL-L2]** 自標。**新規則：DEGRADED 容許條款** — dispatcher 型 prod code 即使警告也常踩，redo 成本不划算且結果可能一樣 → rule 補「狀態機 prod 容許 DEGRADED-TDD-PARTIAL，主 agent 不退回 redo」段，標 + 留痕即可。memory `bdd-tdd-workflow` 同步補。下一輪 L3。|
 | 2026-05-24 | **L3 BDD+TDD 第一輪完成**：BDD 階段 1 主 agent 寫 `tests/spec/L3_add_loop_scenarios.py`（18 scenarios，6 鏈路 + ENTRY + C-2 兩段機制 + L3 跳過 L4 客服詞）。階段 2 plan mode 通過。階段 3 派 Sonnet subagent → 18 scenarios PASS（總 81：L0 37 + L1 12 + L2 14 + L3 18），commit `b40e597`。`states.py` 加 `run_l3` + `_l3_main_loop`（C-2 / B-4 復用避免遞迴增長）+ `_l3_exit_a`（清空 cart）+ `_l3_b4`（第 3 次走 C-2 第二段）+ `_l3_c2_second_stage`（f-string 警告語音）+ `_l3_dispatch_response`（全 6 步 dispatcher + 三態 tuple/int/None 回傳）。`constants.py` 追加 5 個 L3 字串常數（C-2 警告 f-string 不入常數）。`test_states.py` 30→48。**Pitfall 預防結果**：Pitfall 2（commit 範圍）成功；Pitfall 1（狀態機 ENTRY）即使警告 subagent 仍踩到 → **[DEGRADED-TDD-PARTIAL-L3]** 自標（dispatcher 容許條款生效，接受不退回）。下一輪 L4。|
+| 2026-05-24 | **L4 BDD+TDD 第一輪完成（嚴格 TDD 無 DEGRADED）**：BDD 階段 1 主 agent 寫 `tests/spec/L4_checkout_scenarios.py`（22 scenarios，L 系列最複雜：客服特殊模式 9 子情境 + 6 次循環 4 階段語氣 + 雙計數器 + dispatcher 過濾 3 類 + E→C 自動串接）。階段 2 plan mode 通過。階段 3 派 Sonnet subagent → 22 scenarios PASS（總 103：L0 37 + L1 12 + L2 14 + L3 18 + L4 22），commit `8624f5e`。`states.py` 加 `run_l4`（**3-tuple 回傳**）+ `_l4_service_mode`（60s timeout 6 種 trigger）+ `_l4_d_speak_loop_voice`（4 階段語氣）+ `_l4_exit_b` / `_l4_exit_d_forced` / `_l4_dispatch_response`（過濾 3 類 + 三態回傳）+ `_l4_print_entry_detail`。`constants.py` 追加 12 個 L4 常數。`test_states.py` 48→70。**Pitfall 結果**：(1) Pitfall 2 commit 範圍成功；(2) **Pitfall 1 嚴格走完未踩** — subagent 採「22 test 一次寫 → 全 fail → prod 一次寫 → 全 PASS」批次模式（同 L0 純函式批次 fail 變體），所有 22 scenarios 的測試都先見過 fail 才寫 prod，符合 Iron Law 字面與精神。對比 L1/L2/L3 是 ENTRY GREEN 一次寫 dispatcher → 後續 scenarios 立即 PASS（未見 fail）— L4 模式不同，prod 不早於任何 test。**主 agent 通過不標 DEGRADED**。下一輪 L5（最後一層）。|
