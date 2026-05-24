@@ -1,7 +1,7 @@
 # 專案目錄結構
 
 > 本檔案記錄整個專案的資料夾與檔案結構，方便日後快速查閱。
-> 最後更新：2026-05-24（業務邏輯規格書終審報告歸檔：兩個 Opus 4.7 subagent 平行審查產出 62 項發現 + 13 項待釐清點選項）
+> 最後更新：2026-05-24（新增 TDD skill + BDD/Gherkin 規範與範例：S1 v2 實作前的測試先行框架就位）
 
 ---
 
@@ -13,16 +13,20 @@ Project_01/
 │   ├── CLAUDE.md                         # 📌 每輪載入的專案上下文 — tracked
 │   ├── settings.local.json               # 本機 Claude 設定（gitignored）
 │   ├── worktrees/                        # 暫存 worktree 目錄（gitignored；2026-05-22 加入）
-│   └── rules/                            # 規則檔（2026-05-23 加入）— tracked
-│       ├── vendor-sdk-api.md             # 廠商 SDK API；path-scoped, paths: myProgram/**/*.py
-│       ├── path-conventions.md           # Linux 路徑規範；path-scoped, paths: code / scripts / Pi docs
-│       ├── subagent-dispatch-protocol.md # Subagent 派發協議完整版（無 paths，啟動載入）
-│       ├── worktree-workflow.md          # Worktree 5 階段流程完整版（無 paths）
-│       ├── standard-workflow.md          # 標準收尾循環 5 步完整版（無 paths）
-│       ├── pi-side-trigger.md            # 🚦 Pi 端操作觸發條件完整版（無 paths）
-│       ├── projectstructure-trigger.md   # 📂 結構維護觸發條件完整版（無 paths）
-│       ├── threading-conventions.md      # 多線程規範；path-scoped, paths: myProgram/**/*.py
-│       └── incremental-rebuild.md        # 🔁 Incremental rebuild 流程 + S1-S7 模板（無 paths）
+│   ├── rules/                            # 規則檔（2026-05-23 加入）— tracked
+│   │   ├── vendor-sdk-api.md             # 廠商 SDK API；path-scoped, paths: myProgram/**/*.py
+│   │   ├── path-conventions.md           # Linux 路徑規範；path-scoped, paths: code / scripts / Pi docs
+│   │   ├── subagent-dispatch-protocol.md # Subagent 派發協議完整版（無 paths，啟動載入）
+│   │   ├── worktree-workflow.md          # Worktree 5 階段流程完整版（無 paths）
+│   │   ├── standard-workflow.md          # 標準收尾循環 5 步完整版（無 paths）
+│   │   ├── pi-side-trigger.md            # 🚦 Pi 端操作觸發條件完整版（無 paths）
+│   │   ├── projectstructure-trigger.md   # 📂 結構維護觸發條件完整版（無 paths）
+│   │   ├── threading-conventions.md      # 多線程規範；path-scoped, paths: myProgram/**/*.py
+│   │   └── incremental-rebuild.md        # 🔁 Incremental rebuild 流程 + S1-S7 模板（無 paths）
+│   └── skills/                           # 使用者自訂 skill（2026-05-24 加入）— tracked
+│       └── test-driven-development/      # TDD 實踐 skill（S1 v2 實作前載入用）
+│           ├── SKILL.md                  # Red-Green-Refactor 流程 + Iron Law（無失敗測試前不寫產品碼）
+│           └── testing-anti-patterns.md  # 測試反模式（禁測 mock 行為 / 禁為測試在產品碼加方法）
 │
 ├── .gitignore                            # Git 忽略清單（2026-05-22 重構為精準排除）
 │
@@ -66,10 +70,12 @@ Project_01/
     │   │   ├── L3.md                     # 第 3 層：額外需求（拒絕 / 循環 / 想一下 / 結帳意圖 / 兩段 6s 自動結帳 → L4）
     │   │   ├── L4.md                     # 第 4 層：印金額 + 等掃碼（5 鏈路含客服特殊模式 / 4 次循環 / 無法判斷 fallback）
     │   │   └── L5.md                     # 第 5 層：謝謝惠顧 → 等 3s → 回 L1 叫賣
-    │   └── 業務邏輯規劃_終審報告_2026-05-24.md  # 兩個 Opus 4.7 subagent 平行審查上述規格書的完整原始報告 + 整合清單（debug / 優化 / S 階段檢查時對照）
+    │   ├── 業務邏輯規劃_終審報告_2026-05-24.md  # 兩個 Opus 4.7 subagent 平行審查上述規格書的完整原始報告 + 整合清單（debug / 優化 / S 階段檢查時對照）
+    │   └── bdd規範.txt                   # BDD/Gherkin 規範（2026-05-24 加入）— 寫測試前必先用 Given-When-Then 注釋骨架 + AskUserQuestion 確認
     │
     └── examples/                         # tracked — 廠商已驗證範例代碼（2026-05-23 加入）
         ├── 機器人動作結合opencv的多線程使用范例.py  # 廠商多線程範例：cv2 主線程 + 動作背景線程
+        ├── bdd-寫法範例.txt              # BDD/Gherkin 寫法範例（2026-05-24 加入）— 毒蛇技能 demo：Scenario / Given / When / Then 注釋 + 空函數骨架
         └── legacy_threading_v1/          # 2026-05-23 歸檔：第一輪多線程重構成果（incremental rebuild 前）
             ├── README.md                  # 設計重點、踩到的坑、可參考的 pattern
             ├── myProgram.py               # 主迴圈 + ActionWorker + input_reader + command_dispatcher
@@ -135,6 +141,9 @@ resources/userPrompt/
 | `.claude/rules/projectstructure-trigger.md` | 📂 結構維護觸發條件完整版（無 paths） |
 | `.claude/rules/threading-conventions.md` | 多線程規範（cv2 / tkinter 主線程、動作 / TTS 背景線程、asyncio / subprocess 地雷區）；path-scoped, paths: `myProgram/**/*.py` |
 | `.claude/rules/incremental-rebuild.md` | 🔁 架構難收斂時的 S1-S7 重做模板 + 核心原則（無 paths，啟動載入）|
+| `.claude/skills/` | 使用者自訂 skill 目錄（2026-05-24 加入）— Claude Code 偵測到匹配條件時自動載入 |
+| `.claude/skills/test-driven-development/SKILL.md` | TDD 實踐 skill：Red-Green-Refactor 流程 + Iron Law（無失敗測試前不寫產品碼）；S1 v2 寫 `sales_logic.py` 前載入 |
+| `.claude/skills/test-driven-development/testing-anti-patterns.md` | 測試反模式（禁測 mock 行為 / 禁為測試在產品碼加方法 / mock 不是被測物件）；寫測試或加 mock 時參考 |
 | `.claude/settings.local.json` | Claude Code 本機設定（gitignored）|
 | `.claude/worktrees/` | EnterWorktree 建立的暫存工作目錄（gitignored；任務完成後 cleanup） |
 
@@ -148,7 +157,9 @@ resources/userPrompt/
 | `pineedtodo/` | **per-task Pi 端操作說明書** — append-only，每輪有 Pi 動作時新增一檔（檔名 `<YYYY-MM-DD>_<short_name>.md`）|
 | `projectStructure/projectStructure.md` | 本檔案 — 專案目錄結構 |
 | `plans/` | plan 草稿（plan mode 討論結果 / 任務藍圖）|
+| `plans/bdd規範.txt` | **BDD 規範**（2026-05-24 加入）— 規定寫測試前必先用 Gherkin schema 寫 Given-When-Then 空骨架 + AskUserQuestion 確認後再實作；引用 `examples/bdd-寫法範例.txt` |
 | `examples/` | **廠商已驗證範例代碼 + 歸檔舊版** — 廠商寫好且在機器人上測試成功的示範碼；可參考做 pattern、可仿、可改（與 `myProgram/` 的廠商 SDK 本體不同，那些禁改）|
+| `examples/bdd-寫法範例.txt` | **BDD/Gherkin 寫法範例**（2026-05-24 加入）— 毒蛇技能 demo 5 個 scenario：`## ID` + `### Scenario` + `### Given/When/Then` + 空 func。供 BDD 規範引用作模板 |
 | `examples/legacy_threading_v1/` | 2026-05-23 第一輪多線程重構成果歸檔（4 個 .py + README）；incremental rebuild 前的舊版設計，留作參考。內含 README 說明踩到的坑（vendor stop_action sticky / has_customer 分流 race）|
 
 ---
@@ -171,3 +182,5 @@ resources/userPrompt/
 | 2026-05-24 | **業務邏輯規格書納 tracked**：使用者手寫的 5 層狀態機規格 `resources/plans/業務程式邏輯規劃/L1-L5.md` 從 untracked 納入 git；S1 v2 後續實作以此為準 |
 | 2026-05-24 | **業務邏輯規格書格式重構（plan「規格書格式改造」）**：原 L1-L5.md 為使用者口述意識流，重寫為統一模板（入口 / 進入動作 / 鏈路 A-C / 出口列表）；新增 `L0_共通.md` 集中時間常數 / 共通子例程 / 商品 / 數量解析 / 7 類關鍵字白名單。5 個內容待釐清點全部敲定：#1 重複文字去重 / #2「等等」= 想一下意圖（新增鏈路 B-3/B-4）/ #3 4 次循環 = loop_count 上限 4 / #4 客服退出/繼續兩者皆可 / #5 用 L0 規則匹配（後續可換 NLP）|
 | 2026-05-24 | **業務邏輯規格書終審報告歸檔**：S1 v2 實作前派出兩個 Opus 4.7 subagent（Agent A 狀態機 / 跨層一致性、Agent B UX / 待釐清點）以獨立平行方式審查 L0-L5 規格書；產出 23 + 39 = 62 項發現（含 12 項高優先 / 17 項中優先 / 13 項低優先 + 13 項待釐清點選項）。完整原始報告 + 主 agent 整合清單存至 `resources/plans/業務邏輯規劃_終審報告_2026-05-24.md`，作為後續實作 / debug / 優化的權威對照依據。|
+| 2026-05-24 | **規格三輪整合修訂**：分三輪 push commit `f3c0304` / `04c9eef` / `f664d37`，把終審報告 62 項發現裡的高優先 12 項 + 中優先 17 項 + 低優先 9 項 + 13 項待釐清點全部處理完。L0/L1/L2/L3/L4/L5 全部敲定，所有「設計推論（待 review）」標記消除，S1 v2 程式實作有完整無歧義的權威規格依據。|
+| 2026-05-24 | **TDD skill + BDD/Gherkin 規範與範例就位**（使用者手動加入）：新增 `.claude/skills/test-driven-development/`（SKILL.md + testing-anti-patterns.md，TDD 實踐 skill 含 Red-Green-Refactor 與測試反模式）+ `resources/plans/bdd規範.txt`（寫測試前必先 Gherkin 骨架 + AskUserQuestion 確認）+ `resources/examples/bdd-寫法範例.txt`（毒蛇技能 demo 範例）。S1 v2 實作將走 BDD 骨架 → AskUserQuestion → TDD 實作流程。|

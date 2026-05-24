@@ -1,0 +1,2 @@
+- 在编写正式测试代码之前，必须先遵循Behaviour-Driven Development的实践，使用Gherkin schema，写一个只包含Given-When-Then模式的行为注释的和测试函数名的空测试文件。并使用工具AskUserQuestion向用户确认是否继续。禁止在完成行为注释之前，编写任何测试代码。
+- Gherkin schema的测试注释写法参考 resources/examples/bdd-寫法範例.txt 的测试文件。

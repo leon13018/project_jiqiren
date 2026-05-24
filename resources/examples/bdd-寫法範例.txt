@@ -1,0 +1,39 @@
+## SN-001
+### Scenario: 毒蛇对相邻敌方使用技能，造成1点伤害并施加中毒状态
+### Given 毒蛇在(2,2)，敌方单位在(2,3)且生命值大于1
+### When 毒蛇使用毒蛇技能
+### Then 目标受到1点伤害并获得中毒状态
+func test_snake_skill_deals_damage_and_applies_poison() -> void:
+    pass
+
+## SN-002
+### Scenario: 中毒状态在己方回合结束时造成1点伤害
+### Given 敌方单位在(2,3)且有中毒状态，当前是敌方回合结束
+### When 敌方回合结束
+### Then 目标受到1点伤害
+func test_poison_deals_damage_at_end_of_affected_unit_turn() -> void:
+    pass
+
+## SN-003
+### Scenario: 中毒状态不会自动失效
+### Given 敌方单位在(2,3)且有中毒状态
+### When 经过多个回合
+### Then 目标仍然有中毒状态
+func test_poison_does_not_expire_automatically() -> void:
+    pass
+
+## SN-004
+### Scenario: 中毒状态可以叠加
+### Given 敌方单位在(2,3)且有1层中毒状态
+### When 毒蛇再次对其使用技能
+### Then 目标受到1点伤害且有2层中毒状态
+func test_poison_can_stack() -> void:
+    pass
+
+## SN-005
+### Scenario: 毒蛇技能只能对相邻格子使用
+### Given 毒蛇在(2,2)，敌方单位在(3,3)（不相邻）
+### When 检查毒蛇技能是否可以选择该目标
+### Then 不能成为技能目标
+func test_snake_skill_only_targets_adjacent() -> void:
+    pass
