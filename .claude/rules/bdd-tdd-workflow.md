@@ -142,6 +142,28 @@ S1 v2 起，所有 `myProgram/sales/` 內的業務邏輯實作必須走 **BDD sp
 
 歷史案例：commit `3cff233`（L1 第一輪），subagent 在 ENTRY GREEN 一次寫完 `run_l1` 完整 dispatch，後續 11 個 scenarios 直接 PASS。已接受 commit（49 PASS 品質 OK），但本段加入是為了 L2-L5 避免再犯。
 
+**DEGRADED-TDD-PARTIAL 容許條款**（2026-05-24 L2 第一輪實測歸納）：
+
+實測結果：L2 第一輪 subagent prompt 已**明確警告本 pitfall**（含 step-by-step ENTRY→A→B→C 順序示範），subagent 仍踩到（commit `df382ca`）。
+
+**結論：dispatcher 型 prod code 即使警告也常踩**，因為：
+1. 「最小 prod code」對 dispatcher 的客觀定義模糊（subagent 把「能讓 ENTRY-001 過的最小寫法」誤判為「完整 run_l? 雛形」）
+2. dispatcher 是 architectural unit，工程師直覺上想一次設計
+3. redo 成本不划算（已 PASS）且第二次很可能仍踩
+
+**新政策（dispatcher 型 prod，僅限 L1-L5 業務鏈路層）：**
+- 主 agent **接受** DEGRADED commit，**不退回** redo
+- subagent 必須在 commit message 明確標 `[DEGRADED-TDD-PARTIAL-L?]` + 誠實描述哪幾個 scenarios 違反
+- 主 agent 在階段 3b commit 內補記，後續 bug 排查時優先檢查該批次
+- prompt 內仍要警告（給 subagent 機會走嚴格 TDD；偶爾會成功）
+
+**仍嚴格要求（不容許 DEGRADED）：**
+- 純函式 / 純資料 prod code（如 `nlu.py` / `cart.py` / `constants.py`）— 必須嚴格逐 scenario RED
+- subagent 寫測試**前**先寫 prod code（純順序倒，連 ENTRY 都沒 RED）
+- 沒看見任何 fail 就寫 prod code（dispatcher 例外是「先見 ENTRY fail，後續鏈路 fail 沒見」，仍有部分 watch fail；純倒置順序不容許）
+
+---
+
 **Subagent commit 範圍 pitfall**（2026-05-24 L1 第一輪實測踩到）：
 
 主 agent 在 worktree 階段 1 / 2 寫的 BDD spec 檔（`tests/spec/L?_*.py`）若**尚未 commit**就派 subagent，subagent 在自己 commit 階段可能**只 add 自己改動的 prod / test 檔**，漏掉這個 untracked spec 檔。
