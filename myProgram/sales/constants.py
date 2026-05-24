@@ -123,3 +123,37 @@ L3_REASK: str = "請問還需要什麼東西嗎？"
 
 # L3 鏈路 C-1 結帳語音
 L3_C1_CHECKOUT_GO: str = "好的，為您結帳"
+
+# ============================================================
+# L4 文字常數
+# ============================================================
+
+# L4 進入時語音模板（{total} 為總金額）
+L4_ENTRY_VOICE_TEMPLATE: str = "您的總金額是 {total} 元，請您掃碼付款"
+
+# L4 鏈路 A 掃碼成功語音
+L4_A_PAY_SUCCESS: str = "付款成功"
+
+# L4 鏈路 B 取消語音
+L4_B_CANCEL_THANKS: str = "好的，取消這次交易，謝謝光臨"
+
+# L4 鏈路 C 客服模式選項提示語音（終端 + 語音皆印）
+L4_C_OPTIONS_PROMPT: str = "請選擇『退出交易』或『繼續交易』（語音說或終端輸入 1=退出 / 2=繼續 皆可）"
+
+# L4 鏈路 D 強制退語音
+L4_D_FORCED_EXIT: str = "已取消這次交易"
+
+# L4 鏈路 E 無法判斷語音（unclear_count < 3）
+L4_E_CLARIFY: str = "不好意思我聽不太懂，如果想付款請掃碼，需要協助請說『聯繫客服』"
+
+# L4 鏈路 E 第 3 次自動進客服語音（unclear_count == 3）
+L4_E_AUTO_SERVICE: str = "我可能無法協助您，正在為您聯繫客服"
+
+# L4 鏈路 D 四階段催促語音模板（{total} 為總金額）
+L4_D_VOICE_NEUTRAL: str = "您的總金額是 {total} 元，請掃碼，或聯繫客服"
+L4_D_VOICE_GENTLE: str = "提醒您，您的總金額是 {total} 元，需要協助請說『聯繫客服』"
+L4_D_VOICE_MODERATE: str = "您的總金額是 {total} 元，請儘快完成掃碼"
+L4_D_VOICE_WARNING: str = "您的總金額是 {total} 元，請儘快完成掃碼，否則將取消這次交易"
+
+# L4 客服模式 timeout（60 秒）
+L4_SERVICE_TIMEOUT: int = 60
