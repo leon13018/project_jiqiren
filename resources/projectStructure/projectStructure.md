@@ -1,7 +1,7 @@
 # 專案目錄結構
 
 > 本檔案記錄整個專案的資料夾與檔案結構，方便日後快速查閱。
-> 最後更新：2026-05-24（後端模組化骨架就位：myProgram/sales/ 6 檔建立 + resources/architecture/ 收納整體架構決策）
+> 最後更新：2026-05-24（BDD+TDD 開發流程定案：新增 .claude/rules/bdd-tdd-workflow.md + tests/ 測試根目錄骨架 + memory bdd-tdd-workflow）
 
 ---
 
@@ -22,7 +22,8 @@ Project_01/
 │   │   ├── pi-side-trigger.md            # 🚦 Pi 端操作觸發條件完整版（無 paths）
 │   │   ├── projectstructure-trigger.md   # 📂 結構維護觸發條件完整版（無 paths）
 │   │   ├── threading-conventions.md      # 多線程規範；path-scoped, paths: myProgram/**/*.py
-│   │   └── incremental-rebuild.md        # 🔁 Incremental rebuild 流程 + S1-S7 模板（無 paths）
+│   │   ├── incremental-rebuild.md        # 🔁 Incremental rebuild 流程 + S1-S7 模板（無 paths）
+│   │   └── bdd-tdd-workflow.md           # 📝 BDD+TDD 開發流程（2026-05-24 加入）— 4 階段 + subagent prompt 規範 + fallback（無 paths）
 │   └── skills/                           # 使用者自訂 skill（2026-05-24 加入）— tracked
 │       └── test-driven-development/      # TDD 實踐 skill（S1 v2 實作前載入用）
 │           ├── SKILL.md                  # Red-Green-Refactor 流程 + Iron Law（無失敗測試前不寫產品碼）
@@ -31,6 +32,16 @@ Project_01/
 ├── .gitignore                            # Git 忽略清單（2026-05-22 重構為精準排除）
 │
 ├── sync_pi.ps1                           # Windows 端 SSH 部署腳本（gitignored）
+│
+├── tests/                                # ✍️ pytest 測試根目錄（2026-05-24 加入）— tracked
+│   ├── __init__.py                       # 組織說明（spec/ vs sales/ 對應關係）
+│   ├── conftest.py                       # 共用 fixtures（callback stub 工廠等；L0 第一輪填）
+│   ├── spec/                             # BDD 階段產出（按 L 層；L0 第一輪 BDD 才建）
+│   │   └── （L0_common_scenarios.py / L1-L5 對應檔案，於各層 BDD 開做時建）
+│   └── sales/                            # TDD 階段產出（按 prod 模組；L0 第一輪 TDD 才建）
+│       └── （test_nlu.py / test_cart.py / test_logic.py / test_states.py，subagent 建）
+│   # 完整流程：.claude/rules/bdd-tdd-workflow.md
+│   # 設計決策（選項 C 純 unit test）：resources/architecture/backend-module-structure.md
 │
 ├── myProgram/                            # 主程式資料夾（S1 v2 重做中：業務邏輯改 5 層狀態機）
 │   ├── myProgram.py                      # ✍️ 入口（暫空）— S1 v2 完成後負責 from sales.logic import run 並啟動
@@ -141,6 +152,17 @@ resources/userPrompt/
 
 > 廠商檔內含 Pi-only 路徑與底層庫 import（`pigpio`, `RPi.GPIO`, `BusServoCmd` 等），**Windows 本機無法 import 測試**，實際執行驗證一律在 Raspberry Pi 4 上。
 
+### 測試（tests/）
+
+| 檔案 / 資料夾 | 引入階段 | 職責 |
+|---|---|---|
+| `tests/__init__.py` | 2026-05-24（BDD+TDD 流程定案）| 組織說明：spec/ 按 L 層、sales/ 按模組 |
+| `tests/conftest.py` | 2026-05-24（暫骨架）| 共用 fixtures（callback stub 工廠等）；L0 第一輪 implementation 時填具體內容 |
+| `tests/spec/` | L0 第一輪 BDD 開始時 | BDD scenario 注解 + 空函數骨架（按 L 層組織），不 import prod code；對應規格書 `resources/plans/業務程式邏輯規劃/L?.md` |
+| `tests/sales/` | L0 第一輪 TDD 階段 | 完整可執行測試（按 prod 模組組織），subagent 把 spec 內 scenarios 搬過來 + 補實作 + 配對 prod code |
+
+> **測試環境（選項 C）：** Windows 全域 Python 3.14.4 + pytest（使用者 2026-05-24 手動裝）；`myProgram/sales/` 內任何檔禁 import 廠商 SDK，所有對外動作（speak / do_action / show）以 callback 注入。跑指令 `python -m pytest tests/sales/ -v`。完整流程：`.claude/rules/bdd-tdd-workflow.md`。
+
 ### 部署 / 設定
 
 | 檔案 | 職責 |
@@ -158,6 +180,7 @@ resources/userPrompt/
 | `.claude/rules/projectstructure-trigger.md` | 📂 結構維護觸發條件完整版（無 paths） |
 | `.claude/rules/threading-conventions.md` | 多線程規範（cv2 / tkinter 主線程、動作 / TTS 背景線程、asyncio / subprocess 地雷區）；path-scoped, paths: `myProgram/**/*.py` |
 | `.claude/rules/incremental-rebuild.md` | 🔁 架構難收斂時的 S1-S7 重做模板 + 核心原則（無 paths，啟動載入）|
+| `.claude/rules/bdd-tdd-workflow.md` | 📝 編寫 `myProgram/sales/` 業務邏輯必走 4 階段：主 agent BDD spec → AskUserQuestion → 單一 subagent TDD+Impl（Red-Green-Refactor）→ 主 agent 跑 pytest 審查 + 收尾。含 subagent prompt 規範 + tests/ 目錄結構 + fallback（無 paths）|
 | `.claude/skills/` | 使用者自訂 skill 目錄（2026-05-24 加入）— Claude Code 偵測到匹配條件時自動載入 |
 | `.claude/skills/test-driven-development/SKILL.md` | TDD 實踐 skill：Red-Green-Refactor 流程 + Iron Law（無失敗測試前不寫產品碼）；S1 v2 寫 `sales_logic.py` 前載入 |
 | `.claude/skills/test-driven-development/testing-anti-patterns.md` | 測試反模式（禁測 mock 行為 / 禁為測試在產品碼加方法 / mock 不是被測物件）；寫測試或加 mock 時參考 |
@@ -206,3 +229,5 @@ resources/userPrompt/
 | 2026-05-24 | **規格三輪整合修訂**：分三輪 push commit `f3c0304` / `04c9eef` / `f664d37`，把終審報告 62 項發現裡的高優先 12 項 + 中優先 17 項 + 低優先 9 項 + 13 項待釐清點全部處理完。L0/L1/L2/L3/L4/L5 全部敲定，所有「設計推論（待 review）」標記消除，S1 v2 程式實作有完整無歧義的權威規格依據。|
 | 2026-05-24 | **TDD skill + BDD/Gherkin 規範與範例就位**（使用者手動加入）：新增 `.claude/skills/test-driven-development/`（SKILL.md + testing-anti-patterns.md，TDD 實踐 skill 含 Red-Green-Refactor 與測試反模式）+ `resources/plans/bdd規範.txt`（寫測試前必先 Gherkin 骨架 + AskUserQuestion 確認）+ `resources/examples/bdd-寫法範例.txt`（毒蛇技能 demo 範例）。S1 v2 實作將走 BDD 骨架 → AskUserQuestion → TDD 實作流程。|
 | 2026-05-24 | **後端模組化骨架就位 + 架構規劃資料夾建立**：S1 v2 業務邏輯實作前敲定後端分層 — 刪除 `myProgram/sales_logic.py`，新增 `myProgram/sales/` 模組含 6 檔骨架（`__init__.py` / `logic.py` / `constants.py` / `nlu.py` / `cart.py` / `states.py`，全為 docstring + TODO 占位）。新增 `resources/architecture/` 資料夾收納整體架構決策（README + `backend-module-structure.md` + `frontend-backend-contract.md`），CLAUDE.md 🔗 查閱表加 2 行 pointer，memory 新增 `project-architecture-vision`。三層願景定案（前端 HTML+TS / 後端 Python / 未來 DB），接口框架（FastAPI + Pydantic）延後到 HTML 前端開工時敲定。|
+| 2026-05-24 | **展示拓樸與網路通訊文件擴充**：`resources/architecture/frontend-backend-contract.md` 新增「展示拓樸與網路通訊」段（+154 行）含硬體拓樸圖 / 3 種展示場景對比 / Android mDNS 解法 / HTTP REST vs WebSocket 概念 / 功能對應表 / FastAPI 雙協定範例 / `host=0.0.0.0` 啟動關鍵 / 6 種症狀 debug 表 / Pi IP 穩定性 3 種方法 / 內網安全性註記。|
+| 2026-05-24 | **BDD+TDD 開發流程定案**：新增 `.claude/rules/bdd-tdd-workflow.md`（4 階段完整流程 + spec/ vs sales/ 結構 + Iron Law 對應 + subagent prompt 規範 + fallback + 每 L 層獨立一輪 + 環境設定）+ `tests/` 測試根目錄骨架（`__init__.py` + `conftest.py`；spec/ 與 sales/ 子資料夾於 L0 第一輪才建，依 user-step-by-step-pace 不預先做）。CLAUDE.md 加「📝 BDD + TDD 開發流程」段 + 🔗 查閱表 2 行 pointer。`resources/architecture/backend-module-structure.md` 加 Testing 配置段（含 callback stub 範例 + 測試指令）。memory 新增 `bdd-tdd-workflow`，更新 `workflow-constraints`（pytest Windows 例外）+ `project-architecture-vision`（tests/ 結構）。決策：BDD 主 agent 寫 / TDD+Impl 同一個 subagent 走完 Red-Green-Refactor / 選項 C 純 unit test 不寫廠商整合 / 每層 L0→L5 順序獨立一輪 / Python 3.14.4 全域 pytest。|

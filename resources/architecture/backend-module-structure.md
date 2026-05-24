@@ -68,8 +68,74 @@ myProgram/
 
 ---
 
+## Testing 配置（BDD + TDD）
+
+完整流程見 `.claude/rules/bdd-tdd-workflow.md`。本段只記模組結構面決策。
+
+### 測試目錄結構
+
+```
+tests/                              # 專案根目錄
+├── __init__.py
+├── conftest.py                     # 共用 fixtures（callback stub 工廠等）
+├── spec/                           # BDD 階段產出（按 L 層組織）
+│   ├── L0_common_scenarios.py     # 含 Gherkin 注解 + 空 def test_xxx: pass
+│   └── L?_*_scenarios.py
+└── sales/                          # TDD 階段產出（按模組組織）
+    ├── test_nlu.py
+    ├── test_cart.py
+    ├── test_logic.py
+    └── test_states.py
+```
+
+### spec/ vs sales/ 對應關係
+
+| 層級 | 組織方式 | 對應源 | 內容 |
+|---|---|---|---|
+| `tests/spec/` | 按 **L 層**（規格書檔案結構）| `resources/plans/業務程式邏輯規劃/L?.md` | BDD scenario 注解 + 空函數骨架，不 import prod code |
+| `tests/sales/` | 按 **prod 模組**（實作檔結構）| `myProgram/sales/*.py` | 完整可執行測試，import prod code 驗證行為 |
+
+spec/ 寫完不刪，當「規格書的可執行版」永久存活；後續修規格時 spec/ 跟著修。
+
+### 選項 C：純 unit test，無整合測試
+
+- `myProgram/sales/` 內任何檔**禁止 import 廠商 SDK**（`ActionGroupControl` / `Board`）
+- 對外動作（speak / do_action / show）一律走 callback 注入，由 `myProgram.py` 入口層 wire up
+- 結果：`sales/` 在 Windows 可完整 import、執行、測試，pytest 直接跑
+
+### callback stub 範例（純函式 lambda，不用 mock）
+
+```python
+# tests/sales/test_states.py
+def test_l3_b3_想一下_timeout_returns_to_l3():
+    speak_calls = []
+    ctx = make_ctx(speak=lambda t: speak_calls.append(t))
+
+    states.run_l3_b3_想一下(ctx)
+
+    assert speak_calls == ["請慢慢看"]
+```
+
+符合 `.claude/skills/test-driven-development/testing-anti-patterns.md`「mock 不是被測物件」原則。
+
+### 測試指令
+
+```bash
+# 跑全部測試
+python -m pytest tests/sales/ -v
+
+# 跑單一檔
+python -m pytest tests/sales/test_nlu.py -v
+
+# 跑單一測試
+python -m pytest tests/sales/test_nlu.py::test_classify_intent_recognizes_product -v
+```
+
+---
+
 ## 變動紀錄
 
 | 日期 | 變動 |
 |---|---|
 | 2026-05-24 | 初版敲定；6 個空骨架檔（含 `__init__.py`）建立於 `myProgram/sales/`；舊 `sales_logic.py` 刪除 |
+| 2026-05-24 | 加入 Testing 配置段：tests/ 目錄結構（spec/ + sales/）/ 對應關係表 / 選項 C 純 unit test 限制 / callback stub 範例 / 測試指令；完整 BDD+TDD 流程移到 `.claude/rules/bdd-tdd-workflow.md` |

@@ -64,6 +64,13 @@ git 內核 5 步（status → add → commit → push → sync），內嵌在 Wo
 
 ---
 
+## 📝 BDD + TDD 開發流程
+
+編寫 `myProgram/sales/` 業務邏輯必走 4 階段：**主 agent 寫 BDD spec → AskUserQuestion 確認 → 派單一 subagent 走 TDD + Implementation（Red-Green-Refactor）→ 主 agent 跑 pytest 審查 + 收尾**。每 L 層獨立一輪，順序 L0 → L5。Windows 全域裝 pytest，純 unit test + callback 注入（不 import 廠商 SDK）。
+→ **詳細：`.claude/rules/bdd-tdd-workflow.md`**
+
+---
+
 ## 🌐 部署資訊
 
 | 項目 | 值 |
@@ -92,6 +99,7 @@ git 內核 5 步（status → add → commit → push → sync），內嵌在 Wo
 | Linux 路徑規範（寫 code / Pi 設定時 path-scoped 自動載入） | `.claude/rules/path-conventions.md` |
 | 多線程規範（編 `myProgram/*.py` path-scoped 自動載入） | `.claude/rules/threading-conventions.md` |
 | Incremental rebuild 流程（架構難收斂時的 S1-S7 模板） | `.claude/rules/incremental-rebuild.md` |
+| BDD + TDD 開發流程完整版（4 階段 + subagent prompt 規範 + fallback） | `.claude/rules/bdd-tdd-workflow.md` |
 | 廠商已驗證範例代碼（學 pattern 用，可讀可仿） | `resources/examples/` |
 | 架構規劃（後端模組結構 / 前後端契約 / 擴展觸發條件） | `resources/architecture/` |
 | 廠商 SDK 完整 API 清單 + 禁改背景 | memory: `vendor-files` |
@@ -104,6 +112,7 @@ git 內核 5 步（status → add → commit → push → sync），內嵌在 Wo
 | 部署細節（IP / repo / 路徑） | memory: `project-deployment` |
 | 輸出語言規範（簡繁對照） | memory: `output-language` |
 | 架構願景（三層願景 / 後端模組決議 / 接口框架延後） | memory: `project-architecture-vision` |
+| BDD + TDD 心態 / 為何 BDD 主 agent 寫 / 為何 TDD 同 subagent / 為何選項 C | memory: `bdd-tdd-workflow` |
 
 ---
 
