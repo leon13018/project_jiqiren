@@ -1,7 +1,7 @@
 # 專案目錄結構
 
 > 本檔案記錄整個專案的資料夾與檔案結構，方便日後快速查閱。
-> 最後更新：2026-05-24（BDD+TDD 開發流程定案：新增 .claude/rules/bdd-tdd-workflow.md + tests/ 測試根目錄骨架 + memory bdd-tdd-workflow）
+> 最後更新：2026-05-24（L0 BDD+TDD 第一輪完成：tests/spec/L0_common_scenarios.py + tests/sales/test_*.py × 4 + pytest.ini 新增；myProgram/sales/{constants,nlu,cart,states}.py 從骨架轉為 L0 實作；37 scenarios 全 PASS）
 
 ---
 
@@ -33,13 +33,20 @@ Project_01/
 │
 ├── sync_pi.ps1                           # Windows 端 SSH 部署腳本（gitignored）
 │
+├── pytest.ini                            # pytest 設定（2026-05-24 L0 TDD 加入）— testpaths=tests/sales — tracked
+│
 ├── tests/                                # ✍️ pytest 測試根目錄（2026-05-24 加入）— tracked
 │   ├── __init__.py                       # 組織說明（spec/ vs sales/ 對應關係）
-│   ├── conftest.py                       # 共用 fixtures（callback stub 工廠等；L0 第一輪填）
-│   ├── spec/                             # BDD 階段產出（按 L 層；L0 第一輪 BDD 才建）
-│   │   └── （L0_common_scenarios.py / L1-L5 對應檔案，於各層 BDD 開做時建）
-│   └── sales/                            # TDD 階段產出（按 prod 模組；L0 第一輪 TDD 才建）
-│       └── （test_nlu.py / test_cart.py / test_logic.py / test_states.py，subagent 建）
+│   ├── conftest.py                       # 共用 fixtures 說明（L0 全部用 inline lambda + FakeScheduler，無跨檔共用 fixture）
+│   ├── spec/                             # BDD 階段產出（按 L 層；L0 第一輪 2026-05-24 建）
+│   │   ├── __init__.py                   # 子資料夾說明
+│   │   └── L0_common_scenarios.py        # L0 共通規則 37 個 scenarios（CONST/PROD/HAWK/NLU/QTY/CART/SUB-A）
+│   └── sales/                            # TDD 階段產出（按 prod 模組；L0 第一輪 2026-05-24 建）
+│       ├── __init__.py                   # 子資料夾說明
+│       ├── test_constants.py             # 5 scenarios：L0-CONST + L0-PROD + L0-HAWK
+│       ├── test_nlu.py                   # 22 scenarios：L0-NLU(13) + L0-QTY(9)
+│       ├── test_cart.py                  # 6 scenarios：L0-CART
+│       └── test_states.py                # 4 scenarios：L0-SUB-A 子例程 A（含 FakeScheduler inline stub）
 │   # 完整流程：.claude/rules/bdd-tdd-workflow.md
 │   # 設計決策（選項 C 純 unit test）：resources/architecture/backend-module-structure.md
 │
@@ -47,17 +54,18 @@ Project_01/
 │   ├── myProgram.py                      # ✍️ 入口（暫空）— S1 v2 完成後負責 from sales.logic import run 並啟動
 │   ├── ActionGroupControl.py             # 🚫 廠商 SDK — Hiwonder TonyPi，禁止修改
 │   ├── Board.py                          # 🚫 廠商 SDK — Hiwonder TonyPi，禁止修改
-│   └── sales/                            # ✍️ 後端業務模組（2026-05-24 加入，骨架已就位）
+│   └── sales/                            # ✍️ 後端業務模組（2026-05-24 加入；L0 實作 2026-05-24 完成）
 │       ├── __init__.py                   # 模組標記 + docstring
-│       ├── logic.py                      # 主迴圈 + 5 層 dispatch（暫骨架）
-│       ├── constants.py                  # L0 常數：時間 / 商品 / 7 類白名單（暫骨架）
-│       ├── nlu.py                        # 意圖識別純函式（暫骨架）— BDD/TDD 切入點
-│       ├── cart.py                       # 購物車資料模型（暫骨架）
-│       └── states.py                     # L1-L5 鏈路實作（暫骨架）
+│       ├── logic.py                      # 主迴圈 + 5 層 dispatch（暫骨架，L1+ 才實作）
+│       ├── constants.py                  # ✅ L0 實作：7 時間常數 + PRODUCTS dict + HAWK_SLOGANS list
+│       ├── nlu.py                        # ✅ L0 實作：classify_intent（6 步優先序）+ parse_quantity（阿拉伯優先 + 中文映射含異體字）
+│       ├── cart.py                       # ✅ L0 實作：new_cart / add_item / get_quantity / calc_total / clear_cart / is_empty 純函式
+│       └── states.py                     # ✅ L0 實作：run_subroutine_a「回 L1 叫賣」（callback 注入 + 遞迴排程）；L1-L5 鏈路 TODO
 │   # 2026-05-23 incremental rebuild：tts.py / robot_actions.py / screen_display.py 歸檔
 │   # 到 resources/examples/legacy_threading_v1/。後續 S2-S7 逐步加層。
 │   # 2026-05-24 S1 v1（115 行單檔）清空重做為「入口 + 業務邏輯」分離結構。
 │   # 2026-05-24 sales_logic.py 拆成 sales/ 模組（6 檔），詳見 resources/architecture/backend-module-structure.md。
+│   # 2026-05-24 L0 BDD+TDD 第一輪完成：constants / nlu / cart / states 4 檔從骨架轉為實作；37 scenarios PASS。
 │
 └── resources/                            # 開發 / 部署參考資源（2026-05-22 重構：大部分 tracked）
     ├── presentation/                     # gitignored — 大檔不入 git
@@ -135,11 +143,11 @@ resources/userPrompt/
 |---|---|---|
 | `myProgram.py` | S1 v2（暫空）| 入口：未來 `from sales.logic import run; run()`，保持簡潔 |
 | `sales/__init__.py` | S1 v2 | 模組標記 + docstring（指向規格書與架構文件）|
-| `sales/logic.py` | S1 v2（暫骨架）| 主迴圈 + 5 層 dispatch；唯一允許持有「外部世界」的進入點 |
-| `sales/constants.py` | S1 v2（暫骨架）| L0 共通常數：時間 / 商品 / 7 類關鍵字白名單；純資料無 IO |
-| `sales/nlu.py` | S1 v2（暫骨架）| 意圖識別純函式（6 步判定優先序 + 數量解析）；BDD/TDD 切入點 |
-| `sales/cart.py` | S1 v2（暫骨架）| 購物車資料模型 + 操作；未來上 DB 介面不變（Repository Pattern） |
-| `sales/states.py` | S1 v2（暫骨架）| L1-L5 各鏈路實作；對外動作以 callback 注入（speak / do_action / show）|
+| `sales/logic.py` | S1 v2（暫骨架，L1+ 才實作）| 主迴圈 + 5 層 dispatch；唯一允許持有「外部世界」的進入點 |
+| `sales/constants.py` | S1 v2 L0 ✅ | 7 時間常數 + `PRODUCTS` dict（冰紅茶 27 / 刮刮樂 180）+ `HAWK_SLOGANS` 6 組叫賣術語；純資料無 IO |
+| `sales/nlu.py` | S1 v2 L0 ✅ | `classify_intent(text, mode)` 6 步優先序（L4 客服模式吃繼續/退出）+ `parse_quantity(text)` 阿拉伯優先 / 中文映射含異體字 / 預設 1 |
+| `sales/cart.py` | S1 v2 L0 ✅ | 純函式 + dict[str, int]：`new_cart` / `add_item`（同商品累加）/ `get_quantity` / `calc_total`（依 PRODUCTS 實際價）/ `clear_cart` / `is_empty` |
+| `sales/states.py` | S1 v2 L0 ✅（部分）| `run_subroutine_a`「回 L1 叫賣」：mute_opencv → schedule OPENCV_MUTE → unmute + speak 第 1 組 → 每 HAWK_INTERVAL 換下一組（mod 6）；callback 注入。L1-L5 鏈路 TODO |
 | `tts.py` | S2 | 同步阻塞 `speak()`（S4 起擴為非阻塞 TtsWorker）|
 | `robot_actions.py` | S3 | 同步動作（S5 起擴為非阻塞 ActionWorker）|
 
@@ -157,9 +165,15 @@ resources/userPrompt/
 | 檔案 / 資料夾 | 引入階段 | 職責 |
 |---|---|---|
 | `tests/__init__.py` | 2026-05-24（BDD+TDD 流程定案）| 組織說明：spec/ 按 L 層、sales/ 按模組 |
-| `tests/conftest.py` | 2026-05-24（暫骨架）| 共用 fixtures（callback stub 工廠等）；L0 第一輪 implementation 時填具體內容 |
-| `tests/spec/` | L0 第一輪 BDD 開始時 | BDD scenario 注解 + 空函數骨架（按 L 層組織），不 import prod code；對應規格書 `resources/plans/業務程式邏輯規劃/L?.md` |
-| `tests/sales/` | L0 第一輪 TDD 階段 | 完整可執行測試（按 prod 模組組織），subagent 把 spec 內 scenarios 搬過來 + 補實作 + 配對 prod code |
+| `tests/conftest.py` | 2026-05-24 | 共用 fixtures 說明 — L0 全部用 inline lambda + FakeScheduler（無跨檔共用 fixture）；後續 L 層出現共用需求才搬入 |
+| `tests/spec/__init__.py` | 2026-05-24（L0 第一輪 BDD）| spec/ 子資料夾組織說明 |
+| `tests/spec/L0_common_scenarios.py` | 2026-05-24（L0 第一輪 BDD）| 37 個 Gherkin scenarios（CONST 1 / PROD 2 / HAWK 2 / NLU 13 / QTY 9 / CART 6 / SUB-A 4），對應 `resources/plans/業務程式邏輯規劃/L0_共通.md`；唯讀，不 import prod code |
+| `tests/sales/__init__.py` | 2026-05-24（L0 第一輪 TDD）| sales/ 子資料夾組織說明 |
+| `tests/sales/test_constants.py` | 2026-05-24（L0 第一輪 TDD）| 5 個測試：時間常數值 / 商品價錢 / 6 組叫賣 / mod 6 輪替 |
+| `tests/sales/test_nlu.py` | 2026-05-24（L0 第一輪 TDD）| 22 個測試：意圖分類 6 大類 + 優先序 + L4 客服模式 + 中文 / 阿拉伯數量解析 |
+| `tests/sales/test_cart.py` | 2026-05-24（L0 第一輪 TDD）| 6 個測試：新建 / 加入 / 累加 / 單品總額 / 多品總額 / 清空 |
+| `tests/sales/test_states.py` | 2026-05-24（L0 第一輪 TDD）| 4 個測試：子例程 A 觸發屏蔽 / OPENCV_MUTE 後第 1 組 / HAWK_INTERVAL 換下一組 / mod 6 回繞（含 FakeScheduler inline stub）|
+| `pytest.ini` | 2026-05-24（L0 第一輪 TDD）| pytest 設定：`testpaths = tests/sales`；確保 `python -m pytest tests/sales/ -v` 正確找到測試 |
 
 > **測試環境（選項 C）：** Windows 全域 Python 3.14.4 + pytest（使用者 2026-05-24 手動裝）；`myProgram/sales/` 內任何檔禁 import 廠商 SDK，所有對外動作（speak / do_action / show）以 callback 注入。跑指令 `python -m pytest tests/sales/ -v`。完整流程：`.claude/rules/bdd-tdd-workflow.md`。
 
@@ -231,3 +245,4 @@ resources/userPrompt/
 | 2026-05-24 | **後端模組化骨架就位 + 架構規劃資料夾建立**：S1 v2 業務邏輯實作前敲定後端分層 — 刪除 `myProgram/sales_logic.py`，新增 `myProgram/sales/` 模組含 6 檔骨架（`__init__.py` / `logic.py` / `constants.py` / `nlu.py` / `cart.py` / `states.py`，全為 docstring + TODO 占位）。新增 `resources/architecture/` 資料夾收納整體架構決策（README + `backend-module-structure.md` + `frontend-backend-contract.md`），CLAUDE.md 🔗 查閱表加 2 行 pointer，memory 新增 `project-architecture-vision`。三層願景定案（前端 HTML+TS / 後端 Python / 未來 DB），接口框架（FastAPI + Pydantic）延後到 HTML 前端開工時敲定。|
 | 2026-05-24 | **展示拓樸與網路通訊文件擴充**：`resources/architecture/frontend-backend-contract.md` 新增「展示拓樸與網路通訊」段（+154 行）含硬體拓樸圖 / 3 種展示場景對比 / Android mDNS 解法 / HTTP REST vs WebSocket 概念 / 功能對應表 / FastAPI 雙協定範例 / `host=0.0.0.0` 啟動關鍵 / 6 種症狀 debug 表 / Pi IP 穩定性 3 種方法 / 內網安全性註記。|
 | 2026-05-24 | **BDD+TDD 開發流程定案**：新增 `.claude/rules/bdd-tdd-workflow.md`（4 階段完整流程 + spec/ vs sales/ 結構 + Iron Law 對應 + subagent prompt 規範 + fallback + 每 L 層獨立一輪 + 環境設定）+ `tests/` 測試根目錄骨架（`__init__.py` + `conftest.py`；spec/ 與 sales/ 子資料夾於 L0 第一輪才建，依 user-step-by-step-pace 不預先做）。CLAUDE.md 加「📝 BDD + TDD 開發流程」段 + 🔗 查閱表 2 行 pointer。`resources/architecture/backend-module-structure.md` 加 Testing 配置段（含 callback stub 範例 + 測試指令）。memory 新增 `bdd-tdd-workflow`，更新 `workflow-constraints`（pytest Windows 例外）+ `project-architecture-vision`（tests/ 結構）。決策：BDD 主 agent 寫 / TDD+Impl 同一個 subagent 走完 Red-Green-Refactor / 選項 C 純 unit test 不寫廠商整合 / 每層 L0→L5 順序獨立一輪 / Python 3.14.4 全域 pytest。|
+| 2026-05-24 | **L0 BDD+TDD 第一輪完成**：BDD 階段 1 主 agent 寫 `tests/spec/L0_common_scenarios.py`（37 scenarios，7 大類），AskUserQuestion 通過。階段 2 plan mode 規劃 4 模組對應（constants/nlu/cart/states），ExitPlanMode 通過。階段 3 派單一 Sonnet subagent 走 Red-Green-Refactor → 37 scenarios 全 PASS，新增 `pytest.ini`（testpaths=tests/sales）+ `tests/sales/__init__.py` + 4 個 test_*.py + 4 個 prod 檔從骨架轉為實作。`myProgram/sales/{constants,nlu,cart,states}.py` 完成 L0 實作（callback 注入、純函式、無廠商 SDK import）。`logic.py` 本輪不動（L1+ 才有意義）。下一輪 L1。|
