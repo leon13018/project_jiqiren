@@ -16,8 +16,8 @@ from myProgram.sales.constants import (
     L2_B3_THIRD_REJECT,
     L2_C_ADDED,
 )
-from myProgram.sales.nlu import classify_intent, parse_quantity
-from myProgram.sales import cart as cart_module
+from myProgram.sales.nlu import classify_intent
+from myProgram.sales.states._product_helpers import resolve_and_add_product
 
 
 def run_l2(
@@ -85,11 +85,15 @@ def run_l2(
             print_terminal(SERVICE_PHONE)
             continue  # 自動回 L2 循環
 
-        # 優先序 5：商品 → C
+        # 優先序 5：商品 → C（若無數量自動追問「您要幾瓶/張？」）
         if intent in ("商品:冰紅茶", "商品:刮刮樂"):
-            product = intent.split(":")[1]
-            qty = parse_quantity(response)
-            cart_module.add_item(cart, product, qty)
+            resolve_and_add_product(
+                intent=intent,
+                response=response,
+                cart=cart,
+                speak=speak,
+                read_customer_input=read_customer_input,
+            )
             speak(L2_C_ADDED)
             return ("L3", 0)
 
@@ -185,9 +189,13 @@ def _l2_dispatch_response(
         return None  # 回主等待
 
     if intent in ("商品:冰紅茶", "商品:刮刮樂"):
-        product = intent.split(":")[1]
-        qty = parse_quantity(response)
-        cart_module.add_item(cart, product, qty)
+        resolve_and_add_product(
+            intent=intent,
+            response=response,
+            cart=cart,
+            speak=speak,
+            read_customer_input=read_customer_input,
+        )
         speak(L2_C_ADDED)
         return ("L3", 0)
 

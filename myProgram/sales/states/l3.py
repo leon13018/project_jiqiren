@@ -20,8 +20,9 @@ from myProgram.sales.constants import (
     L3_REASK,
     L3_C1_CHECKOUT_GO,
 )
-from myProgram.sales.nlu import classify_intent, parse_quantity
+from myProgram.sales.nlu import classify_intent
 from myProgram.sales import cart as cart_module
+from myProgram.sales.states._product_helpers import resolve_and_add_product
 
 
 def run_l3(
@@ -227,11 +228,15 @@ def _l3_dispatch_response(
         print_terminal(SERVICE_PHONE)
         return None  # 回主等待
 
-    # 優先序 6：商品 → 鏈路 B-3（加單繼續循環）
+    # 優先序 6：商品 → 鏈路 B-3（加單繼續循環；若無數量自動追問「您要幾瓶/張？」）
     if intent in ("商品:冰紅茶", "商品:刮刮樂"):
-        product = intent.split(":")[1]
-        qty = parse_quantity(response)
-        cart_module.add_item(cart, product, qty)
+        resolve_and_add_product(
+            intent=intent,
+            response=response,
+            cart=cart,
+            speak=speak,
+            read_customer_input=read_customer_input,
+        )
         speak(L3_REASK)
         return None  # 回主等待
 

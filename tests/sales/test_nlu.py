@@ -356,3 +356,29 @@ def test_qty_arabic_0_falls_back_to_default_1() -> None:
 ### Then 數量為 3（阿拉伯數字優先於中文）
 def test_qty_arabic_priority_over_chinese() -> None:
     assert nlu.parse_quantity("我要 3 杯，給我貳個") == 3
+
+
+# ============================================================
+# L0-QTY-010 (2026-05-25 加)
+# ============================================================
+
+## L0-QTY-010
+### Scenario: has_quantity 判斷文字內是否含可解析數量
+### Given 顧客輸入文字
+### When 呼叫 has_quantity
+### Then 含阿拉伯或中文數字 → True；否則 → False
+def test_has_quantity_detects_arabic_and_chinese() -> None:
+    """供 L2 / L3 鏈路 C 區分「顯式 1 vs 預設 1」用 — 預設 1 才追問數量。"""
+    # 阿拉伯數字 → True
+    assert nlu.has_quantity("我要 5 瓶")
+    assert nlu.has_quantity("10張")
+    # 中文數字 → True
+    assert nlu.has_quantity("我要兩瓶冰紅茶")
+    assert nlu.has_quantity("三個")
+    assert nlu.has_quantity("拾杯")
+    assert nlu.has_quantity("壹瓶")
+    # 無數量 → False
+    assert not nlu.has_quantity("冰紅茶")
+    assert not nlu.has_quantity("我要紅茶")
+    assert not nlu.has_quantity("刮刮樂")
+    assert not nlu.has_quantity("")

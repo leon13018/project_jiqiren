@@ -63,10 +63,11 @@ Project_01/
 │       ├── __init__.py                   # 模組標記 + docstring
 │       ├── logic.py                      # ✅ 主迴圈 + 5 層 cycle dispatch + cart invariant fail-fast（A2-c / A4-c 落地）
 │       ├── constants.py                  # ✅ L0-L5 常數（時間 / 商品 / 叫賣 / L1-L5 字串；B3 命名統一）
-│       ├── nlu.py                        # ✅ L0 純函式（classify_intent + parse_quantity）
+│       ├── nlu.py                        # ✅ L0 純函式（classify_intent + parse_quantity + has_quantity）
 │       ├── cart.py                       # ✅ L0 純函式（new_cart / add_item / calc_total / clear_cart 等）
 │       └── states/                       # ✅ L0-L5 鏈路（2026-05-25 B4 拆 states.py 1085 行為子資料夾）
 │           ├── __init__.py               # re-export 6 個 public run_? 函式
+│           ├── _product_helpers.py       # L2/L3 鏈路 C 商品加單共享 helper（resolve_and_add_product；含無數量追問流程）
 │           ├── subroutine_a.py           # L0 子例程 A（run_subroutine_a + _schedule_hawk）
 │           ├── l1.py                     # L1 商家層（run_l1 + 4 私有）
 │           ├── l2.py                     # L2 詢問需求（run_l2 + 3 私有）

@@ -45,6 +45,7 @@ from myProgram.sales.constants import (
     L4_D_FORCED_EXIT,
     L4_E_CLARIFY,
     L4_E_AUTO_SERVICE,
+    QTY_PROMPT_TEMPLATE,
     L4_D_VOICE_NEUTRAL,
     L4_D_VOICE_GENTLE,
     L4_D_VOICE_MODERATE,
@@ -1106,6 +1107,32 @@ def test_l2_c_iced_tea_with_chinese_quantity_parses_and_adds() -> None:
 # Then 數量解析為 1，cart = {刮刮樂: 1}，轉到 L3
 # ============================================================
 
+def test_l2_c_iced_tea_no_quantity_asks_then_uses_followup() -> None:
+    """2026-05-25 加：商品意圖無數量 → 系統追問「您要幾瓶？」→ 用 follow-up 數量加 cart。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 「我要紅茶」(無數量) → 追問 → 「兩瓶」→ 加 2
+    customer_input = FakeCustomerInput(["我要紅茶", "兩瓶"])
+
+    next_state, _ = states.run_l2(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    assert next_state == "L3"
+    assert cart_module.get_quantity(cart, "冰紅茶") == 2, (
+        f"「我要紅茶」+ 追問「兩瓶」應加 2 杯冰紅茶，實際：{cart}"
+    )
+    assert QTY_PROMPT_TEMPLATE.format(unit="瓶") in speak_calls, (
+        f"應 speak QTY_PROMPT_TEMPLATE 追問語音，實際：{speak_calls}"
+    )
+    assert L2_C_ADDED in speak_calls
+
+
 def test_l2_c_scratch_card_adds_cart_and_goes_l3() -> None:
     # Arrange
     cart = cart_module.new_cart()
@@ -1352,6 +1379,32 @@ def test_l3_b3_product_default_quantity_adds_cart_and_stays_in_l3() -> None:
 ### When 顧客輸入「冰紅茶兩個」（命中商品 + 中文數量「兩」= 2）
 ### Then 數量解析為 2，cart 同商品累加 = {冰紅茶: 3}，保持在 L3
 # ============================================================
+
+def test_l3_b3_product_no_quantity_asks_then_uses_followup() -> None:
+    """2026-05-25 加：L3 商品意圖無數量 → 系統追問「您要幾張？」→ 用 follow-up 數量加 cart。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # 「我要刮刮樂」(無數量) → 追問「幾張」→ 「10張」→ 加 10；後續 None 走 C-2 timeout → L4
+    customer_input = FakeCustomerInput(["我要刮刮樂", "10張", None, None])
+
+    next_state, _ = states.run_l3(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    assert next_state == "L4"
+    assert cart_module.get_quantity(cart, "刮刮樂") == 10, (
+        f"「我要刮刮樂」+ 追問「10張」應加 10 張刮刮樂，實際：{cart}"
+    )
+    assert QTY_PROMPT_TEMPLATE.format(unit="張") in speak_calls, (
+        f"應 speak QTY_PROMPT_TEMPLATE 追問語音，實際：{speak_calls}"
+    )
+
 
 def test_l3_b3_product_with_quantity_accumulates_existing() -> None:
     # Arrange

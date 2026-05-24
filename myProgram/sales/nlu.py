@@ -128,6 +128,20 @@ _CHINESE_DIGIT_MAP: dict = {
 }
 
 
+def has_quantity(text: str) -> bool:
+    """判斷文字內是否含可解析的數量（阿拉伯或中文數字）。
+
+    供 L2 / L3 鏈路 C 判定：若顧客講商品但未含數量，呼叫端追問「您要幾瓶/張？」。
+    parse_quantity 對「無數量」會 fallback 為 1 — 本函數存在意義就是「區分顯式 1 vs 預設 1」。
+
+    Returns:
+        True 含數量；False 無。
+    """
+    if re.search(r"\d+", text):
+        return True
+    return any(char in text for char in _CHINESE_DIGIT_MAP)
+
+
 def parse_quantity(text: str) -> int:
     """從顧客輸入解析商品數量。
 
