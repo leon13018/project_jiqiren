@@ -3,7 +3,7 @@
 對應規格書：resources/plans/業務程式邏輯規劃/L5.md
 
 最簡單一層：無顧客互動 / 無分支 / 無 dispatcher。
-純序列：mute_opencv → speak → clear_cart → read_customer_input（當純等待）→ return
+純序列：mute_opencv → speak → clear_cart → sleep → return
 """
 
 from myProgram.sales.constants import THANK_DELAY, L5_THANKS
@@ -15,7 +15,7 @@ def run_l5(
     do_action,
     mute_opencv,
     cart,
-    read_customer_input,
+    sleep,
 ) -> tuple:
     """L5 致謝層：最簡單一層，純序列動作，無顧客互動。
 
@@ -23,7 +23,7 @@ def run_l5(
         1. 立即啟動 OpenCV mute THANK_DELAY 秒（致謝屏蔽期）
         2. speak 致謝語音（L5_THANKS）
         3. 清空 cart（交易完成重置）
-        4. 等 THANK_DELAY 秒（read_customer_input 當純等待用，忽略結果）
+        4. sleep THANK_DELAY 秒（純等待，不接受任何顧客輸入）
         5. 套用子例程 A 回 L1（return ("L1_via_subroutine_a", 0, 0)）
 
     Args:
@@ -31,11 +31,12 @@ def run_l5(
         do_action: callback(name: str) — 動作（規格 TBD，stub no-op）
         mute_opencv: callback(seconds: float) — 屏蔽 OpenCV 偵測
         cart: 購物車 dict（L5 內清空）
-        read_customer_input: callback(timeout: float) -> str | None
-            B 類 refactor (2026-05-25)：原本 L5 接 sleep callback，改沿用 L2-L4 的
-            read_customer_input(timeout=THANK_DELAY) 統一 callback 集合（B2）。
-            L5 規格寫「3s 期間不接受任何顧客輸入」— 即使 read 收到回應也忽略，
-            純當 sleep 用。
+        sleep: callback(seconds: float) — 純等待 seconds 秒（不接受任何顧客輸入）
+            設計沿革：原本 L5 接 sleep；B2 refactor 一度改為 read_customer_input 並標
+            「忽略輸入當 sleep 用」想統一 callback 集合，但 chat-driven S1 wire-up
+            把 read_customer_input 實作為 blocking input()，違反規格「致謝期間不接受
+            顧客輸入」本意 → 2026-05-25 revert B2 恢復獨立 sleep callback。S1 wire-up
+            用真 time.sleep；S4+ 上 threading 時可改 worker thread sleep 不阻塞主迴圈。
 
     Returns:
         ("L1_via_subroutine_a", 0, 0)
@@ -50,6 +51,6 @@ def run_l5(
     # ENTRY-003：清空 cart（交易完成）
     cart_module.clear_cart(cart)
 
-    # A-001：等 THANK_DELAY 秒（read_customer_input 當純等待，忽略回應）後套用子例程 A
-    read_customer_input(timeout=THANK_DELAY)
+    # A-001：純等待 THANK_DELAY 秒（不接受任何顧客輸入）後套用子例程 A
+    sleep(THANK_DELAY)
     return ("L1_via_subroutine_a", 0, 0)

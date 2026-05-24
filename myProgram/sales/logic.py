@@ -33,6 +33,7 @@ def run(
     speak,
     do_action,
     read_customer_input,
+    sleep,
     schedule,
     exit_program,
 ) -> None:
@@ -118,7 +119,7 @@ def run(
             do_action=do_action,
             mute_opencv=mute_opencv,
             cart=cart,
-            read_customer_input=read_customer_input,
+            sleep=sleep,
         )
         # L5 內部已清 cart
         _assert_cart_empty(cart, "L5 退出後（L5 應已清 cart）")

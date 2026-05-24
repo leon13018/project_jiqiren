@@ -19,6 +19,7 @@ S3+ 才接 `from myProgram import ActionGroupControl as Act` 並 wire。
 """
 
 import sys
+import time
 
 from myProgram.sales import logic
 from myProgram.sales.constants import OPENCV_DWELL, L1_HAWK_ENTRY_PROMPT
@@ -97,6 +98,15 @@ def _build_callbacks(state: _S1State) -> dict:
         print(f"[動作] {name}")
 
     # === 時間 / 程式控制 ===
+    def sleep(seconds):
+        """S1 sleep：真實阻塞等待 seconds 秒（L5 用作 3 秒致謝期）。
+
+        S4+ 上 threading 時，sleep 改為 worker thread 處理 / 主迴圈用 timer fire-and-forget，
+        避免阻塞主線程。
+        """
+        print(f"[等待] {seconds}s 後繼續...")
+        time.sleep(seconds)
+
     def schedule(seconds, fn):
         """S1 schedule：不真排程，僅印警告（單線程不能背景跑）。"""
         print(f"[schedule] 排程 {seconds}s 後執行 {fn.__name__}（S1 不真排程，立即跳過）")
@@ -116,6 +126,7 @@ def _build_callbacks(state: _S1State) -> dict:
         "speak": speak,
         "do_action": do_action,
         "read_customer_input": read_customer_input,
+        "sleep": sleep,
         "schedule": schedule,
         "exit_program": exit_program,
     }

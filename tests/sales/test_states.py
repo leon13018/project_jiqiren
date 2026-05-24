@@ -2560,7 +2560,7 @@ def test_l5_entry_mutes_opencv_for_thank_delay() -> None:
     # Arrange
     mute_calls: list = []
     speak_calls: list = []
-    read_input_calls: list = []
+    sleep_calls: list = []
     cart: dict = {"冰紅茶": 2, "刮刮樂": 1}
 
     # Act
@@ -2569,7 +2569,7 @@ def test_l5_entry_mutes_opencv_for_thank_delay() -> None:
         do_action=lambda name: None,
         mute_opencv=lambda secs: mute_calls.append(secs),
         cart=cart,
-        read_customer_input=lambda timeout: read_input_calls.append(timeout) or None,
+        sleep=lambda secs: sleep_calls.append(secs),
     )
 
     # Assert — L5-ENTRY-001：mute_opencv 被呼叫一次，屏蔽 THANK_DELAY 秒
@@ -2594,7 +2594,7 @@ def test_l5_entry_speaks_thanks_message() -> None:
     # Arrange
     mute_calls: list = []
     speak_calls: list = []
-    read_input_calls: list = []
+    sleep_calls: list = []
     cart: dict = {"冰紅茶": 2, "刮刮樂": 1}
 
     # Act
@@ -2603,7 +2603,7 @@ def test_l5_entry_speaks_thanks_message() -> None:
         do_action=lambda name: None,
         mute_opencv=lambda secs: mute_calls.append(secs),
         cart=cart,
-        read_customer_input=lambda timeout: read_input_calls.append(timeout) or None,
+        sleep=lambda secs: sleep_calls.append(secs),
     )
 
     # Assert — L5-ENTRY-002：speak 被呼叫且包含 L5_THANKS 致謝語音
@@ -2625,7 +2625,7 @@ def test_l5_entry_clears_cart() -> None:
     # Arrange
     mute_calls: list = []
     speak_calls: list = []
-    read_input_calls: list = []
+    sleep_calls: list = []
     cart: dict = {"冰紅茶": 2, "刮刮樂": 1}
 
     # Act
@@ -2634,7 +2634,7 @@ def test_l5_entry_clears_cart() -> None:
         do_action=lambda name: None,
         mute_opencv=lambda secs: mute_calls.append(secs),
         cart=cart,
-        read_customer_input=lambda timeout: read_input_calls.append(timeout) or None,
+        sleep=lambda secs: sleep_calls.append(secs),
     )
 
     # Assert — L5-ENTRY-003：cart 應被清空（交易完成重置）
@@ -2660,7 +2660,7 @@ def test_l5_a_returns_to_l1_via_subroutine_a_after_thank_delay() -> None:
     # Arrange
     mute_calls: list = []
     speak_calls: list = []
-    read_input_calls: list = []
+    sleep_calls: list = []
     cart: dict = {"冰紅茶": 2, "刮刮樂": 1}
 
     # Act
@@ -2669,16 +2669,16 @@ def test_l5_a_returns_to_l1_via_subroutine_a_after_thank_delay() -> None:
         do_action=lambda name: None,
         mute_opencv=lambda secs: mute_calls.append(secs),
         cart=cart,
-        read_customer_input=lambda timeout: read_input_calls.append(timeout) or None,
+        sleep=lambda secs: sleep_calls.append(secs),
     )
 
     # Assert — L5-A-001：回傳 tuple 正確 + sleep 被呼叫等待 THANK_DELAY 秒
     assert result == ("L1_via_subroutine_a", 0, 0), (
         f"應回傳 tuple (L1_via_subroutine_a, 0, 0)，實際：{result}"
     )
-    assert len(read_input_calls) == 1, (
-        f"read_customer_input 應被呼叫一次（當純等待用），實際：{read_input_calls}"
+    assert len(sleep_calls) == 1, (
+        f"sleep 應被呼叫一次（純等待 THANK_DELAY 秒），實際：{sleep_calls}"
     )
-    assert read_input_calls[0] == THANK_DELAY, (
-        f"read_customer_input 應 timeout=THANK_DELAY={THANK_DELAY} 秒，實際：{read_input_calls[0]}"
+    assert sleep_calls[0] == THANK_DELAY, (
+        f"sleep 應等待 THANK_DELAY={THANK_DELAY} 秒，實際：{sleep_calls[0]}"
     )
