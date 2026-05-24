@@ -275,7 +275,7 @@ def _l4_dispatch_response(
         return ("L5", 0, 0)
 
     # 優先序 2：拒絕 → 鏈路 B
-    intent = classify_intent(response, "normal")
+    intent = classify_intent(response, "l4")
 
     if intent == "拒絕":
         return _l4_exit_b(speak, cart)

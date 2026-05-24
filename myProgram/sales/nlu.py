@@ -44,26 +44,39 @@ def _contains_any(text: str, keywords: list) -> bool:
 
 
 def classify_intent(text: str, mode: str = "normal") -> str:
-    """對顧客輸入做意圖分類。
+    """對顧客輸入做意圖分類（層別語意感知）。
 
     優先序（先命中先返回）：
-        L4 客服模式：繼續交易 → 退出交易 → 以下通用優先序
-        通用：拒絕 → 想一下 → 結帳 → 客服 → 商品:冰紅茶 → 商品:刮刮樂 → 無法判斷
+        L4 客服模式：繼續交易 → 退出交易（含 no/nope）→ 通用
+        L2 / L4 模式：no / nope → 拒絕（覆寫 CHECKOUT 預設）→ 通用
+        通用 / L3：拒絕 → 想一下 → 結帳（含 no/nope 當「沒了、不追加」）→ 客服 → 商品 → 無法判斷
 
     Args:
         text: 顧客輸入字串
-        mode: "normal"（預設）或 "l4_service"（L4 客服模式）
+        mode:
+            - "normal"（預設，L3 用）：no / nope → 結帳意圖（語意「沒了，不追加」）
+            - "l2"：no / nope → 拒絕（語意「不要 / 不需要」→ L2-A 退出）
+            - "l4"：no / nope → 拒絕（語意「不要了 / 取消」→ L4-B 取消交易）
+            - "l4_service"：含繼續/退出判定，no/nope → 退出交易
 
     Returns:
         意圖字串，例：「拒絕」 / 「想一下」 / 「結帳」 / 「客服」 /
                       「商品:冰紅茶」 / 「商品:刮刮樂」 / 「繼續交易」 / 「退出交易」 / 「無法判斷」
     """
-    # L4 客服模式專用：繼續交易 / 退出交易（最高優先）
+    # L4 客服模式專用：繼續交易 / 退出交易（最高優先；含 no/nope 視為退出）
     if mode == "l4_service":
         if _contains_any(text, _KEYWORDS_CONTINUE):
             return "繼續交易"
         if _contains_any(text, _KEYWORDS_EXIT):
             return "退出交易"
+        if _contains_any(text, ["no", "nope"]):
+            return "退出交易"
+
+    # L2 / L4 模式：no / nope 強制視為拒絕（覆寫 _KEYWORDS_CHECKOUT 內的「no/nope = 結帳」預設）
+    # 2026-05-25 使用者實測層別語意：L2「沒需求」/ L4「不要了」皆是拒絕，只 L3「沒了」是結帳
+    if mode in ("l2", "l4"):
+        if _contains_any(text, ["no", "nope"]):
+            return "拒絕"
 
     # 通用優先序
     if _contains_any(text, _KEYWORDS_REJECT):

@@ -55,7 +55,7 @@ def run_l2(
             return _l2_exit_a(speak)
 
         # 判定優先序
-        intent = classify_intent(response, "normal")
+        intent = classify_intent(response, "l2")
 
         # 優先序 1：拒絕
         if intent == "拒絕":
@@ -162,7 +162,7 @@ def _l2_dispatch_response(
         tuple → 已決定退出
         None  → 應回主等待（B-1 / B-2 / B-3 timeout 後已 speak）
     """
-    intent = classify_intent(response, "normal")
+    intent = classify_intent(response, "l2")
 
     if intent == "拒絕":
         return _l2_exit_a(speak)

@@ -140,13 +140,27 @@ def test_nlu_mei_le_classified_as_checkout() -> None:
 
 
 def test_nlu_english_no_nope_classified_as_checkout() -> None:
-    """L3 顧客講「no」/「nope」表示「沒了，不想追加」→ 結帳意圖。
-
-    2026-05-25 從 _KEYWORDS_REJECT 移至 _KEYWORDS_CHECKOUT：使用者實測 L3 講 no
-    被誤判 鏈路 A 整單作廢；改 checkout 後 L3 進 L4，L2 變 B-1 clarify（可接受）。
-    """
+    """L3（normal 模式）顧客講「no」/「nope」→ 結帳意圖（語意「沒了，不追加」）。"""
     assert nlu.classify_intent("no") == "結帳"
     assert nlu.classify_intent("nope") == "結帳"
+
+
+def test_nlu_english_no_nope_in_l2_mode_classified_as_reject() -> None:
+    """L2 顧客講「no」/「nope」→ 拒絕意圖（語意「不要 / 不需要」→ L2-A 退出）。"""
+    assert nlu.classify_intent("no", "l2") == "拒絕"
+    assert nlu.classify_intent("nope", "l2") == "拒絕"
+
+
+def test_nlu_english_no_nope_in_l4_mode_classified_as_reject() -> None:
+    """L4 顧客講「no」/「nope」→ 拒絕意圖（語意「不要了 / 取消」→ L4-B 取消交易）。"""
+    assert nlu.classify_intent("no", "l4") == "拒絕"
+    assert nlu.classify_intent("nope", "l4") == "拒絕"
+
+
+def test_nlu_english_no_nope_in_l4_service_mode_classified_as_exit() -> None:
+    """L4 客服模式顧客講「no」/「nope」→ 退出交易意圖。"""
+    assert nlu.classify_intent("no", "l4_service") == "退出交易"
+    assert nlu.classify_intent("nope", "l4_service") == "退出交易"
 
 
 # ============================================================
