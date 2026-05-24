@@ -15,7 +15,7 @@ FakeScheduler：
 """
 
 import myProgram.sales.states as states
-from myProgram.sales.constants import HAWK_SLOGANS, HAWK_INTERVAL, OPENCV_MUTE
+from myProgram.sales.constants import HAWK_SLOGANS, HAWK_INTERVAL, OPENCV_MUTE, OPENCV_DWELL
 
 
 # ============================================================
@@ -178,3 +178,441 @@ def test_sub_a_wraps_around_after_six_hawks() -> None:
     assert len(speak_calls) >= 7, f"應有 7 次叫賣呼叫，實際 {len(speak_calls)} 次"
     # 第 7 次（索引 6）應為 HAWK_SLOGANS[6 % 6] = HAWK_SLOGANS[0]
     assert speak_calls[6] == HAWK_SLOGANS[0], "第 7 次叫賣應回到第 1 組（mod 6）"
+
+
+# ============================================================
+# L1 測試用 stub class
+# ============================================================
+
+class FakeKeyboardInput:
+    """模擬鍵盤輸入序列。每次 read() 回下一個 key。"""
+
+    def __init__(self, key_sequence: list) -> None:
+        self._keys = list(key_sequence)
+
+    def read(self) -> str:
+        return self._keys.pop(0) if self._keys else ""
+
+
+class FakeOpencv:
+    """模擬 OpenCV dwell 偵測 + 開關狀態。"""
+
+    def __init__(self, dwell_value: float = 0.0) -> None:
+        self.dwell_value = dwell_value
+        self.enabled = True
+        self.enable_calls = 0
+        self.disable_calls = 0
+
+    def dwell_seconds(self) -> float:
+        """回傳 dwell 偵測秒數（OpenCV 關閉時永遠回 0.0）。"""
+        return self.dwell_value if self.enabled else 0.0
+
+    def disable(self) -> None:
+        self.enabled = False
+        self.disable_calls += 1
+
+    def enable(self) -> None:
+        self.enabled = True
+        self.enable_calls += 1
+
+
+# ============================================================
+# L1-ENTRY-001
+# Scenario: 程式啟動進入 L1 印模式選擇選單
+# Given 程式剛啟動（python3.11 myProgram/myProgram.py）
+# When 進入 L1 模式選擇層
+# Then 終端印選單含三個選項（1 叫賣 / 2 待機 / 3 客服）與 q 退出提示
+# ============================================================
+
+def test_l1_entry_prints_mode_select_menu() -> None:
+    # Arrange
+    printed: list = []
+    # 輸入 q 使程式立即退出，避免無限迴圈
+    kbd = FakeKeyboardInput(["q"])
+    exit_calls: list = []
+
+    # Act
+    states.run_l1(
+        print_terminal=lambda text: printed.append(text),
+        read_terminal_key=kbd.read,
+        opencv_dwell_seconds=lambda: 0.0,
+        opencv_disable=lambda: None,
+        opencv_enable=lambda: None,
+        speak=lambda text: None,
+        exit_program=lambda: exit_calls.append(True),
+        schedule=FakeScheduler().schedule,
+    )
+
+    # Assert：印出的選單要包含三個選項與 q 提示
+    all_output = "\n".join(printed)
+    assert "1" in all_output, "選單應含選項 1（叫賣模式）"
+    assert "2" in all_output, "選單應含選項 2（待機模式）"
+    assert "3" in all_output, "選單應含選項 3（客服模式）"
+    assert "q" in all_output, "選單應含 q 退出提示"
+
+
+# ============================================================
+# L1-A-001
+# Scenario: 商家輸入 3 進入客服模式印電話後立即回 L1 選單
+# Given L1 選單顯示中，等待商家輸入
+# When 商家輸入「3」
+# Then 終端印商家客服電話，無等待 → 立即回 L1 選單
+# ============================================================
+
+def test_l1_a_service_mode_prints_phone_and_returns_to_menu() -> None:
+    # Arrange
+    printed: list = []
+    # 輸入 3（進客服），接著 q（退出，避免無限迴圈）
+    kbd = FakeKeyboardInput(["3", "q"])
+    exit_calls: list = []
+
+    # Act
+    states.run_l1(
+        print_terminal=lambda text: printed.append(text),
+        read_terminal_key=kbd.read,
+        opencv_dwell_seconds=lambda: 0.0,
+        opencv_disable=lambda: None,
+        opencv_enable=lambda: None,
+        speak=lambda text: None,
+        exit_program=lambda: exit_calls.append(True),
+        schedule=FakeScheduler().schedule,
+    )
+
+    # Assert：電話號碼出現在印出內容中
+    all_output = "\n".join(printed)
+    assert "0900-XXX-XXX" in all_output, "應印出客服電話"
+    # 印完電話後應回選單（選單在第二輪再印一次）
+    menu_count = sum(1 for p in printed if "請選擇模式" in p)
+    assert menu_count >= 2, "客服後應回選單（選單至少印兩次）"
+
+
+# ============================================================
+# L1-B-001
+# Scenario: 商家輸入 2 進入待機模式印提示後保持靜默
+# Given L1 選單顯示中
+# When 商家輸入「2」
+# Then 終端印「進入待機模式，按 r + Enter 回主選單」，進入靜默狀態
+# ============================================================
+
+def test_l1_b_standby_mode_prints_prompt_and_stays_idle() -> None:
+    # Arrange
+    printed: list = []
+    # 輸入 2 進待機，接著 q 退出
+    kbd = FakeKeyboardInput(["2", "q"])
+    exit_calls: list = []
+    opencv = FakeOpencv()
+
+    # Act
+    states.run_l1(
+        print_terminal=lambda text: printed.append(text),
+        read_terminal_key=kbd.read,
+        opencv_dwell_seconds=opencv.dwell_seconds,
+        opencv_disable=opencv.disable,
+        opencv_enable=opencv.enable,
+        speak=lambda text: None,
+        exit_program=lambda: exit_calls.append(True),
+        schedule=FakeScheduler().schedule,
+    )
+
+    # Assert：待機提示有印出
+    all_output = "\n".join(printed)
+    assert "待機" in all_output, "應印待機模式提示"
+    assert "r" in all_output, "待機提示應包含 r 回選單說明"
+
+
+# ============================================================
+# L1-B-002
+# Scenario: 待機模式期間商家按 r 回 L1 選單
+# Given 程式處於 L1 待機模式
+# When 商家輸入「r」
+# Then 程式離開待機，回 L1 選單（重新印模式選擇）
+# ============================================================
+
+def test_l1_b_standby_r_returns_to_menu() -> None:
+    # Arrange
+    printed: list = []
+    # 進待機（2），按 r 回選單，按 q 退出
+    kbd = FakeKeyboardInput(["2", "r", "q"])
+    exit_calls: list = []
+    opencv = FakeOpencv()
+
+    # Act
+    states.run_l1(
+        print_terminal=lambda text: printed.append(text),
+        read_terminal_key=kbd.read,
+        opencv_dwell_seconds=opencv.dwell_seconds,
+        opencv_disable=opencv.disable,
+        opencv_enable=opencv.enable,
+        speak=lambda text: None,
+        exit_program=lambda: exit_calls.append(True),
+        schedule=FakeScheduler().schedule,
+    )
+
+    # Assert：按 r 後選單應再印一次
+    menu_count = sum(1 for p in printed if "請選擇模式" in p)
+    assert menu_count >= 2, "按 r 後應回選單（選單至少印兩次）"
+
+
+# ============================================================
+# L1-B-003
+# Scenario: 待機模式期間商家按 q 立即終止程式（全域規則）
+# Given 程式處於 L1 待機模式
+# When 商家輸入「q」
+# Then 程式立即終止（exit_program callback 被呼叫）
+# ============================================================
+
+def test_l1_b_standby_q_exits_program() -> None:
+    # Arrange
+    exit_calls: list = []
+    opencv = FakeOpencv()
+    # 進待機（2），待機中按 q
+    kbd = FakeKeyboardInput(["2", "q"])
+
+    # Act
+    states.run_l1(
+        print_terminal=lambda text: None,
+        read_terminal_key=kbd.read,
+        opencv_dwell_seconds=opencv.dwell_seconds,
+        opencv_disable=opencv.disable,
+        opencv_enable=opencv.enable,
+        speak=lambda text: None,
+        exit_program=lambda: exit_calls.append(True),
+        schedule=FakeScheduler().schedule,
+    )
+
+    # Assert：exit_program 被呼叫一次
+    assert len(exit_calls) == 1, "待機中按 q 應呼叫 exit_program"
+
+
+# ============================================================
+# L1-B-004
+# Scenario: 待機模式期間 OpenCV 完全關閉不偵測 / 不觸發 L2
+# Given 程式進入 L1 待機模式
+# When 在待機期間有人持續站在相機前（即使 dwell ≥ OPENCV_DWELL 秒）
+# Then OpenCV 已被關閉，dwell_seconds 在待機中永遠回 0.0，不觸發 L2
+# ============================================================
+
+def test_l1_b_standby_opencv_disabled() -> None:
+    # Arrange
+    # FakeOpencv 在 disabled 狀態下 dwell_seconds() 回 0.0
+    opencv = FakeOpencv(dwell_value=999.0)  # 模擬人一直站著
+    # 進待機（2），待機中按 q
+    kbd = FakeKeyboardInput(["2", "q"])
+
+    # Act
+    states.run_l1(
+        print_terminal=lambda text: None,
+        read_terminal_key=kbd.read,
+        opencv_dwell_seconds=opencv.dwell_seconds,
+        opencv_disable=opencv.disable,
+        opencv_enable=opencv.enable,
+        speak=lambda text: None,
+        exit_program=lambda: None,
+        schedule=FakeScheduler().schedule,
+    )
+
+    # Assert：待機時 OpenCV 被 disable（disable_calls == 1）
+    assert opencv.disable_calls >= 1, "進入待機時應關閉 OpenCV"
+    # FakeOpencv.enabled == False 期間 dwell_seconds() 回 0.0，無法觸發 L2
+    # （此斷言驗證 FakeOpencv stub 行為與 OpenCV 語義一致）
+    opencv_tmp = FakeOpencv(dwell_value=999.0)
+    opencv_tmp.disable()
+    assert opencv_tmp.dwell_seconds() == 0.0, "OpenCV 關閉後 dwell_seconds 應回 0.0"
+
+
+# ============================================================
+# L1-C-001
+# Scenario: 商家輸入 1 進入叫賣模式立即播第 1 組叫賣並開啟 OpenCV
+# Given L1 選單顯示中
+# When 商家輸入「1」
+# Then 印「進入叫賣模式」，立即 speak 第 1 組叫賣，OpenCV 被開啟
+#      （不套用 L0 子例程 A 的 OPENCV_MUTE 緩衝）
+# ============================================================
+
+def test_l1_c_hawk_mode_starts_immediately_without_mute_buffer() -> None:
+    # Arrange
+    printed: list = []
+    speak_calls: list = []
+    opencv = FakeOpencv(dwell_value=0.0)
+    scheduler = FakeScheduler()
+    # 輸入 1 進叫賣模式，OpenCV dwell 一直 0.0（不觸發 L2），按 q 退出
+    key_sequence = ["1", "q"]
+    kbd = FakeKeyboardInput(key_sequence)
+
+    # Act
+    states.run_l1(
+        print_terminal=lambda text: printed.append(text),
+        read_terminal_key=kbd.read,
+        opencv_dwell_seconds=opencv.dwell_seconds,
+        opencv_disable=opencv.disable,
+        opencv_enable=opencv.enable,
+        speak=lambda text: speak_calls.append(text),
+        exit_program=lambda: None,
+        schedule=scheduler.schedule,
+    )
+
+    # Assert 1：印「進入叫賣模式」
+    all_output = "\n".join(printed)
+    assert "叫賣" in all_output, "應印叫賣模式進入提示"
+
+    # Assert 2：第 1 組叫賣術語被立即 speak（無需 tick 任何時間）
+    assert len(speak_calls) >= 1, "應立即播第 1 組叫賣"
+    assert speak_calls[0] == HAWK_SLOGANS[0], "第一個 speak 應為 HAWK_SLOGANS[0]"
+
+    # Assert 3：OpenCV 被開啟（enable_calls >= 1）
+    assert opencv.enable_calls >= 1, "進入叫賣模式應開啟 OpenCV"
+
+
+# ============================================================
+# L1-C-002
+# Scenario: 叫賣模式 OpenCV 偵測人持續 ≥ OPENCV_DWELL 秒觸發轉 L2
+# Given 程式處於 L1 叫賣模式運行中，OpenCV 偵測啟用
+# When 相機框內持續有人 ≥ OPENCV_DWELL（1.5）秒
+# Then 觸發轉 L2（run_l1 回傳 'L2'）
+# ============================================================
+
+def test_l1_c_hawk_opencv_dwell_threshold_triggers_l2() -> None:
+    # Arrange
+    # OpenCV 立即回報 dwell ≥ OPENCV_DWELL（模擬顧客已在鏡頭前足夠久）
+    opencv = FakeOpencv(dwell_value=OPENCV_DWELL)
+
+    # Act
+    result = states.run_l1(
+        print_terminal=lambda text: None,
+        read_terminal_key=lambda: "1",  # 第一次讀 1 進叫賣，後續不應被呼叫（已轉 L2）
+        opencv_dwell_seconds=opencv.dwell_seconds,
+        opencv_disable=opencv.disable,
+        opencv_enable=opencv.enable,
+        speak=lambda text: None,
+        exit_program=lambda: None,
+        schedule=FakeScheduler().schedule,
+    )
+
+    # Assert：run_l1 應回傳 'L2'
+    assert result == "L2", f"dwell ≥ OPENCV_DWELL 應回傳 'L2'，實際：{result}"
+
+
+# ============================================================
+# L1-C-003
+# Scenario: 叫賣模式 OpenCV 瞬時偵測未達 OPENCV_DWELL 不觸發轉 L2
+# Given 程式處於 L1 叫賣模式運行中，OpenCV 偵測啟用
+# When 相機框內偵測到人但持續 < OPENCV_DWELL（1.5）秒
+# Then 不觸發轉 L2，繼續叫賣（按 q 才退出）
+# ============================================================
+
+def test_l1_c_hawk_opencv_brief_detection_filtered() -> None:
+    # Arrange
+    # dwell < OPENCV_DWELL，不觸發 L2
+    opencv = FakeOpencv(dwell_value=OPENCV_DWELL - 0.1)
+    exit_calls: list = []
+    # 進叫賣（1），dwell 不達閾值，按 q 退出
+    kbd = FakeKeyboardInput(["1", "q"])
+
+    # Act
+    result = states.run_l1(
+        print_terminal=lambda text: None,
+        read_terminal_key=kbd.read,
+        opencv_dwell_seconds=opencv.dwell_seconds,
+        opencv_disable=opencv.disable,
+        opencv_enable=opencv.enable,
+        speak=lambda text: None,
+        exit_program=lambda: exit_calls.append(True),
+        schedule=FakeScheduler().schedule,
+    )
+
+    # Assert：未達閾值不轉 L2（exit_program 被呼叫，result 為 None）
+    assert result != "L2", "dwell < OPENCV_DWELL 不應觸發 L2"
+    assert len(exit_calls) == 1, "應呼叫 exit_program（q 退出）"
+
+
+# ============================================================
+# L1-C-004
+# Scenario: 叫賣模式運行中按 1 / 2 / 3 或其他非 q 鍵不切換模式
+# Given 程式處於 L1 叫賣模式運行中
+# When 商家輸入「1」 / 「2」 / 「3」或其他非 q 鍵
+# Then 不切換模式，繼續留在叫賣模式（直到 q 退出）
+# ============================================================
+
+def test_l1_c_hawk_non_q_keys_ignored() -> None:
+    # Arrange
+    opencv = FakeOpencv(dwell_value=0.0)  # 不觸發 L2
+    exit_calls: list = []
+    # 進叫賣（1），在叫賣模式中按 1 / 2 / 3 / x，最後按 q 退
+    kbd = FakeKeyboardInput(["1", "1", "2", "3", "x", "q"])
+
+    # Act
+    result = states.run_l1(
+        print_terminal=lambda text: None,
+        read_terminal_key=kbd.read,
+        opencv_dwell_seconds=opencv.dwell_seconds,
+        opencv_disable=opencv.disable,
+        opencv_enable=opencv.enable,
+        speak=lambda text: None,
+        exit_program=lambda: exit_calls.append(True),
+        schedule=FakeScheduler().schedule,
+    )
+
+    # Assert：這些按鍵不切換模式；最後 q 才讓 exit_program 被呼叫
+    assert result != "L2", "按 1/2/3/x 不應觸發 L2"
+    assert len(exit_calls) == 1, "只有 q 才呼叫 exit_program（共 1 次）"
+
+
+# ============================================================
+# L1-C-005
+# Scenario: 叫賣模式運行中按 q 立即終止程式（全域規則）
+# Given 程式處於 L1 叫賣模式運行中
+# When 商家輸入「q」
+# Then 程式立即終止（exit_program callback 被呼叫）
+# ============================================================
+
+def test_l1_c_hawk_q_exits_program() -> None:
+    # Arrange
+    opencv = FakeOpencv(dwell_value=0.0)  # 不觸發 L2
+    exit_calls: list = []
+    # 進叫賣（1），在叫賣中按 q
+    kbd = FakeKeyboardInput(["1", "q"])
+
+    # Act
+    states.run_l1(
+        print_terminal=lambda text: None,
+        read_terminal_key=kbd.read,
+        opencv_dwell_seconds=opencv.dwell_seconds,
+        opencv_disable=opencv.disable,
+        opencv_enable=opencv.enable,
+        speak=lambda text: None,
+        exit_program=lambda: exit_calls.append(True),
+        schedule=FakeScheduler().schedule,
+    )
+
+    # Assert：exit_program 被呼叫一次
+    assert len(exit_calls) == 1, "叫賣中按 q 應呼叫 exit_program"
+
+
+# ============================================================
+# L1-Q-001
+# Scenario: L1 選單顯示中按 q 立即終止程式
+# Given 程式剛啟動，L1 選單顯示中等待輸入
+# When 商家輸入「q」
+# Then 程式立即終止（exit_program callback 被呼叫）
+# ============================================================
+
+def test_l1_menu_q_exits_program() -> None:
+    # Arrange
+    exit_calls: list = []
+    # 在選單直接按 q
+    kbd = FakeKeyboardInput(["q"])
+
+    # Act
+    states.run_l1(
+        print_terminal=lambda text: None,
+        read_terminal_key=kbd.read,
+        opencv_dwell_seconds=lambda: 0.0,
+        opencv_disable=lambda: None,
+        opencv_enable=lambda: None,
+        speak=lambda text: None,
+        exit_program=lambda: exit_calls.append(True),
+        schedule=FakeScheduler().schedule,
+    )
+
+    # Assert：exit_program 被呼叫一次
+    assert len(exit_calls) == 1, "選單中按 q 應呼叫 exit_program"
