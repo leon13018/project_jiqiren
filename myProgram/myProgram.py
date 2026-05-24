@@ -21,7 +21,7 @@ S3+ 才接 `from myProgram import ActionGroupControl as Act` 並 wire。
 import sys
 
 from myProgram.sales import logic
-from myProgram.sales.constants import OPENCV_DWELL
+from myProgram.sales.constants import OPENCV_DWELL, L1_HAWK_ENTRY_PROMPT
 
 
 class _S1State:
@@ -38,6 +38,10 @@ def _build_callbacks(state: _S1State) -> dict:
     # === 終端 I/O ===
     def print_terminal(text):
         print(text)
+        # S1 wire-up 提示：剛進叫賣模式時加碼提醒 — 規格只接受 'c'/'q'，
+        # 但使用者實測常誤以為可以開始對話（輸入「冰紅茶」/「你好」等都被忽略）
+        if text == L1_HAWK_ENTRY_PROMPT:
+            print(">>> [模擬提示] 叫賣模式只接受兩個鍵：'c' = 模擬 OpenCV 偵測顧客 → 轉 L2；'q' = 退出程式。其他輸入會被忽略。<<<")
 
     def read_terminal_key():
         """讀商家鍵盤輸入（一個字元）。
