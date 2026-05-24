@@ -27,18 +27,18 @@ from myProgram.sales.constants import (
     WAIT_NO_RESPONSE,
     AUTO_CHECKOUT_NOTICE,
     SERVICE_PHONE,
-    L2_GREETING_PROMPT,
+    L2_ENTRY_PROMPT,
     L2_REJECT_THANKS,
     L2_B1_CLARIFY,
     L2_B3_REASK,
     L2_B3_THIRD_REJECT,
     L2_C_ADDED,
-    L3_FOLLOWUP_PROMPT,
+    L3_ENTRY_PROMPT,
     L3_REJECT_THANKS,
     L3_B1_CLARIFY,
     L3_REASK,
     L3_C1_CHECKOUT_GO,
-    L4_ENTRY_VOICE_TEMPLATE,
+    L4_ENTRY_PROMPT_TEMPLATE,
     L4_A_PAY_SUCCESS,
     L4_B_CANCEL_THANKS,
     L4_C_OPTIONS_PROMPT,
@@ -707,8 +707,8 @@ def test_l2_entry_speaks_greeting_and_inits_think_count() -> None:
 
     # Assert：進入語音是第一個 speak 呼叫
     assert len(speak_calls) >= 1, "run_l2 應呼叫至少一次 speak"
-    assert speak_calls[0] == L2_GREETING_PROMPT, (
-        f"第一個 speak 應為 L2_GREETING_PROMPT，實際：{speak_calls[0]!r}"
+    assert speak_calls[0] == L2_ENTRY_PROMPT, (
+        f"第一個 speak 應為 L2_ENTRY_PROMPT，實際：{speak_calls[0]!r}"
     )
     # think_count 初始為 0（由 caller 注入，這裡我們傳 0 進去，驗證 return 中的 next_think_count 反映正確語義）
     # 鏈路 A 退出時 think_count reset 為 0
@@ -880,10 +880,10 @@ def test_l2_b3_first_think_increments_count_and_enters_silence() -> None:
     )
 
     # Assert：沉默期無多餘語音（不應在想一下之後、沉默期中發語音）
-    # 進入語音 → L2_GREETING_PROMPT（索引 0）
+    # 進入語音 → L2_ENTRY_PROMPT（索引 0）
     # 沉默後重問語音 → L2_B3_REASK
     # 然後 None → A → L2_REJECT_THANKS
-    assert speak_calls[0] == L2_GREETING_PROMPT, "第一個 speak 應為進入語音"
+    assert speak_calls[0] == L2_ENTRY_PROMPT, "第一個 speak 應為進入語音"
     # 沉默期間應無任何語音（想一下和沉默之間不能有其他 speak）
     speak_between_think_and_reask = speak_calls[1] if len(speak_calls) > 1 else None
     assert speak_between_think_and_reask == L2_B3_REASK, (
@@ -1192,8 +1192,8 @@ def test_l3_entry_speaks_followup_and_inits_think_count() -> None:
 
     # Assert：進入語音是第一個 speak 呼叫
     assert len(speak_calls) >= 1, "run_l3 應呼叫至少一次 speak"
-    assert speak_calls[0] == L3_FOLLOWUP_PROMPT, (
-        f"第一個 speak 應為 L3_FOLLOWUP_PROMPT，實際：{speak_calls[0]!r}"
+    assert speak_calls[0] == L3_ENTRY_PROMPT, (
+        f"第一個 speak 應為 L3_ENTRY_PROMPT，實際：{speak_calls[0]!r}"
     )
 
 
@@ -1399,8 +1399,8 @@ def test_l3_b4_first_think_increments_count_and_enters_silence() -> None:
     )
 
     # Assert：進入語音後，想一下期間不應有多餘語音
-    # 序列：L3_FOLLOWUP_PROMPT → [沉默] → L3_REASK → [C-2 第一段語音] → L4
-    assert speak_calls[0] == L3_FOLLOWUP_PROMPT, "第一個 speak 應為 L3_FOLLOWUP_PROMPT"
+    # 序列：L3_ENTRY_PROMPT → [沉默] → L3_REASK → [C-2 第一段語音] → L4
+    assert speak_calls[0] == L3_ENTRY_PROMPT, "第一個 speak 應為 L3_ENTRY_PROMPT"
     # 沉默期間無多餘語音（FOLLOWUP 後、REASK 前）
     if len(speak_calls) > 1:
         assert speak_calls[1] == L3_REASK, (

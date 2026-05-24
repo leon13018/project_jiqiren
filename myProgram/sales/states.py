@@ -1,14 +1,33 @@
-"""L0-L1 各層鏈路實作（S1 v2）。
+"""L0-L5 各層鏈路實作（S1 v2，2026-05-25 全層齊全 + B 類 refactor）。
 
-對應規格書：
-    - L0：共通子例程 A（「回 L1 叫賣」）
+對應規格書：resources/plans/業務程式邏輯規劃/
+    - L0：共通子例程 A（「回 L1 叫賣」）/ 共通常數 / NLU
     - L1：商家模式選擇層（叫賣 / 待機 / 客服）
-    - L2-L5：尚未實作（TODO）
+    - L2：詢問需求（顧客互動 — 初次點單）
+    - L3：詢問額外需求（顧客互動 — 加單迴圈）
+    - L4：印金額 + 等掃碼（結帳層；客服特殊模式 + 6 次循環 + 雙計數器）
+    - L5：謝謝惠顧（致謝層；純序列動作）
 
-設計原則：
-    - 對外動作以 callback 注入（speak / mute_opencv / unmute_opencv / schedule）
-    - 不直接 import 廠商 SDK（ActionGroupControl / Board）
-    - 單檔起步，等長到 >300 行再拆 states/ 子資料夾
+對外 callback 集合（各層子集，由 caller 注入；詳見每個 run_l? docstring）：
+    - speak(text) / do_action(name) — 語音 / 動作
+    - print_terminal(text) — 終端輸出
+    - read_terminal_key() / read_customer_input(timeout) — 輸入（L1 商家鍵盤 / L2-L5 顧客回應）
+    - opencv_disable() / opencv_enable() / opencv_dwell_seconds() — L1 OpenCV 控制
+    - mute_opencv(seconds) / unmute_opencv() — L0 子例程 A / L5 OpenCV 屏蔽
+    - exit_program() — L1 全域 q
+    - schedule(seconds, fn) — L0 子例程 A / L1 叫賣輪播
+
+設計原則（選項 C）：
+    - **嚴格不 import 廠商 SDK**（ActionGroupControl / Board / pigpio / smbus2 等）
+    - 純邏輯 + callback 注入：caller（myProgram.py 入口層）負責 wire-up
+      真實 terminal / TTS / OpenCV / 廠商動作
+    - 業務邏輯可完整在 Windows 跑 pytest（107 tests）
+
+return shape（B1+B7 推遲 — 各層不一致由入口層處理）：
+    - run_subroutine_a → None
+    - run_l1 → str | None ("L2" / None)
+    - run_l2 / run_l3 → tuple[str, int]（next_state, next_think_count）
+    - run_l4 / run_l5 → tuple[str, int, int]（next_state, next_loop_count, next_unclear_count）
 """
 
 from myProgram.sales.constants import (
@@ -20,21 +39,21 @@ from myProgram.sales.constants import (
     WAIT_NO_RESPONSE,
     AUTO_CHECKOUT_NOTICE,
     L1_MENU_BANNER,
-    L1_HAWK_ENTER_PROMPT,
-    L1_STANDBY_ENTER_PROMPT,
+    L1_HAWK_ENTRY_PROMPT,
+    L1_STANDBY_ENTRY_PROMPT,
     SERVICE_PHONE,
-    L2_GREETING_PROMPT,
+    L2_ENTRY_PROMPT,
     L2_REJECT_THANKS,
     L2_B1_CLARIFY,
     L2_B3_REASK,
     L2_B3_THIRD_REJECT,
     L2_C_ADDED,
-    L3_FOLLOWUP_PROMPT,
+    L3_ENTRY_PROMPT,
     L3_REJECT_THANKS,
     L3_B1_CLARIFY,
     L3_REASK,
     L3_C1_CHECKOUT_GO,
-    L4_ENTRY_VOICE_TEMPLATE,
+    L4_ENTRY_PROMPT_TEMPLATE,
     L4_A_PAY_SUCCESS,
     L4_B_CANCEL_THANKS,
     L4_C_OPTIONS_PROMPT,
@@ -220,7 +239,7 @@ def _run_l1_standby(
     # 關閉 OpenCV（待機期間完全暫停）
     opencv_disable()
     # 印提示
-    print_terminal(L1_STANDBY_ENTER_PROMPT)
+    print_terminal(L1_STANDBY_ENTRY_PROMPT)
 
     while True:
         key = read_terminal_key()
@@ -250,7 +269,7 @@ def _run_l1_hawk(
         None — 按 q 退出程式
     """
     # 印進入提示
-    print_terminal(L1_HAWK_ENTER_PROMPT)
+    print_terminal(L1_HAWK_ENTRY_PROMPT)
     # 開啟 OpenCV
     opencv_enable()
     # 立即播第 1 組叫賣（無 OPENCV_MUTE 緩衝）
@@ -269,6 +288,15 @@ def _run_l1_hawk(
             exit_program()
             return None
         # 其他鍵（1 / 2 / 3 等）忽略，繼續叫賣
+
+
+def _schedule_hawk_l1(speak, schedule, hawk_index: int) -> None:
+    """叫賣輪播排程（L1 叫賣模式，不需 unmute_opencv）。"""
+    def _on_due():
+        speak(HAWK_SLOGANS[hawk_index % 6])
+        _schedule_hawk_l1(speak=speak, schedule=schedule, hawk_index=hawk_index + 1)
+
+    schedule(HAWK_INTERVAL, _on_due)
 
 
 # ============================================================
@@ -299,7 +327,7 @@ def run_l2(
         next_think_count: A/C 退出時 reset 0
     """
     # 進入時動作：播詢問語音
-    speak(L2_GREETING_PROMPT)
+    speak(L2_ENTRY_PROMPT)
 
     # 主等待迴圈
     while True:
@@ -451,15 +479,6 @@ def _l2_dispatch_response(
     return None  # 回主等待
 
 
-def _schedule_hawk_l1(speak, schedule, hawk_index: int) -> None:
-    """叫賣輪播排程（L1 叫賣模式，不需 unmute_opencv）。"""
-    def _on_due():
-        speak(HAWK_SLOGANS[hawk_index % 6])
-        _schedule_hawk_l1(speak=speak, schedule=schedule, hawk_index=hawk_index + 1)
-
-    schedule(HAWK_INTERVAL, _on_due)
-
-
 # ============================================================
 # L3：詢問額外需求（顧客互動 — 加單迴圈）
 # ============================================================
@@ -491,7 +510,7 @@ def run_l3(
         next_think_count: A/C-1 退出時 reset 0
     """
     # 進入時動作：播詢問語音
-    speak(L3_FOLLOWUP_PROMPT)
+    speak(L3_ENTRY_PROMPT)
 
     # 進入主等待迴圈（不重播進入語音）
     return _l3_main_loop(
@@ -766,7 +785,7 @@ def run_l4(
     # 進入時動作：計算總額、印明細、speak 總額語音
     total = cart_module.calc_total(cart)
     _l4_print_entry_detail(cart, total, print_terminal)
-    speak(L4_ENTRY_VOICE_TEMPLATE.format(total=total))
+    speak(L4_ENTRY_PROMPT_TEMPLATE.format(total=total))
 
     # 主等待迴圈
     while True:

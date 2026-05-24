@@ -75,10 +75,10 @@ L1_MENU_BANNER: str = (
 )
 
 # L1 叫賣模式進入提示
-L1_HAWK_ENTER_PROMPT: str = "進入叫賣模式"
+L1_HAWK_ENTRY_PROMPT: str = "進入叫賣模式"
 
 # L1 待機模式進入提示
-L1_STANDBY_ENTER_PROMPT: str = "進入待機模式，按 r + Enter 回主選單"
+L1_STANDBY_ENTRY_PROMPT: str = "進入待機模式，按 r + Enter 回主選單"
 
 # 客服電話（placeholder，demo 前由商家敲定正式號碼）
 SERVICE_PHONE: str = "0900-XXX-XXX"
@@ -88,7 +88,7 @@ SERVICE_PHONE: str = "0900-XXX-XXX"
 # ============================================================
 
 # L2 進入時詢問語音
-L2_GREETING_PROMPT: str = "您好，請問需要購買什麼東西嗎？"
+L2_ENTRY_PROMPT: str = "您好，請問需要購買什麼東西嗎？"
 
 # L2 鏈路 A 拒絕語音
 L2_REJECT_THANKS: str = "謝謝光臨"
@@ -110,7 +110,7 @@ L2_C_ADDED: str = "好的，已加入購物車"
 # ============================================================
 
 # L3 進入時詢問語音（詢問額外需求）
-L3_FOLLOWUP_PROMPT: str = "請問還有額外需要購買的嗎？"
+L3_ENTRY_PROMPT: str = "請問還有額外需要購買的嗎？"
 
 # L3 鏈路 A 拒絕語音（整單作廢）
 L3_REJECT_THANKS: str = "好的，取消這次購物，謝謝光臨"
@@ -129,7 +129,7 @@ L3_C1_CHECKOUT_GO: str = "好的，為您結帳"
 # ============================================================
 
 # L4 進入時語音模板（{total} 為總金額）
-L4_ENTRY_VOICE_TEMPLATE: str = "您的總金額是 {total} 元，請您掃碼付款"
+L4_ENTRY_PROMPT_TEMPLATE: str = "您的總金額是 {total} 元，請您掃碼付款"
 
 # L4 鏈路 A 掃碼成功語音
 L4_A_PAY_SUCCESS: str = "付款成功"
