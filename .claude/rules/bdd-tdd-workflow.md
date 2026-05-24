@@ -128,6 +128,37 @@ S1 v2 起，所有 `myProgram/sales/` 內的業務邏輯實作必須走 **BDD sp
 - 引入新依賴（除 stdlib + pytest 外的 import）
 - 修改規格書（`tests/spec/` 內檔案 — subagent 永遠唯讀）
 
+**狀態機 / dispatcher 類型 prod code 的 RED 排程 pitfall**（2026-05-24 L1 第一輪實測踩到）：
+
+當本輪 prod code 是「主迴圈 + dispatch 到多個鏈路」這種狀態機（如 `run_l1` 含 service / standby / hawk 三個鏈路），**禁止**在 ENTRY scenario 的 GREEN 階段一次寫完整個路由骨架 — 這會導致後續 A/B/C 鏈路 scenarios 加入時直接 PASS（prod code 早於 test = 違反 Iron Law「順序倒」條款）。
+
+**正確順序：**
+1. ENTRY GREEN 只寫**最小可印選單 + q 退出**的 impl（不寫任何鏈路 dispatch）
+2. L?-A scenario 加入 → 「按 3 應印電話」FAIL（路由不存在）→ 寫 service dispatch + `_run_l?_service` → PASS
+3. L?-B scenario 加入 → 「按 2 應進待機」FAIL → 寫 standby dispatch + `_run_l?_standby` → PASS
+4. L?-C 同理
+
+**Subagent 派發 prompt 內必須明確指出**：「狀態機型 prod code，每個鏈路獨立 RED-GREEN，禁止 ENTRY 一次寫完整路由」。違反 → 標 `[DEGRADED-TDD-PARTIAL-L?]`。
+
+歷史案例：commit `3cff233`（L1 第一輪），subagent 在 ENTRY GREEN 一次寫完 `run_l1` 完整 dispatch，後續 11 個 scenarios 直接 PASS。已接受 commit（49 PASS 品質 OK），但本段加入是為了 L2-L5 避免再犯。
+
+**Subagent commit 範圍 pitfall**（2026-05-24 L1 第一輪實測踩到）：
+
+主 agent 在 worktree 階段 1 / 2 寫的 BDD spec 檔（`tests/spec/L?_*.py`）若**尚未 commit**就派 subagent，subagent 在自己 commit 階段可能**只 add 自己改動的 prod / test 檔**，漏掉這個 untracked spec 檔。
+
+歷史案例：L0 subagent commit `a10895f` 包了 spec 檔（同 worktree 內 untracked 全包）。L1 subagent commit `3cff233` **漏包** `tests/spec/L1_mode_select_scenarios.py` → 主 agent 階段 3b 補 add 進去。
+
+**預防：subagent 派發 prompt 內 commit 範例必須明列：**
+```
+git status                                          # 先看所有 untracked + modified
+git add tests/spec/L?_*_scenarios.py \             # 本輪新增 BDD spec（若 untracked）
+        tests/sales/test_<module>.py \
+        myProgram/sales/<module>.py \
+        ...
+```
+
+或主 agent 在派發前先把 BDD spec commit 一次（拆兩個 commit）— 但這破壞「一個 commit 一輪」的整潔性。**推薦：prompt 內明列 git add 範圍**。
+
 ---
 
 ### 階段 4：主 agent 審查 + 收尾
@@ -168,10 +199,12 @@ S1 v2 起，所有 `myProgram/sales/` 內的業務邏輯實作必須走 **BDD sp
 - subagent 寫測試**前**先寫 prod code（順序倒）
 - subagent 跑不起來 pytest 但硬塞 prod code「應該會通過」
 - 沒看見任何 fail 就寫 GREEN code
+- **狀態機 ENTRY 一次寫完整路由** → 後續鏈路 scenarios 直接 PASS（順序倒的具體變體；見階段 3「狀態機 pitfall」段）
 
 **主 agent 審查時看 subagent 回報是否清楚描述：**
 - 「我先看見 X 個測試 fail（含失敗訊息），才寫 prod code」→ 通過
 - 描述模糊 / 邏輯倒置 → 標 DEGRADED
+- 「ENTRY 寫完整路由骨架，後續鏈路測試立即 PASS」→ 標 `[DEGRADED-TDD-PARTIAL-L?]`
 
 ---
 
