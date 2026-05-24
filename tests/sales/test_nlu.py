@@ -17,8 +17,27 @@ import myProgram.sales.nlu as nlu
 ### Given 顧客輸入「不要」（拒絕意圖 6 詞之一：不要 / 不用 / 不想 / 不買 / no / nope）
 ### When 對輸入做意圖分類
 ### Then 分類結果為「拒絕」
-def test_nlu_reject_intent_classified_as_reject() -> None:
-    assert nlu.classify_intent("不要") == "拒絕"
+def test_nlu_reject_intent_in_l2_l4_classified_as_reject() -> None:
+    """L2 / L4 mode 的「不要」直接判拒絕（L3 normal mode 視為「不追加」→ 結帳，另測）。"""
+    assert nlu.classify_intent("不要", "l2") == "拒絕"
+    assert nlu.classify_intent("不要", "l4") == "拒絕"
+
+
+def test_nlu_l3_strict_reject_phrases_classified_as_reject() -> None:
+    """L3 (normal mode) 嚴格 reject 詞：只有明確「整單作廢」意圖才視為拒絕。"""
+    assert nlu.classify_intent("我不要了") == "拒絕"
+    assert nlu.classify_intent("不想買了") == "拒絕"
+    assert nlu.classify_intent("取消購買") == "拒絕"
+    assert nlu.classify_intent("退出") == "拒絕"
+    assert nlu.classify_intent("不買了") == "拒絕"
+
+
+def test_nlu_l3_lenient_no_more_classified_as_checkout() -> None:
+    """L3 (normal mode): 一般 reject 短詞「不要 / 不用 / 不想 / 不買」視為「不追加」→ 結帳。"""
+    assert nlu.classify_intent("不要") == "結帳"
+    assert nlu.classify_intent("不用") == "結帳"
+    assert nlu.classify_intent("不想") == "結帳"
+    assert nlu.classify_intent("不買") == "結帳"
 
 
 # ============================================================
@@ -108,8 +127,14 @@ def test_nlu_no_keyword_match_classified_as_unknown() -> None:
 ### Given 顧客輸入「我不要冰紅茶了」（同時含拒絕 + 商品關鍵字）
 ### When 對輸入做意圖分類
 ### Then 分類結果為「拒絕」（拒絕優先序高於商品）
-def test_nlu_reject_priority_over_product() -> None:
-    assert nlu.classify_intent("我不要冰紅茶了") == "拒絕"
+def test_nlu_reject_priority_over_product_in_l2_l4() -> None:
+    """L2 / L4 mode 拒絕優先於商品：「我不要冰紅茶了」含「不要」（reject 詞）→ 拒絕（不視為「商品:冰紅茶」）。
+
+    註：L3 normal mode 下「我不要冰紅茶了」因不在嚴格 reject 詞清單 → 走 L3 寬容規則 → 結帳。
+    若日後使用者實測認定 L3 也該識別此句為拒絕，須擴充 _KEYWORDS_REJECT_L3_STRICT。
+    """
+    assert nlu.classify_intent("我不要冰紅茶了", "l2") == "拒絕"
+    assert nlu.classify_intent("我不要冰紅茶了", "l4") == "拒絕"
 
 
 # ============================================================
@@ -199,8 +224,18 @@ def test_nlu_exit_in_l4_service_mode_classified_as_exit() -> None:
 ### When 對輸入做意圖分類（mode=normal）
 ### Then 分類結果為「無法判斷」（繼續 / 退出僅於 L4 客服模式內生效）
 def test_nlu_continue_exit_outside_l4_service_classified_as_unknown() -> None:
+    """L4 客服模式專用關鍵字在其他模式的判定：
+    - 「繼續」：所有 L4 服務外模式皆 → 無法判斷
+    - 「退出」：2026-05-25 起加入 L3 嚴格 reject 詞 → normal (L3) mode 視為拒絕；
+      L2 / L4 mode 不在嚴格清單 → 仍 unmatched 走無法判斷
+    """
     assert nlu.classify_intent("繼續", mode="normal") == "無法判斷"
-    assert nlu.classify_intent("退出", mode="normal") == "無法判斷"
+    assert nlu.classify_intent("繼續", mode="l2") == "無法判斷"
+    assert nlu.classify_intent("繼續", mode="l4") == "無法判斷"
+    # 「退出」：L3 (normal mode) 視為嚴格 reject 詞 → 拒絕；L2 / L4 仍 unmatched
+    assert nlu.classify_intent("退出", mode="normal") == "拒絕"
+    assert nlu.classify_intent("退出", mode="l2") == "無法判斷"
+    assert nlu.classify_intent("退出", mode="l4") == "無法判斷"
 
 
 # ============================================================

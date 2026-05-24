@@ -1214,7 +1214,8 @@ def test_l3_a_reject_keyword_clears_cart_and_triggers_subroutine_a() -> None:
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    customer_input = FakeCustomerInput(["不要"])
+    # 2026-05-25 修：L3 嚴格 reject 詞改用「我不要了」（「不要」在 L3 已視為「不追加」→ 結帳）
+    customer_input = FakeCustomerInput(["我不要了"])
 
     # Act
     next_state, next_think_count = states.run_l3(
@@ -1696,8 +1697,9 @@ def test_l3_c2_second_stage_reject_reruns_dispatch_to_a() -> None:
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # None → C-2 第一段；不要 → 鏈路 A（清空 cart + 回 L1）
-    customer_input = FakeCustomerInput([None, "不要"])
+    # None → C-2 第一段；我不要了 → 鏈路 A（清空 cart + 回 L1）
+    # 2026-05-25 修：L3 嚴格 reject 詞改用「我不要了」
+    customer_input = FakeCustomerInput([None, "我不要了"])
 
     # Act
     next_state, _ = states.run_l3(

@@ -19,6 +19,12 @@ import re
 
 _KEYWORDS_REJECT = ["不要", "不用", "不想", "不買"]
 
+# L3 嚴格 reject 詞：L3 (normal mode) 中只有命中這幾個明確「整單作廢」意圖才視為拒絕
+# 短詞 _KEYWORDS_REJECT (「不要」/「不用」/「不想」/「不買」) 在 L3 視為「不追加」→ 結帳
+# 2026-05-25 加：使用者實測 L3 顧客講「不用」本意「不需要加購」（同 no/nope）。
+# L2/L4 mode 不受影響，仍視一般 _KEYWORDS_REJECT 為拒絕。
+_KEYWORDS_REJECT_L3_STRICT = ["我不要了", "不想買了", "取消購買", "退出", "不買了"]
+
 _KEYWORDS_THINK = ["等等", "等一下", "稍等", "想想", "考慮", "想一下", "hold on", "wait"]
 
 # 「no」/「nope」歸 CHECKOUT（語意 = 沒了 / 不追加 → L3 進結帳）
@@ -78,7 +84,16 @@ def classify_intent(text: str, mode: str = "normal") -> str:
         if _contains_any(text, ["no", "nope"]):
             return "拒絕"
 
-    # 通用優先序
+    # L3 (normal mode) 嚴格 reject 判定：只有命中 _KEYWORDS_REJECT_L3_STRICT 才視為拒絕
+    # 一般 _KEYWORDS_REJECT 短詞「不要 / 不用 / 不想 / 不買」在 L3 視為「不追加」→ 結帳
+    # 2026-05-25 加：使用者實測 L3 顧客講「不用」本意「不需要加購」（同 no/nope 在 L3 的處理）
+    if mode == "normal":
+        if _contains_any(text, _KEYWORDS_REJECT_L3_STRICT):
+            return "拒絕"
+        if _contains_any(text, _KEYWORDS_REJECT):
+            return "結帳"
+
+    # 通用優先序（L2/L4 走這 — L3 已在上面 early return）
     if _contains_any(text, _KEYWORDS_REJECT):
         return "拒絕"
     if _contains_any(text, _KEYWORDS_THINK):
