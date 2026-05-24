@@ -390,6 +390,10 @@ def test_l1_b_standby_r_returns_to_menu() -> None:
     # Assert：按 r 後選單應再印一次
     menu_count = sum(1 for p in printed if "請選擇模式" in p)
     assert menu_count >= 2, "按 r 後應回選單（選單至少印兩次）"
+    # 2026-05-25 規格修訂：r 回選單不再自動 opencv_enable（主選單預設不偵測，只叫賣啟動）
+    assert opencv.enable_calls == 0, (
+        f"按 r 回選單不應 opencv_enable（主選單預設不偵測），實際 enable_calls={opencv.enable_calls}"
+    )
 
 
 # ============================================================

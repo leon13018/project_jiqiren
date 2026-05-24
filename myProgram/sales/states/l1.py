@@ -118,8 +118,9 @@ def _run_l1_standby(
             exit_program()
             return None
         elif key == "r":
-            # 按 r 回主選單，重新開啟 OpenCV
-            opencv_enable()
+            # 按 r 回主選單 — OpenCV 維持關閉
+            # 2026-05-25 規格修訂：L1 主選單預設不偵測 OpenCV；只有商家選 1 進叫賣模式才啟動。
+            # 避免「待機 → 回選單」自動開 OpenCV，違反「商家未明確選叫賣前不偵測」的直覺。
             return "menu"
         # 其他鍵忽略，繼續等待
 
