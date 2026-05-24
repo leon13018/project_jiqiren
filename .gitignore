@@ -3,3 +3,7 @@
 sync_pi.ps1
 resources/presentation/
 resources/userPrompt/
+
+# Python / pytest 副產物（2026-05-24 L0 TDD 第一輪後加入；曾擋住 worktree cleanup）
+__pycache__/
+.pytest_cache/

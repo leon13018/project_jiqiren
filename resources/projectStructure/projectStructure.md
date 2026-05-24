@@ -1,7 +1,7 @@
 # 專案目錄結構
 
 > 本檔案記錄整個專案的資料夾與檔案結構，方便日後快速查閱。
-> 最後更新：2026-05-24（L0 BDD+TDD 第一輪完成：tests/spec/L0_common_scenarios.py + tests/sales/test_*.py × 4 + pytest.ini 新增；myProgram/sales/{constants,nlu,cart,states}.py 從骨架轉為 L0 實作；37 scenarios 全 PASS）
+> 最後更新：2026-05-24（L0 第一輪復盤維護：`.gitignore` 加 `__pycache__/` + `.pytest_cache/`；rule 檔補 Windows worktree cleanup file lock fallback + Iron Law 批次 RED 判定 + subagent 自主決策範圍）
 
 ---
 
@@ -117,7 +117,7 @@ Project_01/
 
 ---
 
-## `.gitignore` 排除清單（2026-05-22 重構）
+## `.gitignore` 排除清單（2026-05-22 重構，2026-05-24 補 pytest 副產物）
 
 ```
 .claude/settings.local.json
@@ -125,11 +125,16 @@ Project_01/
 sync_pi.ps1
 resources/presentation/
 resources/userPrompt/
+
+# Python / pytest 副產物（2026-05-24 L0 TDD 第一輪後加入；曾擋住 worktree cleanup）
+__pycache__/
+.pytest_cache/
 ```
 
 - ✅ `.claude/CLAUDE.md` tracked，push 上 GitHub + sync 到 Pi。
 - ✅ `resources/requirements/`、`resources/pineedtodo/`、`resources/projectStructure/`、`resources/plans/`、`resources/examples/` 全 tracked，會 sync 到 Pi。
 - 🚫 `resources/presentation/`（大 PDF）+ `resources/userPrompt/`（個人草稿）+ `sync_pi.ps1`（Windows-only）+ `.claude/settings.local.json`（本機設定）+ `.claude/worktrees/`（暫存）保持 ignored。
+- 🚫 `__pycache__/` + `.pytest_cache/` — pytest / Python 跑測試副產物，全 ignored（避免污染 git 與 Windows worktree cleanup file lock）。
 
 ---
 
@@ -246,3 +251,4 @@ resources/userPrompt/
 | 2026-05-24 | **展示拓樸與網路通訊文件擴充**：`resources/architecture/frontend-backend-contract.md` 新增「展示拓樸與網路通訊」段（+154 行）含硬體拓樸圖 / 3 種展示場景對比 / Android mDNS 解法 / HTTP REST vs WebSocket 概念 / 功能對應表 / FastAPI 雙協定範例 / `host=0.0.0.0` 啟動關鍵 / 6 種症狀 debug 表 / Pi IP 穩定性 3 種方法 / 內網安全性註記。|
 | 2026-05-24 | **BDD+TDD 開發流程定案**：新增 `.claude/rules/bdd-tdd-workflow.md`（4 階段完整流程 + spec/ vs sales/ 結構 + Iron Law 對應 + subagent prompt 規範 + fallback + 每 L 層獨立一輪 + 環境設定）+ `tests/` 測試根目錄骨架（`__init__.py` + `conftest.py`；spec/ 與 sales/ 子資料夾於 L0 第一輪才建，依 user-step-by-step-pace 不預先做）。CLAUDE.md 加「📝 BDD + TDD 開發流程」段 + 🔗 查閱表 2 行 pointer。`resources/architecture/backend-module-structure.md` 加 Testing 配置段（含 callback stub 範例 + 測試指令）。memory 新增 `bdd-tdd-workflow`，更新 `workflow-constraints`（pytest Windows 例外）+ `project-architecture-vision`（tests/ 結構）。決策：BDD 主 agent 寫 / TDD+Impl 同一個 subagent 走完 Red-Green-Refactor / 選項 C 純 unit test 不寫廠商整合 / 每層 L0→L5 順序獨立一輪 / Python 3.14.4 全域 pytest。|
 | 2026-05-24 | **L0 BDD+TDD 第一輪完成**：BDD 階段 1 主 agent 寫 `tests/spec/L0_common_scenarios.py`（37 scenarios，7 大類），AskUserQuestion 通過。階段 2 plan mode 規劃 4 模組對應（constants/nlu/cart/states），ExitPlanMode 通過。階段 3 派單一 Sonnet subagent 走 Red-Green-Refactor → 37 scenarios 全 PASS，新增 `pytest.ini`（testpaths=tests/sales）+ `tests/sales/__init__.py` + 4 個 test_*.py + 4 個 prod 檔從骨架轉為實作。`myProgram/sales/{constants,nlu,cart,states}.py` 完成 L0 實作（callback 注入、純函式、無廠商 SDK import）。`logic.py` 本輪不動（L1+ 才有意義）。下一輪 L1。|
+| 2026-05-24 | **L0 第一輪復盤維護**：`.gitignore` 加 `__pycache__/` + `.pytest_cache/`（pytest 副產物曾擋住 worktree cleanup）。`.claude/rules/worktree-workflow.md` 階段 5 補 Windows file lock fallback（`Remove-Item -Recurse -Force` + `git worktree prune`）。`.claude/rules/bdd-tdd-workflow.md` 補兩段：(1) Subagent 自主決策範圍（pytest.ini / conftest fixture / inline stub / pytest 設定相關的 .gitignore 補充可自主，prod 模組擴大 / 改 logic.py / 新依賴 / 改 spec 須請示）(2) Iron Law 判定指引（模組空白時批次 fail 算「精神有守」不標 DEGRADED；寫 prod code 前未見任何 fail 才算真違反）。memory `worktree-workflow` + `bdd-tdd-workflow` 同步補充。|

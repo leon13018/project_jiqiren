@@ -18,6 +18,12 @@
    - `git worktree remove .claude/worktrees/<task-name>`
    - `git branch -d worktree-<task-name>`
    - 確認 `git worktree list` 與 `git branch` 乾淨
+   - **Windows file lock fallback**（2026-05-24 L0 第一輪實測踩到）：跑過 pytest 後若 `git worktree remove --force` 仍出 `Permission denied`（即使 `.gitignore` 已含 `__pycache__/` + `.pytest_cache/`，本地檔還在且 Windows 偶 lock `.pyc`），改用 PowerShell：
+     ```powershell
+     Remove-Item -Recurse -Force "C:\path\to\worktree" -ErrorAction SilentlyContinue
+     git worktree prune
+     git branch -d worktree-<task-name>
+     ```
 
 **例外：**
 - Merge 衝突或非 FF → 保留 worktree，跟使用者討論。

@@ -114,6 +114,20 @@ S1 v2 起，所有 `myProgram/sales/` 內的業務邏輯實作必須走 **BDD sp
 
 **Commit 時機：** 全部 scenarios 走完 → 一個 commit；commit message 列「本輪實作哪些 scenarios / prod 檔」+ pytest 最終輸出摘要。
 
+**Subagent 自主決策範圍**（2026-05-24 L0 第一輪歸納，避免每次都來問）：
+
+**✅ 允許自主新增（不請示主 agent）：**
+- `pytest.ini` / `pyproject.toml [tool.pytest.ini_options]`（testpaths / python_files 等 pytest 設定）
+- `tests/conftest.py` 補 fixture
+- 個別 test 檔內 inline stub class（如 `FakeScheduler`）— 符合 testing-anti-patterns 推薦
+- pytest 設定相關的 `.gitignore` 補充（如 `.pytest_cache/`）
+
+**⛔ 必須請示主 agent：**
+- 新增 plan 內沒列的 prod 模組
+- 改動 plan 內標「不動」的檔（如 L0 輪不動 `logic.py`）
+- 引入新依賴（除 stdlib + pytest 外的 import）
+- 修改規格書（`tests/spec/` 內檔案 — subagent 永遠唯讀）
+
 ---
 
 ### 階段 4：主 agent 審查 + 收尾
@@ -140,6 +154,24 @@ S1 v2 起，所有 `myProgram/sales/` 內的業務邏輯實作必須走 **BDD sp
 3. 主 agent 也跑不起來 → 退回讓使用者跑 + 回報結果（degraded mode）
 
 **degraded mode 限制：** subagent 無法 watch test fail → 違反 Iron Law → 必須在 commit message 明確標 `[DEGRADED-TDD]`，後續可疑 bug 排查時優先檢查該批次。
+
+---
+
+## Iron Law 判定（審查 subagent 是否真的走 TDD 用）
+
+**✅ 算「精神有守」（不標 DEGRADED）：**
+- 模組完全空白時，subagent **一次跑 pytest 看到全部 `AttributeError: module has no attribute 'xxx'`**（全部測試因同根因失敗）→ 算 watch fail
+- 此後逐 scenario 寫 prod code + 跑 GREEN，subagent 親見「FAIL → PASS」轉換
+- 理由：Iron Law 核心是「prod code 寫之前必須先看見 fail」，**不是**「每 scenario 必須各自獨立的 RED 跑」。空白模組批次 fail 滿足此精神（2026-05-24 L0 第一輪實測決定）
+
+**⛔ 算「真正違反」（必標 DEGRADED）：**
+- subagent 寫測試**前**先寫 prod code（順序倒）
+- subagent 跑不起來 pytest 但硬塞 prod code「應該會通過」
+- 沒看見任何 fail 就寫 GREEN code
+
+**主 agent 審查時看 subagent 回報是否清楚描述：**
+- 「我先看見 X 個測試 fail（含失敗訊息），才寫 prod code」→ 通過
+- 描述模糊 / 邏輯倒置 → 標 DEGRADED
 
 ---
 
