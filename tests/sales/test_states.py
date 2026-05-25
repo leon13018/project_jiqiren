@@ -3453,6 +3453,11 @@ def test_dialog_empty_to_nonempty_transitions_mode_internally() -> None:
     assert L2_ENTRY_PROMPT in speak_calls
     # 加完商品 cart 非空 → L2_C_ADDED（首次加單語音）
     assert L2_C_ADDED in speak_calls
+    # cart 從空變非空後必須補播 L3_ENTRY_PROMPT（規格書 L2.md 鏈路 C「進 L3」+ L3.md 進入時動作）
+    # 漏播會讓顧客以為對話結束、6s timeout 直接進 C-2 自動結帳（2026-05-25 實機踩到 bug）
+    assert L3_ENTRY_PROMPT in speak_calls
+    # 順序：L2_C_ADDED 必須在 L3_ENTRY_PROMPT 之前（先報「已加入」再問「還要嗎」）
+    assert speak_calls.index(L2_C_ADDED) < speak_calls.index(L3_ENTRY_PROMPT)
 
 
 def test_dialog_empty_cart_checkout_intent_treated_as_unclear() -> None:

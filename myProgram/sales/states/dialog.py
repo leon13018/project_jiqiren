@@ -194,9 +194,15 @@ def run_dialog(
                 classify_intent_mode=nlu_mode,
             )
             if added:
-                # cart 從空 → 非空：speak L2_C_ADDED（首次加單）
+                # cart 從空 → 非空：speak L2_C_ADDED + L3_ENTRY_PROMPT
+                #   （規格書 L2.md 鏈路 C「進 L3」+ L3.md 進入時動作；
+                #    漏播 L3_ENTRY_PROMPT 會讓顧客以為對話結束，6s timeout 直接觸發 C-2 自動結帳）
                 # cart 已非空：speak L3_REASK（額外加單後重問）
-                speak(L2_C_ADDED if was_empty else L3_REASK)
+                if was_empty:
+                    speak(L2_C_ADDED)
+                    speak(L3_ENTRY_PROMPT)
+                else:
+                    speak(L3_REASK)
                 continue
             # 全部商品在追問內取消 → re-prompt 依當前 cart 狀態
             speak(L2_B3_REASK if cart_empty else L3_REASK)
@@ -329,8 +335,10 @@ def _dialog_dispatch_inner_l2(
             classify_intent_mode="l2",
         )
         if added:
+            # cart 從空 → 非空：補播 L3_ENTRY_PROMPT 銜接到 L3 模式
+            # （與主迴圈 transition 行為一致，見規格書 L2.md 鏈路 C「進 L3」）
             speak(L2_C_ADDED)
-            # cart 已變非空，主迴圈下一輪會自動切 L3 mode
+            speak(L3_ENTRY_PROMPT)
             return None
         speak(L2_B3_REASK)
         return None
@@ -570,7 +578,12 @@ def _dialog_continue_after_c2_inner(
                 classify_intent_mode=nlu_mode,
             )
             if added:
-                speak(L2_C_ADDED if was_empty else L3_REASK)
+                # cart 從空 → 非空（罕見：C-2 第二段顧客回應加單；保險與主迴圈一致）
+                if was_empty:
+                    speak(L2_C_ADDED)
+                    speak(L3_ENTRY_PROMPT)
+                else:
+                    speak(L3_REASK)
                 continue
             speak(L2_B3_REASK if cart_empty else L3_REASK)
             continue
