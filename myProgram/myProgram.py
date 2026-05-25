@@ -61,7 +61,13 @@ def _build_callbacks(state: _S1State) -> dict:
             return ""
         if raw == "c":
             state.opencv_dwell = OPENCV_DWELL + 0.5
-            print("[模擬] OpenCV 偵測到顧客 → 已自動觸發 L2（hawk loop 下次迭代立即 check opencv，無需再按鍵）")
+            # 區分「mute 期間 'c' 被吃掉」vs「真的觸發 L2」訊息（2026-05-26 加；
+            # 之前都印同一句「已自動觸發 L2」造成使用者按兩次以為應該觸發但沒反應的誤會）
+            remaining = state.opencv_mute_until - time.monotonic()
+            if remaining > 0:
+                print(f"[模擬] 收到 'c'，但 opencv 還在 mute 期間（剩 {remaining:.1f}s）→ 本次 detection 被擋下，請等 mute 結束再按 'c'")
+            else:
+                print("[模擬] OpenCV 偵測到顧客 → 已自動觸發 L2（hawk loop 下次迭代立即 check opencv，無需再按鍵）")
             return ""  # 不返回有效鍵；由 L1 hawk 主迴圈下次 check opencv
         return raw[:1] if raw else ""
 
