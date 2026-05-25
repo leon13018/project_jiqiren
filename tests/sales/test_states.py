@@ -1422,8 +1422,8 @@ def test_l3_b1_unclear_max_final_confirmation_continue_then_checkout() -> None:
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # UNCLEAR_MAX 次 B-1 → 進最終確認 → "2" 繼續 → "紅茶 2" 加單 → "結帳"
-    inputs = ["asdf"] * UNCLEAR_MAX + ["2", "紅茶 2", "結帳"]
+    # UNCLEAR_MAX 次 B-1 → 進最終確認 → "2" 繼續 → "紅茶 2" 加單 → "結帳" → "1" 明確確認
+    inputs = ["asdf"] * UNCLEAR_MAX + ["2", "紅茶 2", "結帳", "1"]
     customer_input = FakeCustomerInput(inputs)
 
     # Act
@@ -1887,7 +1887,8 @@ def test_l3_c1_checkout_keyword_speaks_and_goes_l4() -> None:
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    customer_input = FakeCustomerInput(["結帳"])
+    # 結帳 → "1" 明確確認 → 進 L4
+    customer_input = FakeCustomerInput(["結帳", "1"])
 
     # Act
     next_state, next_think_count = states.run_dialog(
@@ -2061,8 +2062,8 @@ def test_l3_c2_second_stage_checkout_reruns_dispatch_to_c1() -> None:
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # None → C-2 第一段；結帳 → C-1 進 L4
-    customer_input = FakeCustomerInput([None, "結帳"])
+    # None → C-2 第一段；結帳 → C-1 confirm → "1" 明確確認 → 進 L4
+    customer_input = FakeCustomerInput([None, "結帳", "1"])
 
     # Act
     next_state, _ = states.run_dialog(
@@ -3266,14 +3267,19 @@ def test_l3_checkout_confirm_terminal_2_returns_to_l3() -> None:
     assert L2_REJECT_THANKS in speak_calls
 
 
-def test_l3_checkout_confirm_timeout_proceeds_to_l4() -> None:
-    """L3 結帳 → 顧客 6s 無回應 → 視為確認 → 進 L4（既然主動說了結帳，沒拒絕就過）。"""
+def test_l3_checkout_confirm_timeout_cancels() -> None:
+    """L3 結帳 → confirm 內 6s 無回應 → 視為否認 → 清 cart 回 DnC → 後續 timeout 走 A 退出。
+
+    2026-05-26 spec 改：confirm 子狀態保護顧客錢包，沒明確答覆不進 L4。
+    """
+    speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    customer_input = FakeCustomerInput(["結帳", None])
+    # 結帳 → confirm None (取消) → 主迴圈 cart 空 → L2 timeout → A 退
+    customer_input = FakeCustomerInput(["結帳", None, None])
 
     next_state, _ = states.run_dialog(
-        speak=lambda text: None,
+        speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
@@ -3281,7 +3287,10 @@ def test_l3_checkout_confirm_timeout_proceeds_to_l4() -> None:
         think_count=0,
     )
 
-    assert next_state == "L4"
+    assert next_state == "L1_via_subroutine_a"
+    assert cart_module.is_empty(cart)
+    assert L3_CHECKOUT_REJECT_CLEAR_NOTICE in speak_calls
+    assert L2_REJECT_THANKS in speak_calls
 
 
 def test_l3_checkout_confirm_summary_shows_all_products() -> None:

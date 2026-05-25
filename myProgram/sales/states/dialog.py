@@ -619,9 +619,13 @@ def _dialog_checkout_confirm(
 
     每次 read 都給 full WAIT_NO_RESPONSE 秒，避免 wall-clock 倒數造成「重 prompt 後
     顧客來不及答就被當 timeout」+「終端 timeout 顯示 5.999... 小數」兩個 UX bug。
-    顧客連續答 unclear 達 UNCLEAR_MAX 次 → 視為確認進 L4（同 timeout 行為，防無限重 prompt）。
 
-    Returns True 顧客確認 → caller 進 L4；False 顧客否認 → caller 清 cart 回 DnC。
+    **必須明確答覆才確認進 L4**（2026-05-26 修：保護顧客錢包）：
+    - 6s timeout（沒回應）→ 視為否認 → 取消（清 cart 回 DnC）
+    - 連續 unclear 達 UNCLEAR_MAX 次 → 視為否認 → 取消（清 cart 回 DnC）
+    - 只有「1 / 對 / 是」等明確肯定詞才 return True 進 L4
+
+    Returns True 顧客明確確認 → caller 進 L4；False 否認 / timeout / 亂答 → caller 清 cart 回 DnC。
     """
     summary = _build_order_summary(cart)
     prompt = L3_CHECKOUT_CONFIRM_TEMPLATE.format(summary=summary)
@@ -631,7 +635,7 @@ def _dialog_checkout_confirm(
     while True:
         response = read_customer_input(timeout=WAIT_NO_RESPONSE)
         if response is None:
-            return True
+            return False
         if response == "1":
             return True
         if response == "2":
@@ -642,7 +646,7 @@ def _dialog_checkout_confirm(
             return True
         unclear_count += 1
         if unclear_count >= UNCLEAR_MAX:
-            return True
+            return False
         speak(prompt)
 
 
