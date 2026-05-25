@@ -1,5 +1,6 @@
 .claude/settings.local.json
 .claude/worktrees/
+.claude/hooks/*.log
 sync_pi.ps1
 resources/presentation/
 resources/userPrompt/
