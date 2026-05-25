@@ -334,6 +334,20 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 **workaround：** commit message 內文避開字面 `git add -A` / `git add .`，改用「bulk-add」「bulk」「-A 旗標」描述。
 **TODO：** 收緊 regex 加 lookbehind 限定 shell separator / 行首。沒急做（commit message 寫法 workaround 簡單）。
 
+### L. auto-sync-pi regex 太嚴，`git -C ... push origin main` 不命中 ⚠️ 已修
+**症狀：** push 後 Pi 沒 sync 到最新 commit。log 內看不到對應 push 的 `Triggered by:` 行（hook 根本沒跑）。
+**原因：** 舊 regex `\bgit\s+push\s+origin\s+main\b` 要求 `git` 後面**直接接** `push`。worktree 工作流程下我習慣用 `git -C "C:/..." push origin main`，`-C ...` 卡在 git 跟 push 中間 → regex miss。
+**踩到時間：** 2026-05-25 兩個 hook 修補 commit（c47ba98 / d0fce32）push 後 Pi 停在 9948962，使用者去 Pi 上發現後才察覺。
+**修法：** 改 regex 為 `\bgit\b[^;&|\r\n]*?\bpush\s+origin\s+main\b` — 允許 git 與 push 之間有 git options，但用 `[^;&|\r\n]` 阻止跨 shell separator 誤匹配。
+**驗證的 case：**
+- ✅ `git push origin main`
+- ✅ `git -C "..." push origin main`
+- ✅ `git merge xxx --ff-only && git push origin main`
+- ✅ `git merge xxx --ff-only && git -C "..." push origin main`
+- ❌ `git push origin master`（main 後有字接 → \b 擋）
+- ❌ `git status; some other thing push origin main`（跨 `;` 不匹配）
+**Gotcha K vs L 對比：** K 是 regex **太寬**（誤抓）；L 是 regex **太嚴**（漏抓）。寫 hook 的 regex 要在「精準命中目標」與「不掃到字面字串」之間平衡。建議未來新 hook 寫 regex 時，主動測 4 種 case：simple form / -C form / `&&` chain / commit message 內含字面。
+
 ---
 
 ## 7. Cross-check 結果（subagent 推測 vs 官方）
