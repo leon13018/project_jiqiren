@@ -315,6 +315,25 @@ $utf8Bom = New-Object System.Text.UTF8Encoding $true
 **意思：** 這些 events 的 hook entry 不能寫 `"matcher": "..."`，永遠 fire
 **我們 Stop hook 配置就沒寫 matcher** ✓
 
+### J. Hook stdout 編碼問題 ⚠️ 必記（與 A 配對）
+**症狀：** `/compact` 後 SessionStart 注入的 system-reminder 顯示亂碼（如 `## ������B���գ�`）；Claude 看到的注入內容變廢；deny reason 亂碼導致使用者不知為何被擋。
+**原因：** PowerShell 5.1 預設 `[Console]::OutputEncoding` 與 `$OutputEncoding` 為**系統 ANSI code page**（本機 = cp936/GBK，PRC 區域；台灣機器才是 Big5/cp950），但 Claude Code 讀 hook stdout 預期 UTF-8 → 中文被當 cp936 解碼成亂碼。
+**解法：** 所有會 `Write-Output` 中文到 Claude 的 hook 開頭加：
+```powershell
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+```
+**範圍：** 5 個 hook 需修（session-start-context / subagent-inject-rules / stop-check-sales-pytest / block-vendor-edit / block-git-add-bulk）。State/log-only hooks（auto-sync-pi / state-mark / state-clear）不需修，輸出不到 Claude。
+**驗證：** 手動 pipe stdin JSON 給 hook → 看 stdout 是不是乾淨繁中
+**Gotcha A vs J 區別：** A 是 .ps1 **input**（讀 source code）編碼問題（用 BOM 解決）；J 是 .ps1 **output**（寫 stdout）編碼問題（用 OutputEncoding override 解決）。兩個都得處理。
+
+### K. block-git-add-bulk regex 太寬，誤擋含 `git add -A` / `git add .` 字面的 commit message
+**症狀：** commit message 內文寫了「擋 `git add -A` / `git add .`」這類字串時，本 hook 把整個 Bash command 字串（含 commit -m "...") 掃到，誤判為要跑 `git add -A` 並 deny。
+**原因：** regex `\bgit\s+add\s+(-A\b|--all\b|\.(?:\s|$))` 沒限定「行首」或「在 shell separator `&&` `;` `|` 之後」，掃整段 command 字串就會中招。
+**踩到時間：** 2026-05-25 寫 commit「hooks: force UTF-8 stdout encoding ... 5 hooks (... bulk-add deny reason)」第一次 commit body 內含字面 `'git add -A'` / `'git add .'` 被擋。
+**workaround：** commit message 內文避開字面 `git add -A` / `git add .`，改用「bulk-add」「bulk」「-A 旗標」描述。
+**TODO：** 收緊 regex 加 lookbehind 限定 shell separator / 行首。沒急做（commit message 寫法 workaround 簡單）。
+
 ---
 
 ## 7. Cross-check 結果（subagent 推測 vs 官方）
