@@ -31,8 +31,9 @@ DYC_TIMEOUT: int = 12
 # L1 叫賣模式每一輪間隔
 HAWK_INTERVAL: int = 12
 
-# 「回 L1 叫賣」時屏蔽 OpenCV 偵測的時長（= HAWK_INTERVAL，避免折返顧客被重複招呼）
-OPENCV_MUTE: int = 12
+# 「回 L1 叫賣」時屏蔽 OpenCV 偵測的時長，避免折返顧客被重複招呼
+# （2026-05-26 從 12 → 6：實測 12s 對展演節奏太久；6s 已足夠擋掉「同一顧客剛走又走回」）
+OPENCV_MUTE: int = 6
 
 # L5 致謝完成後等待時長
 THANK_DELAY: int = 3
