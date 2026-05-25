@@ -472,9 +472,37 @@ def test_parse_products_two_products_both_missing_qty() -> None:
 
 
 def test_parse_products_duplicate_product_returns_separate_entries() -> None:
-    """重複商品保留為獨立 entry（caller 累加）。"""
+    """重複商品 + 全部都有數量 → 保留各自獨立 entry（caller 累加）。
+
+    （2026-05-25 dedup 規則第 3 條：全有數量 → 保留累加。）
+    """
     result = nlu.parse_products("冰紅茶 2 冰紅茶 3")
     assert result == [("冰紅茶", 2), ("冰紅茶", 3)]
+
+
+def test_parse_products_duplicate_all_missing_qty_merges_to_single() -> None:
+    """重複商品 + 全部都沒數量 → 合併成一個 entry，只追問一次（2026-05-25 dedup 規則第 1 條）。
+
+    使用者實機回報：「刮刮樂 紅茶 刮刮樂」會重複問兩次刮刮樂幾張，應合一只問一次。
+    """
+    result = nlu.parse_products("刮刮樂 刮刮樂")
+    assert result == [("刮刮樂", None)]
+
+    result_mixed = nlu.parse_products("刮刮樂 紅茶 刮刮樂")
+    assert result_mixed == [("刮刮樂", None), ("冰紅茶", None)]
+
+
+def test_parse_products_duplicate_mixed_qty_drops_missing() -> None:
+    """重複商品 + 有數量 + 無數量混合 → 只保留有數量的，無數量的忽略（2026-05-25 dedup 規則第 2 條）。
+
+    使用者實機回報規則：「刮刮樂3 刮刮樂 紅茶」應算 3 張刮刮樂（不追問第二次）+ 紅茶照常追問。
+    """
+    result = nlu.parse_products("刮刮樂 3 刮刮樂 紅茶")
+    assert result == [("刮刮樂", 3), ("冰紅茶", None)]
+
+    # 有數量在後、無數量在前 → 同樣丟無數量
+    result_reverse = nlu.parse_products("刮刮樂 刮刮樂 3")
+    assert result_reverse == [("刮刮樂", 3)]
 
 
 def test_parse_products_with_filler_words_extracts_correctly() -> None:

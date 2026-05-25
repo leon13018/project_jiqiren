@@ -205,16 +205,22 @@ def parse_products(text: str) -> list:
         list of (product_name, qty_or_None) tuples，依出現順序排列。
         qty: int（有解析到）或 None（沒解析到 → caller 進 QTY 追問）
         無商品 → 返 []
-        重複商品保留為獨立 entry（caller 自行累加）：
-            「紅茶 2 紅茶 3」→ [("冰紅茶", 2), ("冰紅茶", 3)]
-            cart 累加：5 瓶
+
+        **Per-product dedup 規則（2026-05-25 加，使用者實機回報後修正）：**
+        1. 同商品全部都**沒**數量 → 合併成一個 (product, None)（只追問一次）
+        2. 同商品**至少一個有**數量 → 只保留有數量的 entries，無數量的丟棄
+        3. 同商品**全部都有**數量 → 全部保留各自為獨立 entry（caller 累加）
 
     範例：
-        "紅茶 1 刮刮樂 2" → [("冰紅茶", 1), ("刮刮樂", 2)]
-        "紅茶 刮刮樂"      → [("冰紅茶", None), ("刮刮樂", None)]
-        "紅茶 1 刮刮樂"    → [("冰紅茶", 1), ("刮刮樂", None)]
+        "紅茶 1 刮刮樂 2"     → [("冰紅茶", 1), ("刮刮樂", 2)]
+        "紅茶 刮刮樂"          → [("冰紅茶", None), ("刮刮樂", None)]
+        "紅茶 1 刮刮樂"        → [("冰紅茶", 1), ("刮刮樂", None)]
         "想要紅茶 2 跟刮刮樂 1 謝謝" → [("冰紅茶", 2), ("刮刮樂", 1)]
-        "今天天氣很好"     → []
+        "今天天氣很好"         → []
+        # Dedup 規則
+        "刮刮樂 刮刮樂"        → [("刮刮樂", None)]              # 規則 1：合一
+        "刮刮樂 3 刮刮樂"      → [("刮刮樂", 3)]                 # 規則 2：丟無數量
+        "紅茶 2 紅茶 3"        → [("冰紅茶", 2), ("冰紅茶", 3)]  # 規則 3：累加 5 瓶
     """
     if not text:
         return []
@@ -247,14 +253,29 @@ def parse_products(text: str) -> list:
     found.sort(key=lambda x: x[0])
 
     # 3. 對每個商品，視窗 = (keyword 結束) → (下個商品 keyword 起始)，找數量
-    result: list = []
+    raw: list = []
     for i, (_start, end, product) in enumerate(found):
         window_end = found[i + 1][0] if i + 1 < len(found) else len(text)
         window = text[end:window_end]
         qty = _parse_quantity_in_window(window)
-        result.append((product, qty))
+        raw.append((product, qty))
 
-    return result
+    # 4. Per-product dedup pass（見 docstring「Per-product dedup 規則」段）
+    products_with_qty = {p for p, q in raw if q is not None}
+    deduped: list = []
+    seen_missing: set = set()
+    for product, qty in raw:
+        if product in products_with_qty:
+            # 該商品有任何 qty 帶值 entry → 只保留有 qty 的（規則 2 + 3）
+            if qty is not None:
+                deduped.append((product, qty))
+        else:
+            # 該商品全部 None → 只保留首次（規則 1）
+            if product not in seen_missing:
+                deduped.append((product, None))
+                seen_missing.add(product)
+
+    return deduped
 
 
 def _parse_quantity_in_window(window: str) -> int:
