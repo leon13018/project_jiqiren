@@ -382,3 +382,41 @@ def test_has_quantity_detects_arabic_and_chinese() -> None:
     assert not nlu.has_quantity("我要紅茶")
     assert not nlu.has_quantity("刮刮樂")
     assert not nlu.has_quantity("")
+
+
+# ============================================================
+# L0-QTY-011 (2026-05-25 加：量詞 agnostic 契約)
+# ============================================================
+
+## L0-QTY-011
+### Scenario: parse_quantity 忽略量詞變體，只抽商品數量
+### Given 顧客輸入含各種量詞（個 / 罐 / typo / 無量詞）+ 阿拉伯數字
+### When 解析數量
+### Then 數量正確抽出，量詞被視為「不關心的字元」
+def test_qty_ignores_chinese_measure_word_variants() -> None:
+    """量詞 agnostic 原則：「中文的量詞對我們來說不重要，我們只捕捉商品名和數量做決策」。
+
+    無論顧客用「個 / 北(typo) / 罐」或省略量詞，parse_quantity 只看阿拉伯數字。
+    """
+    assert nlu.parse_quantity("紅茶20個") == 20      # 個（常見泛用量詞）
+    assert nlu.parse_quantity("紅茶10北") == 10      # 北（量詞 typo — 顧客誤打）
+    assert nlu.parse_quantity("紅茶10罐") == 10      # 罐
+    assert nlu.parse_quantity("刮刮樂100") == 100   # 無量詞
+    assert nlu.parse_quantity("冰紅茶 5 罐") == 5    # 數字前後皆有字 + 空格
+
+
+# ============================================================
+# L0-NLU-012 (2026-05-25 加：商品識別 量詞 agnostic)
+# ============================================================
+
+## L0-NLU-012
+### Scenario: classify_intent 商品識別不受量詞影響
+### Given 顧客輸入含商品名 + 各種量詞變體
+### When 對輸入做意圖分類
+### Then 商品 keyword substring 命中即正確分類，前後文字不影響
+def test_nlu_classify_intent_ignores_chinese_measure_word_variants() -> None:
+    """商品識別 substring 比對：商品名 substring 命中即可，量詞 / 形容詞 / 副詞全不關心。"""
+    assert nlu.classify_intent("紅茶20個") == "商品:冰紅茶"
+    assert nlu.classify_intent("紅茶10北") == "商品:冰紅茶"
+    assert nlu.classify_intent("紅茶10罐") == "商品:冰紅茶"
+    assert nlu.classify_intent("刮刮樂100") == "商品:刮刮樂"
