@@ -179,6 +179,18 @@ def test_nlu_mei_le_classified_as_checkout() -> None:
     assert nlu.classify_intent("沒有了") == "結帳"
 
 
+def test_nlu_short_mei_classified_by_mode() -> None:
+    """2026-05-26 加：單字「沒」依層別解析。
+
+    - L2 (DnC)：「沒」= 沒有要買 → 拒絕（退 L1）
+    - L3 normal (DyC)：「沒」= 沒了，不追加 → 結帳（進 confirm）
+    - L4 / l4_service：「沒」走 L2/L4 mode 規則 → 拒絕
+    """
+    assert nlu.classify_intent("沒", "l2") == "拒絕"
+    assert nlu.classify_intent("沒", "normal") == "結帳"
+    assert nlu.classify_intent("沒", "l4") == "拒絕"
+
+
 def test_nlu_english_no_nope_classified_as_checkout() -> None:
     """L3（normal 模式）顧客講「no」/「nope」→ 結帳意圖（語意「沒了，不追加」）。"""
     assert nlu.classify_intent("no") == "結帳"
