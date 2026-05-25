@@ -41,6 +41,7 @@ from myProgram.sales.constants import (
     L3_UNCLEAR_FINAL_PROMPT,
     L3_CHECKOUT_CONFIRM_TEMPLATE,
     L3_CHECKOUT_REJECT_CLEAR_NOTICE,
+    L3_CHECKOUT_TIMEOUT_CLEAR_NOTICE,
     CHECKOUT_CONFIRM_TIMEOUT,
     CHECKOUT_CONFIRM_UNCLEAR_MAX,
     PRODUCTS,
@@ -174,18 +175,17 @@ def run_dialog(
                 continue
             # L3 模式：C-1 結帳前 confirm
             unclear_count = 0
-            confirmed = _dialog_checkout_confirm(
+            result = _dialog_checkout_confirm(
                 speak=speak,
                 print_terminal=print_terminal,
                 read_customer_input=read_customer_input,
                 cart=cart,
             )
-            if confirmed:
+            if result is True:
                 speak(L3_C1_CHECKOUT_GO)
                 return ("L4", 0)
-            # 否認 → 清空 cart + 通知；主迴圈下一輪 cart 空 → l2 mode → DnC
-            cart_module.clear_cart(cart)
-            speak(L3_CHECKOUT_REJECT_CLEAR_NOTICE)
+            # 否認 / timeout → 清空 cart + 對應通知；下一輪 cart 空 → l2 mode → DnC
+            _handle_checkout_confirm_result(result, cart, speak)
             continue
 
         # 客服 → B-2
@@ -400,17 +400,16 @@ def _dialog_dispatch_inner_l3(
         )
     if intent == "結帳":
         # L3 結帳 → C-1 confirm
-        confirmed = _dialog_checkout_confirm(
+        result = _dialog_checkout_confirm(
             speak=speak,
             print_terminal=print_terminal,
             read_customer_input=read_customer_input,
             cart=cart,
         )
-        if confirmed:
+        if result is True:
             speak(L3_C1_CHECKOUT_GO)
             return ("L4", 0)
-        cart_module.clear_cart(cart)
-        speak(L3_CHECKOUT_REJECT_CLEAR_NOTICE)
+        _handle_checkout_confirm_result(result, cart, speak)
         return None
     if intent == "客服":
         print_terminal(SERVICE_PHONE)
@@ -470,6 +469,25 @@ def _dialog_c2_second_stage(
     if response is None:
         return ("L4", 0)
 
+    # 「請問是否要結帳」是 yes/no 風格 prompt — 顧客講「不要 / 不對」等 NO 詞時
+    # 應為「不要結帳，取消」而非「不要 = 沒了，所以結帳」（L3 normal NLU 預設語意）。
+    # 但只攔「NLU 會誤判為結帳」的 NO 詞；strict reject（如「我不要了」）走原 dispatch 拒絕路徑
+    # （清 cart + 回 L1 + speak「謝謝光臨」），這裡不能搶。2026-05-26 加；使用者實測踩到
+    if (
+        classify_intent(response, "normal") == "結帳"
+        and any(kw in response for kw in KEYWORDS_CONFIRM_NO)
+    ):
+        cart_module.clear_cart(cart)
+        speak(L3_CHECKOUT_REJECT_CLEAR_NOTICE)
+        return _dialog_continue_after_c2_inner(
+            speak=speak,
+            do_action=do_action,
+            print_terminal=print_terminal,
+            read_customer_input=read_customer_input,
+            cart=cart,
+            think_count=think_count,
+        )
+
     result = _dialog_dispatch_inner_l3(
         response=response,
         speak=speak,
@@ -504,15 +522,21 @@ def _dialog_continue_after_c2_inner(
 ) -> tuple:
     """C-2 / B-4 sub-dispatch 返回 None 後，回主等待迴圈繼續（不重播 entry prompt）。
 
-    跟 run_dialog 主迴圈邏輯一致，但 entry prompt 已播過不重播。
+    跟 run_dialog 主迴圈邏輯一致（含 DnC/DyC timeout + cart_empty timeout 中性語音），
+    差別只是 entry prompt 已播過不重播。
     """
     unclear_count = 0
     while True:
         cart_empty = cart_module.is_empty(cart)
-        response = read_customer_input(timeout=WAIT_NO_RESPONSE)
+        # DnC（cart 空）/ DyC（cart 非空）皆給較長 timeout，跟 run_dialog 主迴圈對齊
+        timeout = DNC_TIMEOUT if cart_empty else DYC_TIMEOUT
+        response = read_customer_input(timeout=timeout)
         if response is None:
             if cart_empty:
-                return _dialog_exit_a(speak, cart)
+                # cart 空 timeout → 不算「拒絕」而是「沒回應」→ 中性語音回 L1 叫賣
+                # （見 run_dialog 主迴圈對齊；舊版走 _dialog_exit_a → speak L2_REJECT_THANKS 已棄用）
+                speak(L2_TIMEOUT_TO_HAWK_VOICE)
+                return ("L1_via_subroutine_a", 0)
             return _dialog_c2_auto_checkout(
                 speak=speak,
                 do_action=do_action,
@@ -567,15 +591,14 @@ def _dialog_continue_after_c2_inner(
                 speak(L2_B1_CLARIFY)
                 continue
             unclear_count = 0
-            confirmed = _dialog_checkout_confirm(
+            result = _dialog_checkout_confirm(
                 speak=speak, print_terminal=print_terminal,
                 read_customer_input=read_customer_input, cart=cart,
             )
-            if confirmed:
+            if result is True:
                 speak(L3_C1_CHECKOUT_GO)
                 return ("L4", 0)
-            cart_module.clear_cart(cart)
-            speak(L3_CHECKOUT_REJECT_CLEAR_NOTICE)
+            _handle_checkout_confirm_result(result, cart, speak)
             continue
         if intent == "客服":
             unclear_count = 0
@@ -633,11 +656,15 @@ def _dialog_checkout_confirm(
     就被當 timeout」+「終端 timeout 顯示 5.999... 小數」兩個 UX bug。
 
     **必須明確答覆才確認進 L4**（2026-05-26 修：保護顧客錢包）：
-    - timeout（沒回應）→ 視為否認 → 取消（清 cart 回 DnC）
-    - 連續 unclear 達上限 → 視為否認 → 取消（清 cart 回 DnC）
+    - timeout（沒回應）→ return None；caller 用 timeout 專屬通知（「由於您沒回應...」）
+    - 連續 unclear 達上限 → return False；caller 用一般 reject 通知
+    - 明確「不對」/「2」/「不要」等 → return False；caller 用一般 reject 通知
     - 只有「1 / 對 / 是」等明確肯定詞才 return True 進 L4
 
-    Returns True 顧客明確確認 → caller 進 L4；False 否認 / timeout / 亂答 → caller 清 cart 回 DnC。
+    Returns:
+        True → 顧客明確確認，caller 進 L4
+        False → 顧客明確否認 / 亂答達上限，caller 清 cart + speak L3_CHECKOUT_REJECT_CLEAR_NOTICE
+        None → timeout 沒回應，caller 清 cart + speak L3_CHECKOUT_TIMEOUT_CLEAR_NOTICE
     """
     summary = _build_order_summary(cart)
     prompt = L3_CHECKOUT_CONFIRM_TEMPLATE.format(summary=summary)
@@ -647,7 +674,7 @@ def _dialog_checkout_confirm(
     while True:
         response = read_customer_input(timeout=CHECKOUT_CONFIRM_TIMEOUT)
         if response is None:
-            return False
+            return None
         if response == "1":
             return True
         if response == "2":
@@ -660,6 +687,24 @@ def _dialog_checkout_confirm(
         if unclear_count >= CHECKOUT_CONFIRM_UNCLEAR_MAX:
             return False
         speak(prompt)
+
+
+def _handle_checkout_confirm_result(result, cart, speak) -> None:
+    """checkout_confirm 非 True 時的清 cart + 通知處理（共用 helper）。
+
+    Args:
+        result: _dialog_checkout_confirm 的返回值（False 或 None；True 不應呼叫此 helper）
+        cart: 購物車 dict
+        speak: 語音 callback
+
+    None (timeout) → speak L3_CHECKOUT_TIMEOUT_CLEAR_NOTICE（含「由於您沒回應」前綴）
+    False (明確否認/亂答上限) → speak L3_CHECKOUT_REJECT_CLEAR_NOTICE
+    """
+    cart_module.clear_cart(cart)
+    if result is None:
+        speak(L3_CHECKOUT_TIMEOUT_CLEAR_NOTICE)
+    else:
+        speak(L3_CHECKOUT_REJECT_CLEAR_NOTICE)
 
 
 def _dialog_unclear_final_confirmation(

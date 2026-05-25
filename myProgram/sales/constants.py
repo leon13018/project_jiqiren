@@ -174,6 +174,10 @@ KEYWORDS_CONFIRM_NO: list = ["不對", "錯", "改", "wrong", "不是", "沒有"
 # 目前無改/刪商品功能 → 否認 = 清空重點；訊息含 L2_ENTRY_PROMPT 內容，後續主迴圈自動進 DnC
 L3_CHECKOUT_REJECT_CLEAR_NOTICE: str = "已幫您清空購物車，需要請重新購買，您好，請問需要購買什麼東西嗎？"
 
+# L3 結帳前 confirm 顧客 timeout（沒回應）後的清 cart 通知（2026-05-26 加）
+# 區分明確「不對」: 顧客主動意圖；timeout: 沒回應，前綴「由於您沒回應」說明清 cart 原因
+L3_CHECKOUT_TIMEOUT_CLEAR_NOTICE: str = "由於您沒回應，已幫您清空購物車，需要請重新購買，您好，請問需要購買什麼東西嗎？"
+
 # L3 結帳前 confirm 子狀態專用 timeout / 亂答上限（2026-05-26 加，比通用值寬鬆）
 # 通用 WAIT_NO_RESPONSE=6s / UNCLEAR_MAX=3 對「結帳前確認金額」這步驟過於嚴格 —
 # 顧客可能正在數錢 / 看商品 / 確認數量；給 12s + 5 次容忍空間，再清 cart 退。
