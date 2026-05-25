@@ -18,8 +18,6 @@ Return shape：(next_state, next_think_count)
     ※ L2/L3 之間的 transition 已被內化（無 "L3" return 給 logic.py）
 """
 
-import time
-
 from myProgram.sales.constants import (
     WAIT_NO_RESPONSE,
     AUTO_CHECKOUT_NOTICE,
@@ -654,20 +652,19 @@ def _dialog_unclear_final_confirmation(
     read_customer_input,
     cart,
 ) -> tuple | None:
-    """L3 B-1 累積到 UNCLEAR_MAX 後的最終確認子狀態（仿 L4 D 最終確認）。
+    """L3 B-1 累積到 UNCLEAR_MAX 後的最終確認子狀態（仿 L4 D；2026-05-26 重構 wall-clock）。
+
+    每次 read 都給 full WAIT_NO_RESPONSE 秒，避免 wall-clock 倒數造成「重 prompt 後
+    顧客來不及答就被當 timeout」+「終端 timeout 顯示 5.999... 小數」兩個 UX bug。
+    亂答達 UNCLEAR_MAX 次 → 視為取消（同 timeout 行為，防無限重 prompt）。
 
     Returns tuple = caller 直接 return；None = 顧客選繼續，caller reset unclear 回主等待。
     """
-    print_terminal(L3_UNCLEAR_FINAL_PROMPT)
     speak(L3_UNCLEAR_FINAL_PROMPT)
+    unclear_count = 0
 
-    start = time.time()
     while True:
-        elapsed = time.time() - start
-        remaining = WAIT_NO_RESPONSE - elapsed
-        if remaining <= 0:
-            return _dialog_exit_a(speak, cart)
-        response = read_customer_input(timeout=remaining)
+        response = read_customer_input(timeout=WAIT_NO_RESPONSE)
         if response is None:
             return _dialog_exit_a(speak, cart)
         if response == "1":
@@ -679,7 +676,9 @@ def _dialog_unclear_final_confirmation(
             return _dialog_exit_a(speak, cart)
         if intent == "繼續交易":
             return None
-        print_terminal(L3_UNCLEAR_FINAL_PROMPT)
+        unclear_count += 1
+        if unclear_count >= UNCLEAR_MAX:
+            return _dialog_exit_a(speak, cart)
         speak(L3_UNCLEAR_FINAL_PROMPT)
 
 

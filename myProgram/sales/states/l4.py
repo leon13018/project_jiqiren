@@ -11,8 +11,6 @@ L 系列最複雜層特性：
     - return 3-tuple (next_state, next_loop_count, next_unclear_count)
 """
 
-import time
-
 from myProgram.sales.constants import (
     PRODUCTS,
     WAIT_NO_RESPONSE,
@@ -31,6 +29,7 @@ from myProgram.sales.constants import (
     L4_D_VOICE_MODERATE,
     L4_D_VOICE_WARNING,
     L4_SERVICE_TIMEOUT,
+    UNCLEAR_MAX,
 )
 from myProgram.sales.nlu import classify_intent
 from myProgram.sales import cart as cart_module
@@ -236,43 +235,33 @@ def _l4_final_confirmation(
     cart,
     total: int,
 ) -> tuple | None:
-    """L4 D 達上限後的最終確認子狀態（2026-05-25 加）。
+    """L4 D 達上限後的最終確認子狀態（2026-05-25 加；2026-05-26 重構 wall-clock）。
 
-    顧客已被催促 6 次仍沒回應 + 第 7 次 timeout 進此狀態。給最後 6 秒選擇：
+    顧客已被催促 6 次仍沒回應 + 第 7 次 timeout 進此狀態。給選擇：
         - 取消訂單（"1" / 「退出」/「取消」等）→ 清 cart 回 L1
         - 繼續當前付款（"2" / 「繼續」等）→ caller 重置 counter，回 L4 主迴圈
-        - 亂回答 → 重印 prompt，**6s 倒數不重置**（time.time() wall-clock 追蹤）
+        - 亂回答 → 重 speak prompt，**每次重新給 6s**；亂答達 UNCLEAR_MAX 次 → 視為取消
         - 6s timeout → 視為取消（清 cart 回 L1）
+
+    每次 read 都給 full WAIT_NO_RESPONSE 秒，避免 wall-clock 倒數造成「重 prompt 後
+    顧客來不及答就被當 timeout」+「終端 timeout 顯示 5.999... 小數」兩個 UX bug。
 
     Returns:
         tuple ("L1_via_subroutine_a", 0, 0) → 取消（caller 直接 return）
         None  → 顧客選繼續（caller 應 reset loop_count + unclear_count = 0）
-
-    S1 注意：用 time.time() wall-clock 追蹤；S4+ 上 threading 時改 worker thread + timer。
     """
-    print_terminal(L4_D_FINAL_PROMPT)
     speak(L4_D_FINAL_PROMPT)
-
-    start = time.time()
+    unclear_count = 0
 
     while True:
-        elapsed = time.time() - start
-        remaining = WAIT_NO_RESPONSE - elapsed
-        if remaining <= 0:
-            # 6s 倒數結束 → 強制取消
-            return _l4_exit_d_forced(speak, cart)
-
-        response = read_customer_input(timeout=remaining)
+        response = read_customer_input(timeout=WAIT_NO_RESPONSE)
 
         if response is None:
-            # explicit timeout → 取消
             return _l4_exit_d_forced(speak, cart)
 
-        # 終端輸入 1 → 取消
         if response == "1":
             return _l4_exit_d_forced(speak, cart)
 
-        # 終端輸入 2 → 繼續
         if response == "2":
             return None
 
@@ -283,8 +272,10 @@ def _l4_final_confirmation(
         if intent == "繼續交易":
             return None
 
-        # 亂回答 → 重印 prompt（6s 倒數不重置，下一輪 elapsed 會繼續累積）
-        print_terminal(L4_D_FINAL_PROMPT)
+        # 亂回答 → 重 speak prompt；達 unclear 上限視為取消（同 timeout 行為，防無限重 prompt）
+        unclear_count += 1
+        if unclear_count >= UNCLEAR_MAX:
+            return _l4_exit_d_forced(speak, cart)
         speak(L4_D_FINAL_PROMPT)
 
 

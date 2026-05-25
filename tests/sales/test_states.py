@@ -1401,8 +1401,8 @@ def test_l3_b1_unclear_max_final_confirmation_cancel() -> None:
         think_count=0,
     )
 
-    # Assert：終端印最終確認 prompt
-    assert L3_UNCLEAR_FINAL_PROMPT in terminal_calls
+    # Assert：語音播最終確認 prompt
+    assert L3_UNCLEAR_FINAL_PROMPT in speak_calls
     # 鏈路 A 拒絕語音 + cart 清空
     assert L3_REJECT_THANKS in speak_calls
     assert len(cart) == 0, f"cart 應清空，實際：{dict(cart)}"
@@ -1482,6 +1482,7 @@ def test_l3_b1_unclear_max_final_confirmation_timeout_cancels() -> None:
 
 def test_l3_b1_reset_on_known_intent() -> None:
     # Arrange
+    speak_calls: list = []
     terminal_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
@@ -1492,7 +1493,7 @@ def test_l3_b1_reset_on_known_intent() -> None:
 
     # Act
     next_state, _ = states.run_dialog(
-        speak=lambda text: None,
+        speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: terminal_calls.append(text),
         read_customer_input=customer_input.read,
@@ -1502,8 +1503,8 @@ def test_l3_b1_reset_on_known_intent() -> None:
 
     # Assert：客服電話有被印
     assert SERVICE_PHONE in terminal_calls
-    # 沒進最終確認子狀態（unclear 被 reset 過）
-    assert L3_UNCLEAR_FINAL_PROMPT not in terminal_calls
+    # 沒進最終確認子狀態（unclear 被 reset 過）— prompt 走 speak，不會被 terminal 印
+    assert L3_UNCLEAR_FINAL_PROMPT not in speak_calls
     # 退出是因為兩段 6s timeout 走 C-2 自動進 L4
     assert next_state == "L4"
 
@@ -1535,8 +1536,8 @@ def test_l3_b1_final_confirmation_gibberish_then_timeout() -> None:
         think_count=0,
     )
 
-    # Assert：prompt 被印多次（初次 + 兩次亂回答重印 = 3）
-    assert terminal_calls.count(L3_UNCLEAR_FINAL_PROMPT) >= 3
+    # Assert：prompt 被 speak 多次（初次 + 兩次亂回答重播 = 3）
+    assert speak_calls.count(L3_UNCLEAR_FINAL_PROMPT) >= 3
     # 最終 timeout → 取消
     assert L3_REJECT_THANKS in speak_calls
     assert len(cart) == 0
