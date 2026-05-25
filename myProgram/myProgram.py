@@ -48,7 +48,11 @@ def _build_callbacks(state: _S1State) -> dict:
 
         特殊 'c' 鍵：模擬 OpenCV 偵測到顧客 → 設 dwell ≥ OPENCV_DWELL，下次 check 觸發 L2。
         """
-        raw = input("[商家] > ").strip().lower()
+        try:
+            raw = input("[商家] > ").strip().lower()
+        except (UnicodeDecodeError, EOFError) as e:
+            print(f"[系統] 輸入解析失敗（{type(e).__name__}），請重試")
+            return ""
         if raw == "c":
             state.opencv_dwell = OPENCV_DWELL + 0.5
             print("[模擬] OpenCV 偵測到顧客 → 已自動觸發 L2（hawk loop 下次迭代立即 check opencv，無需再按鍵）")
@@ -61,8 +65,13 @@ def _build_callbacks(state: _S1State) -> dict:
         空 Enter → 模擬 timeout（return None）
         'q' → S1 wire-up 便利：直接退出程式（production 不會有人講「q」當顧客語音）
         其他 → 返回字串
+        非 UTF-8 byte / EOF → 視為 timeout（return None），避免 Python input() raise
         """
-        raw = input(f"[顧客 timeout={timeout}s，空 Enter=timeout / q=退出] > ").strip()
+        try:
+            raw = input(f"[顧客 timeout={timeout}s，空 Enter=timeout / q=退出] > ").strip()
+        except (UnicodeDecodeError, EOFError) as e:
+            print(f"[系統] 輸入解析失敗（{type(e).__name__}），視為 timeout")
+            return None
         if raw == "q":
             print("[系統] 程式結束（顧客層 q 退出）")
             sys.exit(0)
