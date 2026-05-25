@@ -47,7 +47,7 @@ from myProgram.sales.constants import (
     L2_UNCLEAR_REJECT_VOICE,
     L3_UNCLEAR_FINAL_PROMPT,
     L3_CHECKOUT_CONFIRM_TEMPLATE,
-    L3_CHECKOUT_CONFIRM_REJECT_VOICE,
+    L3_CHECKOUT_REJECT_CLEAR_NOTICE,
     UNCLEAR_MAX,
     L4_E_CLARIFY,
     L4_E_AUTO_SERVICE,
@@ -3217,11 +3217,11 @@ def test_l3_checkout_confirm_terminal_1_proceeds_to_l4() -> None:
 
 
 def test_l3_checkout_confirm_no_returns_to_l3_main_loop() -> None:
-    """L3 結帳 → 顧客說「不對」→ 不進 L4，回 L3 重新加單（cart 保留）。"""
+    """L3 結帳 → 顧客說「不對」→ 清空 cart + 通知，主迴圈下一輪 cart 空 → L2 timeout → L1_via_subroutine_a。"""
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # 結帳 → 不對 → 後續 None None → C-2 自動結帳 → L4
+    # 結帳 → 不對（清 cart）→ 後續 None None → cart 空走 L2 timeout → 鏈路 A 退出
     customer_input = FakeCustomerInput(["結帳", "不對", None, None])
 
     next_state, _ = states.run_dialog(
@@ -3233,16 +3233,18 @@ def test_l3_checkout_confirm_no_returns_to_l3_main_loop() -> None:
         think_count=0,
     )
 
-    # 重 confirm 後最終透過 C-2 自動進 L4
-    assert next_state == "L4"
-    # 確認被拒絕後有 speak reject 語音
-    assert L3_CHECKOUT_CONFIRM_REJECT_VOICE in speak_calls
-    # cart 仍保留
-    assert cart_module.get_quantity(cart, "冰紅茶") == 1
+    # cart 空 + timeout → 鏈路 A 退出
+    assert next_state == "L1_via_subroutine_a"
+    # 確認被拒絕後 speak 清 cart 通知
+    assert L3_CHECKOUT_REJECT_CLEAR_NOTICE in speak_calls
+    # cart 已清空
+    assert cart_module.is_empty(cart)
+    # L2 鏈路 A 退出時 speak 謝謝光臨
+    assert L2_REJECT_THANKS in speak_calls
 
 
 def test_l3_checkout_confirm_terminal_2_returns_to_l3() -> None:
-    """L3 結帳 → 終端 2 否認 → 不進 L4。"""
+    """L3 結帳 → 終端 2 否認 → 清空 cart + 通知，cart 空 → L2 timeout → L1_via_subroutine_a。"""
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
@@ -3257,7 +3259,10 @@ def test_l3_checkout_confirm_terminal_2_returns_to_l3() -> None:
         think_count=0,
     )
 
-    assert L3_CHECKOUT_CONFIRM_REJECT_VOICE in speak_calls
+    assert L3_CHECKOUT_REJECT_CLEAR_NOTICE in speak_calls
+    assert cart_module.is_empty(cart)
+    assert next_state == "L1_via_subroutine_a"
+    assert L2_REJECT_THANKS in speak_calls
 
 
 def test_l3_checkout_confirm_timeout_proceeds_to_l4() -> None:

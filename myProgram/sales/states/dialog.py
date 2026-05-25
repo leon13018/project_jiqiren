@@ -39,7 +39,7 @@ from myProgram.sales.constants import (
     L3_C1_CHECKOUT_GO,
     L3_UNCLEAR_FINAL_PROMPT,
     L3_CHECKOUT_CONFIRM_TEMPLATE,
-    L3_CHECKOUT_CONFIRM_REJECT_VOICE,
+    L3_CHECKOUT_REJECT_CLEAR_NOTICE,
     PRODUCTS,
     KEYWORDS_CONFIRM_YES,
     KEYWORDS_CONFIRM_NO,
@@ -176,9 +176,9 @@ def run_dialog(
             if confirmed:
                 speak(L3_C1_CHECKOUT_GO)
                 return ("L4", 0)
-            # 否認 → 重播 L3 entry + 回主等待
-            speak(L3_CHECKOUT_CONFIRM_REJECT_VOICE)
-            speak(L3_ENTRY_PROMPT)
+            # 否認 → 清空 cart + 通知；主迴圈下一輪 cart 空 → l2 mode → DnC
+            cart_module.clear_cart(cart)
+            speak(L3_CHECKOUT_REJECT_CLEAR_NOTICE)
             continue
 
         # 客服 → B-2
@@ -402,8 +402,8 @@ def _dialog_dispatch_inner_l3(
         if confirmed:
             speak(L3_C1_CHECKOUT_GO)
             return ("L4", 0)
-        speak(L3_CHECKOUT_CONFIRM_REJECT_VOICE)
-        speak(L3_ENTRY_PROMPT)
+        cart_module.clear_cart(cart)
+        speak(L3_CHECKOUT_REJECT_CLEAR_NOTICE)
         return None
     if intent == "客服":
         print_terminal(SERVICE_PHONE)
@@ -567,8 +567,8 @@ def _dialog_continue_after_c2_inner(
             if confirmed:
                 speak(L3_C1_CHECKOUT_GO)
                 return ("L4", 0)
-            speak(L3_CHECKOUT_CONFIRM_REJECT_VOICE)
-            speak(L3_ENTRY_PROMPT)
+            cart_module.clear_cart(cart)
+            speak(L3_CHECKOUT_REJECT_CLEAR_NOTICE)
             continue
         if intent == "客服":
             unclear_count = 0

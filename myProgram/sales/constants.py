@@ -156,8 +156,9 @@ L3_CHECKOUT_CONFIRM_TEMPLATE: str = "您即將結帳，總共 {summary}，正確
 KEYWORDS_CONFIRM_YES: list = ["對", "是", "好", "確認", "確定", "沒錯", "yes", "ok", "correct"]
 KEYWORDS_CONFIRM_NO: list = ["不對", "錯", "改", "wrong", "不是", "沒有", "沒了", "不要", "不用"]
 
-# Confirm 子狀態的「不對」分支語音 — 重播 L3_ENTRY_PROMPT 前先安撫
-L3_CHECKOUT_CONFIRM_REJECT_VOICE: str = "好的，請告訴我您要的東西"
+# L3 結帳前 confirm 顧客否認後的清 cart 通知（2026-05-26 加，spec 修訂）
+# 目前無改/刪商品功能 → 否認 = 清空重點；訊息含 L2_ENTRY_PROMPT 內容，後續主迴圈自動進 DnC
+L3_CHECKOUT_REJECT_CLEAR_NOTICE: str = "已幫您清空購物車，需要請重新購買，您好，請問需要購買什麼東西嗎？"
 
 # ============================================================
 # L4 文字常數
