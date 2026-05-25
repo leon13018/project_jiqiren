@@ -7,6 +7,11 @@
 
 $ErrorActionPreference = 'Stop'
 
+# 修正 PowerShell 5.1 預設 OutputEncoding 為系統 code page（台灣機器 = Big5/cp950），
+# Claude 讀 hook stdout 預期 UTF-8 — 不修繁中 deny reason 會被當 Big5 解碼成亂碼。
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+
 # 讀 stdin JSON
 $rawInput = [Console]::In.ReadToEnd()
 if ([string]::IsNullOrWhiteSpace($rawInput)) {

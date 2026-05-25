@@ -11,6 +11,11 @@
 
 $ErrorActionPreference = 'Continue'
 
+# 修正 PowerShell 5.1 預設 OutputEncoding 為系統 code page（台灣機器 = Big5/cp950），
+# Claude 讀 hook stdout 預期 UTF-8 — 不修繁中會被當 Big5 解碼成亂碼（注入內容變廢）。
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+
 $rawInput = [Console]::In.ReadToEnd()
 $payload = $null
 if (-not [string]::IsNullOrWhiteSpace($rawInput)) {
