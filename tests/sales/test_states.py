@@ -103,128 +103,49 @@ class FakeScheduler:
 
 
 # ============================================================
-# L0-SUB-A-001
+# L0-SUB-A-001（2026-05-25 重構後）
 # ============================================================
 
 ## L0-SUB-A-001
-### Scenario: 子例程觸發後立即屏蔽 OpenCV
+### Scenario: 子例程觸發後立即屏蔽 OpenCV OPENCV_MUTE 秒
 ### Given 子例程 A 已準備好（callback 注入）
 ### When 觸發子例程 A
 ### Then mute_opencv 被呼叫一次（屏蔽生效）
 def test_sub_a_mutes_opencv_on_trigger() -> None:
     # Arrange
-    speak_calls: list = []
     mute_calls: list = []
-    unmute_calls: list = []
-    scheduler = FakeScheduler()
 
     # Act
     states.run_subroutine_a(
-        speak=lambda text: speak_calls.append(text),
         mute_opencv=lambda secs: mute_calls.append(secs),
-        unmute_opencv=lambda: unmute_calls.append(True),
-        schedule=scheduler.schedule,
     )
 
-    # Assert：觸發後立即屏蔽 OpenCV（不需推進時間）
+    # Assert：觸發後立即屏蔽 OpenCV
     assert len(mute_calls) == 1
     assert mute_calls[0] == OPENCV_MUTE
 
 
 # ============================================================
-# L0-SUB-A-002
+# L0-SUB-A-002（2026-05-25 改成 regression：方案 A 後子例程 A 不再 unmute / 不再叫賣）
 # ============================================================
 
 ## L0-SUB-A-002
-### Scenario: OPENCV_MUTE 秒後 OpenCV 恢復且立即播第 1 組叫賣
-### Given 子例程 A 已觸發，模擬時間推進
-### When 經過 OPENCV_MUTE (12) 秒
-### Then unmute_opencv 被呼叫且第 1 組叫賣（索引 0）被 speak
-def test_sub_a_unmute_and_first_hawk_after_mute_window() -> None:
+### Scenario: 子例程 A 只 mute 不 unmute、不叫賣（防 unmute_opencv / 叫賣 callback 偷被加回來）
+### Given 子例程 A 已觸發
+### When 任何時點檢查
+### Then run_subroutine_a 的 signature 不該再接受 unmute_opencv / speak / schedule callbacks
+def test_sub_a_only_calls_mute_no_unmute_no_speak() -> None:
     # Arrange
-    speak_calls: list = []
-    mute_calls: list = []
-    unmute_calls: list = []
-    scheduler = FakeScheduler()
+    import inspect
+    sig = inspect.signature(states.run_subroutine_a)
 
-    states.run_subroutine_a(
-        speak=lambda text: speak_calls.append(text),
-        mute_opencv=lambda secs: mute_calls.append(secs),
-        unmute_opencv=lambda: unmute_calls.append(True),
-        schedule=scheduler.schedule,
+    # Assert：signature 只剩 mute_opencv（2026-05-25 方案 A 重構）
+    params = set(sig.parameters.keys())
+    assert params == {"mute_opencv"}, (
+        f"run_subroutine_a 應只接受 mute_opencv，實際 {params}。"
+        "若加回 unmute_opencv / speak / schedule = 違反方案 A 規格（"
+        "L0_共通.md 子例程 A 段）：主選單期間不該被自動 unmute / 不該背景叫賣"
     )
-
-    # Act：推進 OPENCV_MUTE 秒
-    scheduler.tick(OPENCV_MUTE)
-
-    # Assert
-    assert len(unmute_calls) == 1, "unmute_opencv 應被呼叫一次"
-    assert len(speak_calls) >= 1, "第 1 組叫賣應被 speak"
-    assert speak_calls[0] == HAWK_SLOGANS[0], "應為第 1 組叫賣（索引 0）"
-
-
-# ============================================================
-# L0-SUB-A-003
-# ============================================================
-
-## L0-SUB-A-003
-### Scenario: 第一輪叫賣後每 HAWK_INTERVAL 秒換下一組
-### Given 子例程 A 已播第 1 組叫賣
-### When 再經過 HAWK_INTERVAL (12) 秒
-### Then 第 2 組叫賣（索引 1）被 speak
-def test_sub_a_advances_to_next_hawk_after_interval() -> None:
-    # Arrange
-    speak_calls: list = []
-    scheduler = FakeScheduler()
-
-    states.run_subroutine_a(
-        speak=lambda text: speak_calls.append(text),
-        mute_opencv=lambda secs: None,
-        unmute_opencv=lambda: None,
-        schedule=scheduler.schedule,
-    )
-
-    # 推進至第 1 組叫賣
-    scheduler.tick(OPENCV_MUTE)
-    # 再推進 HAWK_INTERVAL → 觸發第 2 組叫賣
-    scheduler.tick(HAWK_INTERVAL)
-
-    # Assert
-    assert len(speak_calls) >= 2, "第 2 組叫賣應被 speak"
-    assert speak_calls[1] == HAWK_SLOGANS[1], "應為第 2 組叫賣（索引 1）"
-
-
-# ============================================================
-# L0-SUB-A-004
-# ============================================================
-
-## L0-SUB-A-004
-### Scenario: 連續輪替超過 6 組時以 mod 6 回到第 1 組
-### Given 子例程 A 已連續播第 1~6 組叫賣
-### When 觸發第 7 次叫賣
-### Then 第 1 組叫賣（索引 0，6 mod 6）再次被 speak
-def test_sub_a_wraps_around_after_six_hawks() -> None:
-    # Arrange
-    speak_calls: list = []
-    scheduler = FakeScheduler()
-
-    states.run_subroutine_a(
-        speak=lambda text: speak_calls.append(text),
-        mute_opencv=lambda secs: None,
-        unmute_opencv=lambda: None,
-        schedule=scheduler.schedule,
-    )
-
-    # 推進至第 1 組叫賣（OPENCV_MUTE 秒）
-    scheduler.tick(OPENCV_MUTE)
-    # 再推進 6 個 HAWK_INTERVAL → 觸發第 2~7 組叫賣（第 7 組 = 索引 6 mod 6 = 0）
-    for _ in range(6):
-        scheduler.tick(HAWK_INTERVAL)
-
-    # Assert：總共有 7 組叫賣（第 1 + 後 6 輪）
-    assert len(speak_calls) >= 7, f"應有 7 次叫賣呼叫，實際 {len(speak_calls)} 次"
-    # 第 7 次（索引 6）應為 HAWK_SLOGANS[6 % 6] = HAWK_SLOGANS[0]
-    assert speak_calls[6] == HAWK_SLOGANS[0], "第 7 次叫賣應回到第 1 組（mod 6）"
 
 
 # ============================================================
@@ -3518,3 +3439,95 @@ def test_dialog_nonempty_cart_timeout_triggers_c2_auto_checkout() -> None:
     assert next_state == "L4"
     # cart 保留
     assert cart_module.get_quantity(cart, "冰紅茶") == 1
+
+
+# ============================================================
+# OpenCV 作用域 regression（2026-05-25 加，輪 1 修正後）
+# 守住：dialog/l4 入口必呼叫 opencv_disable；L1 主迴圈 + 客服入口防呆 disable
+# ============================================================
+
+def test_dialog_entry_calls_opencv_disable() -> None:
+    """dialog 進入時必須呼叫 opencv_disable（顧客已在面前對話，OpenCV 用完任務）。"""
+    disable_calls: list = []
+    cart = cart_module.new_cart()
+    customer_input = FakeCustomerInput([None])  # 立即 timeout → A 退出
+
+    states.run_dialog(
+        speak=lambda text: None,
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: disable_calls.append(True),
+    )
+
+    assert len(disable_calls) >= 1, "dialog 入口應呼叫 opencv_disable 至少一次"
+
+
+def test_l4_entry_calls_opencv_disable() -> None:
+    """L4 進入時必須呼叫 opencv_disable（顧客已在掃碼，防呆）。"""
+    disable_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    customer_input = FakeCustomerInput(["掃碼"])
+
+    states.run_l4(
+        speak=lambda text: None,
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        loop_count=0,
+        unclear_count=0,
+        opencv_disable=lambda: disable_calls.append(True),
+    )
+
+    assert len(disable_calls) >= 1, "L4 入口應呼叫 opencv_disable 至少一次"
+
+
+def test_l1_main_loop_calls_opencv_disable_each_iteration() -> None:
+    """L1 主迴圈每輪應呼叫 opencv_disable 防呆（主選單時不該偵測 OpenCV）。"""
+    opencv = FakeOpencv()
+    kbd = FakeKeyboardInput(["q"])
+
+    states.run_l1(
+        print_terminal=lambda text: None,
+        read_terminal_key=kbd.read,
+        opencv_dwell_seconds=opencv.dwell_seconds,
+        opencv_disable=opencv.disable,
+        opencv_enable=opencv.enable,
+        speak=lambda text: None,
+        exit_program=lambda: None,
+        schedule=FakeScheduler().schedule,
+    )
+
+    # 至少一輪 disable（即使商家直接按 q 也要 disable 過一次）
+    assert opencv.disable_calls >= 1, (
+        f"L1 主迴圈進入時應 opencv_disable 至少一次（防呆），實際 {opencv.disable_calls}"
+    )
+
+
+def test_l1_service_mode_calls_opencv_disable() -> None:
+    """L1 客服模式進入時應呼叫 opencv_disable（客服期間不偵測）。"""
+    opencv = FakeOpencv()
+    # 進客服（3）→ 印電話 → 回主選單 → q 退出
+    kbd = FakeKeyboardInput(["3", "q"])
+
+    states.run_l1(
+        print_terminal=lambda text: None,
+        read_terminal_key=kbd.read,
+        opencv_dwell_seconds=opencv.dwell_seconds,
+        opencv_disable=opencv.disable,
+        opencv_enable=opencv.enable,
+        speak=lambda text: None,
+        exit_program=lambda: None,
+        schedule=FakeScheduler().schedule,
+    )
+
+    # 主迴圈 2 輪（第 1 輪選 3，第 2 輪 q）+ 客服進入 1 次 = 至少 3 次 disable
+    # （即使主迴圈防呆已 disable，客服獨立明示 disable 仍要保留）
+    assert opencv.disable_calls >= 3, (
+        f"主迴圈 2 輪 + 客服 1 次 disable 應 >= 3，實際 {opencv.disable_calls}。"
+        "若僅 2 次 = 客服獨立 disable 漏了"
+    )

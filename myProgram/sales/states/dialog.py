@@ -56,6 +56,7 @@ def run_dialog(
     read_customer_input,
     cart,
     think_count: int = 0,
+    opencv_disable=lambda: None,
 ) -> tuple:
     """統一對話層主迴圈 — cart 狀態驅動。
 
@@ -66,12 +67,18 @@ def run_dialog(
         read_customer_input: callback(timeout: float) -> str | None — 等顧客回應
         cart: 購物車 dict（caller 傳入；本層做 in-place 修改 + 視情況 clear）
         think_count: 想一下次數（caller 持有，預設 0）
+        opencv_disable: callback() — 關閉 OpenCV 偵測。dialog 進入後不再需要偵測
+            （顧客已在面前對話），預設 no-op 給單元測試方便；production wire-up
+            必須傳真實 callback（2026-05-25 OpenCV 作用域規格修訂）。
 
     Returns:
         (next_state, next_think_count)
         next_state ∈ {"L4", "L1_via_subroutine_a"}
         next_think_count: 退出時 reset 0
     """
+    # 進入 dialog → OpenCV 已用完任務（觸發進 dialog 後不再偵測），明示關閉
+    opencv_disable()
+
     # Entry prompt 按 cart 狀態決定
     speak(L2_ENTRY_PROMPT if cart_module.is_empty(cart) else L3_ENTRY_PROMPT)
 

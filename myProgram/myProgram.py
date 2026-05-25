@@ -89,10 +89,17 @@ def _build_callbacks(state: _S1State) -> dict:
         return 0.0
 
     def mute_opencv(seconds):
-        print(f"[opencv] mute {seconds}s（S1 不真實計時）")
+        # 2026-05-25 補 S1 wire-up 暗坑：原本只印訊息不改 state，導致實機接 OpenCV 時
+        # 子例程 A / L5 致謝期屏蔽全部失效。現在真實設 state 一致（無背景 timer，純設旗號）
+        state.opencv_enabled = False
+        state.opencv_dwell = 0.0
+        print(f"[opencv] mute {seconds}s（S1 不真實計時；state.opencv_enabled = False）")
 
     def unmute_opencv():
-        print("[opencv] unmute")
+        # 2026-05-25 補暗坑（同上）。注意子例程 A 方案 A 不再呼叫 unmute，
+        # 此 callback 介面留著給未來模式切換場景（例如「純叫賣 → 叫賣監測」會用到）。
+        state.opencv_enabled = True
+        print("[opencv] unmute（state.opencv_enabled = True）")
 
     # === 對外動作 ===
     def speak(text):

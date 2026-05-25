@@ -48,6 +48,11 @@ def run_l1(
         None — 程式終止（exit_program 被呼叫）
     """
     while True:
+        # 防呆：主選單 / 客服都不該偵測 OpenCV（待機鏈路自己會 disable）
+        # 每輪明示關閉一次，涵蓋「從子例程 A / dialog / L4 回來時 enabled 狀態漂移」
+        # （2026-05-25 OpenCV 作用域規格修訂：只在叫賣模式才 enable）
+        opencv_disable()
+
         # ---- 印選單 ----
         print_terminal(L1_MENU_BANNER)
 
@@ -58,7 +63,7 @@ def run_l1(
             exit_program()
             return None
         elif key == "3":
-            _run_l1_service(print_terminal)
+            _run_l1_service(print_terminal, opencv_disable)
             # 客服印完電話立即回選單（continue 到下一輪）
             continue
         elif key == "2":
@@ -89,8 +94,12 @@ def run_l1(
         # 其他鍵：重印選單（但按 q 已在上面處理）
 
 
-def _run_l1_service(print_terminal) -> None:
-    """鏈路 A — 客服模式：印電話後返回（讓 run_l1 主迴圈回選單）。"""
+def _run_l1_service(print_terminal, opencv_disable) -> None:
+    """鏈路 A — 客服模式：明示關 OpenCV → 印電話 → 返回讓主迴圈回選單。
+
+    （2026-05-25 加 opencv_disable 參數：客服期間不偵測，防呆。）
+    """
+    opencv_disable()
     print_terminal(SERVICE_PHONE)
 
 

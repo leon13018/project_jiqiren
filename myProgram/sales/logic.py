@@ -71,10 +71,11 @@ def run(
             read_customer_input=read_customer_input,
             cart=cart,
             think_count=0,
+            opencv_disable=opencv_disable,
         )
         if next_state == "L1_via_subroutine_a":
             _assert_cart_empty(cart, "dialog 退出後（dialog A 已視情況清 cart）")
-            _invoke_subroutine_a(speak, mute_opencv, unmute_opencv, schedule)
+            _invoke_subroutine_a(mute_opencv)
             continue
         # next_state == "L4"
 
@@ -88,10 +89,11 @@ def run(
             cart=cart,
             loop_count=0,
             unclear_count=0,
+            opencv_disable=opencv_disable,
         )
         if next_state == "L1_via_subroutine_a":
             _assert_cart_empty(cart, "L4 非掃碼退出後（L4-B/C/D 已清 cart）")
-            _invoke_subroutine_a(speak, mute_opencv, unmute_opencv, schedule)
+            _invoke_subroutine_a(mute_opencv)
             continue
         # next_state == "L5"
 
@@ -105,16 +107,13 @@ def run(
             sleep=sleep,
         )
         _assert_cart_empty(cart, "L5 退出後（L5 應已清 cart）")
-        _invoke_subroutine_a(speak, mute_opencv, unmute_opencv, schedule)
+        _invoke_subroutine_a(mute_opencv)
 
 
-def _invoke_subroutine_a(speak, mute_opencv, unmute_opencv, schedule) -> None:
-    """呼叫子例程 A（背景排程叫賣，fire-and-forget）。"""
+def _invoke_subroutine_a(mute_opencv) -> None:
+    """呼叫子例程 A（2026-05-25 簡化：只 mute 12s 緩衝，不再 unmute / 不再叫賣）。"""
     states.run_subroutine_a(
-        speak=speak,
         mute_opencv=mute_opencv,
-        unmute_opencv=unmute_opencv,
-        schedule=schedule,
     )
 
 

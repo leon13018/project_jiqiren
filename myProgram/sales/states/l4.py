@@ -44,6 +44,7 @@ def run_l4(
     cart,
     loop_count: int = 0,
     unclear_count: int = 0,
+    opencv_disable=lambda: None,
 ) -> tuple:
     """L4 主迴圈：結帳層（印金額 + 等掃碼）。
 
@@ -63,10 +64,19 @@ def run_l4(
         loop_count: D 鏈路循環計數（預設 0；客服繼續時 reset 0）
         unclear_count: E 鏈路計數（預設 0；A / B 觸發時 reset 0）
 
+        opencv_disable: callback() — 關閉 OpenCV 偵測。L4 結帳期間不需要偵測
+            （顧客已在面前掃碼），預設 no-op 給單元測試方便；production wire-up
+            必須傳真實 callback（2026-05-25 OpenCV 作用域規格修訂）。
+            注意：dialog 進入時已 disable 過；本處 disable 是 defence-in-depth，
+            涵蓋未來「不經 dialog 直接進 L4」的可能架構。
+
     Returns:
         (next_state, next_loop_count, next_unclear_count)
         next_state ∈ {"L1_via_subroutine_a", "L5"}
     """
+    # 進入 L4 → OpenCV 不需要（顧客已在掃碼），明示關閉（防呆）
+    opencv_disable()
+
     # 進入時動作：計算總額、印明細、speak 總額語音
     total = cart_module.calc_total(cart)
     _l4_print_entry_detail(cart, total, print_terminal)
