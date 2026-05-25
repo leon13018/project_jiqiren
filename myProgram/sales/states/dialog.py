@@ -617,21 +617,21 @@ def _dialog_checkout_confirm(
     read_customer_input,
     cart,
 ) -> bool:
-    """L3 C-1 結帳前 confirm 子狀態（wall-clock 6s + 對/不對/timeout/亂回答）。
+    """L3 C-1 結帳前 confirm 子狀態（每次重 prompt 重置 6s + unclear 上限 UNCLEAR_MAX）。
 
-    Returns True 顧客確認 → caller 進 L4；False 顧客否認 → caller 重播 entry 回主等待。
+    每次 read 都給 full WAIT_NO_RESPONSE 秒，避免 wall-clock 倒數造成「重 prompt 後
+    顧客來不及答就被當 timeout」+「終端 timeout 顯示 5.999... 小數」兩個 UX bug。
+    顧客連續答 unclear 達 UNCLEAR_MAX 次 → 視為確認進 L4（同 timeout 行為，防無限重 prompt）。
+
+    Returns True 顧客確認 → caller 進 L4；False 顧客否認 → caller 清 cart 回 DnC。
     """
     summary = _build_order_summary(cart)
     prompt = L3_CHECKOUT_CONFIRM_TEMPLATE.format(summary=summary)
     speak(prompt)
+    unclear_count = 0
 
-    start = time.time()
     while True:
-        elapsed = time.time() - start
-        remaining = WAIT_NO_RESPONSE - elapsed
-        if remaining <= 0:
-            return True
-        response = read_customer_input(timeout=remaining)
+        response = read_customer_input(timeout=WAIT_NO_RESPONSE)
         if response is None:
             return True
         if response == "1":
@@ -641,6 +641,9 @@ def _dialog_checkout_confirm(
         if any(kw in response for kw in KEYWORDS_CONFIRM_NO):
             return False
         if any(kw in response for kw in KEYWORDS_CONFIRM_YES):
+            return True
+        unclear_count += 1
+        if unclear_count >= UNCLEAR_MAX:
             return True
         speak(prompt)
 
