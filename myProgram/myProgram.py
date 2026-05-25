@@ -19,7 +19,6 @@ S3+ 才接 `from myProgram import ActionGroupControl as Act` 並 wire。
 """
 
 import sys
-import time
 
 from myProgram.sales import logic
 from myProgram.sales.constants import OPENCV_DWELL, L1_HAWK_ENTRY_PROMPT
@@ -104,13 +103,13 @@ def _build_callbacks(state: _S1State) -> dict:
 
     # === 時間 / 程式控制 ===
     def sleep(seconds):
-        """S1 sleep：真實阻塞等待 seconds 秒（L5 用作 3 秒致謝期）。
+        """S1 sleep：印訊息但不真阻塞（純單線程 chat-driven 無實際時序需求）。
 
-        S4+ 上 threading 時，sleep 改為 worker thread 處理 / 主迴圈用 timer fire-and-forget，
-        避免阻塞主線程。
+        Why 不 time.sleep：S1 階段無真實 TTS 需要等播完、無真實 OpenCV mute 期間需要 tick；
+        真 sleep 只會卡住主線程連商家 q 退出都送不進去（壞 UX）。S4+ 上 threading 時改
+        worker thread sleep / timer fire-and-forget，主線程立即返回，sleep 期間 q 仍可送入。
         """
-        print(f"[等待] {seconds}s 後繼續...")
-        time.sleep(seconds)
+        print(f"[等待] {seconds}s（S1 跳過實際 sleep，立即返回）")
 
     def schedule(seconds, fn):
         """S1 schedule：不真排程，僅印警告（單線程不能背景跑）。"""
