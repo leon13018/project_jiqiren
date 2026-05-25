@@ -191,6 +191,16 @@ def test_nlu_short_mei_classified_by_mode() -> None:
     assert nlu.classify_intent("沒", "l4") == "拒絕"
 
 
+def test_nlu_short_mei_simplified_variant_also_classified() -> None:
+    """2026-05-26 加：簡體「没」(U+6CA1) ≠ 繁體「沒」(U+6C92)，要獨立加入 REJECT。
+
+    使用者 Windows IME 預設輸入簡體，先前實測「没」在 DnC 被當無法判斷掉到 B-1。
+    """
+    assert nlu.classify_intent("没", "l2") == "拒絕"
+    assert nlu.classify_intent("没", "normal") == "結帳"
+    assert nlu.classify_intent("没", "l4") == "拒絕"
+
+
 def test_nlu_english_no_nope_classified_as_checkout() -> None:
     """L3（normal 模式）顧客講「no」/「nope」→ 結帳意圖（語意「沒了，不追加」）。"""
     assert nlu.classify_intent("no") == "結帳"

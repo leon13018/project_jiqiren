@@ -17,10 +17,11 @@ import re
 # 關鍵字白名單（依規格書 L0_共通.md）
 # ============================================================
 
-# 「沒」是 2026-05-26 加：使用者實測常單字回「沒」當縮寫
-#   L2 mode（DnC）：「沒」= 沒有要買 → 拒絕退 L1
-#   L3 normal mode（DyC）：先 check L3_STRICT 不命中，再 match REJECT → 回「結帳」（同 no/nope 的 L3 語意）
-_KEYWORDS_REJECT = ["不要", "不用", "不想", "不買", "不了", "沒有", "沒"]
+# 「沒」/「没」是 2026-05-26 加：使用者實測常單字回「沒」當縮寫
+#   L2 mode（DnC）：→ 拒絕退 L1
+#   L3 normal mode（DyC）：先 check L3_STRICT 不命中，再 match REJECT → 回「結帳」
+# 「没」是簡體變體（U+6CA1，不同於繁體「沒」U+6C92）— 使用者 Windows IME 是簡體
+_KEYWORDS_REJECT = ["不要", "不用", "不想", "不買", "不了", "沒有", "沒", "没"]
 
 # L3 嚴格 reject 詞：L3 (normal mode) 中只有命中這幾個明確「整單作廢」意圖才視為拒絕
 # 短詞 _KEYWORDS_REJECT (「不要」/「不用」/「不想」/「不買」) 在 L3 視為「不追加」→ 結帳
