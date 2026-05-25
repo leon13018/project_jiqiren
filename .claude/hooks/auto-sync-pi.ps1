@@ -26,9 +26,10 @@ if ([string]::IsNullOrWhiteSpace($cmd)) {
 
 # 只在 push 到 main 時觸發（避免每個 git 命令都觸發）
 # Regex 容許 git 與 push 之間有任意 git options（-C / --git-dir 等）；
+# 也容許 push 與 origin 之間有任意 push flags（--force / --force-with-lease / -f / -u 等）。
 # [^;&|\r\n] 阻止跨 shell separator 誤匹配（例：`git status && git push origin main`
 # 仍能命中第二個 git，但 `git status; some_other_thing push origin main` 不會跨進來）。
-if ($cmd -notmatch '\bgit\b[^;&|\r\n]*?\bpush\s+origin\s+main\b') {
+if ($cmd -notmatch '\bgit\b[^;&|\r\n]*?\bpush\b[^;&|\r\n]*?\borigin\s+main\b') {
     exit 0
 }
 
