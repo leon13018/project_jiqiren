@@ -44,6 +44,9 @@ from myProgram.sales.constants import (
     L4_C_OPTIONS_PROMPT,
     L4_D_FORCED_EXIT,
     L4_D_FINAL_PROMPT,
+    L2_UNCLEAR_REJECT_VOICE,
+    L3_UNCLEAR_FINAL_PROMPT,
+    UNCLEAR_MAX,
     L4_E_CLARIFY,
     L4_E_AUTO_SERVICE,
     QTY_PROMPT_TEMPLATE,
@@ -826,6 +829,79 @@ def test_l2_b1_unknown_input_speaks_clarification_and_stays_in_l2() -> None:
 
 
 # ============================================================
+# L2-B-1-002（2026-05-25 加）
+### Scenario: B-1 連續 UNCLEAR_MAX 次無法判斷 → 走鏈路 A 拒絕
+### Given L2 等待中
+### When 顧客連續 UNCLEAR_MAX 次說系統聽不懂的話
+### Then 第 UNCLEAR_MAX 次後 speak L2_UNCLEAR_REJECT_VOICE + 走鏈路 A 退出
+# ============================================================
+
+def test_l2_b1_unclear_max_triggers_reject_thanks() -> None:
+    # Arrange
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 連續 UNCLEAR_MAX 次不命中
+    customer_input = FakeCustomerInput(["asdf"] * UNCLEAR_MAX)
+
+    # Act
+    next_state, _ = states.run_l2(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    # Assert：第 UNCLEAR_MAX 次後 speak unclear reject voice
+    assert L2_UNCLEAR_REJECT_VOICE in speak_calls, (
+        f"達 UNCLEAR_MAX 應 speak L2_UNCLEAR_REJECT_VOICE，實際：{speak_calls}"
+    )
+    # 前 UNCLEAR_MAX-1 次 speak B-1 clarify
+    assert speak_calls.count(L2_B1_CLARIFY) == UNCLEAR_MAX - 1, (
+        f"前 {UNCLEAR_MAX-1} 次應 speak L2_B1_CLARIFY，實際：{speak_calls}"
+    )
+    # 走鏈路 A
+    assert next_state == "L1_via_subroutine_a"
+
+
+# ============================================================
+# L2-B-1-003（2026-05-25 加）
+### Scenario: B-1 累積後命中已知意圖 → unclear_count reset
+### Given L2 等待中，已 B-1 兩次（unclear_count=2）
+### When 顧客說「客服」（已知意圖）
+### Then 印電話 + reset unclear_count = 0；後續再 B-1 兩次不會觸發 reject
+# ============================================================
+
+def test_l2_b1_reset_on_known_intent() -> None:
+    # Arrange
+    speak_calls: list = []
+    terminal_calls: list = []
+    cart = cart_module.new_cart()
+    # B-1, B-1, 客服 (reset), B-1, B-1, None (timeout → A)
+    customer_input = FakeCustomerInput(["asdf", "qwer", "客服", "zxcv", "vbnm", None])
+
+    # Act
+    next_state, _ = states.run_l2(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: terminal_calls.append(text),
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    # Assert：客服電話有被印
+    assert SERVICE_PHONE in terminal_calls
+    # 沒有觸發 L2_UNCLEAR_REJECT_VOICE（因為被 reset 過，最多累 2 次）
+    assert L2_UNCLEAR_REJECT_VOICE not in speak_calls, (
+        f"unclear_count 已 reset，不應觸發 reject_voice。speak={speak_calls}"
+    )
+    # 退出原因是 timeout（鏈路 A 由 None 觸發）
+    assert next_state == "L1_via_subroutine_a"
+
+
+# ============================================================
 # L2-B-2-001
 # Scenario: 顧客回應客服關鍵字觸發 B-2 印電話後自動回 L2 循環
 # Given L2 等待顧客回應中
@@ -1371,6 +1447,176 @@ def test_l3_b1_unknown_input_speaks_clarification_and_stays_in_l3() -> None:
     )
     # 最終因 C-2 第二段 timeout 進 L4
     assert next_state == "L4"
+
+
+# ============================================================
+# L3-B-1-002（2026-05-25 加）
+### Scenario: B-1 連續 UNCLEAR_MAX 次無法判斷 → 進最終確認子狀態，1 取消 → 清 cart 退
+### Given L3 等待中，cart 有商品
+### When 顧客連續 UNCLEAR_MAX 次說系統聽不懂的話 → 進最終確認，輸入「1」
+### Then speak L3_UNCLEAR_FINAL_PROMPT，cart 清空，回 L1
+# ============================================================
+
+def test_l3_b1_unclear_max_final_confirmation_cancel() -> None:
+    # Arrange
+    speak_calls: list = []
+    terminal_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # 連續 UNCLEAR_MAX 次 B-1 → 進最終確認，輸入 "1" 取消
+    inputs = ["asdf"] * UNCLEAR_MAX + ["1"]
+    customer_input = FakeCustomerInput(inputs)
+
+    # Act
+    next_state, _ = states.run_l3(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: terminal_calls.append(text),
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    # Assert：終端印最終確認 prompt
+    assert L3_UNCLEAR_FINAL_PROMPT in terminal_calls
+    # 鏈路 A 拒絕語音 + cart 清空
+    assert L3_REJECT_THANKS in speak_calls
+    assert len(cart) == 0, f"cart 應清空，實際：{dict(cart)}"
+    assert next_state == "L1_via_subroutine_a"
+
+
+# ============================================================
+# L3-B-1-003（2026-05-25 加）
+### Scenario: B-1 達 UNCLEAR_MAX 進最終確認，輸入「2」繼續 → reset unclear_count 回主迴圈
+### Given L3 等待中，cart 有商品
+### When 連續 UNCLEAR_MAX 次 B-1 → 進最終確認，輸入「2」繼續 → 再加紅茶 → 結帳
+### Then 進 L4，cart 保留商品（含新加）
+# ============================================================
+
+def test_l3_b1_unclear_max_final_confirmation_continue_then_checkout() -> None:
+    # Arrange
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # UNCLEAR_MAX 次 B-1 → 進最終確認 → "2" 繼續 → "紅茶 2" 加單 → "結帳"
+    inputs = ["asdf"] * UNCLEAR_MAX + ["2", "紅茶 2", "結帳"]
+    customer_input = FakeCustomerInput(inputs)
+
+    # Act
+    next_state, _ = states.run_l3(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    # Assert：進 L4
+    assert next_state == "L4"
+    # cart 仍有商品（含繼續後加的）
+    assert cart.get("冰紅茶", 0) >= 1
+
+
+# ============================================================
+# L3-B-1-004（2026-05-25 加）
+### Scenario: B-1 達 UNCLEAR_MAX 進最終確認，6s timeout → 視為取消 → 清 cart 退
+# ============================================================
+
+def test_l3_b1_unclear_max_final_confirmation_timeout_cancels() -> None:
+    # Arrange
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # UNCLEAR_MAX 次 B-1 → 進最終確認 → None (timeout)
+    inputs = ["asdf"] * UNCLEAR_MAX + [None]
+    customer_input = FakeCustomerInput(inputs)
+
+    # Act
+    next_state, _ = states.run_l3(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    # Assert：拒絕語音 + cart 清空
+    assert L3_REJECT_THANKS in speak_calls
+    assert len(cart) == 0
+    assert next_state == "L1_via_subroutine_a"
+
+
+# ============================================================
+# L3-B-1-005（2026-05-25 加）
+### Scenario: B-1 累積後命中已知意圖 → unclear_count reset
+### Given L3 等待中，已 B-1 兩次
+### When 顧客說「客服」（已知意圖）
+### Then 印電話 + reset；後續再 B-1 兩次仍不會觸發 final confirmation
+# ============================================================
+
+def test_l3_b1_reset_on_known_intent() -> None:
+    # Arrange
+    terminal_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # B-1 x2, 客服 (reset), B-1 x2, None (timeout → C-2 第一段), None (C-2 第二段 timeout → L4)
+    customer_input = FakeCustomerInput(
+        ["asdf", "qwer", "客服", "zxcv", "vbnm", None, None]
+    )
+
+    # Act
+    next_state, _ = states.run_l3(
+        speak=lambda text: None,
+        do_action=lambda name: None,
+        print_terminal=lambda text: terminal_calls.append(text),
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    # Assert：客服電話有被印
+    assert SERVICE_PHONE in terminal_calls
+    # 沒進最終確認子狀態（unclear 被 reset 過）
+    assert L3_UNCLEAR_FINAL_PROMPT not in terminal_calls
+    # 退出是因為兩段 6s timeout 走 C-2 自動進 L4
+    assert next_state == "L4"
+
+
+# ============================================================
+# L3-B-1-006（2026-05-25 加）
+### Scenario: 最終確認子狀態內顧客亂回答 → 重印 prompt（6s 倒數不重置）
+### Given 進入最終確認子狀態
+### When 顧客亂回答兩次後接 None timeout
+### Then prompt 被印多次，最終 timeout 視為取消
+# ============================================================
+
+def test_l3_b1_final_confirmation_gibberish_then_timeout() -> None:
+    # Arrange
+    speak_calls: list = []
+    terminal_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    inputs = ["asdf"] * UNCLEAR_MAX + ["foo", "bar", None]
+    customer_input = FakeCustomerInput(inputs)
+
+    # Act
+    next_state, _ = states.run_l3(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: terminal_calls.append(text),
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    # Assert：prompt 被印多次（初次 + 兩次亂回答重印 = 3）
+    assert terminal_calls.count(L3_UNCLEAR_FINAL_PROMPT) >= 3
+    # 最終 timeout → 取消
+    assert L3_REJECT_THANKS in speak_calls
+    assert len(cart) == 0
+    assert next_state == "L1_via_subroutine_a"
 
 
 # ============================================================

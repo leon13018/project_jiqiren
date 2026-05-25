@@ -10,15 +10,19 @@ NLU dispatch 特性：
     - 鏈路 A 拒絕清空 cart（整單作廢）
 """
 
+import time
+
 from myProgram.sales.constants import (
     WAIT_NO_RESPONSE,
     AUTO_CHECKOUT_NOTICE,
     SERVICE_PHONE,
+    UNCLEAR_MAX,
     L3_ENTRY_PROMPT,
     L3_REJECT_THANKS,
     L3_B1_CLARIFY,
     L3_REASK,
     L3_C1_CHECKOUT_GO,
+    L3_UNCLEAR_FINAL_PROMPT,
 )
 from myProgram.sales.nlu import classify_intent
 from myProgram.sales import cart as cart_module
@@ -70,6 +74,60 @@ def _l3_exit_a(speak, cart) -> tuple:
     speak(L3_REJECT_THANKS)
     cart_module.clear_cart(cart)
     return ("L1_via_subroutine_a", 0)
+
+
+def _l3_final_confirmation(
+    speak,
+    print_terminal,
+    read_customer_input,
+    cart,
+) -> tuple | None:
+    """L3 B-1 累積到 UNCLEAR_MAX 後的最終確認子狀態（2026-05-25 加，仿 L4 D 最終確認）。
+
+    顧客已被 B-1 無法判斷 UNCLEAR_MAX 次。給最後 WAIT_NO_RESPONSE 秒選擇：
+        - 取消訂單（"1" / 「退出」/「取消」/「不要了」等）→ 清 cart 回 L1
+        - 繼續加單（"2" / 「繼續」/「continue」等）→ caller 重置 unclear_count 回 L3 主迴圈
+        - 亂回答 → 重印 prompt，**6s 倒數不重置**（time.time() wall-clock 追蹤）
+        - 6s timeout → 視為取消（清 cart 回 L1）
+
+    Returns:
+        tuple ("L1_via_subroutine_a", 0) → 取消（caller 直接 return）
+        None  → 顧客選繼續（caller 應 reset unclear_count = 0）
+
+    S1 注意：用 time.time() wall-clock 追蹤；S4+ 上 threading 時改 worker thread + timer。
+    """
+    print_terminal(L3_UNCLEAR_FINAL_PROMPT)
+    speak(L3_UNCLEAR_FINAL_PROMPT)
+
+    start = time.time()
+
+    while True:
+        elapsed = time.time() - start
+        remaining = WAIT_NO_RESPONSE - elapsed
+        if remaining <= 0:
+            return _l3_exit_a(speak, cart)
+
+        response = read_customer_input(timeout=remaining)
+
+        if response is None:
+            return _l3_exit_a(speak, cart)
+
+        if response == "1":
+            return _l3_exit_a(speak, cart)
+
+        if response == "2":
+            return None
+
+        # 語音意圖（用 l4_service mode，含 繼續 / 退出 keyword + no/nope → 退出）
+        intent = classify_intent(response, "l4_service")
+        if intent == "退出交易":
+            return _l3_exit_a(speak, cart)
+        if intent == "繼續交易":
+            return None
+
+        # 亂回答 → 重印 prompt（6s 倒數不重置，下輪 elapsed 繼續累積）
+        print_terminal(L3_UNCLEAR_FINAL_PROMPT)
+        speak(L3_UNCLEAR_FINAL_PROMPT)
 
 
 def _l3_c2_second_stage(
@@ -260,9 +318,18 @@ def _l3_main_loop(
 
     不播進入語音，直接進入等待循環。
 
+    內部 unclear_count：B-1「無法判斷」累積計數（2026-05-25 加，仿 L4 但用 UNCLEAR_MAX）
+    - 任何被識別意圖（拒絕 / 想一下 / 結帳 / 客服 / 商品）→ reset 0
+    - B-1 命中 → ++；達 UNCLEAR_MAX → 進 _l3_final_confirmation 子狀態
+    - 主迴圈內 inline 處理 B-1（不走 _l3_dispatch_response，避免改 dispatch signature）；
+      _l3_dispatch_response 內的 B-1 path 僅供 C-2 / B-4 sub-dispatch 路徑使用，
+      該 path 不參與 unclear_count 累積（與 think_count 在 sub-dispatch 不傳遞行為一致）
+
     Returns:
         tuple (next_state, next_think_count)
     """
+    unclear_count = 0
+
     while True:
         response = read_customer_input(timeout=WAIT_NO_RESPONSE)
 
@@ -276,6 +343,31 @@ def _l3_main_loop(
                 think_count=think_count,
             )
 
+        intent = classify_intent(response, "normal")
+
+        # B-1 路徑（不命中任何已知意圖）→ inline 處理 + unclear_count 累積
+        if intent not in (
+            "拒絕", "想一下", "結帳", "客服", "商品:冰紅茶", "商品:刮刮樂",
+        ):
+            unclear_count += 1
+            if unclear_count >= UNCLEAR_MAX:
+                final = _l3_final_confirmation(
+                    speak=speak,
+                    print_terminal=print_terminal,
+                    read_customer_input=read_customer_input,
+                    cart=cart,
+                )
+                if final is not None:
+                    return final  # 取消 → ("L1_via_subroutine_a", 0)
+                # 顧客選繼續 → reset unclear_count + 重播 L3 進入語音 + 回主等待
+                unclear_count = 0
+                speak(L3_ENTRY_PROMPT)
+                continue
+            speak(L3_B1_CLARIFY)
+            continue
+
+        # 已識別意圖 → reset unclear_count + delegate 到既有 dispatch
+        unclear_count = 0
         result = _l3_dispatch_response(
             response=response,
             speak=speak,
