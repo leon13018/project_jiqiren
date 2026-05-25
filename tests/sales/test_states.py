@@ -708,7 +708,7 @@ def test_l2_entry_speaks_greeting_and_inits_think_count() -> None:
     customer_input = FakeCustomerInput([None])
 
     # Act
-    next_state, next_think_count = states.run_l2(
+    next_state, next_think_count = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -743,7 +743,7 @@ def test_l2_a_timeout_no_response_triggers_reject_and_subroutine_a() -> None:
     customer_input = FakeCustomerInput([None])
 
     # Act
-    next_state, next_think_count = states.run_l2(
+    next_state, next_think_count = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -777,7 +777,7 @@ def test_l2_a_reject_keyword_triggers_subroutine_a() -> None:
     customer_input = FakeCustomerInput(["不要"])  # 拒絕意圖
 
     # Act
-    next_state, next_think_count = states.run_l2(
+    next_state, next_think_count = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -813,7 +813,7 @@ def test_l2_b1_unknown_input_speaks_clarification_and_stays_in_l2() -> None:
     customer_input = FakeCustomerInput(["今天天氣很好", None])
 
     # Act
-    next_state, _ = states.run_l2(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: terminal_calls.append(text),
@@ -846,7 +846,7 @@ def test_l2_b1_unclear_max_triggers_reject_thanks() -> None:
     customer_input = FakeCustomerInput(["asdf"] * UNCLEAR_MAX)
 
     # Act
-    next_state, _ = states.run_l2(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -884,7 +884,7 @@ def test_l2_b1_reset_on_known_intent() -> None:
     customer_input = FakeCustomerInput(["asdf", "qwer", "客服", "zxcv", "vbnm", None])
 
     # Act
-    next_state, _ = states.run_l2(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: terminal_calls.append(text),
@@ -920,7 +920,7 @@ def test_l2_b2_service_keyword_prints_phone_and_returns_to_l2_loop() -> None:
     customer_input = FakeCustomerInput(["客服", None])
 
     # Act
-    next_state, _ = states.run_l2(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: terminal_calls.append(text),
@@ -955,7 +955,7 @@ def test_l2_b3_first_think_increments_count_and_enters_silence() -> None:
     customer_input = FakeCustomerInput(["稍等", None, None])
 
     # Act
-    next_state, _ = states.run_l2(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -992,7 +992,7 @@ def test_l2_b3_silence_interrupted_by_response_reruns_dispatch() -> None:
     customer_input = FakeCustomerInput(["想一下", "冰紅茶"])
 
     # Act
-    next_state, next_think_count = states.run_l2(
+    next_state, next_think_count = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1002,7 +1002,7 @@ def test_l2_b3_silence_interrupted_by_response_reruns_dispatch() -> None:
     )
 
     # Assert：走 C 進 L3
-    assert next_state == "L3", (
+    assert next_state == "L4", (
         f"沉默期有回應（商品）應進 L3，實際：{next_state!r}"
     )
     assert next_think_count == 0, "鏈路 C 退出時 think_count 應 reset 為 0"
@@ -1028,7 +1028,7 @@ def test_l2_b3_silence_timeout_reasks_and_resumes_main_loop() -> None:
     customer_input = FakeCustomerInput(["想一下", None, None])
 
     # Act
-    next_state, _ = states.run_l2(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1061,7 +1061,7 @@ def test_l2_b3_second_think_still_silence_below_threshold() -> None:
     customer_input = FakeCustomerInput(["等等", None, "稍等", None, None])
 
     # Act
-    next_state, _ = states.run_l2(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1098,7 +1098,7 @@ def test_l2_b3_third_think_skips_silence_and_triggers_reject() -> None:
     customer_input = FakeCustomerInput(["想一下"])
 
     # Act
-    next_state, next_think_count = states.run_l2(
+    next_state, next_think_count = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1131,7 +1131,7 @@ def test_l2_c_iced_tea_default_quantity_adds_cart_and_goes_l3() -> None:
     customer_input = FakeCustomerInput(["冰紅茶"])
 
     # Act
-    next_state, next_think_count = states.run_l2(
+    next_state, next_think_count = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1141,7 +1141,7 @@ def test_l2_c_iced_tea_default_quantity_adds_cart_and_goes_l3() -> None:
     )
 
     # Assert
-    assert next_state == "L3", f"商品命中應進 L3，實際：{next_state!r}"
+    assert next_state == "L4", f"商品命中應進 L3，實際：{next_state!r}"
     assert next_think_count == 0, "鏈路 C 退出時 think_count 應 reset 為 0"
     assert cart_module.get_quantity(cart, "冰紅茶") == 1, (
         f"cart 應有冰紅茶 ×1，實際：{cart}"
@@ -1163,7 +1163,7 @@ def test_l2_c_iced_tea_with_chinese_quantity_parses_and_adds() -> None:
     customer_input = FakeCustomerInput(["冰紅茶兩個"])
 
     # Act
-    next_state, _ = states.run_l2(
+    next_state, _ = states.run_dialog(
         speak=lambda text: None,
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1173,7 +1173,7 @@ def test_l2_c_iced_tea_with_chinese_quantity_parses_and_adds() -> None:
     )
 
     # Assert
-    assert next_state == "L3"
+    assert next_state == "L4"
     assert cart_module.get_quantity(cart, "冰紅茶") == 2, (
         f"「冰紅茶兩個」應解析為 2，實際：{cart}"
     )
@@ -1194,7 +1194,7 @@ def test_l2_c_qty_followup_gibberish_speaks_clarify_then_uses_next_quantity() ->
     # 紅茶 → ask 幾瓶 → "d" 亂說 → clarify → "兩瓶" → add 2
     customer_input = FakeCustomerInput(["紅茶", "d", "兩瓶"])
 
-    next_state, _ = states.run_l2(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1203,7 +1203,7 @@ def test_l2_c_qty_followup_gibberish_speaks_clarify_then_uses_next_quantity() ->
         think_count=0,
     )
 
-    assert next_state == "L3"
+    assert next_state == "L4"
     assert cart_module.get_quantity(cart, "冰紅茶") == 2, f"應加 2，實際：{cart}"
     assert QTY_CLARIFY_TEMPLATE.format(unit="瓶") in speak_calls, (
         f"亂說後應 speak QTY_CLARIFY_TEMPLATE，實際：{speak_calls}"
@@ -1218,7 +1218,7 @@ def test_l2_c_qty_followup_service_intent_prints_phone_then_reclarifies() -> Non
     # 紅茶 → ask → "客服" → print phone + clarify → "兩瓶" → add 2
     customer_input = FakeCustomerInput(["紅茶", "客服", "兩瓶"])
 
-    next_state, _ = states.run_l2(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: printed.append(text),
@@ -1227,7 +1227,7 @@ def test_l2_c_qty_followup_service_intent_prints_phone_then_reclarifies() -> Non
         think_count=0,
     )
 
-    assert next_state == "L3"
+    assert next_state == "L4"
     assert cart_module.get_quantity(cart, "冰紅茶") == 2
     assert SERVICE_PHONE in printed, f"客服 intent 應 print SERVICE_PHONE，實際 printed：{printed}"
     assert QTY_CLARIFY_TEMPLATE.format(unit="瓶") in speak_calls
@@ -1240,7 +1240,7 @@ def test_l2_c_qty_followup_reject_cancels_addition_and_reprompts_l2() -> None:
     # 紅茶 → ask → "不要" → cancel → L2_B3_REASK → 主迴圈 continue → None → L2-A timeout reject → L1
     customer_input = FakeCustomerInput(["紅茶", "不要", None])
 
-    next_state, _ = states.run_l2(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1264,7 +1264,7 @@ def test_l2_c_iced_tea_no_quantity_asks_then_uses_followup() -> None:
     # 「我要紅茶」(無數量) → 追問 → 「兩瓶」→ 加 2
     customer_input = FakeCustomerInput(["我要紅茶", "兩瓶"])
 
-    next_state, _ = states.run_l2(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1273,7 +1273,7 @@ def test_l2_c_iced_tea_no_quantity_asks_then_uses_followup() -> None:
         think_count=0,
     )
 
-    assert next_state == "L3"
+    assert next_state == "L4"
     assert cart_module.get_quantity(cart, "冰紅茶") == 2, (
         f"「我要紅茶」+ 追問「兩瓶」應加 2 杯冰紅茶，實際：{cart}"
     )
@@ -1290,7 +1290,7 @@ def test_l2_c_scratch_card_adds_cart_and_goes_l3() -> None:
     customer_input = FakeCustomerInput(["刮刮樂"])
 
     # Act
-    next_state, _ = states.run_l2(
+    next_state, _ = states.run_dialog(
         speak=lambda text: None,
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1300,7 +1300,7 @@ def test_l2_c_scratch_card_adds_cart_and_goes_l3() -> None:
     )
 
     # Assert
-    assert next_state == "L3"
+    assert next_state == "L4"
     assert cart_module.get_quantity(cart, "刮刮樂") == 1, (
         f"「刮刮樂」應加入 ×1，實際：{cart}"
     )
@@ -1322,7 +1322,7 @@ def test_l2_prio_checkout_intent_in_l2_falls_through_to_b1() -> None:
     customer_input = FakeCustomerInput(["結帳", None])
 
     # Act
-    next_state, _ = states.run_l2(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1363,7 +1363,7 @@ def test_l3_entry_speaks_followup_and_inits_think_count() -> None:
     customer_input = FakeCustomerInput([None, None])
 
     # Act
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1396,7 +1396,7 @@ def test_l3_a_reject_keyword_clears_cart_and_triggers_subroutine_a() -> None:
     customer_input = FakeCustomerInput(["我不要了"])
 
     # Act
-    next_state, next_think_count = states.run_l3(
+    next_state, next_think_count = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1435,7 +1435,7 @@ def test_l3_b1_unknown_input_speaks_clarification_and_stays_in_l3() -> None:
     customer_input = FakeCustomerInput(["今天天氣很好", None, None])
 
     # Act
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1471,7 +1471,7 @@ def test_l3_b1_unclear_max_final_confirmation_cancel() -> None:
     customer_input = FakeCustomerInput(inputs)
 
     # Act
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: terminal_calls.append(text),
@@ -1506,7 +1506,7 @@ def test_l3_b1_unclear_max_final_confirmation_continue_then_checkout() -> None:
     customer_input = FakeCustomerInput(inputs)
 
     # Act
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1536,7 +1536,7 @@ def test_l3_b1_unclear_max_final_confirmation_timeout_cancels() -> None:
     customer_input = FakeCustomerInput(inputs)
 
     # Act
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1570,7 +1570,7 @@ def test_l3_b1_reset_on_known_intent() -> None:
     )
 
     # Act
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: None,
         do_action=lambda name: None,
         print_terminal=lambda text: terminal_calls.append(text),
@@ -1605,7 +1605,7 @@ def test_l3_b1_final_confirmation_gibberish_then_timeout() -> None:
     customer_input = FakeCustomerInput(inputs)
 
     # Act
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: terminal_calls.append(text),
@@ -1639,7 +1639,7 @@ def test_l3_b2_service_keyword_prints_phone_and_returns_to_l3_loop() -> None:
     customer_input = FakeCustomerInput(["客服", None, None])
 
     # Act
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: None,
         do_action=lambda name: None,
         print_terminal=lambda text: terminal_calls.append(text),
@@ -1673,7 +1673,7 @@ def test_l3_b3_product_default_quantity_adds_cart_and_stays_in_l3() -> None:
     customer_input = FakeCustomerInput(["刮刮樂", None, None])
 
     # Act
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1709,7 +1709,7 @@ def test_l3_b3_qty_followup_reject_cancels_addition_and_reprompts_l3() -> None:
     # "我要刮刮樂" → ask 幾張 → "我不要了" → cancel → L3_REASK → None → C-2 → None → L4
     customer_input = FakeCustomerInput(["我要刮刮樂", "我不要了", None, None])
 
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1736,7 +1736,7 @@ def test_l3_b3_product_no_quantity_asks_then_uses_followup() -> None:
     # 「我要刮刮樂」(無數量) → 追問「幾張」→ 「10張」→ 加 10；後續 None 走 C-2 timeout → L4
     customer_input = FakeCustomerInput(["我要刮刮樂", "10張", None, None])
 
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1764,7 +1764,7 @@ def test_l3_b3_product_with_quantity_accumulates_existing() -> None:
     customer_input = FakeCustomerInput(["冰紅茶兩個", None, None])
 
     # Act
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: None,
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1797,7 +1797,7 @@ def test_l3_b4_first_think_increments_count_and_enters_silence() -> None:
     customer_input = FakeCustomerInput(["等等", None, None, None])
 
     # Act
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1832,7 +1832,7 @@ def test_l3_b4_silence_interrupted_by_response_reruns_dispatch() -> None:
     customer_input = FakeCustomerInput(["等等", "冰紅茶", None, None])
 
     # Act
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: None,
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1865,7 +1865,7 @@ def test_l3_b4_silence_timeout_reasks_and_resumes_main_loop() -> None:
     customer_input = FakeCustomerInput(["等等", None, None, None])
 
     # Act
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1899,7 +1899,7 @@ def test_l3_b4_second_think_still_silence_below_threshold() -> None:
     customer_input = FakeCustomerInput(["等等", None, "稍等", None, None, None])
 
     # Act
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1934,7 +1934,7 @@ def test_l3_b4_third_think_skips_silence_and_triggers_c2_second_stage() -> None:
     customer_input = FakeCustomerInput(["想一下", None])
 
     # Act
-    next_state, next_think_count = states.run_l3(
+    next_state, next_think_count = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -1968,7 +1968,7 @@ def test_l3_c1_checkout_keyword_speaks_and_goes_l4() -> None:
     customer_input = FakeCustomerInput(["結帳"])
 
     # Act
-    next_state, next_think_count = states.run_l3(
+    next_state, next_think_count = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -2002,7 +2002,7 @@ def test_l3_c2_first_timeout_speaks_warning_and_enters_second_stage() -> None:
     customer_input = FakeCustomerInput([None, None])
 
     # Act
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -2036,7 +2036,7 @@ def test_l3_c2_second_stage_timeout_goes_l4() -> None:
     customer_input = FakeCustomerInput([None, None])
 
     # Act
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: None,
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -2068,7 +2068,7 @@ def test_l3_c2_second_stage_product_reruns_dispatch_to_b3() -> None:
     customer_input = FakeCustomerInput([None, "冰紅茶", None, None])
 
     # Act
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -2105,7 +2105,7 @@ def test_l3_c2_second_stage_reject_reruns_dispatch_to_a() -> None:
     customer_input = FakeCustomerInput([None, "我不要了"])
 
     # Act
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -2143,7 +2143,7 @@ def test_l3_c2_second_stage_checkout_reruns_dispatch_to_c1() -> None:
     customer_input = FakeCustomerInput([None, "結帳"])
 
     # Act
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -2178,7 +2178,7 @@ def test_l3_prio_l4_service_words_in_l3_falls_through_to_b1() -> None:
     customer_input = FakeCustomerInput(["繼續", None, None])
 
     # Act
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -3196,7 +3196,7 @@ def test_l2_multi_product_with_quantities_all_added_then_l3() -> None:
     cart = cart_module.new_cart()
     customer_input = FakeCustomerInput(["紅茶 1 刮刮樂 2"])
 
-    next_state, _ = states.run_l2(
+    next_state, _ = states.run_dialog(
         speak=lambda text: None,
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -3205,7 +3205,7 @@ def test_l2_multi_product_with_quantities_all_added_then_l3() -> None:
         think_count=0,
     )
 
-    assert next_state == "L3"
+    assert next_state == "L4"
     assert cart_module.get_quantity(cart, "冰紅茶") == 1
     assert cart_module.get_quantity(cart, "刮刮樂") == 2
 
@@ -3217,7 +3217,7 @@ def test_l2_multi_product_one_missing_qty_asks_only_for_that_one() -> None:
     # 紅茶 1, 刮刮樂 (沒數量) → 追問刮刮樂 → 「3」
     customer_input = FakeCustomerInput(["紅茶 1 刮刮樂", "3"])
 
-    next_state, _ = states.run_l2(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -3226,7 +3226,7 @@ def test_l2_multi_product_one_missing_qty_asks_only_for_that_one() -> None:
         think_count=0,
     )
 
-    assert next_state == "L3"
+    assert next_state == "L4"
     assert cart_module.get_quantity(cart, "冰紅茶") == 1
     assert cart_module.get_quantity(cart, "刮刮樂") == 3
     # 應有追問刮刮樂的語音（不應追問紅茶 — 紅茶已有數量）
@@ -3239,7 +3239,7 @@ def test_l2_duplicate_product_accumulates() -> None:
     cart = cart_module.new_cart()
     customer_input = FakeCustomerInput(["紅茶 2 紅茶 3"])
 
-    next_state, _ = states.run_l2(
+    next_state, _ = states.run_dialog(
         speak=lambda text: None,
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -3248,7 +3248,7 @@ def test_l2_duplicate_product_accumulates() -> None:
         think_count=0,
     )
 
-    assert next_state == "L3"
+    assert next_state == "L4"
     # 2 + 3 = 5（累加，不是覆蓋）
     assert cart_module.get_quantity(cart, "冰紅茶") == 5
 
@@ -3264,7 +3264,7 @@ def test_l3_checkout_confirm_yes_keyword_proceeds_to_l4() -> None:
     cart_module.add_item(cart, "冰紅茶", 1)
     customer_input = FakeCustomerInput(["結帳", "對"])
 
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -3283,7 +3283,7 @@ def test_l3_checkout_confirm_terminal_1_proceeds_to_l4() -> None:
     cart_module.add_item(cart, "冰紅茶", 1)
     customer_input = FakeCustomerInput(["結帳", "1"])
 
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: None,
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -3303,7 +3303,7 @@ def test_l3_checkout_confirm_no_returns_to_l3_main_loop() -> None:
     # 結帳 → 不對 → 後續 None None → C-2 自動結帳 → L4
     customer_input = FakeCustomerInput(["結帳", "不對", None, None])
 
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -3327,7 +3327,7 @@ def test_l3_checkout_confirm_terminal_2_returns_to_l3() -> None:
     cart_module.add_item(cart, "冰紅茶", 1)
     customer_input = FakeCustomerInput(["結帳", "2", None, None])
 
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -3345,7 +3345,7 @@ def test_l3_checkout_confirm_timeout_proceeds_to_l4() -> None:
     cart_module.add_item(cart, "冰紅茶", 1)
     customer_input = FakeCustomerInput(["結帳", None])
 
-    next_state, _ = states.run_l3(
+    next_state, _ = states.run_dialog(
         speak=lambda text: None,
         do_action=lambda name: None,
         print_terminal=lambda text: None,
@@ -3365,7 +3365,7 @@ def test_l3_checkout_confirm_summary_shows_all_products() -> None:
     cart_module.add_item(cart, "刮刮樂", 2)
     customer_input = FakeCustomerInput(["結帳", "1"])
 
-    states.run_l3(
+    states.run_dialog(
         speak=lambda text: None,
         do_action=lambda name: None,
         print_terminal=lambda text: terminal_calls.append(text),
@@ -3384,3 +3384,132 @@ def test_l3_checkout_confirm_summary_shows_all_products() -> None:
     assert "2" in full
     # 總金額 = 27*3 + 180*2 = 441
     assert "441" in full
+
+
+# ============================================================
+# DIALOG-CART-STATE-DRIVEN（2026-05-25 B 方案 — 驗證 cart 狀態驅動原則）
+# ============================================================
+
+def test_dialog_empty_cart_speaks_l2_entry_prompt() -> None:
+    """cart 空進 dialog → speak L2_ENTRY_PROMPT (詢問需求)。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    customer_input = FakeCustomerInput([None])  # 立刻 timeout 退出
+
+    states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    assert L2_ENTRY_PROMPT in speak_calls, (
+        f"cart 空應 speak L2 entry，實際：{speak_calls}"
+    )
+
+
+def test_dialog_nonempty_cart_speaks_l3_entry_prompt() -> None:
+    """cart 非空進 dialog → speak L3_ENTRY_PROMPT (詢問加單)。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # cart 非空 + timeout → C-2 走 → 再 timeout → L4
+    customer_input = FakeCustomerInput([None, None])
+
+    states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    assert L3_ENTRY_PROMPT in speak_calls
+    assert L2_ENTRY_PROMPT not in speak_calls
+
+
+def test_dialog_empty_to_nonempty_transitions_mode_internally() -> None:
+    """cart 由空變非空，dialog 主迴圈下一輪自動切 L3 mode (cart-state-driven 核心驗證)。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 加紅茶 → cart 變非空 → L2_C_ADDED 先 speak（cart 從空變非空才用此語音）
+    # 後續 None None → cart 已非空，C-2 → L4
+    customer_input = FakeCustomerInput(["紅茶 1", None, None])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    assert next_state == "L4"
+    # 進 dialog 時 cart 空 → L2 entry
+    assert L2_ENTRY_PROMPT in speak_calls
+    # 加完商品 cart 非空 → L2_C_ADDED（首次加單語音）
+    assert L2_C_ADDED in speak_calls
+
+
+def test_dialog_empty_cart_checkout_intent_treated_as_unclear() -> None:
+    """cart 空時顧客講「結帳」應被當 B-1 unclear（cart 空結帳無意義）。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 結帳 → 視為 B-1，speak L2_B1_CLARIFY；再 None → 鏈路 A 退
+    customer_input = FakeCustomerInput(["結帳", None])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    # 應 speak L2_B1_CLARIFY 而非進結帳
+    assert L2_B1_CLARIFY in speak_calls
+    assert next_state == "L1_via_subroutine_a"  # timeout 走 A
+
+
+def test_dialog_empty_cart_timeout_goes_to_l1_via_a_reject() -> None:
+    """cart 空 + 6s timeout → 鏈路 A 拒絕（L2 行為）。"""
+    cart = cart_module.new_cart()
+    customer_input = FakeCustomerInput([None])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: None,
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    assert next_state == "L1_via_subroutine_a"
+    assert cart_module.is_empty(cart)
+
+
+def test_dialog_nonempty_cart_timeout_triggers_c2_auto_checkout() -> None:
+    """cart 非空 + 6s timeout → C-2 自動結帳兩段，最終進 L4 (L3 行為)。"""
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # 第 1 個 None → C-2 第一段警告；第 2 個 None → C-2 第二段 timeout → L4
+    customer_input = FakeCustomerInput([None, None])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: None,
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    assert next_state == "L4"
+    # cart 保留
+    assert cart_module.get_quantity(cart, "冰紅茶") == 1
