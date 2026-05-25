@@ -38,6 +38,8 @@ from myProgram.sales.constants import (
     L3_UNCLEAR_FINAL_PROMPT,
     L3_CHECKOUT_CONFIRM_TEMPLATE,
     L3_CHECKOUT_REJECT_CLEAR_NOTICE,
+    CHECKOUT_CONFIRM_TIMEOUT,
+    CHECKOUT_CONFIRM_UNCLEAR_MAX,
     PRODUCTS,
     KEYWORDS_CONFIRM_YES,
     KEYWORDS_CONFIRM_NO,
@@ -615,14 +617,17 @@ def _dialog_checkout_confirm(
     read_customer_input,
     cart,
 ) -> bool:
-    """L3 C-1 結帳前 confirm 子狀態（每次重 prompt 重置 6s + unclear 上限 UNCLEAR_MAX）。
+    """L3 C-1 結帳前 confirm 子狀態（每次重 prompt 重置 timeout + unclear 上限）。
 
-    每次 read 都給 full WAIT_NO_RESPONSE 秒，避免 wall-clock 倒數造成「重 prompt 後
-    顧客來不及答就被當 timeout」+「終端 timeout 顯示 5.999... 小數」兩個 UX bug。
+    使用專用常數 CHECKOUT_CONFIRM_TIMEOUT (12s) / CHECKOUT_CONFIRM_UNCLEAR_MAX (5) —
+    比通用 6s / 3 次寬鬆，因「結帳前確認金額」這步驟顧客可能正在數錢 / 看商品。
+
+    每次 read 都給 full timeout 秒，避免 wall-clock 倒數造成「重 prompt 後顧客來不及答
+    就被當 timeout」+「終端 timeout 顯示 5.999... 小數」兩個 UX bug。
 
     **必須明確答覆才確認進 L4**（2026-05-26 修：保護顧客錢包）：
-    - 6s timeout（沒回應）→ 視為否認 → 取消（清 cart 回 DnC）
-    - 連續 unclear 達 UNCLEAR_MAX 次 → 視為否認 → 取消（清 cart 回 DnC）
+    - timeout（沒回應）→ 視為否認 → 取消（清 cart 回 DnC）
+    - 連續 unclear 達上限 → 視為否認 → 取消（清 cart 回 DnC）
     - 只有「1 / 對 / 是」等明確肯定詞才 return True 進 L4
 
     Returns True 顧客明確確認 → caller 進 L4；False 否認 / timeout / 亂答 → caller 清 cart 回 DnC。
@@ -633,7 +638,7 @@ def _dialog_checkout_confirm(
     unclear_count = 0
 
     while True:
-        response = read_customer_input(timeout=WAIT_NO_RESPONSE)
+        response = read_customer_input(timeout=CHECKOUT_CONFIRM_TIMEOUT)
         if response is None:
             return False
         if response == "1":
@@ -645,7 +650,7 @@ def _dialog_checkout_confirm(
         if any(kw in response for kw in KEYWORDS_CONFIRM_YES):
             return True
         unclear_count += 1
-        if unclear_count >= UNCLEAR_MAX:
+        if unclear_count >= CHECKOUT_CONFIRM_UNCLEAR_MAX:
             return False
         speak(prompt)
 
