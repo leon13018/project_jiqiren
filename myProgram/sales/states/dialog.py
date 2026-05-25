@@ -18,6 +18,8 @@ Return shape：(next_state, next_think_count)
     ※ L2/L3 之間的 transition 已被內化（無 "L3" return 給 logic.py）
 """
 
+import time
+
 from myProgram.sales.constants import (
     WAIT_NO_RESPONSE,
     DNC_TIMEOUT,
@@ -42,6 +44,7 @@ from myProgram.sales.constants import (
     L3_CHECKOUT_CONFIRM_TEMPLATE,
     L3_CHECKOUT_REJECT_CLEAR_NOTICE,
     L3_CHECKOUT_TIMEOUT_CLEAR_NOTICE,
+    L3_C2_WARNING_TEMPLATE,
     CHECKOUT_CONFIRM_TIMEOUT,
     CHECKOUT_CONFIRM_UNCLEAR_MAX,
     PRODUCTS,
@@ -460,56 +463,75 @@ def _dialog_c2_second_stage(
     cart,
     think_count: int,
 ) -> tuple:
-    """L3 C-2 第二段：警告 + 10s wait。10s 內有回應 → 重 dispatch；timeout → L4。"""
-    warning = f"請問是否要結帳？如果沒回應，{AUTO_CHECKOUT_NOTICE} 秒後將為您結帳"
-    speak(warning)
+    """L3 C-2 第二段：嚴格 yes/no 子狀態（2026-05-26 重構）。
 
-    response = read_customer_input(timeout=AUTO_CHECKOUT_NOTICE)
+    設計：
+    - speak C-2 警告 + 「請說『是』/『否』」提示
+    - 啟動 wall-clock 倒數 deadline = now + AUTO_CHECKOUT_NOTICE（12s）
+    - 期間 read_customer_input，**亂答忽略不重置計時** — remaining 不斷縮短
+    - 只認：CONFIRM_YES / "1" → 進 checkout_confirm；CONFIRM_NO / "2" → 取消清 cart
+    - 其他（商品 / 想一下 / 客服 / 亂講）→ 視為 gibberish，silently 消耗 input，繼續倒數
+    - deadline 內無有效回應 / read 返回 None → 自動進 L4 結帳
 
-    if response is None:
-        return ("L4", 0)
+    為何嚴格：規格書 yes/no prompt 避免 NLU 在 L3 normal mode 把「不要」誤分為「結帳」
+    再進 checkout confirm 的多步繞路；同時避免亂答觸發 B-1 reask 子流程的另一個 timer。
+    """
+    speak(L3_C2_WARNING_TEMPLATE.format(seconds=AUTO_CHECKOUT_NOTICE))
 
-    # 「請問是否要結帳」是 yes/no 風格 prompt — 顧客講「不要 / 不對」等 NO 詞時
-    # 應為「不要結帳，取消」而非「不要 = 沒了，所以結帳」（L3 normal NLU 預設語意）。
-    # 但只攔「NLU 會誤判為結帳」的 NO 詞；strict reject（如「我不要了」）走原 dispatch 拒絕路徑
-    # （清 cart + 回 L1 + speak「謝謝光臨」），這裡不能搶。2026-05-26 加；使用者實測踩到
-    if (
-        classify_intent(response, "normal") == "結帳"
-        and any(kw in response for kw in KEYWORDS_CONFIRM_NO)
-    ):
-        cart_module.clear_cart(cart)
-        speak(L3_CHECKOUT_REJECT_CLEAR_NOTICE)
-        return _dialog_continue_after_c2_inner(
-            speak=speak,
-            do_action=do_action,
-            print_terminal=print_terminal,
-            read_customer_input=read_customer_input,
-            cart=cart,
-            think_count=think_count,
+    deadline = time.monotonic() + AUTO_CHECKOUT_NOTICE
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            # 倒數歸零（亂答耗盡 budget）→ 自動進 L4
+            return ("L4", 0)
+
+        response = read_customer_input(timeout=remaining)
+        if response is None:
+            # read 直接 timeout（顧客全程沒回應）→ 自動進 L4
+            return ("L4", 0)
+
+        # NO 先檢查 — 防止 L3 normal NLU 把「不要」誤分為「結帳」造成繞路
+        if response == "2" or any(kw in response for kw in KEYWORDS_CONFIRM_NO):
+            cart_module.clear_cart(cart)
+            speak(L3_CHECKOUT_REJECT_CLEAR_NOTICE)
+            return _dialog_continue_after_c2_inner(
+                speak=speak,
+                do_action=do_action,
+                print_terminal=print_terminal,
+                read_customer_input=read_customer_input,
+                cart=cart,
+                think_count=think_count,
+            )
+
+        # YES 檢查：明確肯定詞 + 終端 1 + L3 normal「結帳」意圖（涵蓋「結帳/買單/付款」等）
+        is_yes = (
+            response == "1"
+            or any(kw in response for kw in KEYWORDS_CONFIRM_YES)
+            or classify_intent(response, "normal") == "結帳"
         )
+        if is_yes:
+            confirm_result = _dialog_checkout_confirm(
+                speak=speak,
+                print_terminal=print_terminal,
+                read_customer_input=read_customer_input,
+                cart=cart,
+            )
+            if confirm_result is True:
+                speak(L3_C1_CHECKOUT_GO)
+                return ("L4", 0)
+            _handle_checkout_confirm_result(confirm_result, cart, speak)
+            return _dialog_continue_after_c2_inner(
+                speak=speak,
+                do_action=do_action,
+                print_terminal=print_terminal,
+                read_customer_input=read_customer_input,
+                cart=cart,
+                think_count=think_count,
+            )
 
-    result = _dialog_dispatch_inner_l3(
-        response=response,
-        speak=speak,
-        do_action=do_action,
-        print_terminal=print_terminal,
-        read_customer_input=read_customer_input,
-        cart=cart,
-        think_count=think_count,
-    )
-    if isinstance(result, tuple):
-        return result
-    if isinstance(result, int):
-        think_count = result
-    # None / int → 回主等待，遞迴 run_dialog 但不重播 entry prompt
-    return _dialog_continue_after_c2_inner(
-        speak=speak,
-        do_action=do_action,
-        print_terminal=print_terminal,
-        read_customer_input=read_customer_input,
-        cart=cart,
-        think_count=think_count,
-    )
+        # 其他（商品 / 想一下 / 客服 / 亂講）— 嚴格 yes/no 設計下視為 gibberish，
+        # silently 消耗、不重置 deadline，下一輪 read 用 remaining 縮短的 timeout 繼續等
+        continue
 
 
 def _dialog_continue_after_c2_inner(

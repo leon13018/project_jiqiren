@@ -50,6 +50,7 @@ from myProgram.sales.constants import (
     L3_CHECKOUT_CONFIRM_TEMPLATE,
     L3_CHECKOUT_REJECT_CLEAR_NOTICE,
     L3_CHECKOUT_TIMEOUT_CLEAR_NOTICE,
+    L3_C2_WARNING_TEMPLATE,
     UNCLEAR_MAX,
     L4_E_CLARIFY,
     L4_E_AUTO_SERVICE,
@@ -1870,8 +1871,8 @@ def test_l3_b4_third_think_skips_silence_and_triggers_c2_second_stage() -> None:
         think_count=2,  # 已累積 2 次
     )
 
-    # Assert：C-2 第一段語音被 speak（包含 AUTO_CHECKOUT_NOTICE 插值）
-    c2_warning = f"請問是否要結帳？如果沒回應，{AUTO_CHECKOUT_NOTICE} 秒後將為您結帳"
+    # Assert：C-2 第一段語音被 speak（用 L3_C2_WARNING_TEMPLATE 套 AUTO_CHECKOUT_NOTICE）
+    c2_warning = L3_C2_WARNING_TEMPLATE.format(seconds=AUTO_CHECKOUT_NOTICE)
     assert c2_warning in speak_calls, (
         f"第 3 次想一下應 speak C-2 第一段語音，實際：{speak_calls}"
     )
@@ -1939,10 +1940,10 @@ def test_l3_c2_first_timeout_speaks_warning_and_enters_second_stage() -> None:
         think_count=0,
     )
 
-    # Assert：C-2 第一段語音被 speak
-    c2_warning = f"請問是否要結帳？如果沒回應，{AUTO_CHECKOUT_NOTICE} 秒後將為您結帳"
+    # Assert：C-2 第一段語音被 speak（用 L3_C2_WARNING_TEMPLATE 套 AUTO_CHECKOUT_NOTICE）
+    c2_warning = L3_C2_WARNING_TEMPLATE.format(seconds=AUTO_CHECKOUT_NOTICE)
     assert c2_warning in speak_calls, (
-        f"6s timeout 應 speak C-2 第一段語音，實際：{speak_calls}"
+        f"DyC timeout 應 speak C-2 第一段語音，實際：{speak_calls}"
     )
     # 進 L4（C-2 第二段 timeout）
     assert next_state == "L4"
@@ -1981,10 +1982,11 @@ def test_l3_c2_second_stage_timeout_goes_l4() -> None:
 
 # ============================================================
 # L3-C-2-003
-### Scenario: C-2 第二段內顧客回應商品取消自動結帳走 B-3 加單
-### Given L3 處於 C-2 第二段等待中（已播警告語音）
-### When 第二段 10 秒內顧客輸入「冰紅茶」（命中商品）
-### Then 取消自動結帳，重跑判定優先序 → 走 B-3（加 cart + 留 L3）
+### Scenario: C-2 嚴格 yes/no 子狀態 — 商品輸入視為 gibberish 忽略
+### Given L3 處於 C-2 子狀態（已播警告語音 + yes/no 提示）
+### When 12s 倒數內顧客輸入「冰紅茶」（非 yes/no 詞）
+### Then 商品輸入被忽略（不加 cart），倒數繼續，最終 timeout → L4
+### Note 2026-05-26 改：原規格 C-2 dispatch 商品加 B-3 違反嚴格 yes/no；改成只認 yes/no
 # ============================================================
 
 def test_l3_c2_second_stage_product_reruns_dispatch_to_b3() -> None:
@@ -1992,8 +1994,8 @@ def test_l3_c2_second_stage_product_reruns_dispatch_to_b3() -> None:
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # None → C-2 第一段；冰紅茶 → B-3 加 cart；None → C-2；None → L4
-    customer_input = FakeCustomerInput([None, "冰紅茶", None, None])
+    # None → C-2 第一段；冰紅茶 → gibberish 忽略；None → C-2 倒數歸零 → L4
+    customer_input = FakeCustomerInput([None, "冰紅茶", None])
 
     # Act
     next_state, _ = states.run_dialog(
@@ -2005,22 +2007,26 @@ def test_l3_c2_second_stage_product_reruns_dispatch_to_b3() -> None:
         think_count=0,
     )
 
-    # Assert：C-2 第二段有回應 → B-3 加 cart
-    assert cart_module.get_quantity(cart, "冰紅茶") == 2, (
-        f"C-2 第二段回應商品應加到 cart（冰紅茶 1→2），實際：{cart}"
+    # Assert：商品被忽略，cart 不變
+    assert cart_module.get_quantity(cart, "冰紅茶") == 1, (
+        f"C-2 嚴格 yes/no — 商品輸入應被忽略不加 cart，實際：{cart}"
     )
-    assert L3_REASK in speak_calls, (
-        f"B-3 後應 speak L3_REASK，實際：{speak_calls}"
+    # 不應觸發 B-3 reask（gibernish 是 silent ignore）
+    assert L3_REASK not in speak_calls, (
+        f"C-2 嚴格 yes/no — 商品應被靜默忽略，不應 speak L3_REASK，實際：{speak_calls}"
     )
+    # 倒數歸零 → L4
     assert next_state == "L4"
 
 
 # ============================================================
 # L3-C-2-004
-### Scenario: C-2 第二段內顧客回應拒絕關鍵字取消自動結帳走鏈路 A
-### Given L3 處於 C-2 第二段等待中（已播警告語音），cart 含商品
-### When 第二段 10 秒內顧客輸入「不要」（命中拒絕意圖）
-### Then 取消自動結帳，走鏈路 A（清空 cart + 套子例程 A 回 L1）
+### Scenario: C-2 嚴格 yes/no 子狀態 — NO 詞（含 strict reject）→ 取消訂單回 DnC
+### Given L3 處於 C-2 子狀態（已播警告語音 + yes/no 提示），cart 含商品
+### When 12s 倒數內顧客輸入「我不要了」（含「不要」即 CONFIRM_NO 詞）
+### Then 取消訂單：清 cart + speak L3_CHECKOUT_REJECT_CLEAR_NOTICE → post-C2 loop → 退 L1
+### Note 2026-05-26 改：原規格 strict reject 走 L3_REJECT_THANKS exit_a 路徑；
+###      新嚴格 yes/no 子狀態下統一視為 cancel order（含 strict reject）
 # ============================================================
 
 def test_l3_c2_second_stage_reject_reruns_dispatch_to_a() -> None:
@@ -2028,9 +2034,9 @@ def test_l3_c2_second_stage_reject_reruns_dispatch_to_a() -> None:
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # None → C-2 第一段；我不要了 → 鏈路 A（清空 cart + 回 L1）
-    # 2026-05-25 修：L3 嚴格 reject 詞改用「我不要了」
-    customer_input = FakeCustomerInput([None, "我不要了"])
+    # None → C-2 第一段；我不要了 → CONFIRM_NO → 清 cart + reject notice → DnC
+    # → DnC timeout (None) → 中性退
+    customer_input = FakeCustomerInput([None, "我不要了", None])
 
     # Act
     next_state, _ = states.run_dialog(
@@ -2043,14 +2049,18 @@ def test_l3_c2_second_stage_reject_reruns_dispatch_to_a() -> None:
     )
 
     # Assert
-    assert L3_REJECT_THANKS in speak_calls, (
-        f"C-2 第二段拒絕應 speak L3_REJECT_THANKS，實際：{speak_calls}"
+    # C-2 NO → 清 cart + reject notice（不應講 L3_REJECT_THANKS「謝謝光臨」）
+    assert L3_CHECKOUT_REJECT_CLEAR_NOTICE in speak_calls, (
+        f"C-2 NO 應 speak L3_CHECKOUT_REJECT_CLEAR_NOTICE，實際：{speak_calls}"
+    )
+    assert L3_REJECT_THANKS not in speak_calls, (
+        f"C-2 嚴格 yes/no 下，NO 詞不應走 L3_REJECT_THANKS 路徑，實際：{speak_calls}"
     )
     assert cart_module.is_empty(cart), (
-        f"拒絕後 cart 應清空，實際：{cart}"
+        f"NO 後 cart 應清空，實際：{cart}"
     )
     assert next_state == "L1_via_subroutine_a", (
-        f"拒絕應回 L1_via_subroutine_a，實際：{next_state!r}"
+        f"取消後 post-C2 loop timeout 應回 L1_via_subroutine_a，實際：{next_state!r}"
     )
 
 
@@ -3301,6 +3311,60 @@ def test_l3_checkout_confirm_timeout_cancels() -> None:
     assert L3_CHECKOUT_TIMEOUT_CLEAR_NOTICE in speak_calls
     assert L3_CHECKOUT_REJECT_CLEAR_NOTICE not in speak_calls
     assert L2_TIMEOUT_TO_HAWK_VOICE in speak_calls
+
+
+def test_l3_c2_yes_keyword_好_proceeds_via_checkout_confirm() -> None:
+    """C-2 子狀態 → 顧客講「好」（CONFIRM_YES）→ 進 checkout_confirm → 確認 → L4。
+
+    2026-05-26 加：原本「好」會被 dispatch 視為「無法判斷」走 B-1 reask；新嚴格 yes/no
+    設計下「好」是明確 YES → 進 confirm 子狀態 → 顧客確認後進 L4。
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # None → C-2；「好」 → YES → confirm；"1" 明確確認 → L4
+    customer_input = FakeCustomerInput([None, "好", "1"])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    assert next_state == "L4", f"「好」應為 YES → confirm → L4，實際：{next_state!r}"
+    assert L3_C1_CHECKOUT_GO in speak_calls
+
+
+def test_l3_c2_gibberish_silently_ignored_then_timeout_to_l4() -> None:
+    """C-2 子狀態 → 連續亂答 → 倒數內 read 耗盡 → L4。
+
+    2026-05-26 加：嚴格 yes/no 設計下，亂答 silently 忽略不重置 deadline；
+    輸入耗盡時 read 返 None → 進 L4（自動結帳）。
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # None → C-2；df / fdsf → silently 忽略；None → L4
+    customer_input = FakeCustomerInput([None, "df", "fdsf", None])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    # 不應觸發 B-1 reask 提示（嚴格 yes/no 下亂答 silent）
+    assert not any("聽不太懂" in s for s in speak_calls), (
+        f"C-2 嚴格 yes/no — 亂答應 silent ignored，不該觸發 B-1 clarify，實際：{speak_calls}"
+    )
+    # 倒數內無有效 yes/no + 沒回應 → L4
+    assert next_state == "L4"
 
 
 def test_l3_c2_first_stage_no_keyword_cancels_order() -> None:
