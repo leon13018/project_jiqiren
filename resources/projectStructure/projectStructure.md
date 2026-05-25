@@ -14,10 +14,16 @@ Project_01/
 │   ├── settings.json                     # 🔒 Claude Code project settings（含 hooks 配置）— tracked（2026-05-25 加）
 │   ├── settings.local.json               # 本機 Claude 設定（gitignored）
 │   ├── worktrees/                        # 暫存 worktree 目錄（gitignored；2026-05-22 加入）
-│   ├── hooks/                            # 🪝 自動化 hook scripts（2026-05-25 加）— tracked，*.log gitignored
+│   ├── hooks/                            # 🪝 自動化 hook scripts（2026-05-25 加）— tracked，*.log / state/ gitignored
+│   │   ├── NOTES.md                      # ⭐ 完整 hooks 研究筆記（30+ events 規格 / gotchas / future ideas）
+│   │   ├── state/                        # flag file 暫存目錄（gitignored；三方協作 state）
 │   │   ├── block-git-add-bulk.ps1        # PreToolUse Bash：擋 `git add -A` / `git add .`（執法 ⛔#4）
 │   │   ├── block-vendor-edit.ps1         # PreToolUse Edit/Write：擋廠商 SDK 檔（執法 ⛔#1）
-│   │   └── auto-sync-pi.ps1              # PostToolUse Bash：`git push origin main` 後自動跑 sync_pi.ps1
+│   │   ├── auto-sync-pi.ps1              # PostToolUse Bash：`git push origin main` 後自動跑 sync_pi.ps1
+│   │   ├── state-mark-sales-dirty.ps1    # PostToolUse Edit/Write：編 sales/* 時寫 flag
+│   │   ├── state-clear-on-pytest.ps1     # PostToolUse Bash：pytest 跑過清 flag
+│   │   ├── stop-check-sales-pytest.ps1   # Stop：結束 turn 前若 flag 存在 → block 一次提醒
+│   │   └── session-start-context.ps1     # SessionStart：注入 branch/status/test count 摘要
 │   ├── rules/                            # 規則檔（2026-05-23 加入）— tracked
 │   │   ├── vendor-sdk-api.md             # 廠商 SDK API；path-scoped, paths: myProgram/**/*.py
 │   │   ├── path-conventions.md           # Linux 路徑規範；path-scoped, paths: code / scripts / Pi docs
@@ -284,3 +290,4 @@ __pycache__/
 | 2026-05-25 | **🔌 S1 v2 logic.py 串接 + myProgram.py 入口層 wire-up 完成**（commit `a1fe336`，派 Sonnet subagent 在 `.claude/worktrees/logic-wireup-s1/`）：(1) `myProgram/sales/logic.py` 152 行 A2-c state machine — `run(**callbacks)` 持 cart 為唯一 cycle state，5 層 cycle dispatch（L1→L2→L3→L4→L5→子例程 A→L1），`_invoke_subroutine_a` helper，A4-c `_assert_cart_empty` + `_assert_cart_nonempty` 每進新層 fail-fast 守衛；(2) `myProgram/myProgram.py` 139 行 A3-d 直 wire callback dict — `_S1State` class 持 OpenCV 模擬狀態（`opencv_enabled` / `opencv_dwell`）、`_build_callbacks` 建 12 個 callback（含 `'c'` 鍵模擬 OpenCV 偵測一次性消耗 + 空 Enter 模擬 customer timeout + `schedule` no-op + `[語音]` / `[動作]` / `[opencv]` 文字標記）、`main()` try/except SystemExit + KeyboardInterrupt。兩檔皆嚴格不 import 廠商 SDK（選項 C 一致；廠商 SDK grep 命中只在 vendor 檔自身）。**既有 107 tests PASS 不破**（驗證 logic.py 沒誤汙染 import path）。S1 v2 全套可端對端跑 `python -m myProgram.myProgram` 做對話模擬。**為何不走 BDD+TDD**：本輪是 dispatcher 整合膠水 + audit 取代 TDD（user 明確決策）；下一步使用者手動互動驗收 → 派 3 個 audit subagent 全面審查 sales/。|
 | 2026-05-25 | **🏗️ B 方案重構：L2/L3 合一為 dialog（cart 狀態驅動）**：架構級重構，原則「state machine 由世界狀態（cart）驅動，非動作歷史驅動」。動機：未來加刪除商品功能時，動作驅動架構會在 L3 cart 變空仍問「還需要什麼東西嗎？」違和。改動：(1) 新增 `states/dialog.py`（`run_dialog` + 8 helper），cart 空 = L2 模式 / cart 非空 = L3 模式，模式每輪 main loop 重新判定；(2) 刪除 `states/l2.py` + `states/l3.py`；(3) `logic.py` 4 層 cycle（L1→dialog→L4→L5），少一個 transition；(4) `states/__init__.py` re-export 改為 `run_dialog`；(5) `L0_共通.md` 加「層狀態判定原則」段，L2/L3.md 加架構說明標頭 + 變更紀錄。Tests: 153→159 PASS（10 個既有 L2→L3 assertion 改為 L4，因 dialog 自然繼續到 C-2 auto-checkout；+6 新 dialog cart-state-driven 測試）。未來加刪除商品時，dialog 主迴圈自動回 L2 prompt 模式無需額外 transition。|
 | 2026-05-25 | **🪝 Claude Code hooks 上線（自動化執法 + sync_pi 自動觸發）**：新增 `.claude/settings.json`（project-level，commit 上去）+ `.claude/hooks/` 3 個 PowerShell scripts。Hook A（PreToolUse Bash）擋 `git add -A` / `git add .`，Hook B（PreToolUse Edit/Write）擋廠商 SDK 檔編輯，Hook C（PostToolUse Bash + async）`git push origin main` 後自動跑 sync_pi.ps1（取代 standard-workflow 步驟 5 的手動跑）。所有 3 個 hook 用官方 JSON 決策格式（`hookSpecificOutput.permissionDecision`），實測 3 個 PASS / 3 個 BLOCK case 全對。.ps1 用 UTF-8 BOM 編碼（PowerShell 5.1 無 BOM 會用 ANSI 誤讀中文字串）。`.claude/hooks/*.log` 加進 `.gitignore`。CLAUDE.md ⛔#1 / ⛔#4 加 🔒 註明 hook 強制執法（規則保留作文檔但執法不靠主 agent 自律）。|
+| 2026-05-25 | **🪝 Stop + SessionStart hooks 上線（regression 守門 + session 自動 context 注入）**：新增 4 個 PS scripts + 完整 `NOTES.md` 研究筆記。**Stop hook（flag file 三方協作）**：state-mark-sales-dirty（PostToolUse Edit/Write）→ 編 sales/* 寫 flag；state-clear-on-pytest（PostToolUse Bash）→ pytest 跑過清 flag；stop-check-sales-pytest（Stop）→ 若 flag pending 則 block 一次 + 改 reminded（防無限循環）。**SessionStart hook**：每 session 開始（startup/resume/clear/compact 都跑）注入 git branch / status / sales tests count 摘要；agent_id 存在則 silent exit（不污染 subagent context）。**NOTES.md（毫無保留）**：30+ events 完整清單 / 5 個 decision patterns 速查 / 9 個踩坑 / cross-check 結果（subagent 推測 vs 官方）/ 11 個未實作但有用的功能 / 維護指南。**Cross-check 規範**：所有 hook 規格都經「subagent + 主 agent WebFetch + 第三輪驗證衝突點」三方確認後才動手。Tests 9/9 case 全通過。CLAUDE.md ⛔ 段加 3 行 sub-note + pointer 到 NOTES.md。|

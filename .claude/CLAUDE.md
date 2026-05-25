@@ -15,6 +15,9 @@
 
 > 🔒 = `.claude/hooks/` 內 PreToolUse hook 自動 block，不依賴主 agent 自律。
 > `git push origin main` 後也會自動跑 `sync_pi.ps1`（PostToolUse hook，省掉 standard-workflow 步驟 5）。
+> 編 `myProgram/sales/*.py` 或 `tests/sales/*.py` 後若沒跑 pytest，Stop hook 會 block 一次提醒（避免漏跑 regression）。
+> 每次新 session 自動注入 `git branch / status / 測試數` 摘要（SessionStart hook，省手動跑指令）。
+> **hooks 完整文檔：`.claude/hooks/NOTES.md`**
 
 ---
 

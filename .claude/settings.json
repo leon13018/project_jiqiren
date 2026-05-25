@@ -32,6 +32,43 @@
             "args": ["-NoProfile", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/auto-sync-pi.ps1"],
             "async": true,
             "timeout": 120
+          },
+          {
+            "type": "command",
+            "command": "powershell",
+            "args": ["-NoProfile", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/state-clear-on-pytest.ps1"]
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell",
+            "args": ["-NoProfile", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/state-mark-sales-dirty.ps1"]
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell",
+            "args": ["-NoProfile", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/stop-check-sales-pytest.ps1"]
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell",
+            "args": ["-NoProfile", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/session-start-context.ps1"]
           }
         ]
       }
