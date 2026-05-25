@@ -92,6 +92,15 @@ def test_nlu_iced_tea_keyword_classified_as_product_iced_tea() -> None:
     assert nlu.classify_intent("冰紅茶") == "商品:冰紅茶"
 
 
+def test_nlu_iced_tea_simplified_variants_also_classified() -> None:
+    """2026-05-26 加：簡體「红茶 / 冰红茶」也應分類為冰紅茶（使用者 Windows 簡體系統實測）。"""
+    assert nlu.classify_intent("红茶") == "商品:冰紅茶"
+    assert nlu.classify_intent("冰红茶") == "商品:冰紅茶"
+    # parse_products 也應吃簡體並回繁體 product_name
+    assert nlu.parse_products("红茶 2") == [("冰紅茶", 2)]
+    assert nlu.parse_products("我要冰红茶") == [("冰紅茶", None)]
+
+
 # ============================================================
 # L0-NLU-006
 # ============================================================
@@ -103,6 +112,12 @@ def test_nlu_iced_tea_keyword_classified_as_product_iced_tea() -> None:
 ### Then 分類結果為「商品:刮刮樂」
 def test_nlu_scratch_card_keyword_classified_as_product_scratch_card() -> None:
     assert nlu.classify_intent("刮刮樂") == "商品:刮刮樂"
+
+
+def test_nlu_scratch_card_simplified_variant_also_classified() -> None:
+    """2026-05-26 加：簡體「刮刮乐」也應分類為刮刮樂。"""
+    assert nlu.classify_intent("刮刮乐") == "商品:刮刮樂"
+    assert nlu.parse_products("刮刮乐 3") == [("刮刮樂", 3)]
 
 
 # ============================================================
