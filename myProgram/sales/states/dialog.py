@@ -621,10 +621,8 @@ def _dialog_checkout_confirm(
 
     Returns True 顧客確認 → caller 進 L4；False 顧客否認 → caller 重播 entry 回主等待。
     """
-    total = cart_module.calc_total(cart)
     summary = _build_order_summary(cart)
-    prompt = L3_CHECKOUT_CONFIRM_TEMPLATE.format(summary=summary, total=total)
-    print_terminal(prompt)
+    prompt = L3_CHECKOUT_CONFIRM_TEMPLATE.format(summary=summary)
     speak(prompt)
 
     start = time.time()
@@ -644,7 +642,6 @@ def _dialog_checkout_confirm(
             return False
         if any(kw in response for kw in KEYWORDS_CONFIRM_YES):
             return True
-        print_terminal(prompt)
         speak(prompt)
 
 

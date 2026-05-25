@@ -3279,32 +3279,30 @@ def test_l3_checkout_confirm_timeout_proceeds_to_l4() -> None:
 
 
 def test_l3_checkout_confirm_summary_shows_all_products() -> None:
-    """confirm prompt 應列出 cart 內所有商品與數量。"""
-    terminal_calls: list = []
+    """confirm prompt 應透過語音列出 cart 內所有商品與數量。"""
+    speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 3)
     cart_module.add_item(cart, "刮刮樂", 2)
     customer_input = FakeCustomerInput(["結帳", "1"])
 
     states.run_dialog(
-        speak=lambda text: None,
+        speak=lambda text: speak_calls.append(text),
         do_action=lambda name: None,
-        print_terminal=lambda text: terminal_calls.append(text),
+        print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
     )
 
-    confirm_prints = [t for t in terminal_calls if "正確嗎" in t]
+    confirm_prints = [t for t in speak_calls if "正確嗎" in t]
     assert len(confirm_prints) >= 1
     full = " ".join(confirm_prints)
-    # 應同時包含兩商品 + 數量 + 總金額
+    # 應同時包含兩商品 + 數量
     assert "冰紅茶" in full
     assert "刮刮樂" in full
     assert "3" in full
     assert "2" in full
-    # 總金額 = 27*3 + 180*2 = 441
-    assert "441" in full
 
 
 # ============================================================
