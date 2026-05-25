@@ -1,7 +1,7 @@
 # 專案目錄結構
 
 > 本檔案記錄整個專案的資料夾與檔案結構，方便日後快速查閱。
-> 最後更新：2026-05-25（S1 v2 logic.py 串接 + myProgram.py 入口層 wire-up 完成 — A2-c state machine + A3-d 直 wire callback + A4-c cart invariant fail-fast；既有 107 tests PASS 不破；S1 全套可端對端跑）
+> 最後更新：2026-05-26（新增 `resources/reviews/` 資料夾收納 multi-agent 程式碼審查整合報告；首份 `2026-05-26_myProgram_multi-agent-review.md` 為 4 視角整合 myProgram/ 審查 + 8 階段 Roadmap）
 
 ---
 
@@ -108,6 +108,9 @@ Project_01/
     │   ├── 2026-05-22_TTS_setup.md       # edge-tts + mpg123 + 音訊裝置設定 + 測試
     │   ├── 2026-05-23_python311_vendor_deps.md  # 廠商 SDK 所有依賴補裝到 Python 3.11 + 迭代驗證
     │   └── 2026-05-23_python311_rebuild_pillow_libtiff.md  # Python rebuild 加 _tkinter + Pillow source build 連 libtiff5
+    │
+    ├── reviews/                          # tracked — multi-agent 程式碼審查整合報告（2026-05-26 加入）
+    │   └── 2026-05-26_myProgram_multi-agent-review.md  # 4 視角（結構/狀態機/NLU/橫切面）對 myProgram/ 整合審查 + 8 階段 Roadmap
     │
     ├── projectStructure/                 # tracked
     │   └── projectStructure.md           # 本檔案
@@ -244,6 +247,7 @@ __pycache__/
 | `userPrompt/` | 使用者個人 prompt 草稿（與 Claude Code 溝通時的輸入備份） |
 | `requirements/raspberry_pi_setup.md` | **Pi 已安裝清單** — Pi 上實際完成安裝並經使用者回報確認的項目 snapshot；被動更新 |
 | `pineedtodo/` | **per-task Pi 端操作說明書** — append-only，每輪有 Pi 動作時新增一檔（檔名 `<YYYY-MM-DD>_<short_name>.md`）|
+| `reviews/` | **multi-agent 程式碼審查整合報告**（2026-05-26 加入）— 主 agent 派多個 opus subagent 不同視角審查 myProgram/ 或其他模組，產出統整 markdown 含跨視角共識點 / 必修建議修可不改清單 / 階段 roadmap。append-only，每輪新增一檔（檔名 `<YYYY-MM-DD>_<scope>_<short_name>.md`）|
 | `projectStructure/projectStructure.md` | 本檔案 — 專案目錄結構 |
 | `plans/` | plan 草稿（plan mode 討論結果 / 任務藍圖）|
 | `plans/bdd規範.txt` | **BDD 規範**（2026-05-24 加入）— 規定寫測試前必先用 Gherkin schema 寫 Given-When-Then 空骨架 + AskUserQuestion 確認後再實作；引用 `examples/bdd-寫法範例.txt` |
@@ -294,3 +298,4 @@ __pycache__/
 | 2026-05-25 | **🪝 Stop + SessionStart hooks 上線（regression 守門 + session 自動 context 注入）**：新增 4 個 PS scripts + 完整 `NOTES.md` 研究筆記。**Stop hook（flag file 三方協作）**：state-mark-sales-dirty（PostToolUse Edit/Write）→ 編 sales/* 寫 flag；state-clear-on-pytest（PostToolUse Bash）→ pytest 跑過清 flag；stop-check-sales-pytest（Stop）→ 若 flag pending 則 block 一次 + 改 reminded（防無限循環）。**SessionStart hook**：每 session 開始（startup/resume/clear/compact 都跑）注入 git branch / status / sales tests count 摘要；agent_id 存在則 silent exit（不污染 subagent context）。**NOTES.md（毫無保留）**：30+ events 完整清單 / 5 個 decision patterns 速查 / 9 個踩坑 / cross-check 結果（subagent 推測 vs 官方）/ 11 個未實作但有用的功能 / 維護指南。**Cross-check 規範**：所有 hook 規格都經「subagent + 主 agent WebFetch + 第三輪驗證衝突點」三方確認後才動手。Tests 9/9 case 全通過。CLAUDE.md ⛔ 段加 3 行 sub-note + pointer 到 NOTES.md。|
 | 2026-05-25 | **🪝 SubagentStart hook + rules 精簡（hook 接管後文檔對齊）**：(1) 新增 `subagent-inject-rules.ps1` — SubagentStart hook，依 agent_type 分流自動注入標準規範（編碼類完整版 / 研究類精簡版），取代 subagent-dispatch-protocol 步驟 2-3 的手動塞規則。(2) **精簡 rules + memory** — standard-workflow / worktree-workflow / bdd-tdd-workflow / incremental-rebuild 全部改「push（hook 自動 sync）」描述，從 5 步收尾改 4 步；subagent-dispatch-protocol 步驟 2-3 重寫為「hook 自動注入 + 任務特化規則手動塞」；MEMORY.md 索引、standard_workflow.md / workflow_constraints.md / project_deployment.md / incremental_rebuild_pattern.md / worktree_workflow.md / subagent_dispatch.md 全部同步「hook 已自動化」狀態。CLAUDE.md ⛔ 段加 SubagentStart 註腳；部署資訊段標明「hook 自動 + 手動 fallback」。159 tests 仍 PASS。Bash hook 自動觸發測試通過。|
 | 2026-05-25 | **📝 `bdd-tdd-workflow.md` 改 path-scoped**：加 paths frontmatter（`myProgram/sales/**/*.py` / `tests/sales/**/*.py` / `tests/spec/**/*.py` / `resources/plans/業務程式邏輯規劃/**/*.md`）。動到 sales 相關檔才自動載入（規則含 DORMANT 標記 + 重啟條件，Claude 自行判斷本輪是否真要重啟）。當前 path-scoped rules 從 3 個增加至 4 個（vendor-sdk-api / path-conventions / threading-conventions / bdd-tdd-workflow）。CLAUDE.md 查閱表行 + 維護原則段對齊。|
+| 2026-05-26 | **🔍 multi-agent 程式碼審查整合報告**：使用者要求對 myProgram/ 派 `/review`（build-in）+ 結構/檔名（opus xhigh）+ 主 agent 自選 2 個（狀態機正確性 / NLU 健壯性，皆 opus xhigh）+ 主 agent 補 /review 適配版（橫切面 wire-up/風格/效能/安全），共 4 視角獨立並行審查。注：`/review` 內建 skill 是 PR 審查工作流（單一 prompt 非 3 subagent），與當前無 open PR 不契合，主 agent 改採 5 維度做適配版審查。產出：新建 `resources/reviews/` 資料夾 + 首份報告 `2026-05-26_myProgram_multi-agent-review.md`（含跨視角共識點 / 必修 7 條 + 建議修 18 條 + 可不改 15 條總表 + 8 階段 P0-P8 執行 Roadmap）。最關鍵發現：C-2 strict yes/no 內 NO 詞表「沒了/不要/沒有」與 L3 normal 結帳意圖語意衝突（顧客錢包逆向錯誤）；廠商檔位置應隔離到 `myProgram/vendor/`；`do_action`/`schedule` 是 dead callback 應清理。|
