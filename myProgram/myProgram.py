@@ -19,6 +19,7 @@ S3+ 才接 `from myProgram import ActionGroupControl as Act` 並 wire。
 """
 
 import sys
+import time
 
 from myProgram.sales import logic
 from myProgram.sales.constants import OPENCV_DWELL, L1_HAWK_ENTRY_PROMPT
@@ -30,6 +31,11 @@ class _S1State:
     def __init__(self):
         self.opencv_enabled = False
         self.opencv_dwell = 0.0  # 'c' 鍵 → 設為 OPENCV_DWELL+0.5，下次讀觸發 L2
+        # mute 時間戳（2026-05-26 加）— 由 mute_opencv 設 time.monotonic() + seconds；
+        # opencv_dwell_seconds 在 mute 期間強制回 0，即使 opencv_enabled=True 也擋偵測。
+        # 這確保子例程 A 的 12s buffer 真實生效：hawk 重進 enable 後，12s 內偵測仍被吃掉，
+        # 避免「同一顧客剛走又被馬上拉回 dialog」。
+        self.opencv_mute_until = 0.0
 
 
 def _build_callbacks(state: _S1State) -> dict:
@@ -90,6 +96,10 @@ def _build_callbacks(state: _S1State) -> dict:
     def opencv_dwell_seconds():
         if not state.opencv_enabled:
             return 0.0
+        # mute 期間（time.monotonic() < mute_until）即使 enabled 也擋偵測
+        # 2026-05-26 加：確保子例程 A 12s buffer 真實生效，避免剛走的顧客被馬上拉回
+        if time.monotonic() < state.opencv_mute_until:
+            return 0.0
         # 一次性消耗：回報後重置（避免持續觸發）
         if state.opencv_dwell >= OPENCV_DWELL:
             triggered = state.opencv_dwell
@@ -99,16 +109,21 @@ def _build_callbacks(state: _S1State) -> dict:
 
     def mute_opencv(seconds):
         # 2026-05-25 補 S1 wire-up 暗坑：原本只印訊息不改 state，導致實機接 OpenCV 時
-        # 子例程 A / L5 致謝期屏蔽全部失效。現在真實設 state 一致（無背景 timer，純設旗號）
+        # 子例程 A / L5 致謝期屏蔽全部失效。現在真實設 state 一致（無背景 timer，純設旗號）。
+        # 2026-05-26 補：除 flag 外另記 mute_until 時間戳；opencv_dwell_seconds 在
+        # mute 期間強制回 0，即使後續 opencv_enable() 把 flag 設回 True 也不會偵測，
+        # 確保 buffer 真實生效（之前 hawk 重進 enable 馬上 override flag 的 bug）。
         state.opencv_enabled = False
         state.opencv_dwell = 0.0
-        print(f"[opencv] mute {seconds}s（S1 不真實計時；state.opencv_enabled = False）")
+        state.opencv_mute_until = time.monotonic() + seconds
+        print(f"[opencv] mute {seconds}s（生效到 {seconds}s 後；期間 detection 全部回 0）")
 
     def unmute_opencv():
-        # 2026-05-25 補暗坑（同上）。注意子例程 A 方案 A 不再呼叫 unmute，
-        # 此 callback 介面留著給未來模式切換場景（例如「純叫賣 → 叫賣監測」會用到）。
+        # 2026-05-25 補暗坑。子例程 A 方案 A 不呼叫 unmute；介面留著給未來模式切換用。
+        # 2026-05-26 補：clear mute_until 同步生效（避免 unmute 後仍被時間戳擋住）。
         state.opencv_enabled = True
-        print("[opencv] unmute（state.opencv_enabled = True）")
+        state.opencv_mute_until = 0.0
+        print("[opencv] unmute（state.opencv_enabled = True, mute_until 清空）")
 
     # === 對外動作 ===
     def speak(text):
