@@ -20,6 +20,7 @@
 - 小細節不符 → 我自己直接修，省往返。
 - 大量偏差 → 退回要求重做。
 - **絕不直接把不符合規範的產出交給使用者。**
+- **驗證 commit branch（2026-05-26 加，防 Gotcha M）：** subagent 回報 commit SHA 後跑 `git branch --contains <SHA>` 確認落在 `worktree-*` branch；若顯示 `main` 表示 commit 跑錯 branch（已知偶發 bug，見 `.claude/hooks/NOTES.md` Gotcha M），改走 workaround（主 checkout 直接 `git push origin main`，跳過 ff-merge）。
 
 **自動化補充：**
 

@@ -348,6 +348,19 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 - ❌ `git status; some other thing push origin main`（跨 `;` 不匹配）
 **Gotcha K vs L 對比：** K 是 regex **太寬**（誤抓）；L 是 regex **太嚴**（漏抓）。寫 hook 的 regex 要在「精準命中目標」與「不掃到字面字串」之間平衡。建議未來新 hook 寫 regex 時，主動測 4 種 case：simple form / -C form / `&&` chain / commit message 內含字面。
 
+### M. Subagent 偶發 commit 跑到 main branch 而非 worktree branch ⚠️ 待 reproduce
+**症狀：** 主 agent EnterWorktree 後派 subagent 寫 code + commit；subagent 回報 commit SHA，但實際 worktree branch HEAD 沒動，commit 跑到主 checkout 的 main branch（reflog 顯示 `refs/heads/main@{0}: commit` + `main-worktree/HEAD@{0}: commit`，worktree-* branch 仍在派發前的 HEAD）。
+**踩到時間：** 2026-05-26 commit `288a851`（confirm-no-clear-cart 任務，sonnet subagent）。
+**已驗證不是 cwd 繼承問題：** 同日後續派 haiku diagnostic subagent 在 worktree 內跑 `pwd / git rev-parse --show-toplevel / git rev-parse --git-dir / git branch --show-current` → 全部正確（worktree path + `.git/worktrees/<name>` + `worktree-<name>` branch）。表示 Agent 工具的 cwd 繼承機制本身 OK。
+**hypotheses（未證實，下次踩到要 reproduce）：**
+1. subagent Edit/Write 用「相對路徑」時，內部 expand 成主 checkout 絕對路徑（不是 cwd）→ 改主 checkout 的檔 → git status 在主 checkout 有變 → 後續 git add/commit 命中主 checkout
+2. subagent 自己跑 `cd` 出 worktree（特定 prompt 觸發）
+3. Claude Code internal race / bug
+**workaround / 防呆：**
+- **派發後必驗：** subagent 回報 commit SHA 後，跑 `git branch --contains <SHA>` 確認落在 worktree-* branch（已加入 `subagent-dispatch-protocol.md` 派發後必做段）
+- **若 commit 跑到 main：** 直接在主 checkout `git push origin main`，跳過 worktree ff-merge（worktree branch 沒 commit 可 merge）；cleanup 流程不變（worktree branch 跟主 checkout 同 commit ancestor，可安全刪）
+- **下次 reproduce 時：** 派發 prompt 第一步要求 subagent 回報 `pwd && git branch --show-current && git rev-parse --git-dir`，跟預期值比對；若不符即停手回報主 agent
+
 ---
 
 ## 7. Cross-check 結果（subagent 推測 vs 官方）
