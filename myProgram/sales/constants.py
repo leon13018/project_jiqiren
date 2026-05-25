@@ -151,8 +151,8 @@ L3_UNCLEAR_FINAL_PROMPT: str = "系統將取消這次購物，請選擇『取消
 # L4 文字常數
 # ============================================================
 
-# L4 進入時語音模板（{total} 為總金額）
-L4_ENTRY_PROMPT_TEMPLATE: str = "您的總金額是 {total} 元，請您掃碼付款"
+# L4 進入時語音模板（{total} 為總金額；2026-05-25 加九折提示）
+L4_ENTRY_PROMPT_TEMPLATE: str = "您的總金額是 {total} 元（已享全品項九折優惠），請您掃碼付款"
 
 # L4 鏈路 A 掃碼成功語音
 L4_A_PAY_SUCCESS: str = "付款成功"

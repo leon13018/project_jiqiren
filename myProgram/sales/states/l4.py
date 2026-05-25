@@ -153,28 +153,38 @@ def run_l4(
 
 
 def _l4_print_entry_detail(cart, total: int, print_terminal) -> None:
-    """印 L4 進入時的金額明細。
+    """印 L4 進入時的金額明細（2026-05-25 加九折計算公式明示）。
 
     格式：
         ====================================
-        您的訂單：
-          商品名 ×qty = 小計 元
+        您的訂單（全品項九折優惠）：
+          商品 ×qty 單位｜原價 X × 0.9 = Y 元/單位｜小計 Y × qty = Z 元
           ...
         ------------------------------------
-        總金額：X 元
+        總金額：N 元（已含九折優惠）
         請掃碼付款（終端輸入 s + Enter 模擬掃碼成功）
         ====================================
+
+    Why 寫出 *0.9 公式：使用者要求顯示完整計算，避免被誤認為算錯。
     """
     lines = [
         "====================================",
-        "您的訂單：",
+        "您的訂單（全品項九折優惠）：",
     ]
     for product, qty in cart.items():
-        unit = PRODUCTS[product]["實際"]
-        subtotal = unit * qty
-        lines.append(f"  {product} ×{qty} = {subtotal} 元")
+        info = PRODUCTS[product]
+        original = info["原價"]
+        discount = info["折扣"]
+        unit_price = info["實際"]
+        unit_name = info["單位"]
+        subtotal = unit_price * qty
+        lines.append(
+            f"  {product} ×{qty} {unit_name}｜"
+            f"原價 {original} × {discount} = {unit_price} 元/{unit_name}｜"
+            f"小計 {unit_price} × {qty} = {subtotal} 元"
+        )
     lines.append("------------------------------------")
-    lines.append(f"總金額：{total} 元")
+    lines.append(f"總金額：{total} 元（已含九折優惠）")
     lines.append("請掃碼付款（終端輸入 s + Enter 模擬掃碼成功）")
     lines.append("====================================")
     print_terminal("\n".join(lines))
