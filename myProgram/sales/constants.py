@@ -154,7 +154,7 @@ L3_CHECKOUT_CONFIRM_TEMPLATE: str = "您即將結帳，總共 {summary}，正確
 
 # Confirm 子狀態內肯定 / 否定 keyword（2026-05-25 加）
 KEYWORDS_CONFIRM_YES: list = ["對", "是", "好", "確認", "確定", "沒錯", "yes", "ok", "correct"]
-KEYWORDS_CONFIRM_NO: list = ["不對", "錯", "改", "wrong", "不是"]
+KEYWORDS_CONFIRM_NO: list = ["不對", "錯", "改", "wrong", "不是", "沒有", "沒了", "不要", "不用"]
 
 # Confirm 子狀態的「不對」分支語音 — 重播 L3_ENTRY_PROMPT 前先安撫
 L3_CHECKOUT_CONFIRM_REJECT_VOICE: str = "好的，請告訴我您要的東西"
