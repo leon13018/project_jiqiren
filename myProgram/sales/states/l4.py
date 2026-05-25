@@ -11,6 +11,8 @@ L 系列最複雜層特性：
     - return 3-tuple (next_state, next_loop_count, next_unclear_count)
 """
 
+import time
+
 from myProgram.sales.constants import (
     PRODUCTS,
     WAIT_NO_RESPONSE,
@@ -21,6 +23,7 @@ from myProgram.sales.constants import (
     L4_B_CANCEL_THANKS,
     L4_C_OPTIONS_PROMPT,
     L4_D_FORCED_EXIT,
+    L4_D_FINAL_PROMPT,
     L4_E_CLARIFY,
     L4_E_AUTO_SERVICE,
     L4_D_VOICE_NEUTRAL,
@@ -71,12 +74,25 @@ def run_l4(
 
     # 主等待迴圈
     while True:
-        # 若 loop_count 已達 L4_MAX_LOOPS，此輪等待完直接強制退
+        # 若 loop_count 已達 L4_MAX_LOOPS，此輪 6s timeout 進「最終確認」子狀態（非直接退）
         if loop_count >= L4_MAX_LOOPS:
             response = read_customer_input(timeout=WAIT_NO_RESPONSE)
             if response is None:
-                # 強制退
-                return _l4_exit_d_forced(speak, cart)
+                # 2026-05-25 改：第 7 次 6s timeout 不再直接 forced exit，給顧客最後 6s 選 1 / 2
+                result = _l4_final_confirmation(
+                    speak=speak,
+                    print_terminal=print_terminal,
+                    read_customer_input=read_customer_input,
+                    cart=cart,
+                    total=total,
+                )
+                if result is not None:
+                    return result  # 取消 → ("L1_via_subroutine_a", 0, 0)
+                # None → 顧客選繼續 → reset counter + QR 刷新 + 回主迴圈
+                loop_count = 0
+                unclear_count = 0
+                _l4_print_entry_detail(cart, total, print_terminal)
+                continue
             # 有回應 → 仍走判定優先序
             result = _l4_dispatch_response(
                 response=response,
@@ -100,9 +116,10 @@ def run_l4(
         response = read_customer_input(timeout=WAIT_NO_RESPONSE)
 
         if response is None:
-            # 鏈路 D：loop_count++，說催促語音
+            # 鏈路 D：loop_count++，說催促語音 + QR 刷新（2026-05-25 加：每次循環都重印金額明細）
             loop_count += 1
             _l4_d_speak_loop_voice(loop_count, total, speak)
+            _l4_print_entry_detail(cart, total, print_terminal)
             continue
 
         # 有回應 → 判定優先序
@@ -190,6 +207,65 @@ def _l4_exit_d_forced(speak, cart) -> tuple:
     speak(L4_D_FORCED_EXIT)
     cart_module.clear_cart(cart)
     return ("L1_via_subroutine_a", 0, 0)
+
+
+def _l4_final_confirmation(
+    speak,
+    print_terminal,
+    read_customer_input,
+    cart,
+    total: int,
+) -> tuple | None:
+    """L4 D 達上限後的最終確認子狀態（2026-05-25 加）。
+
+    顧客已被催促 6 次仍沒回應 + 第 7 次 timeout 進此狀態。給最後 6 秒選擇：
+        - 取消訂單（"1" / 「退出」/「取消」等）→ 清 cart 回 L1
+        - 繼續當前付款（"2" / 「繼續」等）→ caller 重置 counter，回 L4 主迴圈
+        - 亂回答 → 重印 prompt，**6s 倒數不重置**（time.time() wall-clock 追蹤）
+        - 6s timeout → 視為取消（清 cart 回 L1）
+
+    Returns:
+        tuple ("L1_via_subroutine_a", 0, 0) → 取消（caller 直接 return）
+        None  → 顧客選繼續（caller 應 reset loop_count + unclear_count = 0）
+
+    S1 注意：用 time.time() wall-clock 追蹤；S4+ 上 threading 時改 worker thread + timer。
+    """
+    print_terminal(L4_D_FINAL_PROMPT)
+    speak(L4_D_FINAL_PROMPT)
+
+    start = time.time()
+
+    while True:
+        elapsed = time.time() - start
+        remaining = WAIT_NO_RESPONSE - elapsed
+        if remaining <= 0:
+            # 6s 倒數結束 → 強制取消
+            return _l4_exit_d_forced(speak, cart)
+
+        response = read_customer_input(timeout=remaining)
+
+        if response is None:
+            # explicit timeout → 取消
+            return _l4_exit_d_forced(speak, cart)
+
+        # 終端輸入 1 → 取消
+        if response == "1":
+            return _l4_exit_d_forced(speak, cart)
+
+        # 終端輸入 2 → 繼續
+        if response == "2":
+            return None
+
+        # 語音意圖（用 l4_service mode，已含繼續 / 退出 keyword 處理 + no/nope → 退出）
+        intent = classify_intent(response, "l4_service")
+        if intent == "退出交易":
+            return _l4_exit_d_forced(speak, cart)
+        if intent == "繼續交易":
+            return None
+
+        # 亂回答 → 重印 prompt（6s 倒數不重置，下一輪 elapsed 會繼續累積）
+        print_terminal(L4_D_FINAL_PROMPT)
+        speak(L4_D_FINAL_PROMPT)
 
 
 def _l4_service_mode(

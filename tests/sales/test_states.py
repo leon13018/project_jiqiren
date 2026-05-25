@@ -43,6 +43,7 @@ from myProgram.sales.constants import (
     L4_B_CANCEL_THANKS,
     L4_C_OPTIONS_PROMPT,
     L4_D_FORCED_EXIT,
+    L4_D_FINAL_PROMPT,
     L4_E_CLARIFY,
     L4_E_AUTO_SERVICE,
     QTY_PROMPT_TEMPLATE,
@@ -2510,7 +2511,8 @@ def test_l4_d_sixth_timeout_forces_exit_clears_cart() -> None:
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # loop_count=6（第 6 次 D 已播語音），再 None → 強制退
+    # 2026-05-25 改：loop_count=6 + 第 7 次 None → 進「最終確認」子狀態 →
+    # final 內 read 又 None（seq 空 → FakeCustomerInput 回 None）→ 強制取消（行為等同舊版）
     customer_input = FakeCustomerInput([None])
 
     # Act
@@ -2838,4 +2840,97 @@ def test_l5_a_returns_to_l1_via_subroutine_a_after_thank_delay() -> None:
     )
     assert sleep_calls[0] == THANK_DELAY, (
         f"sleep 應等待 THANK_DELAY={THANK_DELAY} 秒，實際：{sleep_calls[0]}"
+    )
+
+
+# ============================================================
+# L4-D-FINAL-001 ~ 004（2026-05-25 加：D 達上限後最終確認子狀態）
+# ============================================================
+
+def test_l4_d_final_confirmation_terminal_1_cancels() -> None:
+    """D MAX 後 timeout → 進 final → 終端輸入 1 → 取消 + 清 cart + 回 L1。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # loop_count=6 + 1 None → 進 final → "1" → 取消
+    customer_input = FakeCustomerInput([None, "1"])
+
+    next_state, _, _ = states.run_l4(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        loop_count=L4_MAX_LOOPS,
+    )
+
+    assert next_state == "L1_via_subroutine_a"
+    assert cart_module.is_empty(cart)
+    assert L4_D_FINAL_PROMPT in speak_calls, "應 speak final 提示"
+    assert L4_D_FORCED_EXIT in speak_calls, "1 → 取消 → speak 強制退語音"
+
+
+def test_l4_d_final_confirmation_terminal_2_continues_then_scans() -> None:
+    """D MAX 後 timeout → 進 final → 終端輸入 2 → 繼續 → reset counter → 再 s → L5 + cart 保留。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # loop_count=6 + None → final → "2" 繼續 → reset → 主迴圈 → "s" → 掃碼 L5
+    customer_input = FakeCustomerInput([None, "2", "s"])
+
+    next_state, next_loop, next_unclear = states.run_l4(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        loop_count=L4_MAX_LOOPS,
+    )
+
+    assert next_state == "L5", "繼續後 s 掃碼應到 L5"
+    assert not cart_module.is_empty(cart), "繼續後 cart 應保留"
+
+
+def test_l4_d_final_confirmation_keyword_continue_then_scans() -> None:
+    """D MAX 後 final → 語音「繼續」keyword → 繼續 → s → L5。"""
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    customer_input = FakeCustomerInput([None, "繼續", "s"])
+
+    next_state, _, _ = states.run_l4(
+        speak=lambda text: None,
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        loop_count=L4_MAX_LOOPS,
+    )
+
+    assert next_state == "L5"
+    assert not cart_module.is_empty(cart)
+
+
+def test_l4_d_final_confirmation_gibberish_then_timeout_cancels() -> None:
+    """D MAX 後 final → 顧客亂講話 → 重印 prompt → 下次 read 又 None → 取消。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # loop_count=6 + None → final → "亂講" 不命中 → 重印 → None → 取消
+    customer_input = FakeCustomerInput([None, "亂講", None])
+
+    next_state, _, _ = states.run_l4(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        loop_count=L4_MAX_LOOPS,
+    )
+
+    assert next_state == "L1_via_subroutine_a"
+    assert cart_module.is_empty(cart)
+    # final prompt 應被 speak ≥ 2 次（第一次入 final + 亂講後重印）
+    final_prompt_count = speak_calls.count(L4_D_FINAL_PROMPT)
+    assert final_prompt_count >= 2, (
+        f"亂講後應重印 final prompt（總共至少 2 次），實際：{final_prompt_count}"
     )
