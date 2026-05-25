@@ -188,6 +188,17 @@ def test_nlu_english_no_nope_in_l4_service_mode_classified_as_exit() -> None:
     assert nlu.classify_intent("nope", "l4_service") == "退出交易"
 
 
+def test_nlu_bu_le_classified_per_layer() -> None:
+    """「不了」layer-aware（2026-05-25 加：使用者實測 L3 講「不了」未識別 → 加進 REJECT）：
+    - L2 mode：「不了」→ 拒絕（短詞 reject 觸發 L2-A 退 L1）
+    - L4 mode：「不了」→ 拒絕（觸發 L4-B 取消交易）
+    - L3 normal mode：「不了」→ 結帳（layer-aware override，同「不用」/「不買」）
+    """
+    assert nlu.classify_intent("不了", "l2") == "拒絕"
+    assert nlu.classify_intent("不了", "l4") == "拒絕"
+    assert nlu.classify_intent("不了") == "結帳"  # L3 normal mode
+
+
 # ============================================================
 # L0-NLU-011
 # ============================================================
