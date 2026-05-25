@@ -13,6 +13,7 @@ NLU dispatch 特性：
 import time
 
 from myProgram.sales.constants import (
+    PRODUCTS,
     WAIT_NO_RESPONSE,
     AUTO_CHECKOUT_NOTICE,
     SERVICE_PHONE,
@@ -23,10 +24,14 @@ from myProgram.sales.constants import (
     L3_REASK,
     L3_C1_CHECKOUT_GO,
     L3_UNCLEAR_FINAL_PROMPT,
+    L3_CHECKOUT_CONFIRM_TEMPLATE,
+    L3_CHECKOUT_CONFIRM_REJECT_VOICE,
+    KEYWORDS_CONFIRM_YES,
+    KEYWORDS_CONFIRM_NO,
 )
-from myProgram.sales.nlu import classify_intent
+from myProgram.sales.nlu import classify_intent, parse_products
 from myProgram.sales import cart as cart_module
-from myProgram.sales.states._product_helpers import resolve_and_add_product
+from myProgram.sales.states._product_helpers import resolve_and_add_products
 
 
 def run_l3(
@@ -74,6 +79,73 @@ def _l3_exit_a(speak, cart) -> tuple:
     speak(L3_REJECT_THANKS)
     cart_module.clear_cart(cart)
     return ("L1_via_subroutine_a", 0)
+
+
+def _l3_build_order_summary(cart) -> str:
+    """組「6 瓶冰紅茶、1 張刮刮樂」格式字串（給 checkout confirm 語音用）。"""
+    parts = []
+    for product, qty in cart.items():
+        unit = PRODUCTS[product]["單位"]
+        parts.append(f"{qty} {unit}{product}")
+    return "、".join(parts)
+
+
+def _l3_checkout_confirm(
+    speak,
+    print_terminal,
+    read_customer_input,
+    cart,
+) -> bool:
+    """L3 鏈路 C-1（顧客明確說結帳）進 L4 前的確認子狀態（2026-05-25 加，B 方案）。
+
+    Why：多商品點單 + 重複 utterance 累加可能造成誤增；進結帳前 confirm 一次給機會修正。
+    （C-2 自動結帳第一段已有「請問是否要結帳？10s 後將結帳」性質的 confirm，所以不重複加）
+
+    流程：
+        1. 印明細 + speak「您即將結帳，總共 X，金額 Y 元，正確嗎？」
+        2. 6s wall-clock 等顧客回應
+        3. 對 / 1 / KEYWORDS_CONFIRM_YES / timeout → True（進 L4）
+        4. 不對 / 2 / KEYWORDS_CONFIRM_NO → False（caller speak 安撫 + 回 L3 主等待）
+        5. 亂回答 → 重印 prompt（6s 倒數不重置）
+
+    Returns:
+        True: 顧客確認 → caller 應 speak L3_C1_CHECKOUT_GO 並 return ("L4", 0)
+        False: 顧客否認 → caller 應 speak reject_voice + L3_ENTRY_PROMPT 回主等待
+    """
+    total = cart_module.calc_total(cart)
+    summary = _l3_build_order_summary(cart)
+    prompt = L3_CHECKOUT_CONFIRM_TEMPLATE.format(summary=summary, total=total)
+
+    print_terminal(prompt)
+    speak(prompt)
+
+    start = time.time()
+
+    while True:
+        elapsed = time.time() - start
+        remaining = WAIT_NO_RESPONSE - elapsed
+        if remaining <= 0:
+            return True  # timeout = 視為確認（顧客已主動說結帳，沒拒絕就過）
+
+        response = read_customer_input(timeout=remaining)
+
+        if response is None:
+            return True
+
+        if response == "1":
+            return True
+        if response == "2":
+            return False
+
+        # 否定優先（避免「不對」被「對」substring 假命中）
+        if any(kw in response for kw in KEYWORDS_CONFIRM_NO):
+            return False
+        if any(kw in response for kw in KEYWORDS_CONFIRM_YES):
+            return True
+
+        # 亂回答 → 重印 prompt（6s 倒數不重置）
+        print_terminal(prompt)
+        speak(prompt)
 
 
 def _l3_final_confirmation(
@@ -276,22 +348,32 @@ def _l3_dispatch_response(
             think_count=think_count,
         )
 
-    # 優先序 4：結帳意圖 → 鏈路 C-1
+    # 優先序 4：結帳意圖 → 鏈路 C-1（B 方案 2026-05-25：進 L4 前先 confirm）
     if intent == "結帳":
-        speak(L3_C1_CHECKOUT_GO)
-        return ("L4", 0)
+        confirmed = _l3_checkout_confirm(
+            speak=speak,
+            print_terminal=print_terminal,
+            read_customer_input=read_customer_input,
+            cart=cart,
+        )
+        if confirmed:
+            speak(L3_C1_CHECKOUT_GO)
+            return ("L4", 0)
+        # 顧客說不對 → 重播 L3 進入語音 + 回主等待繼續加單（cart 保留）
+        speak(L3_CHECKOUT_CONFIRM_REJECT_VOICE)
+        speak(L3_ENTRY_PROMPT)
+        return None
 
     # 優先序 5：客服 → 鏈路 B-2
     if intent == "客服":
         print_terminal(SERVICE_PHONE)
         return None  # 回主等待
 
-    # 優先序 6：商品 → 鏈路 B-3（無數量自動追問；追問內 客服/拒絕/亂說 各自分流）
-    if intent in ("商品:冰紅茶", "商品:刮刮樂"):
-        # added True/False 兩條都 speak L3_REASK + 回主等待（user 要求：取消後一樣 re-prompt）
-        resolve_and_add_product(
-            intent=intent,
-            response=response,
+    # 優先序 6：商品 → 鏈路 B-3（B 方案：多商品 + 各自缺數量追問）
+    products = parse_products(response)
+    if products:
+        resolve_and_add_products(
+            products=products,
             cart=cart,
             speak=speak,
             print_terminal=print_terminal,

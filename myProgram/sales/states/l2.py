@@ -18,8 +18,8 @@ from myProgram.sales.constants import (
     L2_C_ADDED,
     L2_UNCLEAR_REJECT_VOICE,
 )
-from myProgram.sales.nlu import classify_intent
-from myProgram.sales.states._product_helpers import resolve_and_add_product
+from myProgram.sales.nlu import classify_intent, parse_products
+from myProgram.sales.states._product_helpers import resolve_and_add_products
 
 
 def run_l2(
@@ -98,12 +98,12 @@ def run_l2(
             print_terminal(SERVICE_PHONE)
             continue  # 自動回 L2 循環
 
-        # 優先序 5：商品 → C（無數量自動追問；追問內 客服/拒絕/亂說 各自分流）
-        if intent in ("商品:冰紅茶", "商品:刮刮樂"):
+        # 優先序 5：商品 → C（B 方案 2026-05-25：多商品 parser；無數量者進追問 sub-loop）
+        products = parse_products(response)
+        if products:
             unclear_count = 0
-            added = resolve_and_add_product(
-                intent=intent,
-                response=response,
+            added = resolve_and_add_products(
+                products=products,
                 cart=cart,
                 speak=speak,
                 print_terminal=print_terminal,
@@ -113,7 +113,7 @@ def run_l2(
             if added:
                 speak(L2_C_ADDED)
                 return ("L3", 0)
-            # 顧客在追問內取消 → re-prompt L2，繼續主迴圈等下一個商品意圖
+            # 全部商品都在追問內取消 → re-prompt L2，繼續主迴圈
             speak(L2_B3_REASK)
             continue
 
@@ -212,10 +212,10 @@ def _l2_dispatch_response(
         print_terminal(SERVICE_PHONE)
         return None  # 回主等待
 
-    if intent in ("商品:冰紅茶", "商品:刮刮樂"):
-        added = resolve_and_add_product(
-            intent=intent,
-            response=response,
+    products = parse_products(response)
+    if products:
+        added = resolve_and_add_products(
+            products=products,
             cart=cart,
             speak=speak,
             print_terminal=print_terminal,
@@ -225,7 +225,6 @@ def _l2_dispatch_response(
         if added:
             speak(L2_C_ADDED)
             return ("L3", 0)
-        # 顧客在追問內取消 → re-prompt L2 + 回主等待
         speak(L2_B3_REASK)
         return None
 

@@ -46,6 +46,8 @@ from myProgram.sales.constants import (
     L4_D_FINAL_PROMPT,
     L2_UNCLEAR_REJECT_VOICE,
     L3_UNCLEAR_FINAL_PROMPT,
+    L3_CHECKOUT_CONFIRM_TEMPLATE,
+    L3_CHECKOUT_CONFIRM_REJECT_VOICE,
     UNCLEAR_MAX,
     L4_E_CLARIFY,
     L4_E_AUTO_SERVICE,
@@ -1275,8 +1277,9 @@ def test_l2_c_iced_tea_no_quantity_asks_then_uses_followup() -> None:
     assert cart_module.get_quantity(cart, "冰紅茶") == 2, (
         f"「我要紅茶」+ 追問「兩瓶」應加 2 杯冰紅茶，實際：{cart}"
     )
-    assert QTY_PROMPT_TEMPLATE.format(unit="瓶") in speak_calls, (
-        f"應 speak QTY_PROMPT_TEMPLATE 追問語音，實際：{speak_calls}"
+    # 2026-05-25 multi-product helper 用明示語音「請問冰紅茶要幾瓶？」
+    assert any("冰紅茶" in s and "瓶" in s for s in speak_calls), (
+        f"應 speak 追問「請問冰紅茶要幾瓶？」風格語音，實際：{speak_calls}"
     )
     assert L2_C_ADDED in speak_calls
 
@@ -1742,12 +1745,14 @@ def test_l3_b3_product_no_quantity_asks_then_uses_followup() -> None:
         think_count=0,
     )
 
+    # L3 C-1 從 None timeout → C-2 第二段 → L4（C-2 不 confirm）
     assert next_state == "L4"
     assert cart_module.get_quantity(cart, "刮刮樂") == 10, (
         f"「我要刮刮樂」+ 追問「10張」應加 10 張刮刮樂，實際：{cart}"
     )
-    assert QTY_PROMPT_TEMPLATE.format(unit="張") in speak_calls, (
-        f"應 speak QTY_PROMPT_TEMPLATE 追問語音，實際：{speak_calls}"
+    # 2026-05-25 multi-product helper 用明示語音「請問刮刮樂要幾張？」（多商品場景需明示）
+    assert any("刮刮樂" in s and "張" in s for s in speak_calls), (
+        f"應 speak 追問「請問刮刮樂要幾張？」風格語音，實際：{speak_calls}"
     )
 
 
@@ -3180,3 +3185,202 @@ def test_l4_d_final_confirmation_gibberish_then_timeout_cancels() -> None:
     assert final_prompt_count >= 2, (
         f"亂講後應重印 final prompt（總共至少 2 次），實際：{final_prompt_count}"
     )
+
+
+# ============================================================
+# L2-C-MULTI-001 ~ 003（2026-05-25 加，B 方案 multi-product）
+# ============================================================
+
+def test_l2_multi_product_with_quantities_all_added_then_l3() -> None:
+    """L2 一次點兩商品 + 各自帶數量 → 兩個都加 → 進 L3。"""
+    cart = cart_module.new_cart()
+    customer_input = FakeCustomerInput(["紅茶 1 刮刮樂 2"])
+
+    next_state, _ = states.run_l2(
+        speak=lambda text: None,
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    assert next_state == "L3"
+    assert cart_module.get_quantity(cart, "冰紅茶") == 1
+    assert cart_module.get_quantity(cart, "刮刮樂") == 2
+
+
+def test_l2_multi_product_one_missing_qty_asks_only_for_that_one() -> None:
+    """L2 一次點兩商品但其中一個沒給數量 → 只追問該商品。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 紅茶 1, 刮刮樂 (沒數量) → 追問刮刮樂 → 「3」
+    customer_input = FakeCustomerInput(["紅茶 1 刮刮樂", "3"])
+
+    next_state, _ = states.run_l2(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    assert next_state == "L3"
+    assert cart_module.get_quantity(cart, "冰紅茶") == 1
+    assert cart_module.get_quantity(cart, "刮刮樂") == 3
+    # 應有追問刮刮樂的語音（不應追問紅茶 — 紅茶已有數量）
+    assert any("刮刮樂" in s and "張" in s for s in speak_calls)
+    assert not any("紅茶" in s and "瓶" in s and "請問" in s for s in speak_calls)
+
+
+def test_l2_duplicate_product_accumulates() -> None:
+    """L2 重複講同商品 → cart 累加（不取覆蓋、不視為誤說）。"""
+    cart = cart_module.new_cart()
+    customer_input = FakeCustomerInput(["紅茶 2 紅茶 3"])
+
+    next_state, _ = states.run_l2(
+        speak=lambda text: None,
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    assert next_state == "L3"
+    # 2 + 3 = 5（累加，不是覆蓋）
+    assert cart_module.get_quantity(cart, "冰紅茶") == 5
+
+
+# ============================================================
+# L3-CONFIRM-001 ~ 006（2026-05-25 加，B 方案 checkout confirm）
+# ============================================================
+
+def test_l3_checkout_confirm_yes_keyword_proceeds_to_l4() -> None:
+    """L3 結帳意圖 → 顧客確認「對」→ 進 L4。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    customer_input = FakeCustomerInput(["結帳", "對"])
+
+    next_state, _ = states.run_l3(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    assert next_state == "L4"
+    assert L3_C1_CHECKOUT_GO in speak_calls
+
+
+def test_l3_checkout_confirm_terminal_1_proceeds_to_l4() -> None:
+    """L3 結帳意圖 → 終端 1 確認 → 進 L4。"""
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    customer_input = FakeCustomerInput(["結帳", "1"])
+
+    next_state, _ = states.run_l3(
+        speak=lambda text: None,
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    assert next_state == "L4"
+
+
+def test_l3_checkout_confirm_no_returns_to_l3_main_loop() -> None:
+    """L3 結帳 → 顧客說「不對」→ 不進 L4，回 L3 重新加單（cart 保留）。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # 結帳 → 不對 → 後續 None None → C-2 自動結帳 → L4
+    customer_input = FakeCustomerInput(["結帳", "不對", None, None])
+
+    next_state, _ = states.run_l3(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    # 重 confirm 後最終透過 C-2 自動進 L4
+    assert next_state == "L4"
+    # 確認被拒絕後有 speak reject 語音
+    assert L3_CHECKOUT_CONFIRM_REJECT_VOICE in speak_calls
+    # cart 仍保留
+    assert cart_module.get_quantity(cart, "冰紅茶") == 1
+
+
+def test_l3_checkout_confirm_terminal_2_returns_to_l3() -> None:
+    """L3 結帳 → 終端 2 否認 → 不進 L4。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    customer_input = FakeCustomerInput(["結帳", "2", None, None])
+
+    next_state, _ = states.run_l3(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    assert L3_CHECKOUT_CONFIRM_REJECT_VOICE in speak_calls
+
+
+def test_l3_checkout_confirm_timeout_proceeds_to_l4() -> None:
+    """L3 結帳 → 顧客 6s 無回應 → 視為確認 → 進 L4（既然主動說了結帳，沒拒絕就過）。"""
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    customer_input = FakeCustomerInput(["結帳", None])
+
+    next_state, _ = states.run_l3(
+        speak=lambda text: None,
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    assert next_state == "L4"
+
+
+def test_l3_checkout_confirm_summary_shows_all_products() -> None:
+    """confirm prompt 應列出 cart 內所有商品與數量。"""
+    terminal_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 3)
+    cart_module.add_item(cart, "刮刮樂", 2)
+    customer_input = FakeCustomerInput(["結帳", "1"])
+
+    states.run_l3(
+        speak=lambda text: None,
+        do_action=lambda name: None,
+        print_terminal=lambda text: terminal_calls.append(text),
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    confirm_prints = [t for t in terminal_calls if "正確嗎" in t]
+    assert len(confirm_prints) >= 1
+    full = " ".join(confirm_prints)
+    # 應同時包含兩商品 + 數量 + 總金額
+    assert "冰紅茶" in full
+    assert "刮刮樂" in full
+    assert "3" in full
+    assert "2" in full
+    # 總金額 = 27*3 + 180*2 = 441
+    assert "441" in full

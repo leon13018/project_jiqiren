@@ -147,6 +147,18 @@ L3_C1_CHECKOUT_GO: str = "好的，為您結帳"
 # L3 階段已有 cart，達上限進子狀態給機會比直接清 cart 退更好
 L3_UNCLEAR_FINAL_PROMPT: str = "系統將取消這次購物，請選擇『取消訂單』或『繼續加單』（語音說或終端輸入 1=取消 / 2=繼續 皆可）"
 
+# L3 鏈路 C-1（顧客明確說結帳）進 L4 前的訂單確認語音模板（2026-05-25 加，B 方案）
+# {summary} 範例「6 瓶冰紅茶、1 張刮刮樂」/ {total} 例 522
+# 為防多商品點單 + 重複 utterance 累加造成誤增，進結帳前再 confirm 一次給顧客機會修正
+L3_CHECKOUT_CONFIRM_TEMPLATE: str = "您即將結帳，總共 {summary}，金額 {total} 元，正確嗎？（語音說『對』/『不對』，或終端輸入 1=對 / 2=不對）"
+
+# Confirm 子狀態內肯定 / 否定 keyword（2026-05-25 加）
+KEYWORDS_CONFIRM_YES: list = ["對", "是", "好", "確認", "確定", "沒錯", "yes", "ok", "correct"]
+KEYWORDS_CONFIRM_NO: list = ["不對", "錯", "改", "wrong", "不是"]
+
+# Confirm 子狀態的「不對」分支語音 — 重播 L3_ENTRY_PROMPT 前先安撫
+L3_CHECKOUT_CONFIRM_REJECT_VOICE: str = "好的，請告訴我您要的東西"
+
 # ============================================================
 # L4 文字常數
 # ============================================================

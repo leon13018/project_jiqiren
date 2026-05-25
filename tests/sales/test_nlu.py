@@ -431,3 +431,65 @@ def test_nlu_classify_intent_ignores_chinese_measure_word_variants() -> None:
     assert nlu.classify_intent("紅茶10北") == "商品:冰紅茶"
     assert nlu.classify_intent("紅茶10罐") == "商品:冰紅茶"
     assert nlu.classify_intent("刮刮樂100") == "商品:刮刮樂"
+
+
+# ============================================================
+# L0-NLU-PARSE-PRODUCTS-001 ~ 008（2026-05-25 加，B 方案 multi-product）
+# ============================================================
+
+def test_parse_products_empty_input_returns_empty_list() -> None:
+    assert nlu.parse_products("") == []
+    assert nlu.parse_products("今天天氣很好") == []
+
+
+def test_parse_products_single_with_quantity() -> None:
+    result = nlu.parse_products("冰紅茶 2")
+    assert result == [("冰紅茶", 2)]
+
+
+def test_parse_products_single_without_quantity_returns_none_qty() -> None:
+    """單商品無數量 → qty 為 None（caller 進追問），不預設 1。"""
+    result = nlu.parse_products("我要紅茶")
+    assert result == [("冰紅茶", None)]
+
+
+def test_parse_products_two_products_with_quantities() -> None:
+    """多商品 + 各自數量黏住對應商品（sticky-right）。"""
+    result = nlu.parse_products("紅茶 1 刮刮樂 2")
+    assert result == [("冰紅茶", 1), ("刮刮樂", 2)]
+
+
+def test_parse_products_two_products_first_has_qty_second_missing() -> None:
+    """多商品 + 第一個有數量第二個沒 → 第一個用該數量，第二個 qty=None。"""
+    result = nlu.parse_products("紅茶 1 刮刮樂")
+    assert result == [("冰紅茶", 1), ("刮刮樂", None)]
+
+
+def test_parse_products_two_products_both_missing_qty() -> None:
+    """多商品但都沒給數量 → 兩個 qty 都 None。"""
+    result = nlu.parse_products("紅茶 刮刮樂")
+    assert result == [("冰紅茶", None), ("刮刮樂", None)]
+
+
+def test_parse_products_duplicate_product_returns_separate_entries() -> None:
+    """重複商品保留為獨立 entry（caller 累加）。"""
+    result = nlu.parse_products("冰紅茶 2 冰紅茶 3")
+    assert result == [("冰紅茶", 2), ("冰紅茶", 3)]
+
+
+def test_parse_products_with_filler_words_extracts_correctly() -> None:
+    """含 filler 詞「想要」「跟」「謝謝」不影響解析。"""
+    result = nlu.parse_products("想要紅茶 2 跟刮刮樂 1 謝謝")
+    assert result == [("冰紅茶", 2), ("刮刮樂", 1)]
+
+
+def test_parse_products_long_keyword_not_double_counted_by_short() -> None:
+    """「冰紅茶」涵蓋「紅茶」，不應被短詞二度匹配（去重）。"""
+    result = nlu.parse_products("冰紅茶 3")
+    assert result == [("冰紅茶", 3)]
+
+
+def test_parse_products_chinese_quantity() -> None:
+    """中文數字也能解析。"""
+    result = nlu.parse_products("紅茶兩瓶")
+    assert result == [("冰紅茶", 2)]
