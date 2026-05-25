@@ -195,7 +195,7 @@ git add tests/spec/L?_*_scenarios.py \             # 本輪新增 BDD spec（若
 4. **必跑：條件性步驟 3a / 3b**
    - 3a（pineedtodo）：通常本流程不觸發（Windows 跑測試，無 Pi 操作）
    - 3b（projectStructure）：若本輪建了新 `tests/spec/` 或 `tests/sales/` 檔，必須觸發
-5. ExitWorktree keep → ff-merge → push → sync_pi → cleanup
+5. ExitWorktree keep → ff-merge → push（hook 自動 sync）→ cleanup
 
 ---
 
@@ -269,9 +269,9 @@ tests/                              # 專案根目錄
 
 **順序：** L0 → L1 → L2 → L3 → L4 → L5（依規格書依賴關係）
 
-**每層走完完整 4 階段 + push + sync_pi 才開下一層。** 跨層合併 = race window 太大 / 違反 incremental-rebuild「每步只一變數」原則。
+**每層走完完整 4 階段 + push（hook 自動 sync）才開下一層。** 跨層合併 = race window 太大 / 違反 incremental-rebuild「每步只一變數」原則。
 
-**L 層內可分多輪？** 可，若 scenarios 過多（>15）可分成多次 subagent 派發，但每次仍走完整 Red-Green-Refactor + commit + push + sync。
+**L 層內可分多輪？** 可，若 scenarios 過多（>15）可分成多次 subagent 派發，但每次仍走完整 Red-Green-Refactor + commit + push。
 
 ---
 

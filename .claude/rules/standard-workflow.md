@@ -11,13 +11,14 @@
 - 變更全在 ignored 路徑（`resources/presentation/` / `resources/userPrompt/` / `sync_pi.ps1` / `.claude/settings.local.json` / `.claude/worktrees/`）→ `git status` 看不到任何 diff
 - 沒有任何檔案改動
 
-**觸發時依序執行（5 步）：**
+**觸發時依序執行（4 步 + hook 自動 sync）：**
 1. `git status` + `git diff` 確認變更範圍
 1a. **（條件性）撰寫 Pi 端操作說明書**：若本輪變更涉及 Pi 端動作（見 `.claude/rules/pi-side-trigger.md`），主 agent **新增一個檔**到 `resources/pineedtodo/<檔名>.md`（**append-only：既有檔不動**），納入下一步的 `git add`。不觸發直接跳過。
 1b. **（條件性）更新 projectStructure.md**：若本輪變更改動到專案資料結構（見 `.claude/rules/projectstructure-trigger.md`），主 agent 編輯 `resources/projectStructure/projectStructure.md`（目錄樹 + 職責表 + 更新紀錄），納入下一步的 `git add`。不觸發直接跳過。
-2. `git add <具體檔名>`（不用 `-A` / `.`）
+2. `git add <具體檔名>`（不用 `-A` / `.` — PreToolUse hook 會擋）
 3. `git commit -m "..."` 英文簡短訊息，附 `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>`
-4. `git push origin main`
-5. **`& "C:\Users\LIN HONG\Desktop\Project_01\sync_pi.ps1"`** — SSH 自動 pull 到 Pi（退出碼 0 = 完成）
+4. `git push origin main` — **PostToolUse hook 會自動跑 `sync_pi.ps1`**（async + 120s timeout）；主 agent 不需手動跑
+
+> 🪝 自動化說明：步驟 5（原 sync_pi.ps1）已被 `.claude/hooks/auto-sync-pi.ps1` 取代。失敗 / 重跑見 `.claude/hooks/NOTES.md`。
 
 詳細補充準則 / 歷史 bug 教訓 → memory `standard-workflow`

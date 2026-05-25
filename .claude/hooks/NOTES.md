@@ -31,6 +31,7 @@
 | `state-clear-on-pytest.ps1` | PostToolUse | Bash | pytest 跑過清 flag | 低 |
 | `stop-check-sales-pytest.ps1` | Stop | (無 matcher) | 結束 turn 前若 flag pending → block 一次 | 中（block 體驗略生硬）|
 | `session-start-context.ps1` | SessionStart | (無 matcher, 全 source) | 注入 branch/status/test count 到 Claude context | 低 |
+| `subagent-inject-rules.ps1` | SubagentStart | (無 matcher) | 自動注入標準規範到 subagent context，依 agent_type 分流（編碼類完整 / 研究類精簡）| 低 |
 
 **對應 settings.json 結構：**
 ```
@@ -44,6 +45,8 @@ Stop:
   → stop-check-sales-pytest
 SessionStart:
   → session-start-context
+SubagentStart:
+  → subagent-inject-rules
 ```
 
 ---
@@ -333,11 +336,11 @@ $utf8Bom = New-Object System.Text.UTF8Encoding $true
 
 ## 8. 未實作但有用的官方功能（future ideas）
 
-### A. `SubagentStart` hook
-- 派 subagent 時 fire
-- 可 `additionalContext` 注入 — 等同 SessionStart 但是 subagent 用
-- **用途：** 把 CLAUDE.md 重點 / 當前 git 狀態自動塞給 subagent，省得在 prompt 內手動塞
-- **TODO 評估：** 跟現在「subagent 派發前手動塞 4 個規則」流程比，是否更乾淨？
+### ~~A. `SubagentStart` hook~~ ✅ **已實作（2026-05-25 同日）**
+原 future idea，**現已上線：** `subagent-inject-rules.ps1`
+- 依 agent_type 分流：編碼類（general-purpose）注入完整規範；研究類（claude-code-guide / Explore / Plan / statusline-setup）注入精簡版
+- 取代 subagent-dispatch-protocol 步驟 2-3 的手動塞規則 boilerplate
+- 主 agent 派發 prompt 只需寫 task description + 任務特化規則
 
 ### B. `watchPaths` + `FileChanged` event
 - SessionStart hook 可 return `watchPaths: ["abs/path/..."]`

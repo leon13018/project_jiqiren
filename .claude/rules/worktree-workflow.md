@@ -12,8 +12,7 @@
 4. **收尾（合規後）**：
    - `ExitWorktree(action="keep")` → 切回主 checkout
    - `git merge worktree-<task-name> --ff-only`
-   - `git push origin main`
-   - `& "C:\Users\LIN HONG\Desktop\Project_01\sync_pi.ps1"`
+   - `git push origin main` → **PostToolUse hook 自動跑 sync_pi.ps1**（無需手動）
 5. **清理（push + sync 成功後立即執行）**：
    - `git worktree remove .claude/worktrees/<task-name>`
    - `git branch -d worktree-<task-name>`
