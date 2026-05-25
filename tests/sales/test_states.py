@@ -404,6 +404,42 @@ def test_l1_b_standby_opencv_disabled() -> None:
 #      （不套用 L0 子例程 A 的 OPENCV_MUTE 緩衝）
 # ============================================================
 
+def test_l1_enter_hawk_immediately_skips_mode_menu() -> None:
+    """2026-05-26 加：enter_hawk_immediately=True 跳過主選單直接進 hawk。
+
+    用途：logic.py 在 subroutine_a 後（dialog reject / L4 cancel / L5 完成）
+    設此 flag → 連續叫賣，不顯示「請選擇模式：1/2/3」主選單。
+    """
+    printed: list = []
+    speak_calls: list = []
+    opencv = FakeOpencv(dwell_value=0.0)
+    scheduler = FakeScheduler()
+    # OpenCV dwell 一直 0.0 不觸發 L2；按 q 退出
+    kbd = FakeKeyboardInput(["q"])
+
+    states.run_l1(
+        print_terminal=lambda text: printed.append(text),
+        read_terminal_key=kbd.read,
+        opencv_dwell_seconds=opencv.dwell_seconds,
+        opencv_disable=opencv.disable,
+        opencv_enable=opencv.enable,
+        speak=lambda text: speak_calls.append(text),
+        exit_program=lambda: None,
+        schedule=scheduler.schedule,
+        enter_hawk_immediately=True,
+    )
+
+    all_output = "\n".join(printed)
+    # 不應印主選單 banner（沒有「請選擇模式」標題）
+    assert "請選擇模式" not in all_output, (
+        f"enter_hawk_immediately=True 不應顯示主選單，實際印出：{printed}"
+    )
+    # 應印 hawk 進入提示
+    assert "叫賣" in all_output, "應印叫賣模式進入提示"
+    # 應立即 speak HAWK_SLOGANS[0]
+    assert speak_calls and speak_calls[0] == HAWK_SLOGANS[0]
+
+
 def test_l1_c_hawk_mode_starts_immediately_without_mute_buffer() -> None:
     # Arrange
     printed: list = []

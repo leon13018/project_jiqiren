@@ -42,8 +42,16 @@ def run(
     schedule,
     exit_program,
 ) -> None:
-    """S1 v2 主迴圈：L1 → dialog → L4 → L5 → 子例程 A → L1 cycle。"""
+    """S1 v2 主迴圈：L1 → dialog → L4 → L5 → 子例程 A → L1 cycle。
+
+    L1 入口流程：
+    - 首次進 L1：顯示主選單，商家選 1/2/3
+    - subroutine_a 後續 L1：跳過主選單直接進 hawk（連續叫賣，2026-05-26 加）
+      涵蓋 4 個出口：dialog reject / dialog timeout / L4 cancel / L5 完成
+    """
     cart = cart_module.new_cart()
+    # 2026-05-26 加：subroutine_a 後續 L1 跳過主選單直接 hawk；首次進 L1 走主選單
+    enter_hawk_immediately = False
 
     while True:
         # === L1 ===
@@ -57,7 +65,9 @@ def run(
             speak=speak,
             exit_program=exit_program,
             schedule=schedule,
+            enter_hawk_immediately=enter_hawk_immediately,
         )
+        enter_hawk_immediately = False  # 消費後 reset；下次需重設才會跳選單
         if result is None:
             return
         # result == "L2" — 進 dialog 層
@@ -76,6 +86,7 @@ def run(
         if next_state == "L1_via_subroutine_a":
             _assert_cart_empty(cart, "dialog 退出後（dialog A 已視情況清 cart）")
             _invoke_subroutine_a(mute_opencv)
+            enter_hawk_immediately = True
             continue
         # next_state == "L4"
 
@@ -94,6 +105,7 @@ def run(
         if next_state == "L1_via_subroutine_a":
             _assert_cart_empty(cart, "L4 非掃碼退出後（L4-B/C/D 已清 cart）")
             _invoke_subroutine_a(mute_opencv)
+            enter_hawk_immediately = True
             continue
         # next_state == "L5"
 
@@ -108,6 +120,7 @@ def run(
         )
         _assert_cart_empty(cart, "L5 退出後（L5 應已清 cart）")
         _invoke_subroutine_a(mute_opencv)
+        enter_hawk_immediately = True
 
 
 def _invoke_subroutine_a(mute_opencv) -> None:

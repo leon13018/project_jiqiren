@@ -27,6 +27,7 @@ def run_l1(
     speak,
     exit_program,
     schedule,
+    enter_hawk_immediately: bool = False,
 ):
     """L1 主迴圈：商家模式選擇層。
 
@@ -42,11 +43,30 @@ def run_l1(
         speak: callback(text: str) -> None — 播語音（叫賣用）
         exit_program: callback() -> None — 終止程式
         schedule: callback(seconds, fn) -> None — 排程（叫賣輪播用）
+        enter_hawk_immediately: True 時跳過主選單直接進叫賣模式（2026-05-26 加）。
+            用途：logic.py 在 subroutine_a（dialog / L4 cancel / L5 後續緩衝）後設為 True
+            → 連續叫賣不中斷，不顯示「請選擇模式：1/2/3」主選單。
+            False（預設）= 首次進 L1 走原本的主選單流程。
 
     Returns:
         'L2' — 叫賣模式中 OpenCV 觸發轉 L2
         None — 程式終止（exit_program 被呼叫）
     """
+    if enter_hawk_immediately:
+        # subroutine_a 後續路徑：跳過主選單，直接進 hawk（連續叫賣不中斷）
+        result = _run_l1_hawk(
+            print_terminal=print_terminal,
+            read_terminal_key=read_terminal_key,
+            opencv_dwell_seconds=opencv_dwell_seconds,
+            opencv_enable=opencv_enable,
+            speak=speak,
+            exit_program=exit_program,
+            schedule=schedule,
+        )
+        if result == "L2":
+            return "L2"
+        return None
+
     while True:
         # 防呆：主選單 / 客服都不該偵測 OpenCV（待機鏈路自己會 disable）
         # 每輪明示關閉一次，涵蓋「從子例程 A / dialog / L4 回來時 enabled 狀態漂移」
