@@ -20,11 +20,13 @@ Return shape：(next_state, next_think_count)
 
 from myProgram.sales.constants import (
     WAIT_NO_RESPONSE,
+    DNC_TIMEOUT,
     AUTO_CHECKOUT_NOTICE,
     SERVICE_PHONE,
     UNCLEAR_MAX,
     L2_ENTRY_PROMPT,
     L2_REJECT_THANKS,
+    L2_TIMEOUT_TO_HAWK_VOICE,
     L2_B1_CLARIFY,
     L2_B3_REASK,
     L2_B3_THIRD_REJECT,
@@ -87,13 +89,17 @@ def run_dialog(
     while True:
         cart_empty = cart_module.is_empty(cart)
 
-        response = read_customer_input(timeout=WAIT_NO_RESPONSE)
+        # DnC（cart 空）給較長 timeout — 顧客可能還在挑商品 / 看招牌
+        timeout = DNC_TIMEOUT if cart_empty else WAIT_NO_RESPONSE
+        response = read_customer_input(timeout=timeout)
 
         # === Timeout 分流（cart 狀態決定）===
         if response is None:
             if cart_empty:
-                # L2 模式：6s timeout → 鏈路 A 拒絕（無 cart 可清）
-                return _dialog_exit_a(speak, cart)
+                # L2 模式：timeout 不算「拒絕」而是「無回應」→ 中性提示後回 L1 叫賣
+                # （speak L2_REJECT_THANKS=「謝謝光臨」會誤導旁人；保留給明確拒絕意圖用）
+                speak(L2_TIMEOUT_TO_HAWK_VOICE)
+                return ("L1_via_subroutine_a", 0)
             # L3 模式：6s timeout → C-2 兩段自動結帳
             return _dialog_c2_auto_checkout(
                 speak=speak,

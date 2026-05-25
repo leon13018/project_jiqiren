@@ -18,6 +18,11 @@
 # L2 / L3 / L4 顧客無回應 timeout
 WAIT_NO_RESPONSE: int = 6
 
+# DnC（L2 cart-empty 詢問需求）專用 timeout（2026-05-26 加，比通用值寬鬆）
+# 顧客被 OpenCV 偵測到後可能還在挑商品 / 看招牌；給 12s 比 6s 更實際。
+# 不影響 L3 / B-3 沉默 / L4 等子流程（仍走 WAIT_NO_RESPONSE）。
+DNC_TIMEOUT: int = 12
+
 # L1 叫賣模式每一輪間隔
 HAWK_INTERVAL: int = 12
 
@@ -104,8 +109,12 @@ SERVICE_PHONE: str = "0900-XXX-XXX"
 # L2 進入時詢問語音
 L2_ENTRY_PROMPT: str = "您好，請問需要購買什麼東西嗎？"
 
-# L2 鏈路 A 拒絕語音
+# L2 鏈路 A 拒絕語音（顧客**明確**拒絕時用）
 L2_REJECT_THANKS: str = "謝謝光臨"
+
+# L2 cart-empty 等待 timeout 時的提示語音（2026-05-26 加；非「拒絕」而是「無回應」）
+# 顧客可能走掉 / 沒注意；用比較中性的提示回 L1 繼續叫賣，不講「謝謝光臨」（會誤導旁人）
+L2_TIMEOUT_TO_HAWK_VOICE: str = "由於顧客沒有回應，我將繼續叫賣模式"
 
 # L2 鏈路 B-1 無法判斷語音
 L2_B1_CLARIFY: str = "不好意思我聽不太懂，請問要買什麼呢？或者您想聯繫客服？"

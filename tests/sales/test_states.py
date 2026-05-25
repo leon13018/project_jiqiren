@@ -29,6 +29,7 @@ from myProgram.sales.constants import (
     SERVICE_PHONE,
     L2_ENTRY_PROMPT,
     L2_REJECT_THANKS,
+    L2_TIMEOUT_TO_HAWK_VOICE,
     L2_B1_CLARIFY,
     L2_B3_REASK,
     L2_B3_THIRD_REJECT,
@@ -673,9 +674,12 @@ def test_l2_a_timeout_no_response_triggers_reject_and_subroutine_a() -> None:
         think_count=0,
     )
 
-    # Assert：should speak L2_REJECT_THANKS and return subroutine_a state
-    assert L2_REJECT_THANKS in speak_calls, (
-        f"鏈路 A 應 speak L2_REJECT_THANKS，實際 speak 序列：{speak_calls}"
+    # Assert：timeout 不算「拒絕」→ 應 speak 中性「繼續叫賣」提示而非 L2_REJECT_THANKS
+    assert L2_TIMEOUT_TO_HAWK_VOICE in speak_calls, (
+        f"timeout 應 speak L2_TIMEOUT_TO_HAWK_VOICE，實際 speak 序列：{speak_calls}"
+    )
+    assert L2_REJECT_THANKS not in speak_calls, (
+        f"timeout 不應 speak L2_REJECT_THANKS（那是明確拒絕意圖才用），實際：{speak_calls}"
     )
     assert next_state == "L1_via_subroutine_a", (
         f"timeout 應回傳 'L1_via_subroutine_a'，實際：{next_state!r}"
@@ -3241,8 +3245,8 @@ def test_l3_checkout_confirm_no_returns_to_l3_main_loop() -> None:
     assert L3_CHECKOUT_REJECT_CLEAR_NOTICE in speak_calls
     # cart 已清空
     assert cart_module.is_empty(cart)
-    # L2 鏈路 A 退出時 speak 謝謝光臨
-    assert L2_REJECT_THANKS in speak_calls
+    # L2 timeout → speak 中性「繼續叫賣」提示（2026-05-26 spec 改：不講「謝謝光臨」）
+    assert L2_TIMEOUT_TO_HAWK_VOICE in speak_calls
 
 
 def test_l3_checkout_confirm_terminal_2_returns_to_l3() -> None:
@@ -3264,7 +3268,7 @@ def test_l3_checkout_confirm_terminal_2_returns_to_l3() -> None:
     assert L3_CHECKOUT_REJECT_CLEAR_NOTICE in speak_calls
     assert cart_module.is_empty(cart)
     assert next_state == "L1_via_subroutine_a"
-    assert L2_REJECT_THANKS in speak_calls
+    assert L2_TIMEOUT_TO_HAWK_VOICE in speak_calls
 
 
 def test_l3_checkout_confirm_timeout_cancels() -> None:
@@ -3290,7 +3294,7 @@ def test_l3_checkout_confirm_timeout_cancels() -> None:
     assert next_state == "L1_via_subroutine_a"
     assert cart_module.is_empty(cart)
     assert L3_CHECKOUT_REJECT_CLEAR_NOTICE in speak_calls
-    assert L2_REJECT_THANKS in speak_calls
+    assert L2_TIMEOUT_TO_HAWK_VOICE in speak_calls
 
 
 def test_l3_checkout_confirm_summary_shows_all_products() -> None:
