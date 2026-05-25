@@ -23,6 +23,11 @@ WAIT_NO_RESPONSE: int = 6
 # 不影響 L3 / B-3 沉默 / L4 等子流程（仍走 WAIT_NO_RESPONSE）。
 DNC_TIMEOUT: int = 12
 
+# DyC（L3 cart-non-empty 詢問加單）專用 timeout（2026-05-26 加，跟 DnC 對稱）
+# 顧客剛加完一個商品後可能還在考慮要不要再買其他東西；給 12s 比 6s 更實際。
+# timeout 後仍走 C-2 兩段自動結帳（不影響後續流程）。
+DYC_TIMEOUT: int = 12
+
 # L1 叫賣模式每一輪間隔
 HAWK_INTERVAL: int = 12
 

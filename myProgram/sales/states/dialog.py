@@ -21,6 +21,7 @@ Return shape：(next_state, next_think_count)
 from myProgram.sales.constants import (
     WAIT_NO_RESPONSE,
     DNC_TIMEOUT,
+    DYC_TIMEOUT,
     AUTO_CHECKOUT_NOTICE,
     SERVICE_PHONE,
     UNCLEAR_MAX,
@@ -89,8 +90,8 @@ def run_dialog(
     while True:
         cart_empty = cart_module.is_empty(cart)
 
-        # DnC（cart 空）給較長 timeout — 顧客可能還在挑商品 / 看招牌
-        timeout = DNC_TIMEOUT if cart_empty else WAIT_NO_RESPONSE
+        # DnC（cart 空）/ DyC（cart 非空）皆給較長 timeout — 顧客可能還在挑商品 / 考慮加單
+        timeout = DNC_TIMEOUT if cart_empty else DYC_TIMEOUT
         response = read_customer_input(timeout=timeout)
 
         # === Timeout 分流（cart 狀態決定）===
