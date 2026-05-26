@@ -193,6 +193,8 @@ def _dialog_dispatch_inner_l2(
         return None
     if intent == "客服":
         print_terminal(SERVICE_PHONE)
+        # 2026-05-27 加：印完電話後重 speak L2 prompt，否則顧客失去對話上下文
+        speak(L2_ENTRY_PROMPT)
         return None
     # 2026-05-26 加：L2 沉默期內「想買無商品」溫和引導（不 ++unclear / 不 ++think_count）
     if intent == "想買無商品":
@@ -276,6 +278,8 @@ def _dialog_dispatch_inner_l3(
         return None
     if intent == "客服":
         print_terminal(SERVICE_PHONE)
+        # 2026-05-27 加：印完電話後重 speak L3 reask，否則顧客失去對話上下文
+        speak(L3_REASK)
         return None
     # 2026-05-26 加：L3 沉默期內「想買無商品」溫和引導（不 ++unclear / 不 ++think_count）
     if intent == "想買無商品":
@@ -512,6 +516,12 @@ def _dialog_main_loop(
         if intent == "客服":
             unclear_count = 0
             print_terminal(SERVICE_PHONE)
+            # 2026-05-27 加：印完電話後 speak 對應 mode 的 re-entry prompt；
+            # 否則 continue → 下一輪 read_customer_input 顧客失去對話上下文
+            if cart_empty:
+                speak(L2_ENTRY_PROMPT)
+            else:
+                speak(L3_REASK)
             continue
 
         # 商品 → C / B-3（多商品 parser + 各自缺數量追問）

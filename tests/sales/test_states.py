@@ -995,10 +995,50 @@ def test_l2_b2_service_keyword_prints_phone_and_returns_to_l2_loop() -> None:
     assert SERVICE_PHONE in terminal_calls, (
         f"B-2 應 print_terminal(SERVICE_PHONE)，實際 terminal_calls：{terminal_calls}"
     )
+    # 2026-05-27：印完電話後應重 speak L2_ENTRY_PROMPT 引導顧客回對話
+    assert L2_ENTRY_PROMPT in speak_calls, (
+        f"客服分支印完電話後應 speak L2_ENTRY_PROMPT，實際 speak_calls：{speak_calls}"
+    )
     # 自動回 L2 循環，第二次輸入 None → A → 退出
     assert next_state == "L1_via_subroutine_a", (
         "B-2 後應回 L2 循環（最終因 timeout 觸發 A 退出）"
     )
+
+
+# ============================================================
+# L2-B-3-客服（2026-05-27 加）
+### Scenario: L2 想一下沉默期內顧客講「客服」 → 印電話 + 重 speak L2 prompt
+### Given L2 顧客「想一下」進沉默期（think_count=1）
+### When 沉默期內顧客回「客服」
+### Then 印 SERVICE_PHONE + speak L2_ENTRY_PROMPT（回主迴圈時顧客不失上下文）
+# ============================================================
+
+def test_l2_b3_silence_service_intent_prints_phone_and_respeaks_prompt() -> None:
+    # Arrange
+    speak_calls: list = []
+    terminal_calls: list = []
+    cart = cart_module.new_cart()
+    # 想一下 → 沉默期內「客服」 → 印 + 重 speak prompt → None → A 退出
+    customer_input = FakeCustomerInput(["稍等", "客服", None])
+
+    # Act
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: terminal_calls.append(text),
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+    )
+
+    # Assert：SERVICE_PHONE 印到終端
+    assert SERVICE_PHONE in terminal_calls
+    # 沉默期客服分支應 speak L2_ENTRY_PROMPT；speak_calls 至少有 2 個 L2_ENTRY_PROMPT
+    # （index 0 = 進入語音 / 客服後 = 第 2 個）
+    assert speak_calls.count(L2_ENTRY_PROMPT) >= 2, (
+        f"L2 沉默期內客服分支應 speak L2_ENTRY_PROMPT，實際 speak_calls：{speak_calls}"
+    )
+    assert next_state == "L1_via_subroutine_a"
 
 
 # ============================================================
@@ -1664,9 +1704,50 @@ def test_l3_b1_reset_on_known_intent() -> None:
 
     # Assert：客服電話有被印
     assert SERVICE_PHONE in terminal_calls
+    # 2026-05-27：印完電話後應重 speak L3_REASK 引導顧客回對話
+    assert L3_REASK in speak_calls, (
+        f"L3 客服分支印完電話後應 speak L3_REASK，實際 speak_calls：{speak_calls}"
+    )
     # 沒進最終確認子狀態（unclear 被 reset 過）— prompt 走 speak，不會被 terminal 印
     assert L3_UNCLEAR_FINAL_PROMPT not in speak_calls
     # 退出是因為兩段 6s timeout 走 C-2 自動進 L4
+    assert next_state == "L4"
+
+
+# ============================================================
+# L3-B-4-客服（2026-05-27 加）
+### Scenario: L3 想一下沉默期內顧客講「客服」 → 印電話 + 重 speak L3_REASK
+### Given L3 顧客已加單，「想一下」進沉默期（think_count=1）
+### When 沉默期內顧客回「客服」
+### Then 印 SERVICE_PHONE + speak L3_REASK（回主迴圈時顧客不失上下文）
+# ============================================================
+
+def test_l3_b4_silence_service_intent_prints_phone_and_respeaks_reask() -> None:
+    # Arrange
+    speak_calls: list = []
+    terminal_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # 想一下 → 沉默期內「客服」 → 印 + 重 speak reask → None → C-2 兩段 → L4
+    customer_input = FakeCustomerInput(["稍等", "客服", None, None])
+
+    # Act
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: terminal_calls.append(text),
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+    )
+
+    # Assert：SERVICE_PHONE 印到終端
+    assert SERVICE_PHONE in terminal_calls
+    # 沉默期客服分支應 speak L3_REASK
+    assert L3_REASK in speak_calls, (
+        f"L3 沉默期內客服分支應 speak L3_REASK，實際 speak_calls：{speak_calls}"
+    )
+    # 退出是因為兩段 None → C-2 自動進 L4
     assert next_state == "L4"
 
 
