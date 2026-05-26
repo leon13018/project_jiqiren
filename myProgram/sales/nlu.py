@@ -18,6 +18,7 @@
 """
 
 import re
+from typing import Literal
 
 from myProgram.sales.constants import (
     KEYWORDS_L4_ACK_OR_WAIT,
@@ -132,7 +133,22 @@ def normalize_input(raw: str, max_length: int = 200) -> str:
     return text
 
 
-def classify_intent(text: str, mode: str = "normal") -> str:
+Intent = Literal[
+    "拒絕",
+    "想一下",
+    "結帳",
+    "客服",
+    "商品:冰紅茶",
+    "商品:刮刮樂",
+    "繼續交易",
+    "退出交易",
+    "等待安撫",
+    "想買無商品",
+    "無法判斷",
+]
+
+
+def classify_intent(text: str, mode: str = "normal") -> Intent:
     """對顧客輸入做意圖分類（層別語意感知）。
 
     優先序（先命中先返回）：

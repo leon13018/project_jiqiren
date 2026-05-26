@@ -11,10 +11,12 @@
     - 依 PRODUCTS 計算實際價（九折）
 """
 
+from typing import TypeAlias
+
 from myProgram.sales.constants import PRODUCTS
 
 # Cart 型別定義：商品名 → 數量
-Cart = dict  # dict[str, int]
+Cart: TypeAlias = dict[str, int]
 
 
 def new_cart() -> Cart:
