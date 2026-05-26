@@ -11,7 +11,7 @@ paths:
 > **DORMANT 2026-05-25** — sales/ L0-L5 全層完成後休眠；本檔由 path-scoped frontmatter 自動載入，編到 sales/ 相關檔時 Claude 會看到 DORMANT 標記 + 重啟條件，自行判斷本輪是否真要重啟流程（純 bug fix / refactor 不需重啟）。
 >
 > **重啟條件：** 新增 `myProgram/sales/` 業務邏輯（如新對話分支 / 新商品類別 / 新 L 層）。
-> **不重啟：** 純 docstring / bug fix 改一行 / 既有 prod code 純 refactor — 仍跑既有 159 tests 當回歸網。
+> **不重啟：** 純 docstring / bug fix 改一行 / 既有 prod code 純 refactor — 仍跑既有 233 tests 當回歸網（2026-05-26 Wave 0-10 後從 197 漲到 233）。
 
 S1 v2 起，所有 `myProgram/sales/` 內的業務邏輯實作必須走 **BDD spec → AskUserQuestion 確認 → 單一 subagent 完成 TDD + Implementation → 主 agent 審查跑測試 → 收尾** 四階段。每個 L 層獨立一輪，禁止跨層合併。
 
