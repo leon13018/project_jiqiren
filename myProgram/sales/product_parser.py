@@ -19,7 +19,12 @@
 
 import re
 
-from myProgram.sales.nlu import _CHINESE_DIGIT_MAP, _KEYWORDS_ICED_TEA, _KEYWORDS_SCRATCH
+from myProgram.sales.nlu import (
+    _CHINESE_DIGIT_MAP,
+    _KEYWORDS_ICED_TEA,
+    _KEYWORDS_SCRATCH,
+    _parse_compound_chinese,
+)
 
 # ============================================================
 # 商品 keyword → 標準商品名映射（從 nlu.py 移過來）
@@ -55,16 +60,21 @@ def _parse_quantity_in_window(window: str) -> int | None:
     """從一段視窗文字（單一商品的 qty 區間）解析數量。
 
     跟 parse_quantity 邏輯一致，但**沒命中時返 None**（讓 caller 進追問）
-    而非預設 1。
+    而非預設 1。B5 / D10：加入複合中文數字解析（十位 / 百位）。
 
     Returns:
-        int qty 或 None（窗內無數字）。
+        int qty（>0）或 None（窗內無有效數字）。
     """
     arabic_matches = re.findall(r"\d+", window)
     for m in arabic_matches:
         n = int(m)
         if n > 0:
             return n
+    # 複合中文數字（十位 / 百位）
+    compound = _parse_compound_chinese(window)
+    if compound is not None and compound > 0:
+        return compound
+    # 單字中文數字 fallback
     for char, value in _CHINESE_DIGIT_MAP.items():
         if char in window:
             return value

@@ -2809,17 +2809,19 @@ def test_l4_e_first_unknown_increments_count_and_reprompts() -> None:
 ## L4-E-002
 ### Scenario: 顧客回應命中想一下意圖時 L4 視為無法判斷走 E
 ### Given L4 等待中
-### When 顧客輸入命中想一下意圖關鍵字（如「等等」— L4 不適用此類別）
+### When 顧客輸入命中想一下意圖關鍵字（如「想想」— L4 不適用此類別）
 ### Then 視為無法判斷 → 走鏈路 E（unclear_count++ + speak 重問）
 # ============================================================
+# 注意（HP-4 修正 2026-05-26）：「等等」已加入 KEYWORDS_L4_ACK_OR_WAIT，
+# 在 L4 返「等待安撫」不走 E 鏈路。此 test 改用「想想」驗證同語意。
 
 def test_l4_e_think_intent_treated_as_unknown() -> None:
     # Arrange
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # 等等（想一下 → L4 視為 E）→ s → L5
-    customer_input = FakeCustomerInput(["等等", "s"])
+    # 想想（想一下 → L4 視為 E；「等等」已修為 ACK，改用「想想」）→ s → L5
+    customer_input = FakeCustomerInput(["想想", "s"])
 
     # Act
     next_state, _, _ = states.run_l4(

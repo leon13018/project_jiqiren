@@ -393,12 +393,17 @@ def test_qty_chinese_variants_recognized() -> None:
 # ============================================================
 
 ## L0-QTY-008
-### Scenario: 阿拉伯數字 0 不生效，回退預設 1
-### Given 顧客輸入「我要 0 杯」（規格定義：>0 時生效，否則預設 1）
+### Scenario: 阿拉伯數字 0 — 顧客明確說 0 回 0（B16 修正）
+### Given 顧客輸入「我要 0 杯」（規格更新 2026-05-26 B16：顯式 0 應回 0，不 fallback 1）
 ### When 解析數量
-### Then 數量為 1（預設）
-def test_qty_arabic_0_falls_back_to_default_1() -> None:
-    assert nlu.parse_quantity("我要 0 杯") == 1
+### Then 數量為 0（顧客明確表達不要，不應默默加 1 個 — B16 顧客錢包保護）
+def test_qty_arabic_0_returns_0() -> None:
+    """B16 修正：「我要 0 杯」阿拉伯數字 0 → 明確回 0，不 fallback 為 1。
+
+    舊規格（>0 時生效，否則預設 1）是 silent failure，顧客明確說 0 卻被默默加 1 個。
+    新規格（2026-05-26）：所有阿拉伯數字皆為 0 時視為顧客明確表達「不要」→ 回 0。
+    """
+    assert nlu.parse_quantity("我要 0 杯") == 0
 
 
 # ============================================================
