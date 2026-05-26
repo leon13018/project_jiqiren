@@ -1,7 +1,7 @@
 # 專案目錄結構
 
 > 本檔案記錄整個專案的資料夾與檔案結構，方便日後快速查閱。
-> 最後更新：2026-05-26（P6.S8：`myProgram.py` 改名 `main.py` + `__init__.py` / `__main__.py` 顯式 package 化）
+> 最後更新：2026-05-26（P6.S9：states/ 三檔改名統一層編號制）
 
 ---
 
@@ -82,11 +82,11 @@ Project_01/
 │       ├── nlu.py                        # ✅ L0 純函式（classify_intent + parse_quantity + has_quantity）
 │       ├── cart.py                       # ✅ L0 純函式（new_cart / add_item / calc_total / clear_cart 等）
 │       └── states/                       # ✅ L0-L5 鏈路（2026-05-25 B4 拆 states.py；同日 L2/L3 合一為 dialog）
-│           ├── __init__.py               # re-export run_? 函式（subroutine_a / l1 / dialog / l4 / l5）
-│           ├── _product_helpers.py       # 多商品加單共享 helper（resolve_and_add_products + 無數量追問 sub-loop）
-│           ├── subroutine_a.py           # L0 子例程 A（run_subroutine_a + _schedule_hawk）
+│           ├── __init__.py               # re-export run_? 函式（l0_subroutine_a / l1 / l2_l3_dialog / l4 / l5）
+│           ├── _l2_l3_qty_followup.py    # L2/L3 鏈路 C 數量追問共享 helper（resolve_and_add_products；原 _product_helpers.py，P6.S9 改名）
+│           ├── l0_subroutine_a.py        # L0 子例程 A（run_subroutine_a + _schedule_hawk；原 subroutine_a.py，P6.S9 改名）
 │           ├── l1.py                     # L1 商家層（run_l1 + 4 私有）
-│           ├── dialog.py                 # L2/L3 合一對話層（run_dialog；cart 狀態驅動：cart 空=L2/非空=L3）
+│           ├── l2_l3_dialog.py           # L2/L3 合一對話層（run_dialog；cart 狀態驅動：cart 空=L2/非空=L3；原 dialog.py，P6.S9 改名）
 │           ├── l4.py                     # L4 結帳層（run_l4 + 6 私有）
 │           └── l5.py                     # L5 致謝（run_l5）
 │   # 2026-05-23 incremental rebuild：tts.py / robot_actions.py / screen_display.py 歸檔
@@ -186,7 +186,13 @@ __pycache__/
 | `sales/constants.py` | S1 v2 L0-L5 ✅ | L0：7 時間常數 + `PRODUCTS` + `HAWK_SLOGANS`。L1：4 個。L2：6 個。L3：5 個。L4：12 個（含 `L4_SERVICE_TIMEOUT=60` + 4 階段催促模板）。L5（2026-05-24 追加）：`L5_THANKS` |
 | `sales/nlu.py` | S1 v2 L0 ✅ | `classify_intent(text, mode)` 6 步優先序（L4 客服模式吃繼續/退出）+ `parse_quantity(text)` 阿拉伯優先 / 中文映射含異體字 / 預設 1 |
 | `sales/cart.py` | S1 v2 L0 ✅ | 純函式 + dict[str, int]：`new_cart` / `add_item`（同商品累加）/ `get_quantity` / `calc_total`（依 PRODUCTS 實際價）/ `clear_cart` / `is_empty` |
-| `sales/states.py` | S1 v2 **L0-L5 全齊 ✅** | L0：`run_subroutine_a`。L1：`run_l1` + 4 私有。L2：`run_l2` + 3 私有（L2 跳過結帳）。L3：`run_l3` + 5 私有（`_l3_main_loop` 抽出 / 三態 dispatcher / C-2 兩段 / B-4 第 3 次走 C-2）。L4：`run_l4`（3-tuple 回傳）+ `_l4_service_mode`（60s timeout）+ `_l4_d_speak_loop_voice`（4 階段語氣）+ `_l4_exit_b/_l4_exit_d_forced/_l4_dispatch_response/_l4_print_entry_detail`。L5（2026-05-24 加）：`run_l5`（純序列：mute_opencv → speak → clear_cart → sleep → return；無 dispatcher 無分支） |
+| `sales/states/__init__.py` | S1 v2 B4 ✅ | re-export `run_subroutine_a / run_l1 / run_dialog / run_l4 / run_l5`（import path 對外不變）；P6.S9 同步更新內部 import 路徑 |
+| `sales/states/l0_subroutine_a.py` | S1 v2 B4 ✅ | L0 共通子例程 A：`run_subroutine_a` + `_schedule_hawk`（原 `subroutine_a.py`，P6.S9 改名加層編號） |
+| `sales/states/l1.py` | S1 v2 B4 ✅ | L1 商家層：`run_l1` + 4 私有（叫賣 / 待機 / 客服 / q 退出） |
+| `sales/states/l2_l3_dialog.py` | S1 v2 B4 ✅ | L2/L3 合一對話層：`run_dialog` + 8 helper；cart 空=L2 模式/非空=L3 模式（cart 狀態驅動；原 `dialog.py`，P6.S9 改名） |
+| `sales/states/_l2_l3_qty_followup.py` | S1 v2 B4 ✅ | L2/L3 鏈路 C 數量追問共享 helper：`resolve_and_add_products` + 無數量追問 sub-loop（原 `_product_helpers.py`，P6.S9 改名） |
+| `sales/states/l4.py` | S1 v2 B4 ✅ | L4 結帳層：`run_l4`（3-tuple 回傳）+ `_l4_service_mode`（60s timeout）+ `_l4_d_speak_loop_voice`（4 階段語氣）+ `_l4_exit_b/_l4_exit_d_forced/_l4_dispatch_response/_l4_print_entry_detail` |
+| `sales/states/l5.py` | S1 v2 B4 ✅ | L5 致謝：`run_l5`（純序列：mute_opencv → speak → clear_cart → sleep → return；無 dispatcher 無分支） |
 | `tts.py` | S2 | 同步阻塞 `speak()`（S4 起擴為非阻塞 TtsWorker）|
 | `robot_actions.py` | S3 | 同步動作（S5 起擴為非阻塞 ActionWorker）|
 
@@ -308,3 +314,4 @@ __pycache__/
 | 2026-05-26 | **🔧 P1：dead code 清理 + 廠商 SDK 隔離**：(1) `do_action` callback 從 dialog/l4/l5/logic/wireup 簽名 + dict 移除（S1 stage 從未呼叫）；`_dialog_c2_auto_checkout` 純 forward wrapper 移除，2 caller 改直呼 `_dialog_c2_second_stage`；tests/ 同步移除對應 stub。(2) `git mv` 廠商檔 → `myProgram/vendor/{ActionGroupControl,Board}.py`；新增 `myProgram/vendor/__init__.py`（DO NOT MODIFY docstring）；`.claude/hooks/block-vendor-edit.ps1` regex 更新涵蓋 `myProgram/(?:.+/)?<file>.py`（future-proof）；CLAUDE.md ⛔#1 路徑更新；173 tests PASS（兩個 commit 均通過）。|
 | 2026-05-26 | **🔍 multi-agent 程式碼審查整合報告**：使用者要求對 myProgram/ 派 `/review`（build-in）+ 結構/檔名（opus xhigh）+ 主 agent 自選 2 個（狀態機正確性 / NLU 健壯性，皆 opus xhigh）+ 主 agent 補 /review 適配版（橫切面 wire-up/風格/效能/安全），共 4 視角獨立並行審查。注：`/review` 內建 skill 是 PR 審查工作流（單一 prompt 非 3 subagent），與當前無 open PR 不契合，主 agent 改採 5 維度做適配版審查。產出：新建 `resources/reviews/` 資料夾 + 首份報告 `2026-05-26_myProgram_multi-agent-review.md`（含跨視角共識點 / 必修 7 條 + 建議修 18 條 + 可不改 15 條總表 + 8 階段 P0-P8 執行 Roadmap）。最關鍵發現：C-2 strict yes/no 內 NO 詞表「沒了/不要/沒有」與 L3 normal 結帳意圖語意衝突（顧客錢包逆向錯誤）；廠商檔位置應隔離到 `myProgram/vendor/`；`do_action`/`schedule` 是 dead callback 應清理。|
 | 2026-05-26 | **🏷️ P6.S8：`myProgram.py` 改名 `main.py` + package 顯式化**：`git mv myProgram/myProgram.py myProgram/main.py`（消除 package 與 module 同名造成的 namespace 模糊）；新增 `myProgram/__init__.py`（顯式 package，避免隱式 PEP 420 namespace package 行為飄移）；新增 `myProgram/__main__.py`（支援 `python -m myProgram` 簡潔跑法）。`tests/sales/test_states.py` L1-ENTRY-001 Given 注釋同步更新為新跑法。Pi 端跑法改變：舊 `python3.11 -m myProgram.myProgram` → 新 `python3.11 -m myProgram`（推薦）或 `python3.11 -m myProgram.main`。回歸視角 A §3.1 / §3.2。180 tests PASS。|
+| 2026-05-26 | **🏷️ P6.S9：states/ 三檔改名統一層編號制**：`subroutine_a.py → l0_subroutine_a.py`（L0 共通子例程）、`dialog.py → l2_l3_dialog.py`（L2/L3 合一對話層）、`_product_helpers.py → _l2_l3_qty_followup.py`（L2/L3 鏈路 C 數量追問 helper）。`states/__init__.py` import 路徑 + docstring 同步更新；`l2_l3_dialog.py` 內部 import `_product_helpers` → `_l2_l3_qty_followup` 同步更新。命名與規格書 L?_共通.md / L1-L5.md 層編號對齊，讀目錄即知對應層。職責表同步更新 states/ 各子模組。回歸視角 A §3.3。180 tests PASS。|

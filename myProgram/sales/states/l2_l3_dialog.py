@@ -57,7 +57,7 @@ from myProgram.sales.constants import (
 )
 from myProgram.sales.nlu import classify_intent, parse_products, _contains_any, _equals_strict_short
 from myProgram.sales import cart as cart_module
-from myProgram.sales.states._product_helpers import resolve_and_add_products
+from myProgram.sales.states._l2_l3_qty_followup import resolve_and_add_products
 
 
 def run_dialog(
