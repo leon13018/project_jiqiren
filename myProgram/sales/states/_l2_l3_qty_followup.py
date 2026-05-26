@@ -60,6 +60,25 @@ def resolve_and_add_products(
 
     for product, qty in products:
         if qty is not None:
+            # Wave 4 hotfix 2（2026-05-26）— caller 端 cart cap 業務檢查
+            # 修 Pi 實機踩坑：顧客一次說「紅茶 34435454545454545」走此路徑
+            # → parse_products 直接返天文數字 → cart.add_item assert raise → crash。
+            # 設計差異 vs hotfix 1：本路徑是「一次給」（顧客一句話含商品+數量），
+            # 無 follow-up 重新追問機會 → 採「cap 為 remaining + speak 通知實際加入量」。
+            existing = cart_module.get_quantity(cart, product)
+            remaining = MAX_QTY_PER_ITEM - existing
+            unit = PRODUCTS[product]["單位"]
+            if remaining <= 0:
+                # cart 內已達上限 → 完全 skip + speak 通知
+                speak(f"{product}已達單筆訂單上限 {MAX_QTY_PER_ITEM} {unit}，無法再加")
+                continue
+            if qty > remaining:
+                # 超量（含天文數字 / 累加超量）→ cap 為 remaining + speak 透明告知
+                cart_module.add_item(cart, product, remaining)
+                speak(f"{product}已加入 {remaining} {unit}（達單筆上限 {MAX_QTY_PER_ITEM} {unit}，您要求的 {qty} 超量）")
+                added_count += 1
+                continue
+            # 正常加入
             cart_module.add_item(cart, product, qty)
             added_count += 1
             continue

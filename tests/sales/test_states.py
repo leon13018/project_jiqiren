@@ -4350,3 +4350,153 @@ def test_qty_followup_huge_number_does_not_crash() -> None:
     assert any("還可加最多" in s for s in speak_calls), (
         f"預期『還可加最多』提示，實際 speak_calls={speak_calls}"
     )
+
+
+# ============================================================
+# Wave 4 hotfix 2（2026-05-27）— resolve_and_add_products 同類 cart cap 業務檢查
+#
+# 背景：Hotfix 1（commit f37d11a）只修了 _qty_follow_up_sub_loop（追問 sub-loop
+# 路徑），但 resolve_and_add_products 內 for loop 同類風險未修：
+# 顧客**一次說**「紅茶 34435454545454545」→ parse_products 直接返
+# [("冰紅茶", 34435454545454545)] → 走 for loop 內 add_item 路徑 → 同樣 crash。
+#
+# 設計差異 vs hotfix 1：
+#   - hotfix 1 (_qty_follow_up_sub_loop) 是 sub-loop，可「continue 重新追問」
+#   - hotfix 2 (resolve_and_add_products) 是「一次給」路徑，無重試機會
+#     → 採「cap 為 remaining + speak 透明告知實際加入量」最 UX
+# ============================================================
+
+
+def test_resolve_and_add_products_single_huge_qty_caps_and_speaks() -> None:
+    """顧客一次說「紅茶 100」(超 MAX 50) → cap 加入 50 + speak「達單筆上限」通知。"""
+    from myProgram.sales.constants import MAX_QTY_PER_ITEM
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # cart 空 → "紅茶 100"（一次給超量）→ cap 50 加入 + speak →
+    # added=True → speak L2_C_ADDED + L3_ENTRY_PROMPT → continue 主迴圈 →
+    # 後續 FakeCustomerInput 序列耗盡返 None → L3 timeout → C-2 → None → ("L4", 0)
+    customer_input = FakeCustomerInput(["紅茶 100"])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+    )
+
+    assert cart_module.get_quantity(cart, "冰紅茶") == MAX_QTY_PER_ITEM, (
+        f"應 cap 為上限 {MAX_QTY_PER_ITEM}，實際：{dict(cart)}"
+    )
+    assert any("達單筆上限" in s for s in speak_calls), (
+        f"預期『達單筆上限』提示，實際 speak_calls={speak_calls}"
+    )
+
+
+def test_resolve_and_add_products_cumulative_over_cap_caps_to_remaining() -> None:
+    """cart 已有 30 瓶紅茶，再一次說「紅茶 25」(累加 55 > 50) → cap 加 20（remaining）。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 30)  # 預設 cart 已有 30 瓶
+    # cart 非空 → L3 模式 → "紅茶 25" → cap remaining=20 → add 20 + speak →
+    # added=True → speak L3_REASK → continue → 後續 None → C-2 → None → L4
+    customer_input = FakeCustomerInput(["紅茶 25"])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+    )
+
+    assert cart_module.get_quantity(cart, "冰紅茶") == 50, (
+        f"預期 30 + cap(20) = 50，實際：{dict(cart)}"
+    )
+    assert any("達單筆上限" in s for s in speak_calls), (
+        f"預期『達單筆上限』提示，實際 speak_calls={speak_calls}"
+    )
+
+
+def test_resolve_and_add_products_at_cap_skips_and_speaks() -> None:
+    """cart 已 50 瓶（達上限）→ 再一次說「紅茶 5」→ 完全 skip + speak「無法再加」。"""
+    from myProgram.sales.constants import MAX_QTY_PER_ITEM
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", MAX_QTY_PER_ITEM)  # 已達上限
+    # cart 非空（達上限）→ L3 模式 → "紅茶 5" → resolve for loop remaining=0
+    # → speak「已達單筆訂單上限... 無法再加」+ continue → added_count=0
+    # → resolve 返 False → caller speak L3_REASK → continue → None → C-2 → None → L4
+    customer_input = FakeCustomerInput(["紅茶 5"])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+    )
+
+    assert cart_module.get_quantity(cart, "冰紅茶") == MAX_QTY_PER_ITEM, (
+        f"cart 不應變動（已達上限），實際：{dict(cart)}"
+    )
+    assert any("已達單筆訂單上限" in s and "無法再加" in s for s in speak_calls), (
+        f"預期『已達單筆訂單上限... 無法再加』提示，實際 speak_calls={speak_calls}"
+    )
+
+
+def test_resolve_and_add_products_huge_number_does_not_crash() -> None:
+    """Regression guard — 顧客一次給「紅茶 34435454545454545」不該 crash（Pi 實機踩坑）。"""
+    from myProgram.sales.constants import MAX_QTY_PER_ITEM
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 完整 Pi 實機輸入；舊代碼會 raise AssertionError 整個程式 crash
+    customer_input = FakeCustomerInput(["紅茶 34435454545454545"])
+
+    # 不該 raise AssertionError
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+    )
+
+    assert cart_module.get_quantity(cart, "冰紅茶") == MAX_QTY_PER_ITEM, (
+        f"天文數字應 cap 為上限 {MAX_QTY_PER_ITEM}，實際：{dict(cart)}"
+    )
+    assert any("達單筆上限" in s for s in speak_calls), (
+        f"預期『達單筆上限』提示，實際 speak_calls={speak_calls}"
+    )
+
+
+def test_resolve_and_add_products_multi_product_partial_cap() -> None:
+    """一次說「紅茶 100 刮刮樂 3」→ 紅茶 cap 50 + 刮刮樂 3 正常加（多商品各自獨立處理）。"""
+    from myProgram.sales.constants import MAX_QTY_PER_ITEM
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    customer_input = FakeCustomerInput(["紅茶 100 刮刮樂 3"])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+    )
+
+    # 紅茶 cap 為上限 50，刮刮樂正常加 3（兩商品在 for loop 內各自獨立檢查）
+    assert cart_module.get_quantity(cart, "冰紅茶") == MAX_QTY_PER_ITEM, (
+        f"紅茶應 cap 為 {MAX_QTY_PER_ITEM}，實際：{dict(cart)}"
+    )
+    assert cart_module.get_quantity(cart, "刮刮樂") == 3, (
+        f"刮刮樂應正常加 3，實際：{dict(cart)}"
+    )
+    assert any("達單筆上限" in s for s in speak_calls), (
+        f"預期『達單筆上限』提示，實際 speak_calls={speak_calls}"
+    )
