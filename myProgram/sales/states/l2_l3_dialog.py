@@ -54,6 +54,7 @@ from myProgram.sales.constants import (
     KEYWORDS_CONFIRM_NO,
     KEYWORDS_CONFIRM_YES_STRICT_SHORT,
     KEYWORDS_CONFIRM_NO_STRICT_SHORT,
+    DIALOG_VAGUE_BUY_REASK,
 )
 from myProgram.sales.nlu import classify_intent, _contains_any, _equals_strict_short
 from myProgram.sales.product_parser import parse_products
@@ -192,6 +193,10 @@ def _dialog_dispatch_inner_l2(
     if intent == "客服":
         print_terminal(SERVICE_PHONE)
         return None
+    # 2026-05-26 加：L2 沉默期內「想買無商品」溫和引導（不 ++unclear / 不 ++think_count）
+    if intent == "想買無商品":
+        speak(DIALOG_VAGUE_BUY_REASK)
+        return None
     products = parse_products(response)
     if products:
         added = resolve_and_add_products(
@@ -264,6 +269,10 @@ def _dialog_dispatch_inner_l3(
         return None
     if intent == "客服":
         print_terminal(SERVICE_PHONE)
+        return None
+    # 2026-05-26 加：L3 沉默期內「想買無商品」溫和引導（不 ++unclear / 不 ++think_count）
+    if intent == "想買無商品":
+        speak(DIALOG_VAGUE_BUY_REASK)
         return None
     products = parse_products(response)
     if products:
@@ -499,6 +508,12 @@ def _dialog_main_loop(
                 continue
             # 全部商品在追問內取消 → re-prompt 依當前 cart 狀態
             speak(L2_B3_REASK if cart_empty else L3_REASK)
+            continue
+
+        # 2026-05-26 加：L2/L3 通用「想買無商品」溫和引導（與 L4「等待安撫」pattern 一致）
+        # 不 ++unclear_count、不 ++think_count；主迴圈 continue 等下一輪
+        if intent == "想買無商品":
+            speak(DIALOG_VAGUE_BUY_REASK)
             continue
 
         # 都沒命中 → B-1（unclear_count++）

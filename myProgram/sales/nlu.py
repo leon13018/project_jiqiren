@@ -19,7 +19,12 @@
 
 import re
 
-from myProgram.sales.constants import KEYWORDS_L4_ACK_OR_WAIT, KEYWORDS_L4_ACK_SHORT
+from myProgram.sales.constants import (
+    KEYWORDS_L4_ACK_OR_WAIT,
+    KEYWORDS_L4_ACK_SHORT,
+    KEYWORDS_WANT_TO_BUY_VAGUE,
+    KEYWORDS_WANT_TO_BUY_SHORT,
+)
 
 # ============================================================
 # 關鍵字白名單（依規格書 L0_共通.md）
@@ -196,6 +201,16 @@ def classify_intent(text: str, mode: str = "normal") -> str:
         return "商品:冰紅茶"
     if _contains_any(text, _KEYWORDS_SCRATCH):
         return "商品:刮刮樂"
+
+    # 2026-05-26 加：L2 (DnC) / L3 (DyC) normal mode 顧客講肯定詞但無具體商品名
+    # 必須在所有具體 keyword check 之後，避免吃掉「沒有」(REJECT) / 「不要」(REJECT/CHECKOUT)
+    # 等先決判定。strict-short「有/要」防 substring 誤命中「沒有」「不要」
+    # （後者已在上方 REJECT / CHECKOUT 分支被攔截）
+    if mode in ("l2", "normal"):
+        if _equals_strict_short(text, KEYWORDS_WANT_TO_BUY_SHORT):
+            return "想買無商品"
+        if _contains_any(text, KEYWORDS_WANT_TO_BUY_VAGUE):
+            return "想買無商品"
 
     return "無法判斷"
 

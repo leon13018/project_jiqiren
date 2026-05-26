@@ -604,3 +604,55 @@ def test_normalize_input_converts_full_width_digits() -> None:
     assert nlu.normalize_input("０９８") == "098"
     # 已是半形 → 不變
     assert nlu.normalize_input("123abc") == "123abc"
+
+
+# ============================================================
+# 「想買無商品」intent 測試（2026-05-26 加）
+# 使用者實機回報：L3 DyC 回「有」被誤判 unclear，L2 DnC 回「要」同 pattern
+# ============================================================
+
+def test_nlu_l2_l3_vague_buy_intent_classified_correctly() -> None:
+    """L2/L3 normal mode 顧客講「有/要/想買/我要」等肯定詞無具體商品 → 「想買無商品」intent。"""
+    # strict-short — L2 mode
+    assert nlu.classify_intent("有", "l2") == "想買無商品"
+    assert nlu.classify_intent("要", "l2") == "想買無商品"
+    # strict-short — normal (L3) mode
+    assert nlu.classify_intent("有", "normal") == "想買無商品"
+    assert nlu.classify_intent("要", "normal") == "想買無商品"
+    # substring 長詞 — L2 mode
+    assert nlu.classify_intent("我要", "l2") == "想買無商品"
+    assert nlu.classify_intent("想買", "l2") == "想買無商品"
+    # substring 長詞 — normal (L3) mode
+    assert nlu.classify_intent("還想", "normal") == "想買無商品"
+    assert nlu.classify_intent("還要", "normal") == "想買無商品"
+
+
+def test_nlu_vague_buy_strict_short_avoids_false_positive() -> None:
+    """strict-short 防 substring 誤命中。
+
+    「沒有」含「有」substring，但已先被 REJECT/CHECKOUT 攔截（在 L2 mode → 拒絕；在 L3 normal mode → 結帳）。
+    「不要」同上。
+    """
+    # 「沒有」在 L2 → 拒絕（不是「想買無商品」）
+    assert nlu.classify_intent("沒有", "l2") == "拒絕"
+    # 「沒有」在 L3 normal → 結帳（_KEYWORDS_REJECT 不在 L3 嚴格清單 → lenient 路徑 → 結帳）
+    assert nlu.classify_intent("沒有", "normal") == "結帳"
+    # 「不要」在 L2 → 拒絕
+    assert nlu.classify_intent("不要", "l2") == "拒絕"
+    # 「不要」在 L3 normal → 結帳（lenient 路徑）
+    assert nlu.classify_intent("不要", "normal") == "結帳"
+
+
+def test_nlu_vague_buy_does_not_affect_other_modes() -> None:
+    """「想買無商品」L2/normal 專屬；l4 / l4_service 不命中。"""
+    # 「有」在 L4 → 等待安撫（L4 ack 機制接管），不該變「想買無商品」
+    assert nlu.classify_intent("有", "l4") != "想買無商品"
+    assert nlu.classify_intent("有", "l4_service") != "想買無商品"
+    assert nlu.classify_intent("要", "l4") != "想買無商品"
+
+
+def test_nlu_specific_product_takes_priority_over_vague_buy() -> None:
+    """顧客講「我要冰紅茶」—「冰紅茶」先命中商品 keyword，不會被「我要」帶到「想買無商品」。"""
+    # classify_intent：「我要冰紅茶」含「冰紅茶」→ 商品意圖（不是「想買無商品」）
+    assert nlu.classify_intent("我要冰紅茶", "l2") != "想買無商品"
+    assert nlu.classify_intent("我要冰紅茶", "l2") == "商品:冰紅茶"

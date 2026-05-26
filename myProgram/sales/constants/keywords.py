@@ -78,3 +78,22 @@ KEYWORDS_L4_ACK_OR_WAIT: list = [
 # strict-short 集：短單字 / 短英文，完全相等才算（避免 substring 誤命中：
 # 「好」 substring 會中「好亂/好像」；「ok」會中「joker/poker」之類）
 KEYWORDS_L4_ACK_SHORT: list = ["好", "嗯", "ok"]
+
+# ============================================================
+# L2 (DnC) / L3 (DyC) 顧客講肯定詞但未指定具體商品名的辨識（2026-05-26 加）
+# 使用者實機回報：L3「請問還有額外需要購買的嗎？」顧客回「有」被誤判 unclear → UX 補強
+# L2 + L3 通用 — 搭配 nlu.py classify_intent 內的 l2/normal mode 專屬分支使用
+# ============================================================
+
+# substring 集：較長詞，substring match 安全
+KEYWORDS_WANT_TO_BUY_VAGUE: list = [
+    # 繁體
+    "想買", "想要", "需要", "我要", "我想",
+    "還要", "還想", "想加買",
+    # 簡體
+    "想买", "还要", "还想", "想加买",
+]
+
+# strict-short 集：短單字防 substring 誤命中（如「沒有」含「有」substring，「不要」含「要」substring）
+# 「沒有」「不要」已在 REJECT / CHECKOUT 分支被攔截（排在「想買無商品」之前）
+KEYWORDS_WANT_TO_BUY_SHORT: list = ["有", "要"]

@@ -66,6 +66,7 @@ from myProgram.sales.constants import (
     L4_MAX_LOOPS,
     THANK_DELAY,
     L5_THANKS,
+    DIALOG_VAGUE_BUY_REASK,
 )
 from myProgram.sales import cart as cart_module
 
@@ -3926,4 +3927,106 @@ def test_l4_normal_scan_within_budget_succeeds() -> None:
     )
     assert L4_A_PAY_SUCCESS in speak_calls, (
         f"掃碼成功應 speak L4_A_PAY_SUCCESS，實際 speak：{speak_calls}"
+    )
+
+
+# ============================================================
+# 「想買無商品」UX 補強 regression tests（2026-05-26 加）
+# 使用者實機回報：L3 DyC 回「有」被誤判 unclear；L2 DnC 回「要」同 pattern
+# ============================================================
+
+def test_l2_vague_buy_intent_speaks_reask_not_unclear() -> None:
+    """L2 DnC「您好，請問需要購買什麼東西嗎？」顧客回「要」應 speak DIALOG_VAGUE_BUY_REASK，
+    不走 B-1 unclear 路徑；後續講「冰紅茶」+ 數量可正常加入 cart。
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 「要」→ 應 speak DIALOG_VAGUE_BUY_REASK；「冰紅茶」→ 加 cart（沒數量 → 追問）；「3」→ qty；之後 None → L3 timeout → C-2 → None → L4
+    customer_input = FakeCustomerInput(["要", "冰紅茶", "3", None, None])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        opencv_disable=lambda: None,
+    )
+
+    # 「要」應觸發 DIALOG_VAGUE_BUY_REASK，不觸發 L2_B1_CLARIFY
+    assert DIALOG_VAGUE_BUY_REASK in speak_calls, (
+        f"L2「要」應 speak DIALOG_VAGUE_BUY_REASK，實際 speak：{speak_calls}"
+    )
+    assert L2_B1_CLARIFY not in speak_calls, (
+        f"L2「要」不應 speak L2_B1_CLARIFY（不走 B-1 unclear），實際 speak：{speak_calls}"
+    )
+    # 冰紅茶 3 瓶應在 cart 中
+    assert cart.get("冰紅茶") == 3, (
+        f"冰紅茶 3 瓶應在 cart，實際 cart：{dict(cart)}"
+    )
+
+
+def test_l3_vague_buy_intent_speaks_reask_not_unclear() -> None:
+    """L3 DyC「請問還有額外需要購買的嗎？」顧客回「有」應 speak DIALOG_VAGUE_BUY_REASK，
+    不走 B-1 unclear；後續講「刮刮樂」+ 數量可正常加入 cart。
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 2)  # L3 mode 起點 cart 非空
+    # 「有」→ DIALOG_VAGUE_BUY_REASK；「刮刮樂」→ 追問數量；「1」→ qty；None → C-2；None → L4
+    customer_input = FakeCustomerInput(["有", "刮刮樂", "1", None, None])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        opencv_disable=lambda: None,
+    )
+
+    # 「有」應觸發 DIALOG_VAGUE_BUY_REASK，不觸發 L3_B1_CLARIFY
+    assert DIALOG_VAGUE_BUY_REASK in speak_calls, (
+        f"L3「有」應 speak DIALOG_VAGUE_BUY_REASK，實際 speak：{speak_calls}"
+    )
+    assert L3_B1_CLARIFY not in speak_calls, (
+        f"L3「有」不應 speak L3_B1_CLARIFY（不走 B-1 unclear），實際 speak：{speak_calls}"
+    )
+    # 刮刮樂 1 張應在 cart 中
+    assert cart.get("刮刮樂") == 1, (
+        f"刮刮樂 1 張應在 cart，實際 cart：{dict(cart)}"
+    )
+
+
+def test_vague_buy_does_not_increment_unclear_count() -> None:
+    """顧客連續講「有」5 次 + 給商品 → 不應因 unclear 累積被踢進 B-1 上限路徑。
+
+    若 unclear 累積，5 次後（UNCLEAR_MAX=5）會觸發 L2_UNCLEAR_REJECT_VOICE / L3_UNCLEAR_FINAL_PROMPT；
+    「想買無商品」不應 ++unclear_count，故連講 5 次「有」後仍能正常購物。
+    """
+    from myProgram.sales.constants import UNCLEAR_MAX
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)  # L3 mode（cart 非空）
+    # UNCLEAR_MAX 次「有」+ 商品 + 數量 + None（C-2 timeout） + None（進 L4）
+    customer_input = FakeCustomerInput(["有"] * UNCLEAR_MAX + ["刮刮樂", "2", None, None])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        opencv_disable=lambda: None,
+    )
+
+    # 每次「有」都應 speak DIALOG_VAGUE_BUY_REASK
+    assert speak_calls.count(DIALOG_VAGUE_BUY_REASK) == UNCLEAR_MAX, (
+        f"「有」×{UNCLEAR_MAX} 每次都應 speak DIALOG_VAGUE_BUY_REASK，"
+        f"實際次數：{speak_calls.count(DIALOG_VAGUE_BUY_REASK)}，speak：{speak_calls}"
+    )
+    # 不應觸發 L3_B1_CLARIFY（unclear 不累積）
+    assert L3_B1_CLARIFY not in speak_calls, (
+        f"不應觸發 L3_B1_CLARIFY，實際 speak：{speak_calls}"
+    )
+    # 刮刮樂應加入 cart
+    assert cart.get("刮刮樂") == 2, (
+        f"刮刮樂 2 張應在 cart，實際 cart：{dict(cart)}"
     )

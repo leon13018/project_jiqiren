@@ -49,3 +49,8 @@ L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE: str = (
 # L3 鏈路 C-2 第一段警告語音模板（2026-05-26 改：嚴格 yes/no + 提示有效回答）
 # {seconds} = AUTO_CHECKOUT_NOTICE；後接 wall-clock 倒數內只認 YES / NO，亂答忽略不重置
 L3_C2_WARNING_TEMPLATE: str = "請問是否要結帳？（語音說『是』/『否』，或終端輸入 1=是 / 2=否）如果沒回應，{seconds} 秒後將為您結帳"
+
+# L2 (DnC) / L3 (DyC) 通用 — 顧客講「有/要/想買」等肯定詞但未具體說商品名時的引導 reask
+# 2026-05-26 加；使用者實機 UX 修補（L3 DyC 回「有」原本被誤判 unclear）
+# 雖放在 l3_text.py，但 L2 dispatch 也 import 此常數使用（L2 + L3 行為一致）
+DIALOG_VAGUE_BUY_REASK: str = "好的，請告訴我您想買的商品（冰紅茶或刮刮樂）"
