@@ -1,6 +1,6 @@
 ﻿# PreToolUse hook：擋對廠商 SDK 檔的 Edit/Write（CLAUDE.md ⛔#1 強制執法）
 #
-# 守住的檔：myProgram/ActionGroupControl.py 與 myProgram/Board.py
+# 守住的檔：myProgram/vendor/ActionGroupControl.py 與 myProgram/vendor/Board.py
 # 廠商 Hiwonder TonyPi SDK 含 Pi-only 路徑與底層 import，改了破壞硬體通訊。
 #
 # 輸入：stdin JSON（含 tool_input.file_path）
@@ -32,8 +32,9 @@ if ([string]::IsNullOrWhiteSpace($filePath)) {
 # 規範化路徑分隔字元（Windows 可能傳 \ 也可能 /），統一比對
 $normalized = $filePath -replace '\\', '/'
 
-# 命中條件：路徑結尾為 ActionGroupControl.py 或 Board.py（在 myProgram/ 下）
-if ($normalized -match '/myProgram/(ActionGroupControl|Board)\.py$') {
+# 命中條件：myProgram/ 下任意子層的 ActionGroupControl.py 或 Board.py
+# 涵蓋舊路徑 myProgram/<file>.py（防回滾）+ 新路徑 myProgram/vendor/<file>.py
+if ($normalized -match '/myProgram/(?:.+/)?(ActionGroupControl|Board)\.py$') {
     $decision = @{
         hookSpecificOutput = @{
             hookEventName = 'PreToolUse'

@@ -6,7 +6,7 @@
 
 ## ⛔ 絕對禁止（違反就壞東西）
 
-1. **不要修改 `myProgram/ActionGroupControl.py` 和 `myProgram/Board.py`** 🔒 hook 強制執法
+1. **不要修改 `myProgram/vendor/ActionGroupControl.py` 和 `myProgram/vendor/Board.py`** 🔒 hook 強制執法
    廠商 Hiwonder TonyPi SDK，內含 Pi-only 路徑（`/home/pi/TonyPi/...`）與底層庫 import（`pigpio` / `RPi.GPIO` / `BusServoCmd` / `PWMServo` / `smbus2`）。改了直接破壞硬體通訊。只能 `Read` 引用、`import` 使用。
 2. **不要在 Windows 本機安裝任何依賴**（`pip` / `npm` / `apt`）
    本機只負責編輯與 git，執行環境是 Pi。
