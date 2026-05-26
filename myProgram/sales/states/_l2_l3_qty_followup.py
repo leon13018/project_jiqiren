@@ -4,12 +4,13 @@
     - 有數量者直接加
     - 缺數量者各自進「QTY 追問 sub-loop」
 
-追問 sub-loop 分流（5 個分支）：
+追問 sub-loop 分流（6 個分支）：
     1. 顧客回應含數量 → 用該數量加 cart → 返 True
     2. 顧客 timeout（None）→ 預設 qty=1 加 cart → 返 True（避免無限迴圈）
-    3. 顧客講「客服」→ print_terminal 印電話 → 重新 speak clarify → 繼續追問
+    3. 顧客講「客服」→ print_terminal 印電話 → 重新 speak clarify → 繼續追問（不計入 attempts）
     4. 顧客講「拒絕」（L2 用 mode='l2' / L3 用 mode='normal'）→ skip 該商品 → 返 False
-    5. 其他（想一下 / 結帳 / 商品 / 無法判斷）→ speak clarify → 繼續追問
+    5. 顧客講「結帳」（L3 normal mode 「不要 / 不用」→ 視為不追加此商品）→ 返 False
+    6. 其他（想一下 / 商品 / 無法判斷）→ speak clarify → attempts++；達 3 次上限 speak 跳過 + 返 False
 
 設計原則：
     - 接受 callback 注入（speak / print_terminal / read_customer_input）
@@ -96,6 +97,7 @@ def _qty_follow_up_sub_loop(
     Returns:
         True 已加入 cart（含 timeout 預設 1）；False 顧客在追問內拒絕 → skip 該商品
     """
+    attempts = 0
     while True:
         follow_up = read_customer_input(timeout=WAIT_NO_RESPONSE)
 
@@ -111,6 +113,7 @@ def _qty_follow_up_sub_loop(
         follow_intent = classify_intent(follow_up, classify_intent_mode)
 
         if follow_intent == "客服":
+            # 客服不計入 attempts
             print_terminal(SERVICE_PHONE)
             speak(QTY_CLARIFY_TEMPLATE.format(unit=unit))
             continue
@@ -118,6 +121,16 @@ def _qty_follow_up_sub_loop(
         if follow_intent == "拒絕":
             return False
 
+        if follow_intent == "結帳":
+            # B3：L3 normal mode「不要 / 不用」被分類為結帳意圖 — 視為「不追加此商品」
+            return False
+
+        # 其他（無法判斷 / 想一下 / 商品 等）
+        attempts += 1
+        if attempts >= 3:
+            # B4：達 attempts cap → speak 跳過 + 退出
+            speak(f"好的，這次先不加{product}")
+            return False
         speak(QTY_CLARIFY_TEMPLATE.format(unit=unit))
 
 

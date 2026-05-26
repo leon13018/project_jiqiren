@@ -125,8 +125,10 @@ def run_l4(
             )
             if isinstance(result, tuple):
                 return result
-            # 等待安撫：不改計數器、不重印明細，主迴圈直接 continue（不重設 deadline）
+            # 等待安撫：重置催促計數（禮貌顧客不被催促），但保留 wall-clock 60s 預算
             if result == "ack":
+                # C8：顧客主動 ack → reset loop_count，不重設 deadline
+                loop_count = 0
                 continue
             # E 類（unclear_count 更新）
             if isinstance(result, int):
@@ -159,8 +161,10 @@ def run_l4(
         if isinstance(result, tuple):
             return result
 
-        # 等待安撫：不改計數器、不重印明細，主迴圈直接 continue（不重設 deadline）
+        # 等待安撫：重置催促計數（禮貌顧客不被催促），但保留 wall-clock 60s 預算
         if result == "ack":
+            # C8：顧客主動 ack → reset loop_count，不重設 deadline
+            loop_count = 0
             continue
 
         # E 類回傳 int（更新後的 unclear_count）

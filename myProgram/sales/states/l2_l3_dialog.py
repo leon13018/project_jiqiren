@@ -210,6 +210,9 @@ def _dialog_dispatch_inner_l2(
         if added:
             # cart 從空 → 非空：補播 L3_ENTRY_PROMPT 銜接到 L3 模式
             # （與主迴圈 transition 行為一致，見規格書 L2.md 鏈路 C「進 L3」）
+            # B11：沉默期內加單同樣是 L2→L3 切換點，think_count 交由主迴圈 caller 處理
+            # （_dialog_dispatch_inner_l2 不直接改 think_count；回 None 後主迴圈
+            #  下一輪 was_empty 已為 False，think_count reset 在主迴圈 was_empty 分支已處理）
             speak(L2_C_ADDED)
             speak(L3_ENTRY_PROMPT)
             return None
@@ -313,6 +316,7 @@ def _dialog_c2_second_stage(
     speak(L3_C2_WARNING_TEMPLATE.format(seconds=AUTO_CHECKOUT_NOTICE))
 
     deadline = time.monotonic() + AUTO_CHECKOUT_NOTICE
+    prompted_once = False  # C16：第一次亂答才 speak 提示，後續 silent（不重置 deadline）
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -357,8 +361,11 @@ def _dialog_c2_second_stage(
             # （2026-05-26 P3.A：移除 24s 雙漏斗 — 主動回應比 timeout 還慢的反直覺路徑）
             return ("L4", 0)
 
-        # 其他（商品 / 想一下 / 客服 / 亂講）— 嚴格 yes/no 設計下視為 gibberish，
-        # silently 消耗、不重置 deadline，下一輪 read 用 remaining 縮短的 timeout 繼續等
+        # 其他（商品 / 想一下 / 客服 / 亂講）— 嚴格 yes/no 設計下視為 gibberish
+        # C16：第一次亂答 speak 一次提示，後續 silent；不重置 deadline
+        if not prompted_once:
+            speak("請說『是』或『否』")
+            prompted_once = True
         continue
 
 
@@ -429,6 +436,9 @@ def _dialog_main_loop(
                 )
                 if isinstance(result, tuple):
                     return result
+                # B11：沉默期內顧客加單使 cart 從空變非空（L2→L3 切換）→ reset think_count
+                if not cart_module.is_empty(cart):
+                    think_count = 0
                 continue
             # L3 B-4：第 3 次 → C-2 第二段
             if think_count >= 3:
@@ -502,6 +512,10 @@ def _dialog_main_loop(
                 #    漏播 L3_ENTRY_PROMPT 會讓顧客以為對話結束，6s timeout 直接觸發 C-2 自動結帳）
                 # cart 已非空：speak L3_REASK（額外加單後重問）
                 if was_empty:
+                    # B11：L2→L3 cart-state 切換點 reset think_count
+                    # 各 mode 獨立計數：L2 think_count 不應污染 L3；否則顧客在 L2 想一下兩次
+                    # 加單進 L3 後再想一下就誤觸 C-2 自動結帳
+                    think_count = 0
                     speak(L2_C_ADDED)
                     speak(L3_ENTRY_PROMPT)
                 else:
@@ -656,9 +670,14 @@ def _dialog_unclear_final_confirmation(
 
 
 def _build_order_summary(cart) -> str:
-    """組「3 瓶冰紅茶、2 張刮刮樂」格式字串（給 checkout confirm 用）。"""
+    """組「3 瓶冰紅茶、2 張刮刮樂，合計 N 元」格式字串（給 checkout confirm 用）。
+
+    C10：結帳前 confirm 列總金額，讓顧客知道要付多少錢。
+    """
     parts = []
     for product, qty in cart.items():
         unit = PRODUCTS[product]["單位"]
         parts.append(f"{qty} {unit}{product}")
-    return "、".join(parts)
+    items = "、".join(parts)
+    total = cart_module.calc_total(cart)
+    return f"{items}，合計 {total} 元"
