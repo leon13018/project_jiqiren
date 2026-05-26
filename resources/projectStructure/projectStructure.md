@@ -125,7 +125,8 @@ Project_01/
     │   └── 2026-05-23_python311_rebuild_pillow_libtiff.md  # Python rebuild 加 _tkinter + Pillow source build 連 libtiff5
     │
     ├── reviews/                          # tracked — multi-agent 程式碼審查整合報告（2026-05-26 加入）
-    │   └── 2026-05-26_myProgram_multi-agent-review.md  # 4 視角（結構/狀態機/NLU/橫切面）對 myProgram/ 整合審查 + 8 階段 Roadmap
+    │   ├── 2026-05-26_myProgram_multi-agent-review.md  # 4 視角（結構/狀態機/NLU/橫切面）對 myProgram/ 整合審查 + 8 階段 Roadmap
+    │   └── 2026-05-26_myProgram_comprehensive_review.md  # 第二輪：3 個 opus xhigh subagent（架構 A / 健壯性 B / 業務 C）+ /review skill 視角 D，約 77 條 finding 統整
     │
     ├── projectStructure/                 # tracked
     │   └── projectStructure.md           # 本檔案
@@ -328,3 +329,4 @@ __pycache__/
 | 2026-05-26 | **🏷️ P6.S9：states/ 三檔改名統一層編號制**：`subroutine_a.py → l0_subroutine_a.py`（L0 共通子例程）、`dialog.py → l2_l3_dialog.py`（L2/L3 合一對話層）、`_product_helpers.py → _l2_l3_qty_followup.py`（L2/L3 鏈路 C 數量追問 helper）。`states/__init__.py` import 路徑 + docstring 同步更新；`l2_l3_dialog.py` 內部 import `_product_helpers` → `_l2_l3_qty_followup` 同步更新。命名與規格書 L?_共通.md / L1-L5.md 層編號對齊，讀目錄即知對應層。職責表同步更新 states/ 各子模組。回歸視角 A §3.3。180 tests PASS。|
 | 2026-05-26 | **📦 P8：constants.py 拆 constants/ subpackage**：`myProgram/sales/constants.py`（274 行）拆為 `myProgram/sales/constants/` subpackage（`__init__.py` + 8 子模組）。`timing.py`（時間/計數常數）/ `products.py`（PRODUCTS + QTY template）/ `keywords.py`（CONFIRM_YES/NO + HAWK_SLOGANS）/ `l1_text.py` 到 `l5_text.py`（各層字串）。`__init__.py` 以 `from .submodule import *` 統一 re-export，對外 `from myProgram.sales.constants import XXX` 完全向前相容、零 caller 修改。回歸視角 A §3.6。184 tests PASS。|
 | 2026-05-26 | **🔀 P7.S18：nlu.py 商品實體解析拆出 product_parser.py**：從 `nlu.py` 拉出商品實體相關碼到新檔 `myProgram/sales/product_parser.py`（`parse_products` + `_parse_quantity_in_window` + `_PRODUCT_KEYWORD_TO_NAME`）；`nlu.py` 保留純意圖識別（`classify_intent` / `parse_quantity` / `has_quantity` / `normalize_input` / `_KEYWORDS_*` / `_CHINESE_DIGIT_MAP`）；`product_parser.py` 從 `nlu` import `_CHINESE_DIGIT_MAP` / `_KEYWORDS_ICED_TEA` / `_KEYWORDS_SCRATCH`（keyword sets 留 nlu 作第一公民）。callers 同步：`l2_l3_dialog.py` 改 `from myProgram.sales.product_parser import parse_products`。tests 拆分：`tests/sales/test_product_parser.py`（新，16 個測試）從 `test_nlu.py`（移除 `nlu.parse_products` 呼叫）拆出。回歸視角 A §3.7。184 tests PASS。|
+| 2026-05-26 | **🔍 第二輪 multi-agent 程式碼審查**：使用者要求對 `myProgram/` 派 `/review` 內建工具 + 3 個 opus xhigh subagent（主題由主 agent 定）共審。主 agent 自選 3 個主題（A 架構與模組設計 / B 正確性、健壯性、多線程 / C 業務邏輯與對話流程）；`/review` skill 是 PR review 工作流，主 agent 套用其 5 個審查角度（test coverage / conventions / performance / security / correctness）做 codebase review 適配（來源 D）。產出 `resources/reviews/2026-05-26_myProgram_comprehensive_review.md`：共 4 個獨立來源、約 77 條 finding、10 條跨來源高優先（HP-1 ~ HP-10）+ 5 層統合處理順序 + 風險評估表 + 12 條好實踐 + 16 條對話腳本盲點 + 文案品質速覽。最關鍵新發現：(1) `tests/sales/test_logic.py` 不存在（BDD 規範自身列出但未建立，logic.py 編排層完全無 unit test）；(2) NLU substring「沒有 / 不了」誤命中「沒有問題 / 等不了」等口語 → 顧客錢包風險；(3) L3 結帳前 confirm 文案沒列總金額。|
