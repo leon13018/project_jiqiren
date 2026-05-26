@@ -15,7 +15,7 @@ myProgram/
 └── sales/                      # 後端業務模組
     ├── __init__.py
     ├── logic.py                # 主迴圈 + 5 層 dispatch
-    ├── constants.py            # L0 常數（時間 / 商品 / 白名單）
+    ├── constants/              # L0-L5 常數 subpackage（P8 拆分；8 子模組 + __init__.py re-export）
     ├── nlu.py                  # 意圖識別（純函式）
     ├── cart.py                 # 購物車資料模型
     └── states.py               # L1-L5 鏈路實作
@@ -28,7 +28,7 @@ myProgram/
 | 檔案 | 職責 | 為何抽出 |
 |---|---|---|
 | `logic.py` | 主迴圈、層間 dispatch、context 管理 | 對應原 `sales_logic.py` 核心；只管「現在哪一層 / 該轉到哪一層」 |
-| `constants.py` | `WAIT_NO_RESPONSE` / `HAWK_INTERVAL` / `PRODUCTS` / 7 類關鍵字白名單 | 多檔引用，抽出避免硬編碼擴散；對應 L0_共通.md |
+| `constants/` | L0-L5 常數 subpackage（2026-05-26 P8 拆分；原 274 行單檔）；`__init__.py` re-export 全部，對外 `from myProgram.sales.constants import XXX` 向前相容；8 子模組：`timing`（WAIT_NO_RESPONSE / DNC/DYC_TIMEOUT / …）/ `products`（PRODUCTS + QTY_PROMPT_TEMPLATE）/ `keywords`（CONFIRM_YES/NO + HAWK_SLOGANS）/ `l1_text` 到 `l5_text` | 多檔引用，抽出避免硬編碼擴散；單檔逼近 300 行後拆 subpackage 提升 maintainability；對應 L0_共通.md / L1-L5.md |
 | `nlu.py` | `classify_intent(text) → IntentResult`；`parse_quantity` / `has_quantity` / `normalize_input` | 跨層共用的純函式，無副作用 → 最適合 BDD/TDD 切入點；商品實體解析 P7 已拆至 `product_parser.py` |
 | `product_parser.py` | `parse_products(text) → list[(name, qty\|None)]` | 多商品實體解析（2026-05-26 P7 從 nlu.py 拆出）；從 nlu import keyword sets（`_KEYWORDS_ICED_TEA` / `_KEYWORDS_SCRATCH` / `_CHINESE_DIGIT_MAP`）以避免重複定義 |
 | `cart.py` | `Cart` 類別 + add / remove / total 操作 | 純資料模型，未來上 DB / 上前端都會用，先抽出 |
@@ -38,7 +38,7 @@ myProgram/
 
 ## 為未來鋪好的路（但現在不蓋）
 
-- `constants.py` / `cart.py` / `nlu.py` 全部**純資料 + 純函式**
+- `constants/` / `cart.py` / `nlu.py` 全部**純資料 + 純函式**
   → 不碰 `input()` / 不碰 `print()` / 不碰廠商 SDK
 - `states.py` 的「對外動作」（語音、動作、UI 顯示）抽成 **callback 注入**
   → `run_state(ctx, *, speak, do_action, show)`
@@ -142,3 +142,4 @@ python -m pytest tests/sales/test_nlu.py::test_classify_intent_recognizes_produc
 | 2026-05-24 | 加入 Testing 配置段：tests/ 目錄結構（spec/ + sales/）/ 對應關係表 / 選項 C 純 unit test 限制 / callback stub 範例 / 測試指令；完整 BDD+TDD 流程移到 `.claude/rules/bdd-tdd-workflow.md` |
 | 2026-05-25 | **sales 自審後架構決策（下個 session 寫 logic.py / myProgram.py 時實踐）**：A2-c：`logic.py` 寫 state-machine dispatch 邏輯（持有 cart / think_count / loop_count / unclear_count + 5 層串接 cycle），但 callback wire-up（真實 terminal / TTS / OpenCV / 廠商 SDK）在 `myProgram.py` 入口層做。A3-d：callback 集合（目前 8+ 種 variant）先按現況跑 myProgram.py 驗證可行性，遇到痛點才 refactor 包 Context dataclass（B1/B7 return shape 統一也一起延後）。A4-a + A4-c：L4-A → L5 cart 清空靠規格保證（L4-A 不清、L5 進入時清）+ 入口層加 invariant check（每進新層前確認 cart 狀態符合預期）。**B 類 refactor 結果**：A1 docstring 修 / B2 L5 改用 read_customer_input / B3 常數命名統一（5 個 _ENTRY_PROMPT 對齊）/ B4 拆 `states.py` 1085 行為 `states/` package（6 子檔 + __init__.py re-export）/ B6 函式位置修正。B5 不修（dispatch_response 重複但分支獨立 evolve 安全）。B1+B7 推遲到 logic.py 寫好後再決定 return shape。107 tests PASS 不破。 |
 | 2026-05-26 | **P7.S18：nlu.py 商品實體解析拆出 product_parser.py**：`parse_products` / `_parse_quantity_in_window` / `_PRODUCT_KEYWORD_TO_NAME` 從 `nlu.py` 移至新檔 `product_parser.py`；keyword sets（`_KEYWORDS_ICED_TEA` / `_KEYWORDS_SCRATCH` / `_CHINESE_DIGIT_MAP`）留 `nlu.py`（intent 第一公民），`product_parser` 從 nlu import；`l2_l3_dialog.py` callers 改 import 自 `product_parser`；tests 拆分出 `test_product_parser.py`（16 個）。184 tests PASS。 |
+| 2026-05-26 | **P8：constants.py 拆 constants/ subpackage**：`sales/constants.py`（274 行）→ `sales/constants/`（`__init__.py` + 8 子模組）。`timing.py` / `products.py` / `keywords.py` / `l1_text.py`-`l5_text.py`。`__init__.py` 以 `from .submodule import *` re-export，對外 import path 向前相容；本文件結構決議表 + 職責表 + 未來預留段同步更新為 `constants/`。184 tests PASS。 |

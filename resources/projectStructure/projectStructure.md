@@ -1,7 +1,7 @@
 # 專案目錄結構
 
 > 本檔案記錄整個專案的資料夾與檔案結構，方便日後快速查閱。
-> 最後更新：2026-05-26（P7.S18：nlu.py 商品實體解析拆出 product_parser.py）
+> 最後更新：2026-05-26（P8：constants.py 拆 constants/ subpackage，8 子模組 + __init__.py re-export）
 
 ---
 
@@ -79,7 +79,16 @@ Project_01/
 │   └── sales/                            # ✍️ 後端業務模組（2026-05-24 加入；L0-L5 完成 2026-05-24；B 類 refactor 2026-05-25）
 │       ├── __init__.py                   # 模組標記 + docstring
 │       ├── logic.py                      # ✅ 主迴圈 + 5 層 cycle dispatch + cart invariant fail-fast（A2-c / A4-c 落地）
-│       ├── constants.py                  # ✅ L0-L5 常數（時間 / 商品 / 叫賣 / L1-L5 字串；B3 命名統一）
+│       ├── constants/                    # ✅ L0-L5 常數 subpackage（P8 拆分；原 274 行單檔）
+│       │   ├── __init__.py               # re-export 全部子模組；對外 import path 向前相容
+│       │   ├── timing.py                 # 時間 / 計數常數（WAIT_NO_RESPONSE / DNC_TIMEOUT / … / L4_SERVICE_TIMEOUT）
+│       │   ├── products.py               # PRODUCTS dict + QTY_PROMPT_TEMPLATE / QTY_CLARIFY_TEMPLATE
+│       │   ├── keywords.py               # HAWK_SLOGANS + KEYWORDS_CONFIRM_YES/NO + STRICT_SHORT 集
+│       │   ├── l1_text.py                # L1 文字常數（L1_MENU_BANNER / HAWK_ENTRY / STANDBY_ENTRY / SERVICE_PHONE）
+│       │   ├── l2_text.py                # L2 文字常數（ENTRY_PROMPT / REJECT / TIMEOUT / B1_CLARIFY / B3 / C_ADDED / UNCLEAR_REJECT）
+│       │   ├── l3_text.py                # L3 文字常數（ENTRY / REJECT / B1_CLARIFY / REASK / C1_CHECKOUT / UNCLEAR_FINAL / CHECKOUT_CONFIRM_TEMPLATE / …）
+│       │   ├── l4_text.py                # L4 文字常數（ENTRY_PROMPT_TEMPLATE / A_PAY / B_CANCEL / C_OPTIONS / D_FINAL / E_CLARIFY / 4 階段催促）
+│       │   └── l5_text.py                # L5 文字常數（L5_THANKS）
 │       ├── nlu.py                        # ✅ L0 純函式（classify_intent + parse_quantity + has_quantity；商品解析 P7 已拆出）
 │       ├── product_parser.py             # ✅ 商品實體解析（parse_products；P7.S18 從 nlu.py 拆出）
 │       ├── cart.py                       # ✅ L0 純函式（new_cart / add_item / calc_total / clear_cart 等）
@@ -185,7 +194,7 @@ __pycache__/
 | `main.py` | S1 v2 ✅ | S1 chat-driven 入口：`_S1State`（OpenCV 模擬狀態）+ `_build_callbacks` 建 12 個 callback → `logic.run(**callbacks)`；`'c'` 鍵模擬 OpenCV 觸發 / 空 Enter 模擬 customer timeout / `schedule` no-op 印警告（S1 單線程不真排程）；try/except SystemExit + KeyboardInterrupt；嚴格不 import 廠商 SDK（S3+ 才接）（原 `myProgram.py`，P6.S8 改名） |
 | `sales/__init__.py` | S1 v2 | 模組標記 + docstring（指向規格書與架構文件）|
 | `sales/logic.py` | S1 v2 ✅ | 主迴圈 + 5 層 cycle dispatch（L1→L2→L3→L4→L5→子例程 A→L1）；持有 cart 為唯一 cycle state（think_count/loop_count/unclear_count 由各 run_l? 內部管理）；每進新層 cart invariant fail-fast assert（`_assert_cart_empty` / `_assert_cart_nonempty`）— 違反立刻 raise AssertionError；callback dict keyword-only 傳入；嚴格不 import 廠商 SDK（選項 C） |
-| `sales/constants.py` | S1 v2 L0-L5 ✅ | L0：7 時間常數 + `PRODUCTS` + `HAWK_SLOGANS`。L1：4 個。L2：6 個。L3：5 個。L4：12 個（含 `L4_SERVICE_TIMEOUT=60` + 4 階段催促模板）。L5（2026-05-24 追加）：`L5_THANKS` |
+| `sales/constants/` | P8 ✅ | L0-L5 常數 subpackage（2026-05-26 P8 從單一 274 行 `constants.py` 拆分）；對外 `from myProgram.sales.constants import XXX` 向前相容；8 子模組按職責分組：`timing`（時間/計數）/ `products`（商品 dict + QTY template）/ `keywords`（CONFIRM_YES/NO + HAWK_SLOGANS）/ `l1_text` 到 `l5_text`（各層字串）；`__init__.py` 統一 re-export |
 | `sales/nlu.py` | S1 v2 L0 ✅ | `classify_intent(text, mode)` 6 步優先序（L4 客服模式吃繼續/退出）+ `parse_quantity(text)` 阿拉伯優先 / 中文映射含異體字 / 預設 1 |
 | `sales/cart.py` | S1 v2 L0 ✅ | 純函式 + dict[str, int]：`new_cart` / `add_item`（同商品累加）/ `get_quantity` / `calc_total`（依 PRODUCTS 實際價）/ `clear_cart` / `is_empty` |
 | `sales/states/__init__.py` | S1 v2 B4 ✅ | re-export `run_subroutine_a / run_l1 / run_dialog / run_l4 / run_l5`（import path 對外不變）；P6.S9 同步更新內部 import 路徑 |
@@ -317,4 +326,5 @@ __pycache__/
 | 2026-05-26 | **🔍 multi-agent 程式碼審查整合報告**：使用者要求對 myProgram/ 派 `/review`（build-in）+ 結構/檔名（opus xhigh）+ 主 agent 自選 2 個（狀態機正確性 / NLU 健壯性，皆 opus xhigh）+ 主 agent 補 /review 適配版（橫切面 wire-up/風格/效能/安全），共 4 視角獨立並行審查。注：`/review` 內建 skill 是 PR 審查工作流（單一 prompt 非 3 subagent），與當前無 open PR 不契合，主 agent 改採 5 維度做適配版審查。產出：新建 `resources/reviews/` 資料夾 + 首份報告 `2026-05-26_myProgram_multi-agent-review.md`（含跨視角共識點 / 必修 7 條 + 建議修 18 條 + 可不改 15 條總表 + 8 階段 P0-P8 執行 Roadmap）。最關鍵發現：C-2 strict yes/no 內 NO 詞表「沒了/不要/沒有」與 L3 normal 結帳意圖語意衝突（顧客錢包逆向錯誤）；廠商檔位置應隔離到 `myProgram/vendor/`；`do_action`/`schedule` 是 dead callback 應清理。|
 | 2026-05-26 | **🏷️ P6.S8：`myProgram.py` 改名 `main.py` + package 顯式化**：`git mv myProgram/myProgram.py myProgram/main.py`（消除 package 與 module 同名造成的 namespace 模糊）；新增 `myProgram/__init__.py`（顯式 package，避免隱式 PEP 420 namespace package 行為飄移）；新增 `myProgram/__main__.py`（支援 `python -m myProgram` 簡潔跑法）。`tests/sales/test_states.py` L1-ENTRY-001 Given 注釋同步更新為新跑法。Pi 端跑法改變：舊 `python3.11 -m myProgram.myProgram` → 新 `python3.11 -m myProgram`（推薦）或 `python3.11 -m myProgram.main`。回歸視角 A §3.1 / §3.2。180 tests PASS。|
 | 2026-05-26 | **🏷️ P6.S9：states/ 三檔改名統一層編號制**：`subroutine_a.py → l0_subroutine_a.py`（L0 共通子例程）、`dialog.py → l2_l3_dialog.py`（L2/L3 合一對話層）、`_product_helpers.py → _l2_l3_qty_followup.py`（L2/L3 鏈路 C 數量追問 helper）。`states/__init__.py` import 路徑 + docstring 同步更新；`l2_l3_dialog.py` 內部 import `_product_helpers` → `_l2_l3_qty_followup` 同步更新。命名與規格書 L?_共通.md / L1-L5.md 層編號對齊，讀目錄即知對應層。職責表同步更新 states/ 各子模組。回歸視角 A §3.3。180 tests PASS。|
+| 2026-05-26 | **📦 P8：constants.py 拆 constants/ subpackage**：`myProgram/sales/constants.py`（274 行）拆為 `myProgram/sales/constants/` subpackage（`__init__.py` + 8 子模組）。`timing.py`（時間/計數常數）/ `products.py`（PRODUCTS + QTY template）/ `keywords.py`（CONFIRM_YES/NO + HAWK_SLOGANS）/ `l1_text.py` 到 `l5_text.py`（各層字串）。`__init__.py` 以 `from .submodule import *` 統一 re-export，對外 `from myProgram.sales.constants import XXX` 完全向前相容、零 caller 修改。回歸視角 A §3.6。184 tests PASS。|
 | 2026-05-26 | **🔀 P7.S18：nlu.py 商品實體解析拆出 product_parser.py**：從 `nlu.py` 拉出商品實體相關碼到新檔 `myProgram/sales/product_parser.py`（`parse_products` + `_parse_quantity_in_window` + `_PRODUCT_KEYWORD_TO_NAME`）；`nlu.py` 保留純意圖識別（`classify_intent` / `parse_quantity` / `has_quantity` / `normalize_input` / `_KEYWORDS_*` / `_CHINESE_DIGIT_MAP`）；`product_parser.py` 從 `nlu` import `_CHINESE_DIGIT_MAP` / `_KEYWORDS_ICED_TEA` / `_KEYWORDS_SCRATCH`（keyword sets 留 nlu 作第一公民）。callers 同步：`l2_l3_dialog.py` 改 `from myProgram.sales.product_parser import parse_products`。tests 拆分：`tests/sales/test_product_parser.py`（新，16 個測試）從 `test_nlu.py`（移除 `nlu.parse_products` 呼叫）拆出。回歸視角 A §3.7。184 tests PASS。|
