@@ -200,7 +200,7 @@ def _l4_print_entry_detail(cart, total: int, print_terminal) -> None:
 def _l4_d_speak_loop_voice(loop_count: int, total: int, speak) -> None:
     """L4 鏈路 D 4 階段催促語音 dispatcher。
 
-    loop_count 1 → 中性；2 → 柔提醒；3/4 → 中度催促；5/6 → 明確警告。
+    loop_count 1 → 中性；2 → 柔提醒；3/4 → 中度催促；>= 5 → 明確警告（含第 7 次及以上）。
     """
     if loop_count == 1:
         speak(L4_D_VOICE_NEUTRAL.format(total=total))
@@ -208,7 +208,7 @@ def _l4_d_speak_loop_voice(loop_count: int, total: int, speak) -> None:
         speak(L4_D_VOICE_GENTLE.format(total=total))
     elif loop_count in (3, 4):
         speak(L4_D_VOICE_MODERATE.format(total=total))
-    elif loop_count in (5, 6):
+    elif loop_count >= 5:
         speak(L4_D_VOICE_WARNING.format(total=total))
 
 
