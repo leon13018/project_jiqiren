@@ -167,7 +167,13 @@ def _build_callbacks(state: _S1State) -> dict:
 
     # === 對外動作 ===
     def speak(text):
-        print(f"[語音] {text}")
+        # S2：call tts.speak（同步阻塞至播完）；tts.speak 內已印 [語音] xxx，這裡不重複印
+        # Lazy import：tts.py 頂層 `import edge_tts` 是 fail-fast（缺套件直接 ImportError）；
+        # 放這裡讓 Windows 端 pytest 可經 `from myProgram.main import _build_callbacks` 收
+        # 到 main 而不觸發 edge_tts import — Pi 端啟動後 L1 hawk entry 第一次 speak 立即
+        # 觸發 import edge_tts，缺套件仍 fail-fast，不違反 noisy 原則。
+        from myProgram import tts
+        tts.speak(text)
 
     # === 時間 / 程式控制 ===
     def sleep(seconds):
