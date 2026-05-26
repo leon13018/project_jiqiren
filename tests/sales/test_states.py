@@ -191,7 +191,7 @@ class FakeOpencv:
 # ============================================================
 # L1-ENTRY-001
 # Scenario: 程式啟動進入 L1 印模式選擇選單
-# Given 程式剛啟動（python3.11 myProgram/myProgram.py）
+# Given 程式剛啟動（python3.11 -m myProgram 或 python3.11 -m myProgram.main）
 # When 進入 L1 模式選擇層
 # Then 終端印選單含三個選項（1 叫賣 / 2 待機 / 3 客服）與 q 退出提示
 # ============================================================

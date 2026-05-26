@@ -1,7 +1,7 @@
 # 專案目錄結構
 
 > 本檔案記錄整個專案的資料夾與檔案結構，方便日後快速查閱。
-> 最後更新：2026-05-26（P1：廠商檔搬 `myProgram/vendor/` 子資料夾 + dead code 清理）
+> 最後更新：2026-05-26（P6.S8：`myProgram.py` 改名 `main.py` + `__init__.py` / `__main__.py` 顯式 package 化）
 
 ---
 
@@ -68,7 +68,9 @@ Project_01/
 │   # 設計決策（選項 C 純 unit test）：resources/architecture/backend-module-structure.md
 │
 ├── myProgram/                            # 主程式資料夾（S1 v2 重做中：業務邏輯改 5 層狀態機）
-│   ├── myProgram.py                      # ✅ S1 chat-driven 入口層 wire-up（_S1State + _build_callbacks 11 個 callback → logic.run）
+│   ├── __init__.py                       # Package 顯式標記（P6.S8 加；消除隱式 namespace package 行為）
+│   ├── __main__.py                       # Package 入口點（支援 python -m myProgram；P6.S8 加）
+│   ├── main.py                           # ✅ S1 chat-driven 入口層 wire-up（_S1State + _build_callbacks 11 個 callback → logic.run；原 myProgram.py，P6.S8 改名）
 │   ├── vendor/                           # 🚫 廠商 SDK 隔離（2026-05-26 加）
 │   │   ├── __init__.py                   # DO NOT MODIFY docstring
 │   │   ├── ActionGroupControl.py         # 🚫 廠商 SDK — Hiwonder TonyPi，禁止修改
@@ -176,7 +178,9 @@ __pycache__/
 
 | 檔案 | 引入階段 | 職責 |
 |---|---|---|
-| `myProgram.py` | S1 v2 ✅ | S1 chat-driven 入口：`_S1State`（OpenCV 模擬狀態）+ `_build_callbacks` 建 12 個 callback → `logic.run(**callbacks)`；`'c'` 鍵模擬 OpenCV 觸發 / 空 Enter 模擬 customer timeout / `schedule` no-op 印警告（S1 單線程不真排程）；try/except SystemExit + KeyboardInterrupt；嚴格不 import 廠商 SDK（S3+ 才接） |
+| `__init__.py` | P6.S8 ✅ | Package 顯式標記（docstring 含入口 / sales / vendor 說明）；消除隱式 PEP 420 namespace package 行為飄移 |
+| `__main__.py` | P6.S8 ✅ | Package 入口點：`from myProgram.main import main` → `main()`；支援 `python -m myProgram` 簡潔跑法 |
+| `main.py` | S1 v2 ✅ | S1 chat-driven 入口：`_S1State`（OpenCV 模擬狀態）+ `_build_callbacks` 建 12 個 callback → `logic.run(**callbacks)`；`'c'` 鍵模擬 OpenCV 觸發 / 空 Enter 模擬 customer timeout / `schedule` no-op 印警告（S1 單線程不真排程）；try/except SystemExit + KeyboardInterrupt；嚴格不 import 廠商 SDK（S3+ 才接）（原 `myProgram.py`，P6.S8 改名） |
 | `sales/__init__.py` | S1 v2 | 模組標記 + docstring（指向規格書與架構文件）|
 | `sales/logic.py` | S1 v2 ✅ | 主迴圈 + 5 層 cycle dispatch（L1→L2→L3→L4→L5→子例程 A→L1）；持有 cart 為唯一 cycle state（think_count/loop_count/unclear_count 由各 run_l? 內部管理）；每進新層 cart invariant fail-fast assert（`_assert_cart_empty` / `_assert_cart_nonempty`）— 違反立刻 raise AssertionError；callback dict keyword-only 傳入；嚴格不 import 廠商 SDK（選項 C） |
 | `sales/constants.py` | S1 v2 L0-L5 ✅ | L0：7 時間常數 + `PRODUCTS` + `HAWK_SLOGANS`。L1：4 個。L2：6 個。L3：5 個。L4：12 個（含 `L4_SERVICE_TIMEOUT=60` + 4 階段催促模板）。L5（2026-05-24 追加）：`L5_THANKS` |
@@ -303,3 +307,4 @@ __pycache__/
 | 2026-05-25 | **📝 `bdd-tdd-workflow.md` 改 path-scoped**：加 paths frontmatter（`myProgram/sales/**/*.py` / `tests/sales/**/*.py` / `tests/spec/**/*.py` / `resources/plans/業務程式邏輯規劃/**/*.md`）。動到 sales 相關檔才自動載入（規則含 DORMANT 標記 + 重啟條件，Claude 自行判斷本輪是否真要重啟）。當前 path-scoped rules 從 3 個增加至 4 個（vendor-sdk-api / path-conventions / threading-conventions / bdd-tdd-workflow）。CLAUDE.md 查閱表行 + 維護原則段對齊。|
 | 2026-05-26 | **🔧 P1：dead code 清理 + 廠商 SDK 隔離**：(1) `do_action` callback 從 dialog/l4/l5/logic/wireup 簽名 + dict 移除（S1 stage 從未呼叫）；`_dialog_c2_auto_checkout` 純 forward wrapper 移除，2 caller 改直呼 `_dialog_c2_second_stage`；tests/ 同步移除對應 stub。(2) `git mv` 廠商檔 → `myProgram/vendor/{ActionGroupControl,Board}.py`；新增 `myProgram/vendor/__init__.py`（DO NOT MODIFY docstring）；`.claude/hooks/block-vendor-edit.ps1` regex 更新涵蓋 `myProgram/(?:.+/)?<file>.py`（future-proof）；CLAUDE.md ⛔#1 路徑更新；173 tests PASS（兩個 commit 均通過）。|
 | 2026-05-26 | **🔍 multi-agent 程式碼審查整合報告**：使用者要求對 myProgram/ 派 `/review`（build-in）+ 結構/檔名（opus xhigh）+ 主 agent 自選 2 個（狀態機正確性 / NLU 健壯性，皆 opus xhigh）+ 主 agent 補 /review 適配版（橫切面 wire-up/風格/效能/安全），共 4 視角獨立並行審查。注：`/review` 內建 skill 是 PR 審查工作流（單一 prompt 非 3 subagent），與當前無 open PR 不契合，主 agent 改採 5 維度做適配版審查。產出：新建 `resources/reviews/` 資料夾 + 首份報告 `2026-05-26_myProgram_multi-agent-review.md`（含跨視角共識點 / 必修 7 條 + 建議修 18 條 + 可不改 15 條總表 + 8 階段 P0-P8 執行 Roadmap）。最關鍵發現：C-2 strict yes/no 內 NO 詞表「沒了/不要/沒有」與 L3 normal 結帳意圖語意衝突（顧客錢包逆向錯誤）；廠商檔位置應隔離到 `myProgram/vendor/`；`do_action`/`schedule` 是 dead callback 應清理。|
+| 2026-05-26 | **🏷️ P6.S8：`myProgram.py` 改名 `main.py` + package 顯式化**：`git mv myProgram/myProgram.py myProgram/main.py`（消除 package 與 module 同名造成的 namespace 模糊）；新增 `myProgram/__init__.py`（顯式 package，避免隱式 PEP 420 namespace package 行為飄移）；新增 `myProgram/__main__.py`（支援 `python -m myProgram` 簡潔跑法）。`tests/sales/test_states.py` L1-ENTRY-001 Given 注釋同步更新為新跑法。Pi 端跑法改變：舊 `python3.11 -m myProgram.myProgram` → 新 `python3.11 -m myProgram`（推薦）或 `python3.11 -m myProgram.main`。回歸視角 A §3.1 / §3.2。180 tests PASS。|
