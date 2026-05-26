@@ -20,7 +20,16 @@
 - 小細節不符 → 我自己直接修，省往返。
 - 大量偏差 → 退回要求重做。
 - **絕不直接把不符合規範的產出交給使用者。**
-- **驗證 commit branch（2026-05-26 加，防 Gotcha M）：** subagent 回報 commit SHA 後跑 `git branch --contains <SHA>` 確認落在 `worktree-*` branch；若顯示 `main` 表示 commit 跑錯 branch（已知偶發 bug，見 `.claude/hooks/NOTES.md` Gotcha M），改走 workaround（主 checkout 直接 `git push origin main`，跳過 ff-merge）。
+- **驗證 commit branch（2026-05-26 加，防 Gotcha M）：** subagent 回報 commit SHA 後跑 `git branch --contains <SHA>` 確認落在 `worktree-*` branch；若顯示 `main` 表示 commit 跑錯 branch（已知偶發 bug），完整處理鏈：
+
+  | 步驟 | 動作 |
+  |---|---|
+  | 1 | `ExitWorktree(action="remove")` — 切回主 checkout（worktree branch 無新 commit，安全 remove） |
+  | 2 | 在主 checkout 跑 pytest / 審查新檔（main HEAD 已是 subagent commit） |
+  | 3a | **不需後續編輯** → 直接 `git push origin main` + hook 自動 sync，結束 |
+  | 3b | **需要主 agent 後續編輯**（projectStructure / pineedtodo 等）→ 進新 worktree + 編輯 + commit + ExitWorktree(keep) → **`git cherry-pick <SHA>`**（不能 ff-merge — 必失敗 diverging，因新 worktree 從舊 base 分出）→ push → `git worktree remove` + `git branch -D worktree-*`（用 `-D` 大寫因 branch 未被 ff-merged） |
+
+  **歷史案例**：2026-05-26 Wave 0：subagent commit `d60798e` 落 main → projectStructure 更新 commit `2976566` 在新 worktree branch → ff-merge fail diverging → cherry-pick 成 main `bd77ded`。**完整文檔**：memory [[gotcha-m-post-commit-workflow]]。
 
 **自動化補充：**
 
