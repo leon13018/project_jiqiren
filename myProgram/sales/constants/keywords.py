@@ -83,6 +83,11 @@ KEYWORDS_CONFIRM_NO_STRICT_SHORT: list = ["no", "nope", "n", "否"]
 # 不應跨 mode 共享。
 # ============================================================
 
+# 注意：「等一下」/「稍等」等詞也在 nlu._KEYWORDS_THINK 內（L2/L3 mode 視為「想一下」）。
+# 在 L4 mode 內 classify_intent 先檢查本集合（line 170-174），故 L4「等一下」走「等待安撫」分支；
+# L2/L3 mode 走 _KEYWORDS_THINK 返「想一下」。同字跨 mode 不同義，由 classify_intent 的判定順序保證正確分流。
+# 未來加新 mode 時要主動決定「等一下」這類詞屬 ACK 還是 THINK。
+# （INTENTIONAL，2026-05-26 review C7 文件化）
 # substring 集：較長的詞，substring match 安全
 KEYWORDS_L4_ACK_OR_WAIT: list = [
     # 肯定 / 安撫類（長詞）
@@ -147,6 +152,11 @@ KEYWORDS_SCRATCH: list = [
 # 中文數字映射（含異體字）（2026-05-26 Wave 6 從 nlu.py 搬移；資料層歸資料層）
 # ============================================================
 
+# Python 3.7+ dict iteration 依插入順序，本 map 的 key 順序即為查找優先序：
+# 「兩」排在「二」之前（兩者值都是 2，無實質差異）；「壹」排在「一」之前（同值差異）；
+# nlu.parse_quantity 對單字中文數字逐字查找，遇到第一個命中的 key 即返回。
+# 變更此 dict 的 key 順序會改變查找優先序，無 unit test 守護 — 變動需謹慎。
+# （INTENTIONAL，2026-05-26 review D9 文件化）
 CHINESE_DIGIT_MAP: dict = {
     "一": 1, "壹": 1,
     "兩": 2, "二": 2, "貳": 2,

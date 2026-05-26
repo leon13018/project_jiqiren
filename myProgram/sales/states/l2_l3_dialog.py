@@ -313,6 +313,13 @@ def _dialog_c2_second_stage(
 
     為何嚴格：規格書 yes/no prompt 避免 NLU 在 L3 normal mode 把「不要」誤分為「結帳」
     再進 checkout confirm 的多步繞路；同時避免亂答觸發 B-1 reask 子流程的另一個 timer。
+
+    Timeout 鏈條（INTENTIONAL，2026-05-26 review B14 文件化）：
+        - C-2 第二段 12s 倒數內無 yes/no 回應 → return ("L4", 0) 自動進 L4
+        - 進 L4 後若顧客仍無回應，L4_TOTAL_BUDGET = 60s 預算耗盡 → forced exit + clear cart
+        - 即「L3 dialog timeout → C-2 12s → L4 60s」最壞 72s 顧客缺席期間系統還在等
+        - 鏈條最終 default = clear cart 不扣錢（符合 confirm-default-must-be-conservative）
+        - 不是 bug — 設計意圖：給顧客最大寬容期間考慮，仍守住「不默默扣錢」保險
     """
     speak(L3_C2_WARNING_TEMPLATE.format(seconds=AUTO_CHECKOUT_NOTICE))
 
@@ -385,6 +392,15 @@ def _dialog_main_loop(
     Returns:
         (next_state, next_think_count)
         next_state ∈ {"L4", "L1_via_subroutine_a"}
+
+    無 wall-clock budget 是設計選擇（INTENTIONAL，2026-05-26 review B22 文件化）：
+        - 跟 L4 (60s) 不同，dialog 沒有整體 wall-clock 上限
+        - 理由：顧客主動加單 / 想一下 / 修改 cart 沒道理限時 — 對話越長代表
+          顧客投入越多，業務上希望成交，限時反而趕走客人
+        - 各「不互動」分支（think_count / unclear_count）有獨立計數器保護
+          避免無限循環；read_customer_input 也有 WAIT_NO_RESPONSE 單輪 timeout
+        - 若未來 demo 場景需要「整體 5 分鐘上限」可加 DIALOG_TOTAL_BUDGET，
+          但目前無需求
     """
     unclear_count = 0
 
