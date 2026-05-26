@@ -2319,15 +2319,16 @@ def test_l4_c_service_keyword_enters_special_mode_with_options() -> None:
         cart=cart,
     )
 
-    # Assert：終端含電話 + 選項提示；語音含選項提示
+    # Assert：終端含電話；語音含選項提示（2026-05-26 post-P8 修：選項 prompt 不再 print_terminal
+    # dup，避免 S1 chat-driven 視覺重複；production 時終端視覺由未來 HTML/screen 層接，sales/ 內只 speak）
     all_terminal = " ".join(terminal_calls)
     all_spoken = " ".join(speak_calls)
     assert SERVICE_PHONE in all_terminal, f"進客服模式應印電話，終端：{terminal_calls}"
     assert L4_C_OPTIONS_PROMPT in all_spoken, (
         f"進客服模式應 speak 選項提示，實際：{speak_calls}"
     )
-    assert L4_C_OPTIONS_PROMPT in all_terminal, (
-        f"進客服模式應終端印選項提示，實際：{terminal_calls}"
+    assert L4_C_OPTIONS_PROMPT not in all_terminal, (
+        f"進客服模式選項 prompt **不應**重複印 terminal（語音已 speak），實際終端：{terminal_calls}"
     )
 
 

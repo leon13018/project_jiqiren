@@ -294,7 +294,9 @@ def _l4_service_mode(
     """
     print_terminal(SERVICE_PHONE)
     speak(L4_C_OPTIONS_PROMPT)
-    print_terminal(L4_C_OPTIONS_PROMPT)
+    # 2026-05-26 post-P8 修：移除 print_terminal(L4_C_OPTIONS_PROMPT) — 與上一行 speak
+    # 同訊息形成 S1 chat-driven 視覺重複（語音模式 + 終端模式雙印）。production TTS 階段
+    # 語音 prompt 由顧客聽，終端視覺顯示由未來 HTML/screen 層另接，無需在 sales/ 內 dup。
 
     while True:
         response = read_customer_input(timeout=L4_SERVICE_TIMEOUT)
@@ -333,9 +335,8 @@ def _l4_service_mode(
         if intent == "繼續交易":
             return None
 
-        # 不命中 → 重複提示
+        # 不命中 → 重複提示（同上：移除 print_terminal dup，只留 speak）
         speak(L4_C_OPTIONS_PROMPT)
-        print_terminal(L4_C_OPTIONS_PROMPT)
 
 
 def _l4_dispatch_response(
