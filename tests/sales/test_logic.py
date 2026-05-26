@@ -37,6 +37,7 @@ def _make_callbacks(**overrides):
         sleep=lambda *a, **k: None,
         schedule=lambda *a, **k: None,
         exit_program=lambda *a, **k: None,
+        show_hawk_help=lambda *a, **k: None,
     )
     defaults.update(overrides)
     return defaults
