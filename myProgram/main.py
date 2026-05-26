@@ -132,14 +132,6 @@ def _build_callbacks(state: _S1State) -> dict:
         state.opencv_mute_until = time.monotonic() + seconds
         print(f"[opencv] mute {seconds}s（生效到 {seconds}s 後；期間 detection 全部回 0）")
 
-    def unmute_opencv():
-        # 2026-05-25 補暗坑。子例程 A 方案 A 不呼叫 unmute；介面留著給未來模式切換用。
-        # 2026-05-26 補：clear mute_until 同步生效（避免 unmute 後仍被時間戳擋住）。
-        state.opencv_enabled = True
-        state.opencv_dwell = 0.0  # 2026-05-26 P5 加：與 mute_opencv 對稱清 dwell，預防殘留觸發
-        state.opencv_mute_until = 0.0
-        print("[opencv] unmute（state.opencv_enabled = True, dwell + mute_until 清空）")
-
     # === 對外動作 ===
     def speak(text):
         print(f"[語音] {text}")
@@ -169,7 +161,6 @@ def _build_callbacks(state: _S1State) -> dict:
         "opencv_disable": opencv_disable,
         "opencv_enable": opencv_enable,
         "mute_opencv": mute_opencv,
-        "unmute_opencv": unmute_opencv,
         "speak": speak,
         "read_customer_input": read_customer_input,
         "sleep": sleep,

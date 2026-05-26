@@ -65,7 +65,7 @@ def resolve_and_add_products(
         # 該商品缺數量 → 進追問 sub-loop
         unit = PRODUCTS[product]["單位"]
         # 多商品場景明示是「哪個商品」要問數量
-        speak(f"請問{product}要幾{unit}？")
+        speak(QTY_PROMPT_TEMPLATE.format(product=product, unit=unit))
 
         accepted = _qty_follow_up_sub_loop(
             product=product,

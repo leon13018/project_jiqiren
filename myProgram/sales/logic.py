@@ -34,7 +34,6 @@ def run(
     opencv_disable,
     opencv_enable,
     mute_opencv,
-    unmute_opencv,
     speak,
     read_customer_input,
     sleep,

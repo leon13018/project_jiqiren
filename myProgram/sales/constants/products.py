@@ -15,8 +15,8 @@ PRODUCTS: dict = {
 }
 
 # L2 / L3 鏈路 C 商品意圖無數量時追問語音（2026-05-25 加）
-# 用法：speak(QTY_PROMPT_TEMPLATE.format(unit="瓶" or "張"))
-QTY_PROMPT_TEMPLATE: str = "請問您要幾{unit}？"
+# 用法：speak(QTY_PROMPT_TEMPLATE.format(product="冰紅茶", unit="瓶"))
+QTY_PROMPT_TEMPLATE: str = "請問{product}要幾{unit}？"
 
 # QTY 追問子迴圈內，顧客亂說 / 客服回來時的 clarify 語音（2026-05-25 加）
 # 同 L2/L3 B-1 風格：「不好意思我聽不太懂...或者您想聯繫客服？」

@@ -32,7 +32,6 @@ def _make_callbacks(**overrides):
         opencv_disable=lambda *a, **k: None,
         opencv_enable=lambda *a, **k: None,
         mute_opencv=lambda *a, **k: None,
-        unmute_opencv=lambda *a, **k: None,
         speak=lambda *a, **k: None,
         read_customer_input=lambda *a, **k: None,
         sleep=lambda *a, **k: None,

@@ -334,7 +334,8 @@ def _dialog_c2_second_stage(
         ):
             cart_module.clear_cart(cart)
             speak(L3_CHECKOUT_REJECT_CLEAR_NOTICE)
-            return _dialog_continue_after_c2_inner(
+            # C-2 NO → 重入 dialog 主迴圈（跳過 entry prompt + opencv_disable）
+            return _dialog_main_loop(
                 speak=speak,
                 print_terminal=print_terminal,
                 read_customer_input=read_customer_input,
@@ -541,29 +542,6 @@ def _dialog_main_loop(
             speak(L3_ENTRY_PROMPT)
             continue
         speak(L2_B1_CLARIFY if cart_empty else L3_B1_CLARIFY)
-
-
-def _dialog_continue_after_c2_inner(
-    speak,
-    print_terminal,
-    read_customer_input,
-    cart,
-    think_count: int,
-) -> tuple:
-    """C-2 NO / unclear-final「繼續」後重入 dialog — 跳過 entry prompt + opencv_disable。
-
-    跟 run_dialog 主迴圈邏輯完全一致；差別：
-      - 不呼叫 opencv_disable()（C-2 之前已 disable）
-      - 不 speak entry prompt（避免重複播放）
-    直接委派給 _dialog_main_loop。
-    """
-    return _dialog_main_loop(
-        speak=speak,
-        print_terminal=print_terminal,
-        read_customer_input=read_customer_input,
-        cart=cart,
-        think_count=think_count,
-    )
 
 
 def _dialog_checkout_confirm(
