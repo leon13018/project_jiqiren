@@ -170,9 +170,39 @@ L3_UNCLEAR_FINAL_PROMPT: str = "系統將取消這次購物，請選擇『取消
 # 為防多商品點單 + 重複 utterance 累加造成誤增，進結帳前再 confirm 一次給顧客機會修正
 L3_CHECKOUT_CONFIRM_TEMPLATE: str = "您即將結帳，總共 {summary}，正確嗎？（語音說『對』/『不對』，或終端輸入 1=對 / 2=不對）"
 
-# Confirm 子狀態內肯定 / 否定 keyword（2026-05-25 加）
-KEYWORDS_CONFIRM_YES: list = ["對", "是", "好", "確認", "確定", "沒錯", "yes", "ok", "correct"]
-KEYWORDS_CONFIRM_NO: list = ["不對", "錯", "改", "wrong", "不是", "沒有", "沒了", "不要", "不用"]
+# Confirm 子狀態 YES / NO keyword（2026-05-26 重構：拆 substring 集 + strict-short 集）
+# YES substring 集（長詞，substring match 安全；不含「好/是/對」單字 → 移到 strict-short）
+# 加入結帳同義詞（取代舊版 classify_intent==結帳 條件，讓 C-2 第二段「說結帳」仍可觸發 YES）
+KEYWORDS_CONFIRM_YES: list = [
+    # 繁體肯定詞
+    "對的", "是的", "好的", "好啦", "確認", "確定", "沒錯", "正確",
+    # 結帳同義詞（繁體）— 顧客在 C-2 說「結帳/買單/付款」= 明確想結帳 = YES
+    "結帳", "買單", "買帳", "付款",
+    # 簡體變體
+    "对的", "是的", "好的", "确认", "确定", "没错", "正确",
+    "结账", "买单", "付款",
+    # 英文
+    "yes", "yeah", "correct", "okay",
+]
+
+# YES strict-short 集（短單字，只在 response.strip().lower() 完全等於時命中）
+# 理由：「好」substring 會誤命中「好亂/好像不對」；strict-short 消除 false positive
+KEYWORDS_CONFIRM_YES_STRICT_SHORT: list = ["好", "是", "對", "对", "嗯", "ok", "y"]
+
+# NO substring 集（長詞或常見短拒絕詞，substring match）
+# 移除項目說明：
+#   「錯」→ substring 誤命中「沒錯/不錯」（false positive）
+#   「改」→ 語意歧義，不代表明確取消
+#   「沒有」→ 歧義（"沒有問題" = 沒問題 = 同意）
+#   「沒了」→ 在 C-2「是否結帳」語意是「要結帳、沒別的了」而非取消（逆向錯誤）
+# 保留「不要/不用」— C-2 上下文顧客說「不要/不用結帳」是明確拒絕，非歧義詞
+KEYWORDS_CONFIRM_NO: list = [
+    "不對", "不正確", "不是", "不行", "不要", "不用", "重來", "重新", "wrong",
+    "不对", "不正确", "不是", "不行", "不要", "不用", "重来", "重新",  # 簡體變體
+]
+
+# NO strict-short 集（短單字/短英文，只在完全等於時命中）
+KEYWORDS_CONFIRM_NO_STRICT_SHORT: list = ["no", "nope", "n", "否"]
 
 # L3 結帳前 confirm 顧客否認後的清 cart 通知（2026-05-26 加，spec 修訂）
 # 目前無改/刪商品功能 → 否認 = 清空重點；訊息含 L2_ENTRY_PROMPT 內容，後續主迴圈自動進 DnC

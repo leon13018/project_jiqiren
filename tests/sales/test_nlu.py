@@ -201,10 +201,16 @@ def test_nlu_short_mei_simplified_variant_also_classified() -> None:
     assert nlu.classify_intent("没", "l4") == "拒絕"
 
 
-def test_nlu_english_no_nope_classified_as_checkout() -> None:
-    """L3（normal 模式）顧客講「no」/「nope」→ 結帳意圖（語意「沒了，不追加」）。"""
-    assert nlu.classify_intent("no") == "結帳"
-    assert nlu.classify_intent("nope") == "結帳"
+def test_nlu_english_no_nope_in_l3_normal_mode_classified_as_unknown() -> None:
+    """2026-05-26 P0 strict-match 修正：L3（normal 模式）顧客講「no」/「nope」→ 無法判斷。
+
+    舊行為：「no」/「nope」在 _KEYWORDS_CHECKOUT 內，L3 normal mode → 結帳。
+    新行為（2026-05-26）：移除「no/nope」出 _KEYWORDS_CHECKOUT（短詞，會在 C-2 strict yes/no
+    上下文誤命中 YES 條件）。L3 normal mode「no/nope」→ 無法判斷（走 B-1 clarify）。
+    C-2 strict yes/no 上下文「no/nope」走 CONFIRM_NO_STRICT_SHORT 完全等於路徑。
+    """
+    assert nlu.classify_intent("no") == "無法判斷"
+    assert nlu.classify_intent("nope") == "無法判斷"
 
 
 def test_nlu_english_no_nope_in_l2_mode_classified_as_reject() -> None:

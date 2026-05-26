@@ -50,8 +50,10 @@ from myProgram.sales.constants import (
     PRODUCTS,
     KEYWORDS_CONFIRM_YES,
     KEYWORDS_CONFIRM_NO,
+    KEYWORDS_CONFIRM_YES_STRICT_SHORT,
+    KEYWORDS_CONFIRM_NO_STRICT_SHORT,
 )
-from myProgram.sales.nlu import classify_intent, parse_products
+from myProgram.sales.nlu import classify_intent, parse_products, _contains_any, _equals_strict_short
 from myProgram.sales import cart as cart_module
 from myProgram.sales.states._product_helpers import resolve_and_add_products
 
@@ -491,7 +493,13 @@ def _dialog_c2_second_stage(
             return ("L4", 0)
 
         # NO 先檢查 — 防止 L3 normal NLU 把「不要」誤分為「結帳」造成繞路
-        if response == "2" or any(kw in response for kw in KEYWORDS_CONFIRM_NO):
+        # 使用 substring + strict-short 雙路：
+        #   substring 命中長詞（如「不正確」）；strict-short 命中短詞（如「no/nope」）
+        if (
+            response == "2"
+            or _contains_any(response, KEYWORDS_CONFIRM_NO)
+            or _equals_strict_short(response, KEYWORDS_CONFIRM_NO_STRICT_SHORT)
+        ):
             cart_module.clear_cart(cart)
             speak(L3_CHECKOUT_REJECT_CLEAR_NOTICE)
             return _dialog_continue_after_c2_inner(
@@ -503,11 +511,13 @@ def _dialog_c2_second_stage(
                 think_count=think_count,
             )
 
-        # YES 檢查：明確肯定詞 + 終端 1 + L3 normal「結帳」意圖（涵蓋「結帳/買單/付款」等）
+        # YES 檢查：明確肯定詞（substring + strict-short 雙路）
+        # 移除 classify_intent==結帳 條件：lenient 模式會把「no/nope/沒了」誤命中 YES
+        # 顧客若「沒了/夠了」想結帳，C-2 timeout 後自然進 L4，仍是正確終點
         is_yes = (
             response == "1"
-            or any(kw in response for kw in KEYWORDS_CONFIRM_YES)
-            or classify_intent(response, "normal") == "結帳"
+            or _contains_any(response, KEYWORDS_CONFIRM_YES)
+            or _equals_strict_short(response, KEYWORDS_CONFIRM_YES_STRICT_SHORT)
         )
         if is_yes:
             confirm_result = _dialog_checkout_confirm(
@@ -701,9 +711,9 @@ def _dialog_checkout_confirm(
             return True
         if response == "2":
             return False
-        if any(kw in response for kw in KEYWORDS_CONFIRM_NO):
+        if _contains_any(response, KEYWORDS_CONFIRM_NO) or _equals_strict_short(response, KEYWORDS_CONFIRM_NO_STRICT_SHORT):
             return False
-        if any(kw in response for kw in KEYWORDS_CONFIRM_YES):
+        if _contains_any(response, KEYWORDS_CONFIRM_YES) or _equals_strict_short(response, KEYWORDS_CONFIRM_YES_STRICT_SHORT):
             return True
         unclear_count += 1
         if unclear_count >= CHECKOUT_CONFIRM_UNCLEAR_MAX:

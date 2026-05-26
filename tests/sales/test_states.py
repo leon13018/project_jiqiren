@@ -3716,3 +3716,54 @@ def test_l1_service_mode_calls_opencv_disable() -> None:
         f"主迴圈 2 輪 + 客服 1 次 disable 應 >= 3，實際 {opencv.disable_calls}。"
         "若僅 2 次 = 客服獨立 disable 漏了"
     )
+
+
+# ============================================================
+# P0-STRICT-001（2026-05-26 P0 keyword 歧義急救 regression）
+### Scenario: C-2「請問是否要結帳」顧客回「沒了」不應被當 NO 清空 cart
+### Given L3 處於 C-2 第二段等待中（cart 非空），顧客回「沒了」
+### When 嚴格 strict-match 規則生效後，「沒了」不命中 NO 也不命中 YES（均為非完全等於）
+### Then C-2 視為 gibberish 繼續倒數，後續 None timeout → L4；cart 仍非空
+### 回歸來源：視角 B #3 / 視角 C #2 發現的 keyword 歧義 bug（顧客錢包逆向錯誤）
+# ============================================================
+
+def test_c2_meiyou_should_not_be_no() -> None:
+    """C-2 strict yes/no 內顧客回「沒了」應視為 unclear（不命中 NO 也不命中 YES）→
+    繼續倒數到 timeout → 進 L4；cart 保持非空（NO 路徑會清 cart，驗證「沒了」沒走 NO 路徑）。
+
+    回歸視角 B #3 / 視角 C #2 發現的「沒了 → 顧客錢包逆向錯誤」bug。
+    詳細設計：resources/reviews/2026-05-26_myProgram_multi-agent-review.md §1.2 §3.1 P0。
+    """
+    # Arrange：cart 非空（模擬顧客已點單在 C-2 等待中）
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+
+    # 輸入序列：
+    #   None → 主等待 DyC timeout → 觸發 C-2（speak 警告語音）
+    #   「沒了」→ C-2 第二段收到「沒了」；strict-match 下不命中 NO（非完全等於任何 NO strict-short）
+    #            也不命中 YES（「沒了」不在 YES substring 或 YES strict-short 中）→ gibberish 忽略
+    #   None → C-2 倒數歸零 → 自動進 L4
+    customer_input = FakeCustomerInput([None, "沒了", None])
+
+    # Act：透過 run_dialog 觸發 C-2 第二段
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        do_action=lambda name: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    # Assert 1：進 L4（timeout 路徑，非 NO 路徑清 cart 後回 L1）
+    assert next_state == "L4", (
+        f"「沒了」在 C-2 strict yes/no 應被忽略（gibberish），倒數後進 L4，"
+        f"實際：{next_state!r}。若回 L1_via_subroutine_a = NO 路徑誤命中（顧客錢包 bug）。"
+    )
+
+    # Assert 2：cart 仍非空（NO 路徑會 clear_cart，此路不應走）
+    assert not cart_module.is_empty(cart), (
+        f"「沒了」不應走 NO 路徑清 cart，cart 應保持非空，實際：{cart}。"
+        "若 cart 空 = KEYWORDS_CONFIRM_NO 或 CONFIRM_NO_STRICT_SHORT 誤命中「沒了」。"
+    )
