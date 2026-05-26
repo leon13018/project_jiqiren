@@ -45,6 +45,7 @@ from myProgram.sales.constants import (
     L3_CHECKOUT_CONFIRM_TEMPLATE,
     L3_CHECKOUT_REJECT_CLEAR_NOTICE,
     L3_CHECKOUT_TIMEOUT_CLEAR_NOTICE,
+    L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE,
     L3_C2_WARNING_TEMPLATE,
     CHECKOUT_CONFIRM_TIMEOUT,
     CHECKOUT_CONFIRM_UNCLEAR_MAX,
@@ -255,7 +256,7 @@ def _dialog_dispatch_inner_l3(
             read_customer_input=read_customer_input,
             cart=cart,
         )
-        if result is True:
+        if result == "yes":
             speak(L3_C1_CHECKOUT_GO)
             return ("L4", 0)
         _handle_checkout_confirm_result(result, cart, speak)
@@ -458,7 +459,7 @@ def _dialog_main_loop(
                 read_customer_input=read_customer_input,
                 cart=cart,
             )
-            if result is True:
+            if result == "yes":
                 speak(L3_C1_CHECKOUT_GO)
                 return ("L4", 0)
             # 否認 / timeout → 清空 cart + 對應通知；下一輪 cart 空 → l2 mode → DnC
@@ -560,15 +561,16 @@ def _dialog_checkout_confirm(
     就被當 timeout」+「終端 timeout 顯示 5.999... 小數」兩個 UX bug。
 
     **必須明確答覆才確認進 L4**（2026-05-26 修：保護顧客錢包）：
-    - timeout（沒回應）→ return None；caller 用 timeout 專屬通知（「由於您沒回應...」）
-    - 連續 unclear 達上限 → return False；caller 用一般 reject 通知
-    - 明確「不對」/「2」/「不要」等 → return False；caller 用一般 reject 通知
-    - 只有「1 / 對 / 是」等明確肯定詞才 return True 進 L4
+    - timeout（沒回應）→ return "timeout"；caller 用 timeout 專屬通知（「由於您沒回應...」）
+    - 連續 unclear 達上限 → return "no_unclear_exhausted"；caller 用亂答專屬通知
+    - 明確「不對」/「2」/「不要」等 → return "no_explicit"；caller 用明確拒絕通知
+    - 只有「1 / 對 / 是」等明確肯定詞才 return "yes" 進 L4
 
-    Returns:
-        True → 顧客明確確認，caller 進 L4
-        False → 顧客明確否認 / 亂答達上限，caller 清 cart + speak L3_CHECKOUT_REJECT_CLEAR_NOTICE
-        None → timeout 沒回應，caller 清 cart + speak L3_CHECKOUT_TIMEOUT_CLEAR_NOTICE
+    Returns（string sentinel，2026-05-26 P3.B 改：取代舊 True/False/None 三態）：
+        "yes" — 顧客明確確認（終端 1 / CONFIRM_YES 命中）
+        "no_explicit" — 顧客明確否認（終端 2 / CONFIRM_NO 命中）
+        "no_unclear_exhausted" — 顧客亂答 CHECKOUT_CONFIRM_UNCLEAR_MAX 次達上限
+        "timeout" — 顧客 CHECKOUT_CONFIRM_TIMEOUT 秒無回應
     """
     summary = _build_order_summary(cart)
     prompt = L3_CHECKOUT_CONFIRM_TEMPLATE.format(summary=summary)
@@ -578,37 +580,45 @@ def _dialog_checkout_confirm(
     while True:
         response = read_customer_input(timeout=CHECKOUT_CONFIRM_TIMEOUT)
         if response is None:
-            return None
+            return "timeout"
         if response == "1":
-            return True
+            return "yes"
         if response == "2":
-            return False
+            return "no_explicit"
         if _contains_any(response, KEYWORDS_CONFIRM_NO) or _equals_strict_short(response, KEYWORDS_CONFIRM_NO_STRICT_SHORT):
-            return False
+            return "no_explicit"
         if _contains_any(response, KEYWORDS_CONFIRM_YES) or _equals_strict_short(response, KEYWORDS_CONFIRM_YES_STRICT_SHORT):
-            return True
+            return "yes"
         unclear_count += 1
         if unclear_count >= CHECKOUT_CONFIRM_UNCLEAR_MAX:
-            return False
+            return "no_unclear_exhausted"
         speak(prompt)
 
 
-def _handle_checkout_confirm_result(result, cart, speak) -> None:
-    """checkout_confirm 非 True 時的清 cart + 通知處理（共用 helper）。
+def _handle_checkout_confirm_result(result: str, cart, speak) -> None:
+    """checkout_confirm 非 "yes" 時的清 cart + 通知處理（共用 helper）。
 
     Args:
-        result: _dialog_checkout_confirm 的返回值（False 或 None；True 不應呼叫此 helper）
+        result: _dialog_checkout_confirm 的 string sentinel（"yes" 不應呼叫此 helper）
         cart: 購物車 dict
         speak: 語音 callback
 
-    None (timeout) → speak L3_CHECKOUT_TIMEOUT_CLEAR_NOTICE（含「由於您沒回應」前綴）
-    False (明確否認/亂答上限) → speak L3_CHECKOUT_REJECT_CLEAR_NOTICE
+    "no_explicit" → speak L3_CHECKOUT_REJECT_CLEAR_NOTICE（顧客明確說不對）
+    "no_unclear_exhausted" → speak L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE（亂答 5 次達上限）
+    "timeout" → speak L3_CHECKOUT_TIMEOUT_CLEAR_NOTICE（含「由於您沒回應」前綴）
+
+    （2026-05-26 P3.B 改：string sentinel 四態取代舊 True/False/None 三態，
+     區分「明確不對」vs「亂答 5 次」兩種 NO 路徑的顧客體感）
     """
     cart_module.clear_cart(cart)
-    if result is None:
+    if result == "timeout":
         speak(L3_CHECKOUT_TIMEOUT_CLEAR_NOTICE)
-    else:
+    elif result == "no_unclear_exhausted":
+        speak(L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE)
+    elif result == "no_explicit":
         speak(L3_CHECKOUT_REJECT_CLEAR_NOTICE)
+    else:
+        raise AssertionError(f"未知 confirm result: {result!r}")
 
 
 def _dialog_unclear_final_confirmation(

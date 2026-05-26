@@ -50,6 +50,7 @@ from myProgram.sales.constants import (
     L3_CHECKOUT_CONFIRM_TEMPLATE,
     L3_CHECKOUT_REJECT_CLEAR_NOTICE,
     L3_CHECKOUT_TIMEOUT_CLEAR_NOTICE,
+    L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE,
     L3_C2_WARNING_TEMPLATE,
     UNCLEAR_MAX,
     L4_E_CLARIFY,
@@ -3353,6 +3354,40 @@ def test_l3_checkout_confirm_timeout_cancels() -> None:
     assert L3_CHECKOUT_TIMEOUT_CLEAR_NOTICE in speak_calls
     assert L3_CHECKOUT_REJECT_CLEAR_NOTICE not in speak_calls
     assert L2_TIMEOUT_TO_HAWK_VOICE in speak_calls
+
+
+def test_l3_checkout_confirm_unclear_exhausted_speaks_distinct_message() -> None:
+    """L3 結帳 → confirm 內顧客亂答 5 次達上限 → 說不同訊息（非「明確不對」訊息）。
+
+    2026-05-26 P3.B 加：區分「明確不對」vs「亂答 5 次達上限」兩種 NO 路徑的顧客體感。
+    原本兩條路徑都 speak L3_CHECKOUT_REJECT_CLEAR_NOTICE，顧客亂答 5 次
+    被踢出時得到「已幫您清空購物車」的「你說了不對」語氣 → 顧客困惑。
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # 結帳 → confirm prompt → 5 次 gibberish → 亂答上限 → 清 cart 回 DnC → 後續 None → L1
+    customer_input = FakeCustomerInput(["結帳", "aaa", "bbb", "ccc", "ddd", "eee", None])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+    )
+
+    assert next_state == "L1_via_subroutine_a"
+    assert cart_module.is_empty(cart)
+    # 亂答達上限：說 L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE（「不好意思我聽不太懂...」）
+    assert L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE in speak_calls, (
+        f"亂答 5 次應 speak L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE，實際：{speak_calls}"
+    )
+    # 不應說「明確不對」路徑的 L3_CHECKOUT_REJECT_CLEAR_NOTICE（顧客沒有說不對）
+    assert L3_CHECKOUT_REJECT_CLEAR_NOTICE not in speak_calls, (
+        f"亂答達上限不應 speak L3_CHECKOUT_REJECT_CLEAR_NOTICE（那是明確拒絕才用），實際：{speak_calls}"
+    )
 
 
 def test_l3_c2_yes_keyword_好_proceeds_directly_to_l4() -> None:
