@@ -1,7 +1,7 @@
 # 專案目錄結構
 
 > 本檔案記錄整個專案的資料夾與檔案結構，方便日後快速查閱。
-> 最後更新：2026-05-26（P6.S9：states/ 三檔改名統一層編號制）
+> 最後更新：2026-05-26（P7.S18：nlu.py 商品實體解析拆出 product_parser.py）
 
 ---
 
@@ -61,9 +61,10 @@ Project_01/
 │   └── sales/                            # TDD 階段產出（按 prod 模組；L0 第一輪 2026-05-24 建）
 │       ├── __init__.py                   # 子資料夾說明
 │       ├── test_constants.py             # 5 scenarios：L0-CONST + L0-PROD + L0-HAWK
-│       ├── test_nlu.py                   # 22 scenarios：L0-NLU(13) + L0-QTY(9)
+│       ├── test_nlu.py                   # intent / quantity / normalize_input test（P7 移除 parse_products 部分）
+│       ├── test_product_parser.py        # parse_products test（P7.S18 新增；從 test_nlu.py 拆出）
 │       ├── test_cart.py                  # 6 scenarios：L0-CART
-│       └── test_states.py                # 4 scenarios：L0-SUB-A 子例程 A（含 FakeScheduler inline stub）
+│       └── test_states.py                # L0-L5 鏈路 integration test（含 FakeScheduler inline stub）
 │   # 完整流程：.claude/rules/bdd-tdd-workflow.md
 │   # 設計決策（選項 C 純 unit test）：resources/architecture/backend-module-structure.md
 │
@@ -79,7 +80,8 @@ Project_01/
 │       ├── __init__.py                   # 模組標記 + docstring
 │       ├── logic.py                      # ✅ 主迴圈 + 5 層 cycle dispatch + cart invariant fail-fast（A2-c / A4-c 落地）
 │       ├── constants.py                  # ✅ L0-L5 常數（時間 / 商品 / 叫賣 / L1-L5 字串；B3 命名統一）
-│       ├── nlu.py                        # ✅ L0 純函式（classify_intent + parse_quantity + has_quantity）
+│       ├── nlu.py                        # ✅ L0 純函式（classify_intent + parse_quantity + has_quantity；商品解析 P7 已拆出）
+│       ├── product_parser.py             # ✅ 商品實體解析（parse_products；P7.S18 從 nlu.py 拆出）
 │       ├── cart.py                       # ✅ L0 純函式（new_cart / add_item / calc_total / clear_cart 等）
 │       └── states/                       # ✅ L0-L5 鏈路（2026-05-25 B4 拆 states.py；同日 L2/L3 合一為 dialog）
 │           ├── __init__.py               # re-export run_? 函式（l0_subroutine_a / l1 / l2_l3_dialog / l4 / l5）
@@ -315,3 +317,4 @@ __pycache__/
 | 2026-05-26 | **🔍 multi-agent 程式碼審查整合報告**：使用者要求對 myProgram/ 派 `/review`（build-in）+ 結構/檔名（opus xhigh）+ 主 agent 自選 2 個（狀態機正確性 / NLU 健壯性，皆 opus xhigh）+ 主 agent 補 /review 適配版（橫切面 wire-up/風格/效能/安全），共 4 視角獨立並行審查。注：`/review` 內建 skill 是 PR 審查工作流（單一 prompt 非 3 subagent），與當前無 open PR 不契合，主 agent 改採 5 維度做適配版審查。產出：新建 `resources/reviews/` 資料夾 + 首份報告 `2026-05-26_myProgram_multi-agent-review.md`（含跨視角共識點 / 必修 7 條 + 建議修 18 條 + 可不改 15 條總表 + 8 階段 P0-P8 執行 Roadmap）。最關鍵發現：C-2 strict yes/no 內 NO 詞表「沒了/不要/沒有」與 L3 normal 結帳意圖語意衝突（顧客錢包逆向錯誤）；廠商檔位置應隔離到 `myProgram/vendor/`；`do_action`/`schedule` 是 dead callback 應清理。|
 | 2026-05-26 | **🏷️ P6.S8：`myProgram.py` 改名 `main.py` + package 顯式化**：`git mv myProgram/myProgram.py myProgram/main.py`（消除 package 與 module 同名造成的 namespace 模糊）；新增 `myProgram/__init__.py`（顯式 package，避免隱式 PEP 420 namespace package 行為飄移）；新增 `myProgram/__main__.py`（支援 `python -m myProgram` 簡潔跑法）。`tests/sales/test_states.py` L1-ENTRY-001 Given 注釋同步更新為新跑法。Pi 端跑法改變：舊 `python3.11 -m myProgram.myProgram` → 新 `python3.11 -m myProgram`（推薦）或 `python3.11 -m myProgram.main`。回歸視角 A §3.1 / §3.2。180 tests PASS。|
 | 2026-05-26 | **🏷️ P6.S9：states/ 三檔改名統一層編號制**：`subroutine_a.py → l0_subroutine_a.py`（L0 共通子例程）、`dialog.py → l2_l3_dialog.py`（L2/L3 合一對話層）、`_product_helpers.py → _l2_l3_qty_followup.py`（L2/L3 鏈路 C 數量追問 helper）。`states/__init__.py` import 路徑 + docstring 同步更新；`l2_l3_dialog.py` 內部 import `_product_helpers` → `_l2_l3_qty_followup` 同步更新。命名與規格書 L?_共通.md / L1-L5.md 層編號對齊，讀目錄即知對應層。職責表同步更新 states/ 各子模組。回歸視角 A §3.3。180 tests PASS。|
+| 2026-05-26 | **🔀 P7.S18：nlu.py 商品實體解析拆出 product_parser.py**：從 `nlu.py` 拉出商品實體相關碼到新檔 `myProgram/sales/product_parser.py`（`parse_products` + `_parse_quantity_in_window` + `_PRODUCT_KEYWORD_TO_NAME`）；`nlu.py` 保留純意圖識別（`classify_intent` / `parse_quantity` / `has_quantity` / `normalize_input` / `_KEYWORDS_*` / `_CHINESE_DIGIT_MAP`）；`product_parser.py` 從 `nlu` import `_CHINESE_DIGIT_MAP` / `_KEYWORDS_ICED_TEA` / `_KEYWORDS_SCRATCH`（keyword sets 留 nlu 作第一公民）。callers 同步：`l2_l3_dialog.py` 改 `from myProgram.sales.product_parser import parse_products`。tests 拆分：`tests/sales/test_product_parser.py`（新，16 個測試）從 `test_nlu.py`（移除 `nlu.parse_products` 呼叫）拆出。回歸視角 A §3.7。184 tests PASS。|

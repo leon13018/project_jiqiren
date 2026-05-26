@@ -3,6 +3,8 @@
 對應 BDD scenarios：
     - L0-NLU-001 ~ L0-NLU-013：關鍵字白名單意圖分類
     - L0-QTY-001 ~ L0-QTY-009：數量解析
+
+注意：parse_products 相關測試已於 2026-05-26 P7 移至 tests/sales/test_product_parser.py。
 """
 
 import myProgram.sales.nlu as nlu
@@ -93,12 +95,11 @@ def test_nlu_iced_tea_keyword_classified_as_product_iced_tea() -> None:
 
 
 def test_nlu_iced_tea_simplified_variants_also_classified() -> None:
-    """2026-05-26 加：簡體「红茶 / 冰红茶」也應分類為冰紅茶（使用者 Windows 簡體系統實測）。"""
+    """2026-05-26 加：簡體「红茶 / 冰红茶」也應分類為冰紅茶（使用者 Windows 簡體系統實測）。
+    parse_products 的簡體驗證已移至 test_product_parser.py。
+    """
     assert nlu.classify_intent("红茶") == "商品:冰紅茶"
     assert nlu.classify_intent("冰红茶") == "商品:冰紅茶"
-    # parse_products 也應吃簡體並回繁體 product_name
-    assert nlu.parse_products("红茶 2") == [("冰紅茶", 2)]
-    assert nlu.parse_products("我要冰红茶") == [("冰紅茶", None)]
 
 
 # ============================================================
@@ -115,9 +116,10 @@ def test_nlu_scratch_card_keyword_classified_as_product_scratch_card() -> None:
 
 
 def test_nlu_scratch_card_simplified_variant_also_classified() -> None:
-    """2026-05-26 加：簡體「刮刮乐」也應分類為刮刮樂。"""
+    """2026-05-26 加：簡體「刮刮乐」也應分類為刮刮樂。
+    parse_products 的簡體驗證已移至 test_product_parser.py。
+    """
     assert nlu.classify_intent("刮刮乐") == "商品:刮刮樂"
-    assert nlu.parse_products("刮刮乐 3") == [("刮刮樂", 3)]
 
 
 # ============================================================
@@ -476,77 +478,6 @@ def test_nlu_classify_intent_ignores_chinese_measure_word_variants() -> None:
     assert nlu.classify_intent("刮刮樂100") == "商品:刮刮樂"
 
 
-# ============================================================
-# L0-NLU-PARSE-PRODUCTS-001 ~ 008（2026-05-25 加，B 方案 multi-product）
-# ============================================================
-
-def test_parse_products_empty_input_returns_empty_list() -> None:
-    assert nlu.parse_products("") == []
-    assert nlu.parse_products("今天天氣很好") == []
-
-
-def test_parse_products_single_with_quantity() -> None:
-    result = nlu.parse_products("冰紅茶 2")
-    assert result == [("冰紅茶", 2)]
-
-
-def test_parse_products_single_without_quantity_returns_none_qty() -> None:
-    """單商品無數量 → qty 為 None（caller 進追問），不預設 1。"""
-    result = nlu.parse_products("我要紅茶")
-    assert result == [("冰紅茶", None)]
-
-
-def test_parse_products_two_products_with_quantities() -> None:
-    """多商品 + 各自數量黏住對應商品（sticky-right）。"""
-    result = nlu.parse_products("紅茶 1 刮刮樂 2")
-    assert result == [("冰紅茶", 1), ("刮刮樂", 2)]
-
-
-def test_parse_products_two_products_first_has_qty_second_missing() -> None:
-    """多商品 + 第一個有數量第二個沒 → 第一個用該數量，第二個 qty=None。"""
-    result = nlu.parse_products("紅茶 1 刮刮樂")
-    assert result == [("冰紅茶", 1), ("刮刮樂", None)]
-
-
-def test_parse_products_two_products_both_missing_qty() -> None:
-    """多商品但都沒給數量 → 兩個 qty 都 None。"""
-    result = nlu.parse_products("紅茶 刮刮樂")
-    assert result == [("冰紅茶", None), ("刮刮樂", None)]
-
-
-def test_parse_products_duplicate_product_returns_separate_entries() -> None:
-    """重複商品 + 全部都有數量 → 保留各自獨立 entry（caller 累加）。
-
-    （2026-05-25 dedup 規則第 3 條：全有數量 → 保留累加。）
-    """
-    result = nlu.parse_products("冰紅茶 2 冰紅茶 3")
-    assert result == [("冰紅茶", 2), ("冰紅茶", 3)]
-
-
-def test_parse_products_duplicate_all_missing_qty_merges_to_single() -> None:
-    """重複商品 + 全部都沒數量 → 合併成一個 entry，只追問一次（2026-05-25 dedup 規則第 1 條）。
-
-    使用者實機回報：「刮刮樂 紅茶 刮刮樂」會重複問兩次刮刮樂幾張，應合一只問一次。
-    """
-    result = nlu.parse_products("刮刮樂 刮刮樂")
-    assert result == [("刮刮樂", None)]
-
-    result_mixed = nlu.parse_products("刮刮樂 紅茶 刮刮樂")
-    assert result_mixed == [("刮刮樂", None), ("冰紅茶", None)]
-
-
-def test_parse_products_duplicate_mixed_qty_drops_missing() -> None:
-    """重複商品 + 有數量 + 無數量混合 → 只保留有數量的，無數量的忽略（2026-05-25 dedup 規則第 2 條）。
-
-    使用者實機回報規則：「刮刮樂3 刮刮樂 紅茶」應算 3 張刮刮樂（不追問第二次）+ 紅茶照常追問。
-    """
-    result = nlu.parse_products("刮刮樂 3 刮刮樂 紅茶")
-    assert result == [("刮刮樂", 3), ("冰紅茶", None)]
-
-    # 有數量在後、無數量在前 → 同樣丟無數量
-    result_reverse = nlu.parse_products("刮刮樂 刮刮樂 3")
-    assert result_reverse == [("刮刮樂", 3)]
-
 
 # ============================================================
 # P4 regression tests（2026-05-26）
@@ -576,6 +507,7 @@ def test_nlu_iced_tea_short_word_tea_no_longer_matches() -> None:
     STT 結果若混雜英文 noise（如「matter」「outreach」），
     不應因含「tea」substring 而誤識別為冰紅茶。
     改「iced tea」/「black tea」更具體，仍涵蓋顧客講英文情境。
+    parse_products 的驗證已移至 test_product_parser.py。
     """
     # 不應誤命中（含 tea substring 但非商品）
     assert nlu.classify_intent("matter") == "無法判斷"
@@ -585,9 +517,6 @@ def test_nlu_iced_tea_short_word_tea_no_longer_matches() -> None:
     # 正確英文命中仍有效
     assert nlu.classify_intent("iced tea") == "商品:冰紅茶"
     assert nlu.classify_intent("black tea") == "商品:冰紅茶"
-    # parse_products 同步驗證
-    assert nlu.parse_products("iced tea 2") == [("冰紅茶", 2)]
-    assert nlu.parse_products("one black tea") == [("冰紅茶", None)]
 
 
 def test_nlu_scratch_letou_and_caijuan_alias() -> None:
@@ -595,6 +524,7 @@ def test_nlu_scratch_letou_and_caijuan_alias() -> None:
 
     Demo 場景顧客可能講「樂透」「彩卷」（常見錯字）；
     當前缺漏會 fall through 到 unclear，補強後應正確識別。
+    parse_products 路徑的驗證已移至 test_product_parser.py。
     """
     # classify_intent 路徑
     assert nlu.classify_intent("樂透") == "商品:刮刮樂"
@@ -603,27 +533,6 @@ def test_nlu_scratch_letou_and_caijuan_alias() -> None:
     # 簡體變體
     assert nlu.classify_intent("乐透") == "商品:刮刮樂"
     assert nlu.classify_intent("即时乐") == "商品:刮刮樂"
-    # parse_products 路徑
-    assert nlu.parse_products("我要樂透 2 張") == [("刮刮樂", 2)]
-    assert nlu.parse_products("彩卷一張") == [("刮刮樂", 1)]
-
-
-def test_parse_products_with_filler_words_extracts_correctly() -> None:
-    """含 filler 詞「想要」「跟」「謝謝」不影響解析。"""
-    result = nlu.parse_products("想要紅茶 2 跟刮刮樂 1 謝謝")
-    assert result == [("冰紅茶", 2), ("刮刮樂", 1)]
-
-
-def test_parse_products_long_keyword_not_double_counted_by_short() -> None:
-    """「冰紅茶」涵蓋「紅茶」，不應被短詞二度匹配（去重）。"""
-    result = nlu.parse_products("冰紅茶 3")
-    assert result == [("冰紅茶", 3)]
-
-
-def test_parse_products_chinese_quantity() -> None:
-    """中文數字也能解析。"""
-    result = nlu.parse_products("紅茶兩瓶")
-    assert result == [("冰紅茶", 2)]
 
 
 # ============================================================

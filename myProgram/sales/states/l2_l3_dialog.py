@@ -55,7 +55,8 @@ from myProgram.sales.constants import (
     KEYWORDS_CONFIRM_YES_STRICT_SHORT,
     KEYWORDS_CONFIRM_NO_STRICT_SHORT,
 )
-from myProgram.sales.nlu import classify_intent, parse_products, _contains_any, _equals_strict_short
+from myProgram.sales.nlu import classify_intent, _contains_any, _equals_strict_short
+from myProgram.sales.product_parser import parse_products
 from myProgram.sales import cart as cart_module
 from myProgram.sales.states._l2_l3_qty_followup import resolve_and_add_products
 
