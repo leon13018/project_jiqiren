@@ -1,7 +1,7 @@
 # 專案目錄結構
 
 > 本檔案記錄整個專案的資料夾與檔案結構，方便日後快速查閱。
-> 最後更新：2026-05-26（P8：constants.py 拆 constants/ subpackage，8 子模組 + __init__.py re-export）
+> 最後更新：2026-05-27（Wave 4 hotfix 3：main.py UnicodeDecodeError noisy debug + 加 test_main_decode_error.py）
 
 ---
 
@@ -64,7 +64,8 @@ Project_01/
 │       ├── test_nlu.py                   # intent / quantity / normalize_input test（P7 移除 parse_products 部分）
 │       ├── test_product_parser.py        # parse_products test（P7.S18 新增；從 test_nlu.py 拆出）
 │       ├── test_cart.py                  # 6 scenarios：L0-CART
-│       └── test_states.py                # L0-L5 鏈路 integration test（含 FakeScheduler inline stub）
+│       ├── test_states.py                # L0-L5 鏈路 integration test（含 FakeScheduler inline stub）
+│       └── test_main_decode_error.py     # main.py UnicodeDecodeError / EOFError noisy debug 測試（2026-05-27 Wave 4 hotfix 3 加）
 │   # 完整流程：.claude/rules/bdd-tdd-workflow.md
 │   # 設計決策（選項 C 純 unit test）：resources/architecture/backend-module-structure.md
 │
@@ -238,6 +239,7 @@ __pycache__/
 | `tests/sales/test_states.py` | 2026-05-24（**L0-L5 全齊** TDD）| L0：4 SUB-A + FakeScheduler。L1：12 + FakeKeyboardInput + FakeOpencv。L2：14 + FakeCustomerInput。L3：18 + 三態 dispatcher pattern。L4：22（含客服特殊模式 9 子情境 + 4 階段語氣）。L5（2026-05-24 加）：4 個（ENTRY 3 / A 1，inline lambda stub）；**總共 74 個** |
 | `tests/sales/test_logic.py` | 2026-05-26（Wave 0 安全網）| **6 個測試**：覆蓋 `logic.py` 主控狀態機 — cart invariant fail-fast / L1 None 終止 / dialog 退出 / L4 非掃碼退出 / L5 退出 / `enter_hawk_immediately` consume-after-use 三輪旗號來源驗證。callback 全 stub（`_make_callbacks` factory），用 `monkeypatch.setattr` patch states 模組 function。對應 review HP-10 / D1 / D6 |
 | `tests/sales/test_nlu_boundary.py` | 2026-05-26（Wave 0 安全網）| **23 個 xfail cases**：mark Wave 3 待修的 NLU 邊界誤判 — HP-1「沒有」substring（3）/ HP-1+C5「不了」substring（4）/ HP-2 negation guard（3）/ HP-4「等等」L4 ACK 漏（1）/ B5+D10 複合中文數字（5）/ B16「0 瓶」silent fallback（2）/ C12「沒事/沒問題」L3 結帳（2）/ C18「好了/對了/好啊」L2 肯定（3）。Wave 3 修完後拔 xfail 改綠燈 |
+| `tests/sales/test_main_decode_error.py` | 2026-05-27（Wave 4 hotfix 3）| **4 個測試**：`myProgram/main.py` 兩個 callback（`read_terminal_key` / `read_customer_input`）對 `UnicodeDecodeError` / `EOFError` 的 noisy debug 處理 — 用 `monkeypatch.setattr("builtins.input", ...)` 模擬 raise，`capsys` 捕 stdout 斷言含 `"raw hex"` + 失敗 byte 的 hex 字串（單 byte「c3」與多 byte「c328」各覆蓋）+ 對應 return value（`""` / `None`） |
 | `pytest.ini` | 2026-05-24（L0 第一輪 TDD）| pytest 設定：`testpaths = tests/sales`；確保 `python -m pytest tests/sales/ -v` 正確找到測試 |
 
 > **測試環境（選項 C）：** Windows 全域 Python 3.14.4 + pytest（使用者 2026-05-24 手動裝）；`myProgram/sales/` 內任何檔禁 import 廠商 SDK，所有對外動作（speak / do_action / show）以 callback 注入。跑指令 `python -m pytest tests/sales/ -v`。完整流程：`.claude/rules/bdd-tdd-workflow.md`。
@@ -333,3 +335,4 @@ __pycache__/
 | 2026-05-26 | **🔀 P7.S18：nlu.py 商品實體解析拆出 product_parser.py**：從 `nlu.py` 拉出商品實體相關碼到新檔 `myProgram/sales/product_parser.py`（`parse_products` + `_parse_quantity_in_window` + `_PRODUCT_KEYWORD_TO_NAME`）；`nlu.py` 保留純意圖識別（`classify_intent` / `parse_quantity` / `has_quantity` / `normalize_input` / `_KEYWORDS_*` / `_CHINESE_DIGIT_MAP`）；`product_parser.py` 從 `nlu` import `_CHINESE_DIGIT_MAP` / `_KEYWORDS_ICED_TEA` / `_KEYWORDS_SCRATCH`（keyword sets 留 nlu 作第一公民）。callers 同步：`l2_l3_dialog.py` 改 `from myProgram.sales.product_parser import parse_products`。tests 拆分：`tests/sales/test_product_parser.py`（新，16 個測試）從 `test_nlu.py`（移除 `nlu.parse_products` 呼叫）拆出。回歸視角 A §3.7。184 tests PASS。|
 | 2026-05-26 | **🔍 第二輪 multi-agent 程式碼審查**：使用者要求對 `myProgram/` 派 `/review` 內建工具 + 3 個 opus xhigh subagent（主題由主 agent 定）共審。主 agent 自選 3 個主題（A 架構與模組設計 / B 正確性、健壯性、多線程 / C 業務邏輯與對話流程）；`/review` skill 是 PR review 工作流，主 agent 套用其 5 個審查角度（test coverage / conventions / performance / security / correctness）做 codebase review 適配（來源 D）。產出 `resources/reviews/2026-05-26_myProgram_comprehensive_review.md`：共 4 個獨立來源、約 77 條 finding、10 條跨來源高優先（HP-1 ~ HP-10）+ 5 層統合處理順序 + 風險評估表 + 12 條好實踐 + 16 條對話腳本盲點 + 文案品質速覽。最關鍵新發現：(1) `tests/sales/test_logic.py` 不存在（BDD 規範自身列出但未建立，logic.py 編排層完全無 unit test）；(2) NLU substring「沒有 / 不了」誤命中「沒有問題 / 等不了」等口語 → 顧客錢包風險；(3) L3 結帳前 confirm 文案沒列總金額。|
 | 2026-05-26 | **🛡️ Wave 0：測試安全網（commit `d60798e`）**：依 review HP-10 / D1 / D6 補兩個 test 檔到 `tests/sales/`。(1) `test_logic.py`（6 PASS）覆蓋 `logic.py` 主控狀態機 — cart invariant fail-fast / L1 None 終止 / dialog 退出 / L4 非掃碼退出 / L5 退出 / `enter_hawk_immediately` consume-after-use；callback 全 stub（inline lambda + `_make_callbacks` factory），用 `monkeypatch.setattr` patch states 模組 function。(2) `test_nlu_boundary.py`（23 XFAIL）mark Wave 3 待修的 NLU 邊界誤判 — HP-1「沒有/不了」substring / HP-2 negation guard / HP-4「等等」L4 ACK 漏 / B5+D10 複合中文數字 / B16「0 瓶」silent fallback / C12 L3「沒事/沒問題」/ C18 L2「好了/對了/好啊」。pytest 最終 203 passed, 23 xfailed。**踩到 Gotcha M**：subagent 在 worktree 內 commit 直接落 main（非 worktree branch），主 agent 走 workaround 跳過 ff-merge 直接 push。純加 test 不動 prod code。|
+| 2026-05-27 | **🩹 Wave 4 hotfix 3：`main.py` UnicodeDecodeError noisy debug**（commit `50d8b67`，派 opus xhigh subagent）：使用者在 Pi 跑 `python3.11 -m myProgram` 輸入「皆可」時觸發 UnicodeDecodeError，原 except 印一行籠統「輸入解析失敗（UnicodeDecodeError），視為 timeout」就吃掉，無法 debug。Pi 端 locale 已確認全 UTF-8（`LANG=zh_TW.UTF-8` / 全 LC_* / Python `sys.stdin.encoding=utf-8`），非 locale 設錯，疑似 IME / SSH transit / 異常 byte 序列。改動：`myProgram/main.py` 兩處 except 從 `(UnicodeDecodeError, EOFError)` 拆成兩個 except — UnicodeDecodeError 印 `codec` / `reason` / `start-end` / **raw bytes hex** + 友善提示「請截圖回報以上訊息給開發者排查」；EOFError 獨立簡短訊息（EOFError 無 start/end/reason/object/encoding 屬性）。新增 `tests/sales/test_main_decode_error.py`（4 個 PASS）— 模擬兩種 exception × 兩個 callback，capsys 斷言 hex 字串輸出 + return value。pytest 242 → 246 PASS。下一步：使用者 SSH Pi 重現「皆可」截取 hex byte 給開發者排查根因。|
