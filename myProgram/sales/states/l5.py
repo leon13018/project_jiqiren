@@ -12,7 +12,6 @@ from myProgram.sales import cart as cart_module
 
 def run_l5(
     speak,
-    do_action,
     mute_opencv,
     cart,
     sleep,
@@ -28,7 +27,6 @@ def run_l5(
 
     Args:
         speak: callback(text: str) — 語音播放
-        do_action: callback(name: str) — 動作（規格 TBD，stub no-op）
         mute_opencv: callback(seconds: float) — 屏蔽 OpenCV 偵測
         cart: 購物車 dict（L5 內清空）
         sleep: callback(seconds: float) — 純等待 seconds 秒（不接受任何顧客輸入）

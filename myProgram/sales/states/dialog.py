@@ -11,7 +11,8 @@ cart 狀態決定模式：
 cart 狀態每輪 main loop 迭代都重新判定 — 未來加「刪除商品」功能時若 cart 變空，
 下一輪自然回到 L2 模式詢問需求（不需額外 transition 邏輯）。
 
-callback 集合：speak / do_action / print_terminal / read_customer_input
+callback 集合：speak / print_terminal / read_customer_input
+（do_action 已於 P1 移除 — S1 stage 從未呼叫，S3+ 真接動作層再加回）
 
 Return shape：(next_state, next_think_count)
     next_state ∈ {"L4", "L1_via_subroutine_a"}
@@ -60,7 +61,6 @@ from myProgram.sales.states._product_helpers import resolve_and_add_products
 
 def run_dialog(
     speak,
-    do_action,
     print_terminal,
     read_customer_input,
     cart,
@@ -71,7 +71,6 @@ def run_dialog(
 
     Args:
         speak: callback(text: str) — 語音播放
-        do_action: callback(name: str) — 動作（規格 TBD，stub 可 no-op）
         print_terminal: callback(text: str) — 印終端
         read_customer_input: callback(timeout: float) -> str | None — 等顧客回應
         cart: 購物車 dict（caller 傳入；本層做 in-place 修改 + 視情況 clear）
@@ -108,9 +107,8 @@ def run_dialog(
                 speak(L2_TIMEOUT_TO_HAWK_VOICE)
                 return ("L1_via_subroutine_a", 0)
             # L3 模式：6s timeout → C-2 兩段自動結帳
-            return _dialog_c2_auto_checkout(
+            return _dialog_c2_second_stage(
                 speak=speak,
-                do_action=do_action,
                 print_terminal=print_terminal,
                 read_customer_input=read_customer_input,
                 cart=cart,
@@ -148,7 +146,6 @@ def run_dialog(
             if think_count >= 3:
                 return _dialog_c2_second_stage(
                     speak=speak,
-                    do_action=do_action,
                     print_terminal=print_terminal,
                     read_customer_input=read_customer_input,
                     cart=cart,
@@ -156,7 +153,6 @@ def run_dialog(
                 )
             result = _dialog_think_silence_l3(
                 speak=speak,
-                do_action=do_action,
                 print_terminal=print_terminal,
                 read_customer_input=read_customer_input,
                 cart=cart,
@@ -284,7 +280,6 @@ def _dialog_think_silence_l2(
 
 def _dialog_think_silence_l3(
     speak,
-    do_action,
     print_terminal,
     read_customer_input,
     cart,
@@ -298,7 +293,6 @@ def _dialog_think_silence_l3(
     return _dialog_dispatch_inner_l3(
         response=inner,
         speak=speak,
-        do_action=do_action,
         print_terminal=print_terminal,
         read_customer_input=read_customer_input,
         cart=cart,
@@ -368,7 +362,6 @@ def _dialog_dispatch_inner_l2(
 def _dialog_dispatch_inner_l3(
     response: str,
     speak,
-    do_action,
     print_terminal,
     read_customer_input,
     cart,
@@ -389,7 +382,6 @@ def _dialog_dispatch_inner_l3(
         if think_count >= 3:
             return _dialog_c2_second_stage(
                 speak=speak,
-                do_action=do_action,
                 print_terminal=print_terminal,
                 read_customer_input=read_customer_input,
                 cart=cart,
@@ -397,7 +389,6 @@ def _dialog_dispatch_inner_l3(
             )
         return _dialog_think_silence_l3(
             speak=speak,
-            do_action=do_action,
             print_terminal=print_terminal,
             read_customer_input=read_customer_input,
             cart=cart,
@@ -435,31 +426,8 @@ def _dialog_dispatch_inner_l3(
     return None
 
 
-def _dialog_c2_auto_checkout(
-    speak,
-    do_action,
-    print_terminal,
-    read_customer_input,
-    cart,
-    think_count: int,
-) -> tuple:
-    """L3 鏈路 C-2 第一段：印警告語音 + 等 AUTO_CHECKOUT_NOTICE 秒。
-
-    僅在 cart 非空時觸發（cart 空走鏈路 A 拒絕，不會進此函式）。
-    """
-    return _dialog_c2_second_stage(
-        speak=speak,
-        do_action=do_action,
-        print_terminal=print_terminal,
-        read_customer_input=read_customer_input,
-        cart=cart,
-        think_count=think_count,
-    )
-
-
 def _dialog_c2_second_stage(
     speak,
-    do_action,
     print_terminal,
     read_customer_input,
     cart,
@@ -504,7 +472,6 @@ def _dialog_c2_second_stage(
             speak(L3_CHECKOUT_REJECT_CLEAR_NOTICE)
             return _dialog_continue_after_c2_inner(
                 speak=speak,
-                do_action=do_action,
                 print_terminal=print_terminal,
                 read_customer_input=read_customer_input,
                 cart=cart,
@@ -532,7 +499,6 @@ def _dialog_c2_second_stage(
             _handle_checkout_confirm_result(confirm_result, cart, speak)
             return _dialog_continue_after_c2_inner(
                 speak=speak,
-                do_action=do_action,
                 print_terminal=print_terminal,
                 read_customer_input=read_customer_input,
                 cart=cart,
@@ -546,7 +512,6 @@ def _dialog_c2_second_stage(
 
 def _dialog_continue_after_c2_inner(
     speak,
-    do_action,
     print_terminal,
     read_customer_input,
     cart,
@@ -569,9 +534,8 @@ def _dialog_continue_after_c2_inner(
                 # （見 run_dialog 主迴圈對齊；舊版走 _dialog_exit_a → speak L2_REJECT_THANKS 已棄用）
                 speak(L2_TIMEOUT_TO_HAWK_VOICE)
                 return ("L1_via_subroutine_a", 0)
-            return _dialog_c2_auto_checkout(
+            return _dialog_c2_second_stage(
                 speak=speak,
-                do_action=do_action,
                 print_terminal=print_terminal,
                 read_customer_input=read_customer_input,
                 cart=cart,
@@ -598,13 +562,13 @@ def _dialog_continue_after_c2_inner(
                 continue
             if think_count >= 3:
                 return _dialog_c2_second_stage(
-                    speak=speak, do_action=do_action,
+                    speak=speak,
                     print_terminal=print_terminal,
                     read_customer_input=read_customer_input,
                     cart=cart, think_count=think_count,
                 )
             result = _dialog_think_silence_l3(
-                speak=speak, do_action=do_action,
+                speak=speak,
                 print_terminal=print_terminal,
                 read_customer_input=read_customer_input,
                 cart=cart, think_count=think_count,

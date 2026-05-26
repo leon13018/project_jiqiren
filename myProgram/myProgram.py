@@ -8,8 +8,8 @@ S1 範圍（incremental-rebuild 第 1 步）：
 A3-d：callback 直接 wire（dict 展開傳 logic.run(**callbacks)），不預先包 Context dataclass。
 A2-c：本檔不持有業務 state（cart / counters），全部由 logic.run 內部管理。
 
-廠商 SDK 隔離：本檔 **S1 階段不 import 廠商 SDK**（do_action 是 stub）。
-S3+ 才接 `from myProgram import ActionGroupControl as Act` 並 wire。
+廠商 SDK 隔離：本檔 **S1 階段不 import 廠商 SDK**（do_action 已移除，S3+ 再加回）。
+S3+ 才接 `from myProgram.vendor import ActionGroupControl as Act` 並 wire。
 
 操作說明（S1 chat-driven trick）：
     - L1 hawk 模式：輸入 'c' → 模擬 OpenCV 偵測到顧客 → 下次 check 轉 L2
@@ -39,7 +39,9 @@ class _S1State:
 
 
 def _build_callbacks(state: _S1State) -> dict:
-    """建立 S1 chat-driven callback 集合（12 個）。"""
+    """建立 S1 chat-driven callback 集合（11 個）。
+    （do_action 已於 P1 移除 — S1 stage 從未呼叫，S3+ 真接動作層再加回）
+    """
 
     # === 終端 I/O ===
     def print_terminal(text):
@@ -135,9 +137,6 @@ def _build_callbacks(state: _S1State) -> dict:
     def speak(text):
         print(f"[語音] {text}")
 
-    def do_action(name):
-        print(f"[動作] {name}")
-
     # === 時間 / 程式控制 ===
     def sleep(seconds):
         """S1 sleep：印訊息但不真阻塞（純單線程 chat-driven 無實際時序需求）。
@@ -165,7 +164,6 @@ def _build_callbacks(state: _S1State) -> dict:
         "mute_opencv": mute_opencv,
         "unmute_opencv": unmute_opencv,
         "speak": speak,
-        "do_action": do_action,
         "read_customer_input": read_customer_input,
         "sleep": sleep,
         "schedule": schedule,

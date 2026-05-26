@@ -36,7 +36,6 @@ def run(
     mute_opencv,
     unmute_opencv,
     speak,
-    do_action,
     read_customer_input,
     sleep,
     schedule,
@@ -76,7 +75,6 @@ def run(
         _assert_cart_empty(cart, "進 dialog")
         next_state, _think = states.run_dialog(
             speak=speak,
-            do_action=do_action,
             print_terminal=print_terminal,
             read_customer_input=read_customer_input,
             cart=cart,
@@ -94,7 +92,6 @@ def run(
         _assert_cart_nonempty(cart, "進 L4")
         next_state, _loop, _unclear = states.run_l4(
             speak=speak,
-            do_action=do_action,
             print_terminal=print_terminal,
             read_customer_input=read_customer_input,
             cart=cart,
@@ -113,7 +110,6 @@ def run(
         _assert_cart_nonempty(cart, "進 L5（從 L4-A 帶 cart）")
         next_state, _, _ = states.run_l5(
             speak=speak,
-            do_action=do_action,
             mute_opencv=mute_opencv,
             cart=cart,
             sleep=sleep,

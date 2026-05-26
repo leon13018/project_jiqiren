@@ -670,7 +670,7 @@ def test_l2_entry_speaks_greeting_and_inits_think_count() -> None:
     # Act
     next_state, next_think_count = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -705,7 +705,7 @@ def test_l2_a_timeout_no_response_triggers_reject_and_subroutine_a() -> None:
     # Act
     next_state, next_think_count = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -742,7 +742,7 @@ def test_l2_a_reject_keyword_triggers_subroutine_a() -> None:
     # Act
     next_state, next_think_count = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -778,7 +778,7 @@ def test_l2_b1_unknown_input_speaks_clarification_and_stays_in_l2() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: terminal_calls.append(text),
         read_customer_input=customer_input.read,
         cart=cart,
@@ -811,7 +811,7 @@ def test_l2_b1_unclear_max_triggers_reject_thanks() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -849,7 +849,7 @@ def test_l2_b1_reset_on_known_intent() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: terminal_calls.append(text),
         read_customer_input=customer_input.read,
         cart=cart,
@@ -885,7 +885,7 @@ def test_l2_b2_service_keyword_prints_phone_and_returns_to_l2_loop() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: terminal_calls.append(text),
         read_customer_input=customer_input.read,
         cart=cart,
@@ -920,7 +920,7 @@ def test_l2_b3_first_think_increments_count_and_enters_silence() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -957,7 +957,7 @@ def test_l2_b3_silence_interrupted_by_response_reruns_dispatch() -> None:
     # Act
     next_state, next_think_count = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -993,7 +993,7 @@ def test_l2_b3_silence_timeout_reasks_and_resumes_main_loop() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1026,7 +1026,7 @@ def test_l2_b3_second_think_still_silence_below_threshold() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1063,7 +1063,7 @@ def test_l2_b3_third_think_skips_silence_and_triggers_reject() -> None:
     # Act
     next_state, next_think_count = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1096,7 +1096,7 @@ def test_l2_c_iced_tea_default_quantity_adds_cart_and_goes_l3() -> None:
     # Act
     next_state, next_think_count = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1128,7 +1128,7 @@ def test_l2_c_iced_tea_with_chinese_quantity_parses_and_adds() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: None,
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1159,7 +1159,7 @@ def test_l2_c_qty_followup_gibberish_speaks_clarify_then_uses_next_quantity() ->
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1183,7 +1183,7 @@ def test_l2_c_qty_followup_service_intent_prints_phone_then_reclarifies() -> Non
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: printed.append(text),
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1205,7 +1205,7 @@ def test_l2_c_qty_followup_reject_cancels_addition_and_reprompts_l2() -> None:
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1229,7 +1229,7 @@ def test_l2_c_iced_tea_no_quantity_asks_then_uses_followup() -> None:
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1255,7 +1255,7 @@ def test_l2_c_scratch_card_adds_cart_and_goes_l3() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: None,
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1287,7 +1287,7 @@ def test_l2_prio_checkout_intent_in_l2_falls_through_to_b1() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1328,7 +1328,7 @@ def test_l3_entry_speaks_followup_and_inits_think_count() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1361,7 +1361,7 @@ def test_l3_a_reject_keyword_clears_cart_and_triggers_subroutine_a() -> None:
     # Act
     next_state, next_think_count = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1400,7 +1400,7 @@ def test_l3_b1_unknown_input_speaks_clarification_and_stays_in_l3() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1436,7 +1436,7 @@ def test_l3_b1_unclear_max_final_confirmation_cancel() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: terminal_calls.append(text),
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1471,7 +1471,7 @@ def test_l3_b1_unclear_max_final_confirmation_continue_then_checkout() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1501,7 +1501,7 @@ def test_l3_b1_unclear_max_final_confirmation_timeout_cancels() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1536,7 +1536,7 @@ def test_l3_b1_reset_on_known_intent() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: terminal_calls.append(text),
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1571,7 +1571,7 @@ def test_l3_b1_final_confirmation_gibberish_then_timeout() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: terminal_calls.append(text),
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1605,7 +1605,7 @@ def test_l3_b2_service_keyword_prints_phone_and_returns_to_l3_loop() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: None,
-        do_action=lambda name: None,
+
         print_terminal=lambda text: terminal_calls.append(text),
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1639,7 +1639,7 @@ def test_l3_b3_product_default_quantity_adds_cart_and_stays_in_l3() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1675,7 +1675,7 @@ def test_l3_b3_qty_followup_reject_cancels_addition_and_reprompts_l3() -> None:
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1702,7 +1702,7 @@ def test_l3_b3_product_no_quantity_asks_then_uses_followup() -> None:
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1730,7 +1730,7 @@ def test_l3_b3_product_with_quantity_accumulates_existing() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: None,
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1763,7 +1763,7 @@ def test_l3_b4_first_think_increments_count_and_enters_silence() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1798,7 +1798,7 @@ def test_l3_b4_silence_interrupted_by_response_reruns_dispatch() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: None,
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1831,7 +1831,7 @@ def test_l3_b4_silence_timeout_reasks_and_resumes_main_loop() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1865,7 +1865,7 @@ def test_l3_b4_second_think_still_silence_below_threshold() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1900,7 +1900,7 @@ def test_l3_b4_third_think_skips_silence_and_triggers_c2_second_stage() -> None:
     # Act
     next_state, next_think_count = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1935,7 +1935,7 @@ def test_l3_c1_checkout_keyword_speaks_and_goes_l4() -> None:
     # Act
     next_state, next_think_count = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -1969,7 +1969,7 @@ def test_l3_c2_first_timeout_speaks_warning_and_enters_second_stage() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2003,7 +2003,7 @@ def test_l3_c2_second_stage_timeout_goes_l4() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: None,
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2036,7 +2036,7 @@ def test_l3_c2_second_stage_product_reruns_dispatch_to_b3() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2077,7 +2077,7 @@ def test_l3_c2_second_stage_reject_reruns_dispatch_to_a() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2119,7 +2119,7 @@ def test_l3_c2_second_stage_checkout_reruns_dispatch_to_c1() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2154,7 +2154,7 @@ def test_l3_prio_l4_service_words_in_l3_falls_through_to_b1() -> None:
     # Act
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2198,7 +2198,7 @@ def test_l4_entry_calculates_total_prints_detail_and_speaks() -> None:
     # Act
     next_state, next_loop_count, next_unclear_count = states.run_l4(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: terminal_calls.append(text),
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2235,7 +2235,7 @@ def test_l4_a_scan_success_speaks_and_goes_l5() -> None:
     # Act
     next_state, next_loop_count, next_unclear_count = states.run_l4(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2268,7 +2268,7 @@ def test_l4_b_reject_keyword_clears_cart_and_triggers_subroutine_a() -> None:
     # Act
     next_state, next_loop_count, next_unclear_count = states.run_l4(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2306,7 +2306,7 @@ def test_l4_c_service_keyword_enters_special_mode_with_options() -> None:
     # Act
     next_state, _, _ = states.run_l4(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: terminal_calls.append(text),
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2343,7 +2343,7 @@ def test_l4_c_service_input_1_exits_clears_cart() -> None:
     # Act
     next_state, _, _ = states.run_l4(
         speak=lambda text: None,
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2375,7 +2375,7 @@ def test_l4_c_service_exit_keyword_exits_clears_cart() -> None:
     # Act
     next_state, _, _ = states.run_l4(
         speak=lambda text: None,
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2407,7 +2407,7 @@ def test_l4_c_service_reject_keyword_treated_as_exit() -> None:
     # Act
     next_state, _, _ = states.run_l4(
         speak=lambda text: None,
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2439,7 +2439,7 @@ def test_l4_c_service_input_2_continues_resets_loop_count() -> None:
     # Act
     next_state, next_loop_count, next_unclear_count = states.run_l4(
         speak=lambda text: None,
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2471,7 +2471,7 @@ def test_l4_c_service_continue_keyword_continues() -> None:
     # Act
     next_state, _, _ = states.run_l4(
         speak=lambda text: None,
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2502,7 +2502,7 @@ def test_l4_c_service_input_s_treated_as_continue_then_scan() -> None:
     # Act
     next_state, _, _ = states.run_l4(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2535,7 +2535,7 @@ def test_l4_c_service_unrecognized_input_reprompts_and_stays() -> None:
     # Act
     next_state, _, _ = states.run_l4(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2568,7 +2568,7 @@ def test_l4_c_service_timeout_60s_exits_clears_cart() -> None:
     # Act
     next_state, _, _ = states.run_l4(
         speak=lambda text: None,
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2602,7 +2602,7 @@ def test_l4_d_first_timeout_increments_count_and_speaks_neutral() -> None:
     # Act
     next_state, _, _ = states.run_l4(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2638,7 +2638,7 @@ def test_l4_d_second_timeout_speaks_gentle_reminder() -> None:
     # Act
     next_state, _, _ = states.run_l4(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2673,7 +2673,7 @@ def test_l4_d_third_timeout_speaks_moderate_urgency() -> None:
     # Act
     next_state, _, _ = states.run_l4(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2708,7 +2708,7 @@ def test_l4_d_fifth_timeout_speaks_explicit_warning() -> None:
     # Act
     next_state, _, _ = states.run_l4(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2743,7 +2743,7 @@ def test_l4_d_sixth_timeout_forces_exit_clears_cart() -> None:
     # Act
     next_state, _, _ = states.run_l4(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2780,7 +2780,7 @@ def test_l4_e_first_unknown_increments_count_and_reprompts() -> None:
     # Act
     next_state, _, _ = states.run_l4(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2814,7 +2814,7 @@ def test_l4_e_think_intent_treated_as_unknown() -> None:
     # Act
     next_state, _, _ = states.run_l4(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2847,7 +2847,7 @@ def test_l4_e_checkout_intent_treated_as_unknown() -> None:
     # Act
     next_state, _, _ = states.run_l4(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2880,7 +2880,7 @@ def test_l4_e_product_intent_treated_as_unknown() -> None:
     # Act
     next_state, _, _ = states.run_l4(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2914,7 +2914,7 @@ def test_l4_e_third_unknown_auto_enters_service_mode() -> None:
     # Act
     next_state, _, _ = states.run_l4(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: terminal_calls.append(text),
         read_customer_input=customer_input.read,
         cart=cart,
@@ -2950,7 +2950,7 @@ def test_l5_entry_mutes_opencv_for_thank_delay() -> None:
     # Act
     states.run_l5(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         mute_opencv=lambda secs: mute_calls.append(secs),
         cart=cart,
         sleep=lambda secs: sleep_calls.append(secs),
@@ -2984,7 +2984,7 @@ def test_l5_entry_speaks_thanks_message() -> None:
     # Act
     states.run_l5(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         mute_opencv=lambda secs: mute_calls.append(secs),
         cart=cart,
         sleep=lambda secs: sleep_calls.append(secs),
@@ -3015,7 +3015,7 @@ def test_l5_entry_clears_cart() -> None:
     # Act
     states.run_l5(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         mute_opencv=lambda secs: mute_calls.append(secs),
         cart=cart,
         sleep=lambda secs: sleep_calls.append(secs),
@@ -3050,7 +3050,7 @@ def test_l5_a_returns_to_l1_via_subroutine_a_after_thank_delay() -> None:
     # Act
     result = states.run_l5(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         mute_opencv=lambda secs: mute_calls.append(secs),
         cart=cart,
         sleep=lambda secs: sleep_calls.append(secs),
@@ -3082,7 +3082,7 @@ def test_l4_d_final_confirmation_terminal_1_cancels() -> None:
 
     next_state, _, _ = states.run_l4(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3105,7 +3105,7 @@ def test_l4_d_final_confirmation_terminal_2_continues_then_scans() -> None:
 
     next_state, next_loop, next_unclear = states.run_l4(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3124,7 +3124,7 @@ def test_l4_d_final_confirmation_keyword_continue_then_scans() -> None:
 
     next_state, _, _ = states.run_l4(
         speak=lambda text: None,
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3145,7 +3145,7 @@ def test_l4_d_final_confirmation_gibberish_then_timeout_cancels() -> None:
 
     next_state, _, _ = states.run_l4(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3172,7 +3172,7 @@ def test_l2_multi_product_with_quantities_all_added_then_l3() -> None:
 
     next_state, _ = states.run_dialog(
         speak=lambda text: None,
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3193,7 +3193,7 @@ def test_l2_multi_product_one_missing_qty_asks_only_for_that_one() -> None:
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3215,7 +3215,7 @@ def test_l2_duplicate_product_accumulates() -> None:
 
     next_state, _ = states.run_dialog(
         speak=lambda text: None,
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3240,7 +3240,7 @@ def test_l3_checkout_confirm_yes_keyword_proceeds_to_l4() -> None:
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3259,7 +3259,7 @@ def test_l3_checkout_confirm_terminal_1_proceeds_to_l4() -> None:
 
     next_state, _ = states.run_dialog(
         speak=lambda text: None,
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3279,7 +3279,7 @@ def test_l3_checkout_confirm_no_returns_to_l3_main_loop() -> None:
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3305,7 +3305,7 @@ def test_l3_checkout_confirm_terminal_2_returns_to_l3() -> None:
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3334,7 +3334,7 @@ def test_l3_checkout_confirm_timeout_cancels() -> None:
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3363,7 +3363,7 @@ def test_l3_c2_yes_keyword_好_proceeds_via_checkout_confirm() -> None:
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3388,7 +3388,7 @@ def test_l3_c2_gibberish_silently_ignored_then_timeout_to_l4() -> None:
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3419,7 +3419,7 @@ def test_l3_c2_first_stage_no_keyword_cancels_order() -> None:
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3452,7 +3452,7 @@ def test_post_c2_loop_cart_empty_timeout_uses_dnc_timeout_and_neutral_voice() ->
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3475,7 +3475,7 @@ def test_l3_checkout_confirm_summary_shows_all_products() -> None:
 
     states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3504,7 +3504,7 @@ def test_dialog_empty_cart_speaks_l2_entry_prompt() -> None:
 
     states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3526,7 +3526,7 @@ def test_dialog_nonempty_cart_speaks_l3_entry_prompt() -> None:
 
     states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3547,7 +3547,7 @@ def test_dialog_empty_to_nonempty_transitions_mode_internally() -> None:
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3575,7 +3575,7 @@ def test_dialog_empty_cart_checkout_intent_treated_as_unclear() -> None:
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3594,7 +3594,7 @@ def test_dialog_empty_cart_timeout_goes_to_l1_via_a_reject() -> None:
 
     next_state, _ = states.run_dialog(
         speak=lambda text: None,
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3614,7 +3614,7 @@ def test_dialog_nonempty_cart_timeout_triggers_c2_auto_checkout() -> None:
 
     next_state, _ = states.run_dialog(
         speak=lambda text: None,
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3639,7 +3639,7 @@ def test_dialog_entry_calls_opencv_disable() -> None:
 
     states.run_dialog(
         speak=lambda text: None,
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3659,7 +3659,7 @@ def test_l4_entry_calls_opencv_disable() -> None:
 
     states.run_l4(
         speak=lambda text: None,
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
@@ -3749,7 +3749,7 @@ def test_c2_meiyou_should_not_be_no() -> None:
     # Act：透過 run_dialog 觸發 C-2 第二段
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
-        do_action=lambda name: None,
+
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,

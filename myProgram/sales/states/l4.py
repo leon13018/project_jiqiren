@@ -37,7 +37,6 @@ from myProgram.sales import cart as cart_module
 
 def run_l4(
     speak,
-    do_action,
     print_terminal,
     read_customer_input,
     cart,
@@ -56,7 +55,6 @@ def run_l4(
 
     Args:
         speak: callback(text: str) — 語音播放
-        do_action: callback(name: str) — 動作（規格 TBD，stub 可 no-op）
         print_terminal: callback(text: str) — 印終端
         read_customer_input: callback(timeout: float) -> str | None — 等顧客回應
         cart: 購物車 dict（從 L3 帶來）
