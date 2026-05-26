@@ -3372,12 +3372,8 @@ def test_l2_multi_product_one_missing_qty_asks_only_for_that_one() -> None:
     assert not any("紅茶" in s and "瓶" in s and "請問" in s for s in speak_calls)
 
 
-def test_l2_duplicate_product_overwrites_to_last_qty() -> None:
-    """L2 重複講同商品 → cart 取最後一個 qty（C22 dedup 規則 3：覆寫，顧客修正語意）。
-
-    2026-05-26 Wave 7a 業務意圖更新：dedup 規則 3 從「全保留累加」改為
-    「保留最後一個 qty」— 「紅茶 2 紅茶 3」視為顧客把 2 改成 3。
-    """
+def test_l2_duplicate_product_accumulates() -> None:
+    """L2 重複講同商品 → cart 累加（不取覆蓋、不視為誤說）。"""
     cart = cart_module.new_cart()
     customer_input = FakeCustomerInput(["紅茶 2 紅茶 3"])
 
@@ -3392,8 +3388,8 @@ def test_l2_duplicate_product_overwrites_to_last_qty() -> None:
     )
 
     assert next_state == "L4"
-    # 覆寫為最後一個 qty = 3（C22）
-    assert cart_module.get_quantity(cart, "冰紅茶") == 3
+    # 2 + 3 = 5（累加，不是覆蓋）
+    assert cart_module.get_quantity(cart, "冰紅茶") == 5
 
 
 # ============================================================
