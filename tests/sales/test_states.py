@@ -53,6 +53,7 @@ from myProgram.sales.constants import (
     L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE,
     L3_C2_WARNING_TEMPLATE,
     UNCLEAR_MAX,
+    L4_ACK_GENTLE,
     L4_E_CLARIFY,
     L4_E_AUTO_SERVICE,
     QTY_PROMPT_TEMPLATE,
@@ -3811,4 +3812,41 @@ def test_c2_meiyou_should_not_be_no() -> None:
     assert not cart_module.is_empty(cart), (
         f"「沒了」不應走 NO 路徑清 cart，cart 應保持非空，實際：{cart}。"
         "若 cart 空 = KEYWORDS_CONFIRM_NO 或 CONFIRM_NO_STRICT_SHORT 誤命中「沒了」。"
+    )
+
+
+# ============================================================
+# L4 等待安撫 regression tests（2026-05-26 加；使用者實機 UX 修補）
+# ============================================================
+
+def test_l4_ack_word_speaks_gentle_and_does_not_count_unclear() -> None:
+    """L4 顧客講「好的」應 speak L4_ACK_GENTLE，不進 E 鏈路 unclear 路徑。
+
+    後續「s」掃碼仍應成功到 L5 — 證明 ack 沒累積 unclear_count 也沒走 forced exit。
+    顧客先回 5 次「好的」（若 ack 走 unclear 累積，第 3 次達上限會被踢進客服或 forced exit），
+    然後「s」掃碼 → 應仍可正常到 L5。
+    """
+    # Arrange
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 3)
+    customer_input = FakeCustomerInput(["好的", "好的", "好的", "好的", "好的", "s"])
+
+    # Act
+    next_state, _, _ = states.run_l4(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+    )
+
+    # Assert
+    assert next_state == "L5", (
+        f"5 次 ack + s 應掃碼成功進 L5，實際：{next_state!r}"
+    )
+    assert L4_ACK_GENTLE in speak_calls, (
+        f"應 speak 溫和回應，實際 speak：{speak_calls}"
+    )
+    assert L4_E_CLARIFY not in speak_calls, (
+        f"ack 詞不應走 E unclear 路徑，但 speak 含 L4_E_CLARIFY：{speak_calls}"
     )

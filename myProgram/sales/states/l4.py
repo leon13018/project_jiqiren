@@ -18,6 +18,7 @@ from myProgram.sales.constants import (
     L4_MAX_LOOPS,
     L4_ENTRY_PROMPT_TEMPLATE,
     L4_A_PAY_SUCCESS,
+    L4_ACK_GENTLE,
     L4_B_CANCEL_THANKS,
     L4_C_OPTIONS_PROMPT,
     L4_D_FORCED_EXIT,
@@ -112,6 +113,9 @@ def run_l4(
             )
             if isinstance(result, tuple):
                 return result
+            # 等待安撫：不改計數器、不重印明細，主迴圈直接 continue
+            if result == "ack":
+                continue
             # E 類（unclear_count 更新）
             if isinstance(result, int):
                 unclear_count = result
@@ -142,6 +146,10 @@ def run_l4(
 
         if isinstance(result, tuple):
             return result
+
+        # 等待安撫：不改計數器、不重印明細，主迴圈直接 continue
+        if result == "ack":
+            continue
 
         # E 類回傳 int（更新後的 unclear_count）
         if isinstance(result, int):
@@ -347,32 +355,40 @@ def _l4_dispatch_response(
     cart,
     loop_count: int,
     unclear_count: int,
-) -> tuple | int | None:
+) -> tuple | int | None | str:
     """L4 判定優先序 dispatcher（有回應時）。
 
     判定優先序：
         1. 終端 s → 鏈路 A（掃碼成功）
-        2. 拒絕意圖 → 鏈路 B
-        3. 客服意圖 → 鏈路 C 客服特殊模式
-        4. 想一下 / 結帳 / 商品 / 無法判斷 → 鏈路 E
+        2. 等待安撫意圖 → speak 溫和回應，不累計 unclear，不重印明細（2026-05-26 加）
+        3. 拒絕意圖 → 鏈路 B
+        4. 客服意圖 → 鏈路 C 客服特殊模式
+        5. 想一下 / 結帳 / 商品 / 無法判斷 → 鏈路 E
 
     Returns:
         tuple → 已決定退出（next_state, next_loop_count, next_unclear_count）
-        int   → unclear_count 更新值，回主迴圈繼續
+        int   → unclear_count 更新值，回主迴圈繼續（E 鏈路；主迴圈重印明細）
         None  → 客服繼續（loop_count / unclear_count 應 reset），回主迴圈
+        "ack" → 等待安撫（主迴圈 continue；不改計數器、不重印明細）
     """
     # 優先序 1：終端 s → 鏈路 A
     if response == "s":
         speak(L4_A_PAY_SUCCESS)
         return ("L5", 0, 0)
 
-    # 優先序 2：拒絕 → 鏈路 B
+    # 優先序 2：拒絕 → 鏈路 B（classify_intent 先做，後面共用 intent）
     intent = classify_intent(response, "l4")
+
+    # 2026-05-26 加：L4 顧客禮貌肯定 / 等待掃碼 → 溫和回應，不踢進 E 鏈路
+    # 不 ++unclear_count、不重印明細、不重設 D 鏈路 loop —— 主迴圈自然 continue
+    if intent == "等待安撫":
+        speak(L4_ACK_GENTLE)
+        return "ack"
 
     if intent == "拒絕":
         return _l4_exit_b(speak, cart)
 
-    # 優先序 3：客服 → 鏈路 C
+    # 優先序 4：客服 → 鏈路 C
     if intent == "客服":
         result = _l4_service_mode(
             speak=speak,

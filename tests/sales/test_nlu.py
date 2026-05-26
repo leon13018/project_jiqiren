@@ -519,6 +519,45 @@ def test_nlu_iced_tea_short_word_tea_no_longer_matches() -> None:
     assert nlu.classify_intent("black tea") == "商品:冰紅茶"
 
 
+# ============================================================
+# L4 等待安撫 regression tests（2026-05-26 加）
+# ============================================================
+
+def test_nlu_l4_mode_ack_words_classified_as_wait_calm() -> None:
+    """L4 mode 顧客禮貌肯定 / 等待詞應 classify 為「等待安撫」。"""
+    # 長詞 substring
+    assert nlu.classify_intent("好的", "l4") == "等待安撫"
+    assert nlu.classify_intent("沒問題", "l4") == "等待安撫"
+    assert nlu.classify_intent("等等我", "l4") == "等待安撫"
+    assert nlu.classify_intent("等我", "l4") == "等待安撫"
+    assert nlu.classify_intent("稍等", "l4") == "等待安撫"
+    assert nlu.classify_intent("okay", "l4") == "等待安撫"
+    # strict-short
+    assert nlu.classify_intent("好", "l4") == "等待安撫"
+    assert nlu.classify_intent("嗯", "l4") == "等待安撫"
+    assert nlu.classify_intent("ok", "l4") == "等待安撫"
+
+
+def test_nlu_l4_mode_short_ack_strict_match_avoids_false_positive() -> None:
+    """strict-short 防 substring 誤命中。
+
+    「好像」substring 含「好」但 strict-short 要 == 「好」才命中；
+    在 L4 mode「好像」不該被當「等待安撫」（會 fall through）。
+    """
+    assert nlu.classify_intent("好像", "l4") != "等待安撫"
+    assert nlu.classify_intent("好亂", "l4") != "等待安撫"
+
+
+def test_nlu_l4_ack_does_not_affect_other_modes() -> None:
+    """「等待安撫」是 L4 mode 專屬；L2 / L3 normal / l4_service 不該命中。
+
+    L3 normal「好的」是 fall through 通用區 → 不是「等待安撫」。
+    """
+    assert nlu.classify_intent("好的", "normal") != "等待安撫"  # L3 normal
+    assert nlu.classify_intent("好的", "l2") != "等待安撫"
+    assert nlu.classify_intent("好的", "l4_service") != "等待安撫"
+
+
 def test_nlu_scratch_letou_and_caijuan_alias() -> None:
     """SCRATCH 補強：「樂透」「彩卷」（錯字）「即時樂」等同義詞能命中刮刮樂。
 

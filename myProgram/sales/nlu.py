@@ -19,6 +19,8 @@
 
 import re
 
+from myProgram.sales.constants import KEYWORDS_L4_ACK_OR_WAIT, KEYWORDS_L4_ACK_SHORT
+
 # ============================================================
 # 關鍵字白名單（依規格書 L0_共通.md）
 # ============================================================
@@ -156,6 +158,15 @@ def classify_intent(text: str, mode: str = "normal") -> str:
             return "退出交易"
         if _equals_strict_short(text, ["no", "nope"]):
             return "退出交易"
+
+    # L4 mode 專屬：等待安撫 → 顧客禮貌肯定 / 找手機掃碼（2026-05-26 加；使用者實機 UX 修補）
+    # 必須先於 L2/L4 共用的 no/nope 拒絕判定，因為「好/嗯/ok」strict-short 不應被
+    # 任何其他分支吃掉；其他 mode 不命中，避免污染 L2 詢問需求 / L3 confirm context 的「好」語意
+    if mode == "l4":
+        if _equals_strict_short(text, KEYWORDS_L4_ACK_SHORT):
+            return "等待安撫"
+        if _contains_any(text, KEYWORDS_L4_ACK_OR_WAIT):
+            return "等待安撫"
 
     # L2 / L4 模式：no / nope 強制視為拒絕（覆寫 _KEYWORDS_CHECKOUT 內的預設）
     # 2026-05-25 使用者實測層別語意：L2「沒需求」/ L4「不要了」皆是拒絕，只 L3「沒了」是結帳
