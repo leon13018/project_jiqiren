@@ -19,6 +19,7 @@ from myProgram.sales.constants import (
     SERVICE_PHONE,
     L4_MAX_LOOPS,
     L4_ENTRY_PROMPT_TEMPLATE,
+    L4_QR_MOCK_HINT,
     L4_A_PAY_SUCCESS,
     L4_ACK_GENTLE,
     L4_B_CANCEL_THANKS,
@@ -217,7 +218,8 @@ def _l4_print_entry_detail(cart, total: int, print_terminal) -> None:
         )
     lines.append("------------------------------------")
     lines.append(f"總金額：{total} 元（已含九折優惠）")
-    lines.append("請掃碼付款（終端輸入 s + Enter 模擬掃碼成功）")
+    # C21 (2026-05-26 Wave 7a)：QR mock 提示抽常數；未來真 QR 接入時只動一處
+    lines.append(L4_QR_MOCK_HINT)
     lines.append("====================================")
     print_terminal("\n".join(lines))
 

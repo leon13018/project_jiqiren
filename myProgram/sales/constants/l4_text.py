@@ -5,6 +5,7 @@
 
 __all__ = [
     "L4_ENTRY_PROMPT_TEMPLATE",
+    "L4_QR_MOCK_HINT",
     "L4_A_PAY_SUCCESS",
     "L4_B_CANCEL_THANKS",
     "L4_C_OPTIONS_PROMPT",
@@ -26,11 +27,16 @@ __all__ = [
 # L4 進入時語音模板（{total} 為總金額；2026-05-25 加九折提示）
 L4_ENTRY_PROMPT_TEMPLATE: str = "您的總金額是 {total} 元（已享全品項九折優惠），請您掃碼付款"
 
+# L4 entry 終端列印的 QR mock 提示（2026-05-26 Wave 7a C21：抽常數）
+# 未來 S2+ 接真 QR code 時改為「請掃碼付款」即可，只動一處
+L4_QR_MOCK_HINT: str = "請掃碼付款（終端輸入 s + Enter 模擬掃碼成功）"
+
 # L4 鏈路 A 掃碼成功語音
 L4_A_PAY_SUCCESS: str = "付款成功"
 
 # L4 鏈路 B 取消語音
-L4_B_CANCEL_THANKS: str = "好的，取消這次交易，謝謝光臨"
+# 2026-05-26 Wave 7a 文案速覽：更柔和口語版本
+L4_B_CANCEL_THANKS: str = "好的，這次先不交易，謝謝光臨"
 
 # L4 鏈路 C 客服模式選項提示語音（終端 + 語音皆印）
 L4_C_OPTIONS_PROMPT: str = "請選擇『退出交易』或『繼續交易』（語音說或終端輸入 1=退出 / 2=繼續 皆可）"

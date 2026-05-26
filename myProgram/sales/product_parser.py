@@ -92,10 +92,12 @@ def parse_products(text: str) -> list:
         qty: int（有解析到）或 None（沒解析到 → caller 進 QTY 追問）
         無商品 → 返 []
 
-        **Per-product dedup 規則（2026-05-25 加，使用者實機回報後修正）：**
+        **Per-product dedup 規則（2026-05-25 加，使用者實機回報後修正；
+        2026-05-26 Wave 7a C22 規則 3 改覆寫）：**
         1. 同商品全部都**沒**數量 → 合併成一個 (product, None)（只追問一次）
         2. 同商品**至少一個有**數量 → 只保留有數量的 entries，無數量的丟棄
-        3. 同商品**全部都有**數量 → 全部保留各自為獨立 entry（caller 累加）
+        3. 同商品**全部都有**數量 → 只保留**最後一個**帶 qty entry（覆寫；
+           顧客修正語意 — 「紅茶 2 紅茶 3」= 改成 3 瓶，非累加 5 瓶）
 
     範例：
         "紅茶 1 刮刮樂 2"     → [("冰紅茶", 1), ("刮刮樂", 2)]
@@ -104,9 +106,9 @@ def parse_products(text: str) -> list:
         "想要紅茶 2 跟刮刮樂 1 謝謝" → [("冰紅茶", 2), ("刮刮樂", 1)]
         "今天天氣很好"         → []
         # Dedup 規則
-        "刮刮樂 刮刮樂"        → [("刮刮樂", None)]              # 規則 1：合一
-        "刮刮樂 3 刮刮樂"      → [("刮刮樂", 3)]                 # 規則 2：丟無數量
-        "紅茶 2 紅茶 3"        → [("冰紅茶", 2), ("冰紅茶", 3)]  # 規則 3：累加 5 瓶
+        "刮刮樂 刮刮樂"        → [("刮刮樂", None)]   # 規則 1：合一
+        "刮刮樂 3 刮刮樂"      → [("刮刮樂", 3)]      # 規則 2：丟無數量
+        "紅茶 2 紅茶 3"        → [("冰紅茶", 3)]      # 規則 3：覆寫為最後一個 qty
     """
     if not text:
         return []
@@ -153,7 +155,11 @@ def parse_products(text: str) -> list:
     for product, qty in raw:
         if product in products_with_qty:
             # 該商品有任何 qty 帶值 entry → 只保留有 qty 的（規則 2 + 3）
+            # C22 (2026-05-26 Wave 7a)：規則 3「全部都有 qty」改覆寫 —
+            # 顧客修正語意「紅茶 2 紅茶 3」應視為改成 3 瓶（非累加 5 瓶）
+            # 實作：先移除同商品既有 entry，再 append 新的，保留最後一個 qty
             if qty is not None:
+                deduped = [(p, q) for p, q in deduped if p != product]
                 deduped.append((product, qty))
         else:
             # 該商品全部 None → 只保留首次（規則 1）

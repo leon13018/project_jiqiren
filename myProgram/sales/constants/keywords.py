@@ -8,6 +8,10 @@
     CHINESE_DIGIT_MAP（中文數字映射；2026-05-26 Wave 6 從 nlu.py 搬移，資料層歸資料層）
 """
 
+# C17 (2026-05-26 Wave 7a)：HAWK_SLOGANS 含價格 slogan 改 f-string 從 PRODUCTS 取，
+# 避免改價時漏改文案。底線命名（module-private alias）避免 wildcard re-export 污染。
+from myProgram.sales.constants.products import PRODUCTS as _PRODUCTS
+
 __all__ = [
     "HAWK_SLOGANS",
     "KEYWORDS_CONFIRM_YES",
@@ -29,7 +33,8 @@ __all__ = [
 
 HAWK_SLOGANS: list = [
     "歡迎光臨！冰紅茶冷飲、刮刮樂彩券，全場九折優惠！",
-    "夏日炎炎，冰紅茶清涼一夏，只要 27 元！",
+    # C17：含價格 slogan 用 f-string 從 PRODUCTS 取，避免改價漏改文案
+    f"夏日炎炎，冰紅茶清涼一夏，只要 {_PRODUCTS['冰紅茶']['實際']} 元！",
     "刮刮樂彩券，刮出好運氣，今天可能就是你的幸運日！",
     "歡迎進來看看，全場商品九折優惠中！",
     "老闆推薦：冰紅茶配刮刮樂，解渴又有趣！",

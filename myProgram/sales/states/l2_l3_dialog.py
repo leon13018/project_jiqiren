@@ -243,7 +243,10 @@ def _dialog_dispatch_inner_l3(
         return _dialog_exit_a(speak, cart)
     if intent == "想一下":
         think_count += 1
-        if think_count >= 3:
+        # C13 (2026-05-26 Wave 7a)：L3 模式 think_count 觸發 C-2 條件 3 → 4
+        # 顧客在 L3 想了 3 次就直接結帳偏粗暴；第 4 次才觸發更貼近實際 UX
+        # （L2 退出條件保留 3 — 那是 cart 空時的明確拒絕路徑，不是 C-2 觸發）
+        if think_count >= 4:
             return _dialog_c2_second_stage(
                 speak=speak,
                 print_terminal=print_terminal,
@@ -441,8 +444,9 @@ def _dialog_main_loop(
                 if not cart_module.is_empty(cart):
                     think_count = 0
                 continue
-            # L3 B-4：第 3 次 → C-2 第二段
-            if think_count >= 3:
+            # L3 B-4：第 4 次 → C-2 第二段
+            # C13 (2026-05-26 Wave 7a)：3 → 4，讓顧客多一次想一下空間
+            if think_count >= 4:
                 return _dialog_c2_second_stage(
                     speak=speak,
                     print_terminal=print_terminal,

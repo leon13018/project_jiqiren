@@ -1922,19 +1922,19 @@ def test_l3_b4_second_think_still_silence_below_threshold() -> None:
 
 
 # ============================================================
-# L3-B-4-005
-### Scenario: 第 3 次想一下 think_count 達 3 跳過沉默走 C-2 第二段邏輯
-### Given L3 已走過 2 次 B-4，think_count == 2，回到主等待後
+# L3-B-4-005（2026-05-26 Wave 7a C13：think_count 觸發 C-2 條件 3 → 4）
+### Scenario: 第 4 次想一下 think_count 達 4 跳過沉默走 C-2 第二段邏輯
+### Given L3 已走過 3 次 B-4，think_count == 3，回到主等待後
 ### When 顧客再次輸入想一下關鍵字
-### Then think_count 變為 3，跳過 6s 沉默，speak C-2 第一段語音，走 C-2 第二段邏輯
+### Then think_count 變為 4，跳過 6s 沉默，speak C-2 第一段語音，走 C-2 第二段邏輯
 # ============================================================
 
-def test_l3_b4_third_think_skips_silence_and_triggers_c2_second_stage() -> None:
+def test_l3_b4_fourth_think_skips_silence_and_triggers_c2_second_stage() -> None:
     # Arrange
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # think_count=2 傳入；一次想一下 → 累加到 3 → 直接走 C-2 第二段；None → L4
+    # think_count=3 傳入；一次想一下 → 累加到 4 → 直接走 C-2 第二段；None → L4
     customer_input = FakeCustomerInput(["想一下", None])
 
     # Act
@@ -1944,7 +1944,7 @@ def test_l3_b4_third_think_skips_silence_and_triggers_c2_second_stage() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        think_count=2,  # 已累積 2 次
+        think_count=3,  # 已累積 3 次（C13: 第 4 次才觸發 C-2）
         opencv_disable=lambda: None,
     )
 
@@ -3293,8 +3293,12 @@ def test_l2_multi_product_one_missing_qty_asks_only_for_that_one() -> None:
     assert not any("紅茶" in s and "瓶" in s and "請問" in s for s in speak_calls)
 
 
-def test_l2_duplicate_product_accumulates() -> None:
-    """L2 重複講同商品 → cart 累加（不取覆蓋、不視為誤說）。"""
+def test_l2_duplicate_product_overwrites_to_last_qty() -> None:
+    """L2 重複講同商品 → cart 覆寫為最後一個 qty（C22 業務語意修正）。
+
+    （2026-05-26 Wave 7a C22：dedup 規則 3 從累加改覆寫 —
+     顧客修正語意「紅茶 2 紅茶 3」應視為改成 3 瓶。）
+    """
     cart = cart_module.new_cart()
     customer_input = FakeCustomerInput(["紅茶 2 紅茶 3"])
 
@@ -3309,8 +3313,8 @@ def test_l2_duplicate_product_accumulates() -> None:
     )
 
     assert next_state == "L4"
-    # 2 + 3 = 5（累加，不是覆蓋）
-    assert cart_module.get_quantity(cart, "冰紅茶") == 5
+    # 覆寫為最後一個 qty = 3（C22）
+    assert cart_module.get_quantity(cart, "冰紅茶") == 3
 
 
 # ============================================================
