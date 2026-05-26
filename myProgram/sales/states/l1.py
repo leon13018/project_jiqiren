@@ -4,7 +4,7 @@
 
 callback 集合：
     print_terminal / read_terminal_key / opencv_dwell_seconds / opencv_disable /
-    opencv_enable / speak / exit_program / schedule / show_hawk_help
+    opencv_enable / speak / exit_program / schedule
 """
 
 from myProgram.sales.constants import (
@@ -18,38 +18,6 @@ from myProgram.sales.constants import (
 )
 
 
-# ============================================================
-# C14：q 確認狀態（防商家手滑按 q 誤退）
-# 第一次按 q 印提示，第二次才真退。非 q 鍵呼叫 _reset_q_confirm 重置。
-# module-level state 供三鏈路（主選單 / standby / hawk）共用。
-# ============================================================
-
-_q_confirm_pending: bool = False
-
-
-def _handle_q_press(exit_program, print_terminal) -> bool:
-    """處理 q 按鍵 — 加 confirm 防手滑。
-
-    Returns:
-        True 表第一次 q（已印提示，caller 應繼續等待下一個鍵）；
-        False 表第二次 q（已呼叫 exit_program，caller 應立即 return）。
-    """
-    global _q_confirm_pending
-    if _q_confirm_pending:
-        _q_confirm_pending = False
-        exit_program()
-        return False
-    _q_confirm_pending = True
-    print_terminal("[L1] 確定退出？再按一次 q 確認，或按任何其他鍵取消")
-    return True
-
-
-def _reset_q_confirm() -> None:
-    """重置 q 確認狀態（按了非 q 鍵時呼叫，避免「q → 1 → q」誤觸退出）。"""
-    global _q_confirm_pending
-    _q_confirm_pending = False
-
-
 def run_l1(
     print_terminal,
     read_terminal_key,
@@ -59,13 +27,12 @@ def run_l1(
     speak,
     exit_program,
     schedule,
-    show_hawk_help=None,
     enter_hawk_immediately: bool = False,
 ):
     """L1 主迴圈：商家模式選擇層。
 
     顯示選單 → 讀鍵 → 分派三個鏈路（叫賣 / 待機 / 客服）。
-    按 q 任何時刻退出程式（兩次 q 才真退，防手滑）。
+    按 q 任何時刻退出程式。
 
     Args:
         print_terminal: callback(text: str) — 印終端文字
@@ -76,8 +43,6 @@ def run_l1(
         speak: callback(text: str) -> None — 播語音（叫賣用）
         exit_program: callback() -> None — 終止程式
         schedule: callback(seconds, fn) -> None — 排程（叫賣輪播用）
-        show_hawk_help: callback() -> None — 印叫賣模式操作提示（S1 wire-up 用）；
-            None 表略過（預設，production / test 可不傳）。
         enter_hawk_immediately: True 時跳過主選單直接進叫賣模式（2026-05-26 加）。
             用途：logic.py 在 subroutine_a（dialog / L4 cancel / L5 後續緩衝）後設為 True
             → 連續叫賣不中斷，不顯示「請選擇模式：1/2/3」主選單。
@@ -97,7 +62,6 @@ def run_l1(
             speak=speak,
             exit_program=exit_program,
             schedule=schedule,
-            show_hawk_help=show_hawk_help,
         )
         if result == "L2":
             return "L2"
@@ -116,11 +80,9 @@ def run_l1(
         key = read_terminal_key()
 
         if key == "q":
-            if _handle_q_press(exit_program, print_terminal):
-                continue  # 第一次 q：印提示，繼續等下一個鍵
-            return None   # 第二次 q：已退出
-        _reset_q_confirm()  # 非 q 鍵：重置確認狀態
-        if key == "3":
+            exit_program()
+            return None
+        elif key == "3":
             _run_l1_service(print_terminal, opencv_disable)
             # 客服印完電話立即回選單（continue 到下一輪）
             continue
@@ -145,12 +107,11 @@ def run_l1(
                 speak=speak,
                 exit_program=exit_program,
                 schedule=schedule,
-                show_hawk_help=show_hawk_help,
             )
             if result == "L2":
                 return "L2"
             return None
-        # 其他鍵：重印選單
+        # 其他鍵：重印選單（但按 q 已在上面處理）
 
 
 def _run_l1_service(print_terminal, opencv_disable) -> None:
@@ -183,11 +144,9 @@ def _run_l1_standby(
     while True:
         key = read_terminal_key()
         if key == "q":
-            if _handle_q_press(exit_program, print_terminal):
-                continue  # 第一次 q：印提示，繼續等下一個鍵
-            return None   # 第二次 q：已退出
-        _reset_q_confirm()  # 非 q 鍵：重置確認狀態
-        if key == "r":
+            exit_program()
+            return None
+        elif key == "r":
             # 按 r 回主選單 — OpenCV 維持關閉
             # 2026-05-25 規格修訂：L1 主選單預設不偵測 OpenCV；只有商家選 1 進叫賣模式才啟動。
             # 避免「待機 → 回選單」自動開 OpenCV，違反「商家未明確選叫賣前不偵測」的直覺。
@@ -203,7 +162,6 @@ def _run_l1_hawk(
     speak,
     exit_program,
     schedule,
-    show_hawk_help=None,
 ):
     """鏈路 C — 叫賣模式：立即播第 1 組 + OpenCV 開 → 等 OpenCV 觸發或 q 退出。
 
@@ -213,9 +171,6 @@ def _run_l1_hawk(
     """
     # 印進入提示
     print_terminal(L1_HAWK_ENTRY_PROMPT)
-    # B21：顯式呼叫操作提示 callback（S1 wire-up 用；production / test 傳 None 略過）
-    if show_hawk_help is not None:
-        show_hawk_help()
     # 開啟 OpenCV
     opencv_enable()
     # 立即播第 1 組叫賣（無 OPENCV_MUTE 緩衝）
@@ -231,10 +186,9 @@ def _run_l1_hawk(
         # 讀鍵（non-blocking；測試以序列模擬）
         key = read_terminal_key()
         if key == "q":
-            if _handle_q_press(exit_program, print_terminal):
-                continue  # 第一次 q：印提示，繼續等下一個鍵
-            return None   # 第二次 q：已退出
-        _reset_q_confirm()  # 其他鍵（1 / 2 / 3 等）忽略並重置確認狀態，繼續叫賣
+            exit_program()
+            return None
+        # 其他鍵（1 / 2 / 3 等）忽略，繼續叫賣
 
 
 def _schedule_hawk_l1(speak, schedule, hawk_index: int) -> None:
