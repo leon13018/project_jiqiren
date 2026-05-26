@@ -69,11 +69,20 @@ def _build_callbacks(state: _S1State) -> dict:
         """
         try:
             raw = input("[商家] > ").strip().lower()
-        except (UnicodeDecodeError, EOFError) as e:
-            # Windows console（cp936）下 input() 走 ReadConsoleW → UTF-16 解碼，
-            # 實測不會 raise UnicodeDecodeError；但 Linux Pi 端從 stdin pipe / redirect
-            # 接 non-UTF-8 byte sequence 可能 fire。defensive except 兩端都保護。
-            print(f"[系統] 輸入解析失敗（{type(e).__name__}），請重試")
+        except UnicodeDecodeError as e:
+            # 2026-05-27 Wave 4 hotfix 3：改 noisy debug — 印失敗 raw bytes hex
+            # 讓使用者可截圖回報哪個 byte 序列炸的（Pi locale 已確認 UTF-8，
+            # 真正根因可能是 IME / SSH transit / 異常 byte，需 hex 才能定位）。
+            print(f"[系統] ⚠️ 輸入解碼失敗（UnicodeDecodeError）")
+            print(f"[系統]   codec   = {e.encoding}")
+            print(f"[系統]   reason  = {e.reason}")
+            print(f"[系統]   range   = start={e.start} end={e.end}")
+            failed_bytes = e.object[e.start:e.end] if e.object else b""
+            print(f"[系統]   raw hex = {failed_bytes.hex() if failed_bytes else 'N/A'}")
+            print(f"[系統] 請截圖回報以上訊息給開發者排查；本次輸入忽略")
+            return ""
+        except EOFError:
+            print(f"[系統] 輸入讀取失敗（EOFError，stdin 已關閉），本次輸入忽略")
             return ""
         raw = normalize_input(raw)  # 2026-05-26 P5 加：商家若用全形輸入法「１」也能對應到 "1"
         if raw == "c":
@@ -98,11 +107,18 @@ def _build_callbacks(state: _S1State) -> dict:
         """
         try:
             raw = input(f"[顧客 timeout={timeout}s，空 Enter=timeout / q=退出] > ").strip()
-        except (UnicodeDecodeError, EOFError) as e:
-            # Windows console（cp936）下 input() 走 ReadConsoleW → UTF-16 解碼，
-            # 實測不會 raise UnicodeDecodeError；但 Linux Pi 端從 stdin pipe / redirect
-            # 接 non-UTF-8 byte sequence 可能 fire。defensive except 兩端都保護。
-            print(f"[系統] 輸入解析失敗（{type(e).__name__}），視為 timeout")
+        except UnicodeDecodeError as e:
+            # 2026-05-27 Wave 4 hotfix 3：改 noisy debug — 印失敗 raw bytes hex
+            print(f"[系統] ⚠️ 輸入解碼失敗（UnicodeDecodeError）")
+            print(f"[系統]   codec   = {e.encoding}")
+            print(f"[系統]   reason  = {e.reason}")
+            print(f"[系統]   range   = start={e.start} end={e.end}")
+            failed_bytes = e.object[e.start:e.end] if e.object else b""
+            print(f"[系統]   raw hex = {failed_bytes.hex() if failed_bytes else 'N/A'}")
+            print(f"[系統] 請截圖回報以上訊息給開發者排查；本次視為 timeout")
+            return None
+        except EOFError:
+            print(f"[系統] 輸入讀取失敗（EOFError，stdin 已關閉），本次視為 timeout")
             return None
         raw = normalize_input(raw)  # 2026-05-26 P5 加：IO 邊界統一 normalize（長度上限 / 控制字元 / 全形數字）
         # TODO(S2+): 真 STT 接入後移除此「q 退出」處理 — S1 chat-driven 為了
