@@ -39,6 +39,7 @@ def run(
     sleep,
     schedule,
     exit_program,
+    show_hawk_help=None,
 ) -> None:
     """S1 v2 主迴圈：L1 → dialog → L4 → L5 → 子例程 A → L1 cycle。
 
@@ -63,6 +64,7 @@ def run(
             speak=speak,
             exit_program=exit_program,
             schedule=schedule,
+            show_hawk_help=show_hawk_help,
             enter_hawk_immediately=enter_hawk_immediately,
         )
         enter_hawk_immediately = False  # 消費後 reset；下次需重設才會跳選單

@@ -201,8 +201,8 @@ class FakeOpencv:
 def test_l1_entry_prints_mode_select_menu() -> None:
     # Arrange
     printed: list = []
-    # 輸入 q 使程式立即退出，避免無限迴圈
-    kbd = FakeKeyboardInput(["q"])
+    # C14：兩次 q 才真退（第一次印確認提示，第二次才退出）
+    kbd = FakeKeyboardInput(["q", "q"])
     exit_calls: list = []
 
     # Act
@@ -236,8 +236,8 @@ def test_l1_entry_prints_mode_select_menu() -> None:
 def test_l1_a_service_mode_prints_phone_and_returns_to_menu() -> None:
     # Arrange
     printed: list = []
-    # 輸入 3（進客服），接著 q（退出，避免無限迴圈）
-    kbd = FakeKeyboardInput(["3", "q"])
+    # 輸入 3（進客服），接著兩次 q（C14：兩次才真退）
+    kbd = FakeKeyboardInput(["3", "q", "q"])
     exit_calls: list = []
 
     # Act
@@ -271,8 +271,8 @@ def test_l1_a_service_mode_prints_phone_and_returns_to_menu() -> None:
 def test_l1_b_standby_mode_prints_prompt_and_stays_idle() -> None:
     # Arrange
     printed: list = []
-    # 輸入 2 進待機，接著 q 退出
-    kbd = FakeKeyboardInput(["2", "q"])
+    # 輸入 2 進待機，接著兩次 q（C14：兩次才真退）
+    kbd = FakeKeyboardInput(["2", "q", "q"])
     exit_calls: list = []
     opencv = FakeOpencv()
 
@@ -305,8 +305,8 @@ def test_l1_b_standby_mode_prints_prompt_and_stays_idle() -> None:
 def test_l1_b_standby_r_returns_to_menu() -> None:
     # Arrange
     printed: list = []
-    # 進待機（2），按 r 回選單，按 q 退出
-    kbd = FakeKeyboardInput(["2", "r", "q"])
+    # 進待機（2），按 r 回選單，接著兩次 q（C14：兩次才真退）
+    kbd = FakeKeyboardInput(["2", "r", "q", "q"])
     exit_calls: list = []
     opencv = FakeOpencv()
 
@@ -342,13 +342,14 @@ def test_l1_b_standby_r_returns_to_menu() -> None:
 def test_l1_b_standby_q_exits_program() -> None:
     # Arrange
     exit_calls: list = []
+    printed: list = []
     opencv = FakeOpencv()
-    # 進待機（2），待機中按 q
-    kbd = FakeKeyboardInput(["2", "q"])
+    # C14：進待機（2），待機中兩次 q 才真退
+    kbd = FakeKeyboardInput(["2", "q", "q"])
 
     # Act
     states.run_l1(
-        print_terminal=lambda text: None,
+        print_terminal=lambda text: printed.append(text),
         read_terminal_key=kbd.read,
         opencv_dwell_seconds=opencv.dwell_seconds,
         opencv_disable=opencv.disable,
@@ -358,8 +359,11 @@ def test_l1_b_standby_q_exits_program() -> None:
         schedule=FakeScheduler().schedule,
     )
 
-    # Assert：exit_program 被呼叫一次
-    assert len(exit_calls) == 1, "待機中按 q 應呼叫 exit_program"
+    # Assert：exit_program 被呼叫一次（兩次 q 才真退）
+    assert len(exit_calls) == 1, "待機中按兩次 q 應呼叫 exit_program 一次"
+    # 第一次 q 應印確認提示
+    all_output = "\n".join(printed)
+    assert "確定退出" in all_output, "第一次 q 應印確認提示"
 
 
 # ============================================================
@@ -374,8 +378,8 @@ def test_l1_b_standby_opencv_disabled() -> None:
     # Arrange
     # FakeOpencv 在 disabled 狀態下 dwell_seconds() 回 0.0
     opencv = FakeOpencv(dwell_value=999.0)  # 模擬人一直站著
-    # 進待機（2），待機中按 q
-    kbd = FakeKeyboardInput(["2", "q"])
+    # C14：進待機（2），待機中兩次 q 才真退
+    kbd = FakeKeyboardInput(["2", "q", "q"])
 
     # Act
     states.run_l1(
@@ -417,8 +421,8 @@ def test_l1_enter_hawk_immediately_skips_mode_menu() -> None:
     speak_calls: list = []
     opencv = FakeOpencv(dwell_value=0.0)
     scheduler = FakeScheduler()
-    # OpenCV dwell 一直 0.0 不觸發 L2；按 q 退出
-    kbd = FakeKeyboardInput(["q"])
+    # C14：OpenCV dwell 一直 0.0 不觸發 L2；兩次 q 才真退
+    kbd = FakeKeyboardInput(["q", "q"])
 
     states.run_l1(
         print_terminal=lambda text: printed.append(text),
@@ -449,8 +453,8 @@ def test_l1_c_hawk_mode_starts_immediately_without_mute_buffer() -> None:
     speak_calls: list = []
     opencv = FakeOpencv(dwell_value=0.0)
     scheduler = FakeScheduler()
-    # 輸入 1 進叫賣模式，OpenCV dwell 一直 0.0（不觸發 L2），按 q 退出
-    key_sequence = ["1", "q"]
+    # C14：輸入 1 進叫賣模式，OpenCV dwell 一直 0.0（不觸發 L2），兩次 q 才真退
+    key_sequence = ["1", "q", "q"]
     kbd = FakeKeyboardInput(key_sequence)
 
     # Act
@@ -519,8 +523,8 @@ def test_l1_c_hawk_opencv_brief_detection_filtered() -> None:
     # dwell < OPENCV_DWELL，不觸發 L2
     opencv = FakeOpencv(dwell_value=OPENCV_DWELL - 0.1)
     exit_calls: list = []
-    # 進叫賣（1），dwell 不達閾值，按 q 退出
-    kbd = FakeKeyboardInput(["1", "q"])
+    # C14：進叫賣（1），dwell 不達閾值，兩次 q 才真退
+    kbd = FakeKeyboardInput(["1", "q", "q"])
 
     # Act
     result = states.run_l1(
@@ -551,8 +555,8 @@ def test_l1_c_hawk_non_q_keys_ignored() -> None:
     # Arrange
     opencv = FakeOpencv(dwell_value=0.0)  # 不觸發 L2
     exit_calls: list = []
-    # 進叫賣（1），在叫賣模式中按 1 / 2 / 3 / x，最後按 q 退
-    kbd = FakeKeyboardInput(["1", "1", "2", "3", "x", "q"])
+    # C14：進叫賣（1），在叫賣模式中按 1 / 2 / 3 / x，最後兩次 q 才真退
+    kbd = FakeKeyboardInput(["1", "1", "2", "3", "x", "q", "q"])
 
     # Act
     result = states.run_l1(
@@ -583,12 +587,13 @@ def test_l1_c_hawk_q_exits_program() -> None:
     # Arrange
     opencv = FakeOpencv(dwell_value=0.0)  # 不觸發 L2
     exit_calls: list = []
-    # 進叫賣（1），在叫賣中按 q
-    kbd = FakeKeyboardInput(["1", "q"])
+    printed: list = []
+    # C14：進叫賣（1），兩次 q 才真退
+    kbd = FakeKeyboardInput(["1", "q", "q"])
 
     # Act
     states.run_l1(
-        print_terminal=lambda text: None,
+        print_terminal=lambda text: printed.append(text),
         read_terminal_key=kbd.read,
         opencv_dwell_seconds=opencv.dwell_seconds,
         opencv_disable=opencv.disable,
@@ -598,8 +603,11 @@ def test_l1_c_hawk_q_exits_program() -> None:
         schedule=FakeScheduler().schedule,
     )
 
-    # Assert：exit_program 被呼叫一次
-    assert len(exit_calls) == 1, "叫賣中按 q 應呼叫 exit_program"
+    # Assert：exit_program 被呼叫一次（兩次 q 才真退）
+    assert len(exit_calls) == 1, "叫賣中按兩次 q 應呼叫 exit_program 一次"
+    # 第一次 q 應印確認提示
+    all_output = "\n".join(printed)
+    assert "確定退出" in all_output, "第一次 q 應印確認提示"
 
 
 # ============================================================
@@ -613,12 +621,13 @@ def test_l1_c_hawk_q_exits_program() -> None:
 def test_l1_menu_q_exits_program() -> None:
     # Arrange
     exit_calls: list = []
-    # 在選單直接按 q
-    kbd = FakeKeyboardInput(["q"])
+    printed: list = []
+    # C14：兩次 q 才真退（第一次印確認提示，第二次才退）
+    kbd = FakeKeyboardInput(["q", "q"])
 
     # Act
     states.run_l1(
-        print_terminal=lambda text: None,
+        print_terminal=lambda text: printed.append(text),
         read_terminal_key=kbd.read,
         opencv_dwell_seconds=lambda: 0.0,
         opencv_disable=lambda: None,
@@ -628,8 +637,76 @@ def test_l1_menu_q_exits_program() -> None:
         schedule=FakeScheduler().schedule,
     )
 
-    # Assert：exit_program 被呼叫一次
-    assert len(exit_calls) == 1, "選單中按 q 應呼叫 exit_program"
+    # Assert：exit_program 被呼叫一次（兩次 q 才真退）
+    assert len(exit_calls) == 1, "選單中按兩次 q 應呼叫 exit_program 一次"
+    # 第一次 q 應印確認提示
+    all_output = "\n".join(printed)
+    assert "確定退出" in all_output, "第一次 q 應印確認提示"
+
+
+# ============================================================
+# C14-001
+# Scenario: 選單中 q→非q鍵→q 不退出（非 q 鍵重置確認狀態）
+# Given L1 選單顯示中
+# When 商家按 q（第一次），再按 3（非 q 鍵），再按 q（第一次）
+# Then exit_program 不應被呼叫（確認狀態已被重置）
+# ============================================================
+
+def test_l1_menu_q_nonq_q_does_not_exit() -> None:
+    """C14：q→非q鍵 重置確認狀態 — 再按一次 q 不退出，需再按第二次 q 才退。"""
+    exit_calls: list = []
+    printed: list = []
+    # q（第一次）→ 3（重置）→ q（第一次）→ q（第二次，真退）
+    kbd = FakeKeyboardInput(["q", "3", "q", "q"])
+
+    states.run_l1(
+        print_terminal=lambda text: printed.append(text),
+        read_terminal_key=kbd.read,
+        opencv_dwell_seconds=lambda: 0.0,
+        opencv_disable=lambda: None,
+        opencv_enable=lambda: None,
+        speak=lambda text: None,
+        exit_program=lambda: exit_calls.append(True),
+        schedule=FakeScheduler().schedule,
+    )
+
+    # 按 q→3 後確認狀態重置，再按一次 q 只印提示不退出；第二次 q 才真退
+    assert len(exit_calls) == 1, "應只有最後兩次 q 才退出（第一段 q→3 重置後不算）"
+    # 確認提示應印兩次（第一次 q + 第三次 q 各印一次）
+    confirm_count = sum(1 for p in printed if "確定退出" in p)
+    assert confirm_count == 2, f"確認提示應印兩次（實際 {confirm_count} 次）"
+
+
+# ============================================================
+# C14-002
+# Scenario: hawk 模式 q→非q鍵→q 不退出（非 q 鍵重置確認狀態）
+# Given 程式處於 L1 叫賣模式
+# When 商家按 q（第一次），再按其他鍵，再按兩次 q
+# Then 非 q 鍵重置確認狀態，第二輪兩次 q 才真退
+# ============================================================
+
+def test_l1_hawk_q_nonq_q_does_not_exit() -> None:
+    """C14：hawk 模式 q→非q鍵 重置確認 — 再按 q 不退，需再按第二次才退。"""
+    exit_calls: list = []
+    printed: list = []
+    opencv = FakeOpencv(dwell_value=0.0)
+    # 進叫賣（1）→ q（第一次）→ x（重置）→ q（第一次）→ q（第二次，真退）
+    kbd = FakeKeyboardInput(["1", "q", "x", "q", "q"])
+
+    states.run_l1(
+        print_terminal=lambda text: printed.append(text),
+        read_terminal_key=kbd.read,
+        opencv_dwell_seconds=opencv.dwell_seconds,
+        opencv_disable=opencv.disable,
+        opencv_enable=opencv.enable,
+        speak=lambda text: None,
+        exit_program=lambda: exit_calls.append(True),
+        schedule=FakeScheduler().schedule,
+    )
+
+    assert len(exit_calls) == 1, "叫賣中 q→x 重置後，再按兩次 q 才退出（共一次 exit）"
+    confirm_count = sum(1 for p in printed if "確定退出" in p)
+    assert confirm_count == 2, f"確認提示應印兩次（實際 {confirm_count} 次）"
 
 
 # ============================================================
@@ -3816,7 +3893,8 @@ def test_l4_entry_calls_opencv_disable() -> None:
 def test_l1_main_loop_calls_opencv_disable_each_iteration() -> None:
     """L1 主迴圈每輪應呼叫 opencv_disable 防呆（主選單時不該偵測 OpenCV）。"""
     opencv = FakeOpencv()
-    kbd = FakeKeyboardInput(["q"])
+    # C14：兩次 q 才真退（第一次印提示，第二次才退）
+    kbd = FakeKeyboardInput(["q", "q"])
 
     states.run_l1(
         print_terminal=lambda text: None,
@@ -3838,8 +3916,8 @@ def test_l1_main_loop_calls_opencv_disable_each_iteration() -> None:
 def test_l1_service_mode_calls_opencv_disable() -> None:
     """L1 客服模式進入時應呼叫 opencv_disable（客服期間不偵測）。"""
     opencv = FakeOpencv()
-    # 進客服（3）→ 印電話 → 回主選單 → q 退出
-    kbd = FakeKeyboardInput(["3", "q"])
+    # 進客服（3）→ 印電話 → 回主選單 → C14 兩次 q 才真退
+    kbd = FakeKeyboardInput(["3", "q", "q"])
 
     states.run_l1(
         print_terminal=lambda text: None,

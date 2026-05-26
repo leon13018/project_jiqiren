@@ -12,3 +12,14 @@ L0 BDD/TDD 實作後說明：
     - 不 import 任何廠商 SDK（ActionGroupControl / Board）；
       sales/ 業務邏輯嚴格隔離於廠商檔（架構決策 backend-module-structure.md 選項 C）
 """
+
+import pytest
+import myProgram.sales.states.l1 as _l1_module
+
+
+@pytest.fixture(autouse=True)
+def reset_l1_q_confirm():
+    """C14：每個 test 前後重置 L1 module-level _q_confirm_pending state，防跨 test 殘留。"""
+    _l1_module._reset_q_confirm()
+    yield
+    _l1_module._reset_q_confirm()
