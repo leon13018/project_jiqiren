@@ -58,3 +58,8 @@ CHECKOUT_CONFIRM_UNCLEAR_MAX: int = 5
 
 # L4 客服模式 timeout（60 秒）
 L4_SERVICE_TIMEOUT: int = 60
+
+# L4 結帳場景全程 wall-clock 預算（2026-05-26 方案 B；防 ack spam 無限拖延）
+# 從進入 L4 起算，含所有 ack/timeout/unclear 路徑共用；達 0 → 強制 exit
+# 60s 是合理上限：D 鏈路 6 次 × 6s = 36s + buffer ≈ 60s，與 L4_SERVICE_TIMEOUT 對稱
+L4_TOTAL_BUDGET: int = 60

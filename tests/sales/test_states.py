@@ -3850,3 +3850,80 @@ def test_l4_ack_word_speaks_gentle_and_does_not_count_unclear() -> None:
     assert L4_E_CLARIFY not in speak_calls, (
         f"ack 詞不應走 E unclear 路徑，但 speak 含 L4_E_CLARIFY：{speak_calls}"
     )
+
+
+# ============================================================
+# L4 wall-clock budget regression tests（2026-05-26 方案 B）
+# ============================================================
+
+def test_l4_wallclock_budget_ack_spam_eventually_forced_exit() -> None:
+    """L4 顧客 spam ack 詞超過 L4_TOTAL_BUDGET 預算後應強制 exit（方案 B 防 spam）。
+
+    方案 B 核心：ack 路徑 continue 不重設 deadline；預算耗盡（remaining <= 0）
+    → _l4_exit_d_forced（speak L4_D_FORCED_EXIT + clear cart + return L1）。
+
+    fake time 機制：patch time.monotonic 讓每次呼叫回傳的值快速推進。
+    第 1 次呼叫：0.0（設定 deadline = 0 + 60 = 60）
+    第 2 次呼叫後：61.0（remaining = 60 - 61 = -1 <= 0 → forced exit）
+    顧客輸入 "好的" 無限重複也逃不過預算上限。
+    """
+    from unittest.mock import patch
+
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+
+    # fake_monotonic：第 1 次回 0.0（建立 deadline），之後回 61.0（預算立刻耗盡）
+    call_count = [0]
+    def fake_monotonic() -> float:
+        call_count[0] += 1
+        if call_count[0] == 1:
+            return 0.0   # deadline = 0 + 60 = 60
+        return 61.0      # remaining = 60 - 61 = -1 → 強制 exit
+
+    # 顧客無限 ack spam（預算耗盡前只會被呼叫一次 read，因為第 2 次 monotonic 就觸發 forced exit）
+    customer_input = FakeCustomerInput(["好的"] * 20)
+
+    with patch("myProgram.sales.states.l4.time.monotonic", side_effect=fake_monotonic):
+        next_state, _, _ = states.run_l4(
+            speak=lambda text: speak_calls.append(text),
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+        )
+
+    assert next_state == "L1_via_subroutine_a", (
+        f"預算耗盡後應強制 exit 回 L1，實際：{next_state!r}"
+    )
+    assert L4_D_FORCED_EXIT in speak_calls, (
+        f"預算耗盡應 speak L4_D_FORCED_EXIT，實際 speak：{speak_calls}"
+    )
+
+
+def test_l4_normal_scan_within_budget_succeeds() -> None:
+    """L4 顧客在預算內正常掃碼應成功進 L5。
+
+    顧客先說「好的」一次（ack）再輸入「s」掃碼 — 應在預算內成功。
+    驗證方案 B 不會誤踢正常流程：ack 不重設 deadline，但預算尚充裕時不影響結帳。
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    customer_input = FakeCustomerInput(["好的", "s"])
+
+    next_state, _, _ = states.run_l4(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+    )
+
+    assert next_state == "L5", (
+        f"預算內正常掃碼應 L5，實際：{next_state!r}"
+    )
+    assert L4_ACK_GENTLE in speak_calls, (
+        f"ack 詞應 speak 溫和回應，實際 speak：{speak_calls}"
+    )
+    assert L4_A_PAY_SUCCESS in speak_calls, (
+        f"掃碼成功應 speak L4_A_PAY_SUCCESS，實際 speak：{speak_calls}"
+    )

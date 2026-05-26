@@ -11,6 +11,8 @@ L 系列最複雜層特性：
     - return 3-tuple (next_state, next_loop_count, next_unclear_count)
 """
 
+import time
+
 from myProgram.sales.constants import (
     PRODUCTS,
     WAIT_NO_RESPONSE,
@@ -30,6 +32,7 @@ from myProgram.sales.constants import (
     L4_D_VOICE_MODERATE,
     L4_D_VOICE_WARNING,
     L4_SERVICE_TIMEOUT,
+    L4_TOTAL_BUDGET,
     UNCLEAR_MAX,
 )
 from myProgram.sales.nlu import classify_intent
@@ -80,11 +83,20 @@ def run_l4(
     _l4_print_entry_detail(cart, total, print_terminal)
     speak(L4_ENTRY_PROMPT_TEMPLATE.format(total=total))
 
+    # 2026-05-26 方案 B：L4 全程 wall-clock 預算（60s）
+    # ack 路徑 speak gentle 後 continue 不重設 deadline — 顧客可講禮貌詞但整體上限固定
+    deadline = time.monotonic() + L4_TOTAL_BUDGET
+
     # 主等待迴圈
     while True:
+        # 預算檢查：預算耗盡 → 強制 exit（speak forced exit voice + clear cart + return L1）
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return _l4_exit_d_forced(speak, cart)
+
         # 若 loop_count 已達 L4_MAX_LOOPS，此輪 6s timeout 進「最終確認」子狀態（非直接退）
         if loop_count >= L4_MAX_LOOPS:
-            response = read_customer_input(timeout=WAIT_NO_RESPONSE)
+            response = read_customer_input(timeout=min(WAIT_NO_RESPONSE, remaining))
             if response is None:
                 # 2026-05-25 改：第 7 次 6s timeout 不再直接 forced exit，給顧客最後 6s 選 1 / 2
                 result = _l4_final_confirmation(
@@ -113,7 +125,7 @@ def run_l4(
             )
             if isinstance(result, tuple):
                 return result
-            # 等待安撫：不改計數器、不重印明細，主迴圈直接 continue
+            # 等待安撫：不改計數器、不重印明細，主迴圈直接 continue（不重設 deadline）
             if result == "ack":
                 continue
             # E 類（unclear_count 更新）
@@ -123,8 +135,8 @@ def run_l4(
                 _l4_print_entry_detail(cart, total, print_terminal)
             continue
 
-        # 一般等待
-        response = read_customer_input(timeout=WAIT_NO_RESPONSE)
+        # 一般等待（timeout 不超過剩餘預算）
+        response = read_customer_input(timeout=min(WAIT_NO_RESPONSE, remaining))
 
         if response is None:
             # 鏈路 D：loop_count++，說催促語音 + QR 刷新（2026-05-25 加：每次循環都重印金額明細）
@@ -147,7 +159,7 @@ def run_l4(
         if isinstance(result, tuple):
             return result
 
-        # 等待安撫：不改計數器、不重印明細，主迴圈直接 continue
+        # 等待安撫：不改計數器、不重印明細，主迴圈直接 continue（不重設 deadline）
         if result == "ack":
             continue
 
