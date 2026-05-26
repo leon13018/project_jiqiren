@@ -548,6 +548,66 @@ def test_parse_products_duplicate_mixed_qty_drops_missing() -> None:
     assert result_reverse == [("刮刮樂", 3)]
 
 
+# ============================================================
+# P4 regression tests（2026-05-26）
+# ============================================================
+
+def test_nlu_l3_strict_reject_includes_whole_order_cancel_phrasings() -> None:
+    """S14：_KEYWORDS_REJECT_L3_STRICT 補強後覆蓋常見整單作廢表達。
+
+    L3 normal mode 顧客講「全部取消」「都不要了」「整單取消」「取消」
+    應 return 「拒絕」（整單作廢），而非 fallthrough 通用 REJECT 變「結帳」誤推進 L4。
+    """
+    # 繁體新增詞
+    assert nlu.classify_intent("全部取消") == "拒絕"
+    assert nlu.classify_intent("都不要了") == "拒絕"
+    assert nlu.classify_intent("整單取消") == "拒絕"
+    assert nlu.classify_intent("取消") == "拒絕"
+    assert nlu.classify_intent("全部不要") == "拒絕"
+    assert nlu.classify_intent("都取消") == "拒絕"
+    # 簡體變體
+    assert nlu.classify_intent("整单取消") == "拒絕"
+    assert nlu.classify_intent("不想买了") == "拒絕"
+
+
+def test_nlu_iced_tea_short_word_tea_no_longer_matches() -> None:
+    """S15：移除短詞「tea」後，含「tea」substring 但非冰紅茶語境的字串不應誤命中商品識別。
+
+    STT 結果若混雜英文 noise（如「matter」「outreach」），
+    不應因含「tea」substring 而誤識別為冰紅茶。
+    改「iced tea」/「black tea」更具體，仍涵蓋顧客講英文情境。
+    """
+    # 不應誤命中（含 tea substring 但非商品）
+    assert nlu.classify_intent("matter") == "無法判斷"
+    assert nlu.classify_intent("outreach") == "無法判斷"
+    assert nlu.classify_intent("steam") == "無法判斷"
+    assert nlu.classify_intent("team") == "無法判斷"
+    # 正確英文命中仍有效
+    assert nlu.classify_intent("iced tea") == "商品:冰紅茶"
+    assert nlu.classify_intent("black tea") == "商品:冰紅茶"
+    # parse_products 同步驗證
+    assert nlu.parse_products("iced tea 2") == [("冰紅茶", 2)]
+    assert nlu.parse_products("one black tea") == [("冰紅茶", None)]
+
+
+def test_nlu_scratch_letou_and_caijuan_alias() -> None:
+    """SCRATCH 補強：「樂透」「彩卷」（錯字）「即時樂」等同義詞能命中刮刮樂。
+
+    Demo 場景顧客可能講「樂透」「彩卷」（常見錯字）；
+    當前缺漏會 fall through 到 unclear，補強後應正確識別。
+    """
+    # classify_intent 路徑
+    assert nlu.classify_intent("樂透") == "商品:刮刮樂"
+    assert nlu.classify_intent("彩卷") == "商品:刮刮樂"
+    assert nlu.classify_intent("即時樂") == "商品:刮刮樂"
+    # 簡體變體
+    assert nlu.classify_intent("乐透") == "商品:刮刮樂"
+    assert nlu.classify_intent("即时乐") == "商品:刮刮樂"
+    # parse_products 路徑
+    assert nlu.parse_products("我要樂透 2 張") == [("刮刮樂", 2)]
+    assert nlu.parse_products("彩卷一張") == [("刮刮樂", 1)]
+
+
 def test_parse_products_with_filler_words_extracts_correctly() -> None:
     """含 filler 詞「想要」「跟」「謝謝」不影響解析。"""
     result = nlu.parse_products("想要紅茶 2 跟刮刮樂 1 謝謝")

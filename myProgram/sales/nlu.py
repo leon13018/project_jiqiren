@@ -30,8 +30,17 @@ _KEYWORDS_REJECT_STRICT_SHORT = ["沒", "没"]
 # L3 嚴格 reject 詞：L3 (normal mode) 中只有命中這幾個明確「整單作廢」意圖才視為拒絕
 # 短詞 _KEYWORDS_REJECT (「不要」/「不用」/「不想」/「不買」) 在 L3 視為「不追加」→ 結帳
 # 2026-05-25 加：使用者實測 L3 顧客講「不用」本意「不需要加購」（同 no/nope）。
+# 2026-05-26 P4 補：「全部取消/都不要/整單取消/取消」等常見整單作廢表達 + 簡體變體
 # L2/L4 mode 不受影響，仍視一般 _KEYWORDS_REJECT 為拒絕。
-_KEYWORDS_REJECT_L3_STRICT = ["我不要了", "不想買了", "取消購買", "退出", "不買了"]
+# 「取消」雖 substring 較短，但 L3 STRICT 是「整單作廢」的安全門，
+# 顧客在 L3 講「取消」幾乎一定意指整單，false positive 風險低。
+_KEYWORDS_REJECT_L3_STRICT = [
+    # 繁體
+    "我不要了", "不想買了", "取消購買", "退出", "不買了",
+    "全部取消", "全部不要", "都不要", "都取消", "整單取消", "取消",
+    # 簡體變體（使用者 Windows IME 是簡體，實機踩過簡體輸入）
+    "整单取消", "不想买了", "取消购买", "不买了",
+]
 
 _KEYWORDS_THINK = ["等等", "等一下", "稍等", "想想", "考慮", "想一下", "hold on", "wait"]
 
@@ -48,9 +57,20 @@ _KEYWORDS_SERVICE = ["客服", "聯絡", "聯繫", "contact", "服務"]
 
 # 商品關鍵字含簡體變體（2026-05-26 加）— 使用者 Windows 系統地區設為簡體，
 # 偶爾會直接打簡體商品名（如「红茶」）；其他類別（YES/NO/拒絕/結帳）暫不支援簡體
-_KEYWORDS_ICED_TEA = ["紅茶", "冰紅茶", "红茶", "冰红茶", "hong cha", "tea"]
+# 2026-05-26 P4：移除短詞「tea」（substring 過短，「matter/retake/outreach」含 tea 易誤命中）
+# 改為「iced tea」/「black tea」更具體英文，減少 STT noise 誤命中
+_KEYWORDS_ICED_TEA = [
+    "紅茶", "冰紅茶", "红茶", "冰红茶",      # 繁簡
+    "hong cha", "iced tea", "black tea",      # 拼音 + 具體英文
+]
 
-_KEYWORDS_SCRATCH = ["刮刮樂", "刮刮乐", "刮刮", "彩券", "lottery", "scratch"]
+# 2026-05-26 P4：補「彩卷」（常見錯字）、「樂透/乐透」「即時樂/即时乐」常用同義
+# 避免 demo 場景顧客講「樂透」「彩卷」fall through 到 unclear
+_KEYWORDS_SCRATCH = [
+    "刮刮樂", "刮刮乐", "刮刮", "彩券", "彩卷",  # 「卷」是常見錯字
+    "樂透", "乐透", "即時樂", "即时乐",            # 常用同義
+    "lottery", "scratch",
+]
 
 # 僅 L4 客服模式內生效
 _KEYWORDS_CONTINUE = ["繼續", "接著", "繼續買", "繼續交易", "continue"]
@@ -202,15 +222,23 @@ def parse_quantity(text: str) -> int:
 _PRODUCT_KEYWORD_TO_NAME: list = [
     # (keyword, product_name) — 順序：先試長詞後短詞，避免「冰紅茶」被「紅茶」短匹配吃掉
     # 商品關鍵字含簡體變體（2026-05-26 加；其他類別暫不支援簡體）
+    # 2026-05-26 P4：移除「tea」短詞（substring 過短易誤命中）；補 iced tea / black tea
     ("冰紅茶", "冰紅茶"),
     ("冰红茶", "冰紅茶"),
     ("hong cha", "冰紅茶"),
+    ("iced tea", "冰紅茶"),
+    ("black tea", "冰紅茶"),
     ("紅茶", "冰紅茶"),
     ("红茶", "冰紅茶"),
-    ("tea", "冰紅茶"),
+    # 2026-05-26 P4：補「彩卷」錯字 + 「樂透/乐透」「即時樂/即时乐」同義詞
     ("刮刮樂", "刮刮樂"),
     ("刮刮乐", "刮刮樂"),
+    ("即時樂", "刮刮樂"),
+    ("即时乐", "刮刮樂"),
+    ("樂透", "刮刮樂"),
+    ("乐透", "刮刮樂"),
     ("彩券", "刮刮樂"),
+    ("彩卷", "刮刮樂"),
     ("lottery", "刮刮樂"),
     ("scratch", "刮刮樂"),
     ("刮刮", "刮刮樂"),
