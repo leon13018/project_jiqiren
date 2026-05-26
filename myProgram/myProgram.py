@@ -23,6 +23,7 @@ import time
 
 from myProgram.sales import logic
 from myProgram.sales.constants import OPENCV_DWELL, L1_HAWK_ENTRY_PROMPT
+from myProgram.sales.nlu import normalize_input
 
 
 class _S1State:
@@ -61,6 +62,7 @@ def _build_callbacks(state: _S1State) -> dict:
         except (UnicodeDecodeError, EOFError) as e:
             print(f"[系統] 輸入解析失敗（{type(e).__name__}），請重試")
             return ""
+        raw = normalize_input(raw)  # 2026-05-26 P5 加：商家若用全形輸入法「１」也能對應到 "1"
         if raw == "c":
             state.opencv_dwell = OPENCV_DWELL + 0.5
             # 區分「mute 期間 'c' 被吃掉」vs「真的觸發 L2」訊息（2026-05-26 加；
@@ -86,6 +88,7 @@ def _build_callbacks(state: _S1State) -> dict:
         except (UnicodeDecodeError, EOFError) as e:
             print(f"[系統] 輸入解析失敗（{type(e).__name__}），視為 timeout")
             return None
+        raw = normalize_input(raw)  # 2026-05-26 P5 加：IO 邊界統一 normalize（長度上限 / 控制字元 / 全形數字）
         if raw == "q":
             print("[系統] 程式結束（顧客層 q 退出）")
             sys.exit(0)
@@ -130,8 +133,9 @@ def _build_callbacks(state: _S1State) -> dict:
         # 2026-05-25 補暗坑。子例程 A 方案 A 不呼叫 unmute；介面留著給未來模式切換用。
         # 2026-05-26 補：clear mute_until 同步生效（避免 unmute 後仍被時間戳擋住）。
         state.opencv_enabled = True
+        state.opencv_dwell = 0.0  # 2026-05-26 P5 加：與 mute_opencv 對稱清 dwell，預防殘留觸發
         state.opencv_mute_until = 0.0
-        print("[opencv] unmute（state.opencv_enabled = True, mute_until 清空）")
+        print("[opencv] unmute（state.opencv_enabled = True, dwell + mute_until 清空）")
 
     # === 對外動作 ===
     def speak(text):

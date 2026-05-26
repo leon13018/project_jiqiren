@@ -624,3 +624,35 @@ def test_parse_products_chinese_quantity() -> None:
     """中文數字也能解析。"""
     result = nlu.parse_products("紅茶兩瓶")
     assert result == [("冰紅茶", 2)]
+
+
+# ============================================================
+# P5 normalize_input 單元測試（2026-05-26）
+# ============================================================
+
+def test_normalize_input_truncates_at_default_max_length() -> None:
+    """超過 200 字的輸入應被截斷至 200 字（防 STT 雜訊 / 異常超長輸入）。"""
+    long_input = "紅" * 300  # 300 字，超過預設上限 200
+    result = nlu.normalize_input(long_input)
+    assert len(result) == 200
+    assert result == "紅" * 200
+
+
+def test_normalize_input_removes_control_chars() -> None:
+    """控制字元（\\x00 / \\x07 / \\x1f）應被移除；\\t / \\n / \\r 應保留。"""
+    # 含 NUL（\\x00）和 BEL（\\x07）→ 應被移除
+    assert nlu.normalize_input("你好\x00世界") == "你好世界"
+    assert nlu.normalize_input("test\x07bell") == "testbell"
+    assert nlu.normalize_input("\x1f控制\x08字元") == "控制字元"
+    # \\t / \\n / \\r 保留（caller 自行 strip）
+    assert nlu.normalize_input("行一\n行二") == "行一\n行二"
+    assert nlu.normalize_input("tab\there") == "tab\there"
+
+
+def test_normalize_input_converts_full_width_digits() -> None:
+    """全形數字（０-９）應轉為半形（0-9）；中文字元不受影響。"""
+    assert nlu.normalize_input("１２３") == "123"
+    assert nlu.normalize_input("請問１杯紅茶") == "請問1杯紅茶"
+    assert nlu.normalize_input("０９８") == "098"
+    # 已是半形 → 不變
+    assert nlu.normalize_input("123abc") == "123abc"

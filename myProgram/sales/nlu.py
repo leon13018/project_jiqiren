@@ -89,6 +89,36 @@ def _equals_strict_short(text: str, keywords: list) -> bool:
     return text.strip().lower() in [kw.lower() for kw in keywords]
 
 
+def normalize_input(raw: str, max_length: int = 200) -> str:
+    """IO 邊界統一 normalize — 對顧客語音 / 商家鍵盤輸入做最小消毒。
+
+    處理：
+    1. 截斷上限長度（預設 200 字），防 STT 雜訊 / 異常超長輸入造成 log 污染 + 比對緩慢
+    2. 移除控制字元（\\x00-\\x08, \\x0b, \\x0c, \\x0e-\\x1f, \\x7f）— 保留 \\t / \\n / \\r
+       由 caller .strip() 處理（避免破壞語意空白）
+    3. 全形數字 → 半形（０-９ → 0-9），給 `response == "1" / "2" / "s"` 比對用
+       Python re 模組的 \\d 預設匹配 Unicode digits（含全形）OK，但 == 字串比對不會自動轉
+
+    用法（IO 邊界一次套用，sales/ 內部不必再次 normalize）：
+        raw = input(...).strip()
+        raw = normalize_input(raw)
+
+    Args:
+        raw: 原始輸入字串
+        max_length: 截斷上限（預設 200；對話 use case 足夠）
+
+    Returns:
+        normalized 字串
+    """
+    # 1. 截斷
+    text = raw[:max_length]
+    # 2. 移除控制字元（保留 \t \n \r — 對話本身可能含換行）
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
+    # 3. 全形數字 → 半形
+    text = text.translate(str.maketrans("０１２３４５６７８９", "0123456789"))
+    return text
+
+
 def classify_intent(text: str, mode: str = "normal") -> str:
     """對顧客輸入做意圖分類（層別語意感知）。
 
