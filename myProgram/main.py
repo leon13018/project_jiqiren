@@ -53,9 +53,12 @@ def _build_callbacks(state: _S1State) -> dict:
             print(">>> [模擬提示] 叫賣模式只接受兩個鍵：'c' = 模擬 OpenCV 偵測顧客 → 轉 L2；'q' = 退出程式。其他輸入會被忽略。<<<")
 
     def read_terminal_key():
-        """讀商家鍵盤輸入（一個字元）。
+        """讀商家鍵盤輸入（嚴格匹配整段；多字元自動失配被 caller 忽略）。
 
-        特殊 'c' 鍵：模擬 OpenCV 偵測到顧客 → 設 dwell ≥ OPENCV_DWELL，下次 check 觸發 L2。
+        特殊 'c' 鍵（嚴格相等才觸發）：模擬 OpenCV 偵測到顧客 → 設 dwell ≥ OPENCV_DWELL。
+        其他：回傳完整輸入（不截首字元）。caller 用 `key == "1"` / `"2"` / `"3"` / `"q"` /
+        `"r"` 嚴格比對；像「123」/「3434」/「2543333」這類多字元亂打**自然不匹配任何
+        單字元 menu key → 自動 ignored**（不再像舊版會截首字元誤進模式）。
         """
         try:
             raw = input("[商家] > ").strip().lower()
@@ -73,7 +76,7 @@ def _build_callbacks(state: _S1State) -> dict:
             else:
                 print("[模擬] OpenCV 偵測到顧客 → 已自動觸發 L2（hawk loop 下次迭代立即 check opencv，無需再按鍵）")
             return ""  # 不返回有效鍵；由 L1 hawk 主迴圈下次 check opencv
-        return raw[:1] if raw else ""
+        return raw  # post-P8（2026-05-26）：原 `raw[:1]` 會把「123」截為「1」誤進叫賣模式、「3434」截為「3」誤進客服。改回整段不截，依賴 caller `== "1"` 嚴格比對。
 
     def read_customer_input(timeout):
         """讀顧客輸入（語音模擬）。
