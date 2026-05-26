@@ -90,160 +90,13 @@ def run_dialog(
     # Entry prompt 按 cart 狀態決定
     speak(L2_ENTRY_PROMPT if cart_module.is_empty(cart) else L3_ENTRY_PROMPT)
 
-    unclear_count = 0
-
-    while True:
-        cart_empty = cart_module.is_empty(cart)
-
-        # DnC（cart 空）/ DyC（cart 非空）皆給較長 timeout — 顧客可能還在挑商品 / 考慮加單
-        timeout = DNC_TIMEOUT if cart_empty else DYC_TIMEOUT
-        response = read_customer_input(timeout=timeout)
-
-        # === Timeout 分流（cart 狀態決定）===
-        if response is None:
-            if cart_empty:
-                # L2 模式：timeout 不算「拒絕」而是「無回應」→ 中性提示後回 L1 叫賣
-                # （speak L2_REJECT_THANKS=「謝謝光臨」會誤導旁人；保留給明確拒絕意圖用）
-                speak(L2_TIMEOUT_TO_HAWK_VOICE)
-                return ("L1_via_subroutine_a", 0)
-            # L3 模式：6s timeout → C-2 兩段自動結帳
-            return _dialog_c2_second_stage(
-                speak=speak,
-                print_terminal=print_terminal,
-                read_customer_input=read_customer_input,
-                cart=cart,
-                think_count=think_count,
-            )
-
-        # === 判定優先序（cart 狀態決定 NLU mode + 行為）===
-        nlu_mode = "l2" if cart_empty else "normal"
-        intent = classify_intent(response, nlu_mode)
-
-        # 拒絕意圖 → 鏈路 A（自動依 cart 狀態決定是否清 cart）
-        if intent == "拒絕":
-            return _dialog_exit_a(speak, cart)
-
-        # 想一下意圖 → B-3/B-4（行為依 cart 狀態）
-        if intent == "想一下":
-            unclear_count = 0
-            think_count += 1
-            if cart_empty:
-                # L2 B-3：第 3 次 → 鏈路 A
-                if think_count >= 3:
-                    speak(L2_B3_THIRD_REJECT)
-                    return _dialog_exit_a(speak, cart)
-                result = _dialog_think_silence_l2(
-                    speak=speak,
-                    print_terminal=print_terminal,
-                    read_customer_input=read_customer_input,
-                    cart=cart,
-                    think_count=think_count,
-                )
-                if isinstance(result, tuple):
-                    return result
-                continue
-            # L3 B-4：第 3 次 → C-2 第二段
-            if think_count >= 3:
-                return _dialog_c2_second_stage(
-                    speak=speak,
-                    print_terminal=print_terminal,
-                    read_customer_input=read_customer_input,
-                    cart=cart,
-                    think_count=think_count,
-                )
-            result = _dialog_think_silence_l3(
-                speak=speak,
-                print_terminal=print_terminal,
-                read_customer_input=read_customer_input,
-                cart=cart,
-                think_count=think_count,
-            )
-            if isinstance(result, tuple):
-                return result
-            if isinstance(result, int):
-                think_count = result
-            continue
-
-        # 結帳意圖 → cart 空時視為 B-1 unclear；cart 非空時走 C-1 confirm
-        if intent == "結帳":
-            if cart_empty:
-                # L2 模式：結帳意圖無意義 → 當 B-1 unclear 處理
-                unclear_count += 1
-                if unclear_count >= UNCLEAR_MAX:
-                    speak(L2_UNCLEAR_REJECT_VOICE)
-                    return _dialog_exit_a(speak, cart)
-                speak(L2_B1_CLARIFY)
-                continue
-            # L3 模式：C-1 結帳前 confirm
-            unclear_count = 0
-            result = _dialog_checkout_confirm(
-                speak=speak,
-                print_terminal=print_terminal,
-                read_customer_input=read_customer_input,
-                cart=cart,
-            )
-            if result is True:
-                speak(L3_C1_CHECKOUT_GO)
-                return ("L4", 0)
-            # 否認 / timeout → 清空 cart + 對應通知；下一輪 cart 空 → l2 mode → DnC
-            _handle_checkout_confirm_result(result, cart, speak)
-            continue
-
-        # 客服 → B-2
-        if intent == "客服":
-            unclear_count = 0
-            print_terminal(SERVICE_PHONE)
-            continue
-
-        # 商品 → C / B-3（多商品 parser + 各自缺數量追問）
-        products = parse_products(response)
-        if products:
-            unclear_count = 0
-            was_empty = cart_empty
-            added = resolve_and_add_products(
-                products=products,
-                cart=cart,
-                speak=speak,
-                print_terminal=print_terminal,
-                read_customer_input=read_customer_input,
-                classify_intent_mode=nlu_mode,
-            )
-            if added:
-                # cart 從空 → 非空：speak L2_C_ADDED + L3_ENTRY_PROMPT
-                #   （規格書 L2.md 鏈路 C「進 L3」+ L3.md 進入時動作；
-                #    漏播 L3_ENTRY_PROMPT 會讓顧客以為對話結束，6s timeout 直接觸發 C-2 自動結帳）
-                # cart 已非空：speak L3_REASK（額外加單後重問）
-                if was_empty:
-                    speak(L2_C_ADDED)
-                    speak(L3_ENTRY_PROMPT)
-                else:
-                    speak(L3_REASK)
-                continue
-            # 全部商品在追問內取消 → re-prompt 依當前 cart 狀態
-            speak(L2_B3_REASK if cart_empty else L3_REASK)
-            continue
-
-        # 都沒命中 → B-1（unclear_count++）
-        unclear_count += 1
-        if unclear_count >= UNCLEAR_MAX:
-            if cart_empty:
-                # L2: 直接走 A
-                speak(L2_UNCLEAR_REJECT_VOICE)
-                return _dialog_exit_a(speak, cart)
-            # L3: 進最終確認子狀態（有 cart 要保護）
-            final = _dialog_unclear_final_confirmation(
-                speak=speak,
-                print_terminal=print_terminal,
-                read_customer_input=read_customer_input,
-                cart=cart,
-            )
-            if final is not None:
-                return final
-            # 顧客選繼續 → reset unclear + 重播 L3 entry + 回主等待
-            unclear_count = 0
-            speak(L3_ENTRY_PROMPT)
-            continue
-        speak(L2_B1_CLARIFY if cart_empty else L3_B1_CLARIFY)
+    return _dialog_main_loop(
+        speak=speak,
+        print_terminal=print_terminal,
+        read_customer_input=read_customer_input,
+        cart=cart,
+        think_count=think_count,
+    )
 
 
 def _dialog_exit_a(speak, cart) -> tuple:
@@ -510,30 +363,39 @@ def _dialog_c2_second_stage(
         continue
 
 
-def _dialog_continue_after_c2_inner(
+def _dialog_main_loop(
     speak,
     print_terminal,
     read_customer_input,
     cart,
     think_count: int,
 ) -> tuple:
-    """C-2 / B-4 sub-dispatch 返回 None 後，回主等待迴圈繼續（不重播 entry prompt）。
+    """dialog 主迴圈 core — 由 run_dialog 與 _dialog_continue_after_c2_inner 共用。
 
-    跟 run_dialog 主迴圈邏輯一致（含 DnC/DyC timeout + cart_empty timeout 中性語音），
-    差別只是 entry prompt 已播過不重播。
+    進入前的準備（opencv_disable / entry prompt speak）由 caller 負責；
+    本函式直接進主等待迴圈（unclear_count 從 0 起算）。
+
+    Returns:
+        (next_state, next_think_count)
+        next_state ∈ {"L4", "L1_via_subroutine_a"}
     """
     unclear_count = 0
+
     while True:
         cart_empty = cart_module.is_empty(cart)
-        # DnC（cart 空）/ DyC（cart 非空）皆給較長 timeout，跟 run_dialog 主迴圈對齊
+
+        # DnC（cart 空）/ DyC（cart 非空）皆給較長 timeout — 顧客可能還在挑商品 / 考慮加單
         timeout = DNC_TIMEOUT if cart_empty else DYC_TIMEOUT
         response = read_customer_input(timeout=timeout)
+
+        # === Timeout 分流（cart 狀態決定）===
         if response is None:
             if cart_empty:
-                # cart 空 timeout → 不算「拒絕」而是「沒回應」→ 中性語音回 L1 叫賣
-                # （見 run_dialog 主迴圈對齊；舊版走 _dialog_exit_a → speak L2_REJECT_THANKS 已棄用）
+                # L2 模式：timeout 不算「拒絕」而是「無回應」→ 中性提示後回 L1 叫賣
+                # （speak L2_REJECT_THANKS=「謝謝光臨」會誤導旁人；保留給明確拒絕意圖用）
                 speak(L2_TIMEOUT_TO_HAWK_VOICE)
                 return ("L1_via_subroutine_a", 0)
+            # L3 模式：6s timeout → C-2 兩段自動結帳
             return _dialog_c2_second_stage(
                 speak=speak,
                 print_terminal=print_terminal,
@@ -541,100 +403,159 @@ def _dialog_continue_after_c2_inner(
                 cart=cart,
                 think_count=think_count,
             )
+
+        # === 判定優先序（cart 狀態決定 NLU mode + 行為）===
         nlu_mode = "l2" if cart_empty else "normal"
         intent = classify_intent(response, nlu_mode)
+
+        # 拒絕意圖 → 鏈路 A（自動依 cart 狀態決定是否清 cart）
         if intent == "拒絕":
             return _dialog_exit_a(speak, cart)
+
+        # 想一下意圖 → B-3/B-4（行為依 cart 狀態）
         if intent == "想一下":
             unclear_count = 0
             think_count += 1
             if cart_empty:
+                # L2 B-3：第 3 次 → 鏈路 A
                 if think_count >= 3:
                     speak(L2_B3_THIRD_REJECT)
                     return _dialog_exit_a(speak, cart)
                 result = _dialog_think_silence_l2(
-                    speak=speak, print_terminal=print_terminal,
+                    speak=speak,
+                    print_terminal=print_terminal,
                     read_customer_input=read_customer_input,
-                    cart=cart, think_count=think_count,
+                    cart=cart,
+                    think_count=think_count,
                 )
                 if isinstance(result, tuple):
                     return result
                 continue
+            # L3 B-4：第 3 次 → C-2 第二段
             if think_count >= 3:
                 return _dialog_c2_second_stage(
                     speak=speak,
                     print_terminal=print_terminal,
                     read_customer_input=read_customer_input,
-                    cart=cart, think_count=think_count,
+                    cart=cart,
+                    think_count=think_count,
                 )
             result = _dialog_think_silence_l3(
                 speak=speak,
                 print_terminal=print_terminal,
                 read_customer_input=read_customer_input,
-                cart=cart, think_count=think_count,
+                cart=cart,
+                think_count=think_count,
             )
             if isinstance(result, tuple):
                 return result
             if isinstance(result, int):
                 think_count = result
             continue
+
+        # 結帳意圖 → cart 空時視為 B-1 unclear；cart 非空時走 C-1 confirm
         if intent == "結帳":
             if cart_empty:
+                # L2 模式：結帳意圖無意義 → 當 B-1 unclear 處理
                 unclear_count += 1
                 if unclear_count >= UNCLEAR_MAX:
                     speak(L2_UNCLEAR_REJECT_VOICE)
                     return _dialog_exit_a(speak, cart)
                 speak(L2_B1_CLARIFY)
                 continue
+            # L3 模式：C-1 結帳前 confirm
             unclear_count = 0
             result = _dialog_checkout_confirm(
-                speak=speak, print_terminal=print_terminal,
-                read_customer_input=read_customer_input, cart=cart,
+                speak=speak,
+                print_terminal=print_terminal,
+                read_customer_input=read_customer_input,
+                cart=cart,
             )
             if result is True:
                 speak(L3_C1_CHECKOUT_GO)
                 return ("L4", 0)
+            # 否認 / timeout → 清空 cart + 對應通知；下一輪 cart 空 → l2 mode → DnC
             _handle_checkout_confirm_result(result, cart, speak)
             continue
+
+        # 客服 → B-2
         if intent == "客服":
             unclear_count = 0
             print_terminal(SERVICE_PHONE)
             continue
+
+        # 商品 → C / B-3（多商品 parser + 各自缺數量追問）
         products = parse_products(response)
         if products:
             unclear_count = 0
             was_empty = cart_empty
             added = resolve_and_add_products(
-                products=products, cart=cart,
-                speak=speak, print_terminal=print_terminal,
+                products=products,
+                cart=cart,
+                speak=speak,
+                print_terminal=print_terminal,
                 read_customer_input=read_customer_input,
                 classify_intent_mode=nlu_mode,
             )
             if added:
-                # cart 從空 → 非空（罕見：C-2 第二段顧客回應加單；保險與主迴圈一致）
+                # cart 從空 → 非空：speak L2_C_ADDED + L3_ENTRY_PROMPT
+                #   （規格書 L2.md 鏈路 C「進 L3」+ L3.md 進入時動作；
+                #    漏播 L3_ENTRY_PROMPT 會讓顧客以為對話結束，6s timeout 直接觸發 C-2 自動結帳）
+                # cart 已非空：speak L3_REASK（額外加單後重問）
                 if was_empty:
                     speak(L2_C_ADDED)
                     speak(L3_ENTRY_PROMPT)
                 else:
                     speak(L3_REASK)
                 continue
+            # 全部商品在追問內取消 → re-prompt 依當前 cart 狀態
             speak(L2_B3_REASK if cart_empty else L3_REASK)
             continue
+
+        # 都沒命中 → B-1（unclear_count++）
         unclear_count += 1
         if unclear_count >= UNCLEAR_MAX:
             if cart_empty:
+                # L2: 直接走 A
                 speak(L2_UNCLEAR_REJECT_VOICE)
                 return _dialog_exit_a(speak, cart)
+            # L3: 進最終確認子狀態（有 cart 要保護）
             final = _dialog_unclear_final_confirmation(
-                speak=speak, print_terminal=print_terminal,
-                read_customer_input=read_customer_input, cart=cart,
+                speak=speak,
+                print_terminal=print_terminal,
+                read_customer_input=read_customer_input,
+                cart=cart,
             )
             if final is not None:
                 return final
+            # 顧客選繼續 → reset unclear + 重播 L3 entry + 回主等待
             unclear_count = 0
             speak(L3_ENTRY_PROMPT)
             continue
         speak(L2_B1_CLARIFY if cart_empty else L3_B1_CLARIFY)
+
+
+def _dialog_continue_after_c2_inner(
+    speak,
+    print_terminal,
+    read_customer_input,
+    cart,
+    think_count: int,
+) -> tuple:
+    """C-2 NO / unclear-final「繼續」後重入 dialog — 跳過 entry prompt + opencv_disable。
+
+    跟 run_dialog 主迴圈邏輯完全一致；差別：
+      - 不呼叫 opencv_disable()（C-2 之前已 disable）
+      - 不 speak entry prompt（避免重複播放）
+    直接委派給 _dialog_main_loop。
+    """
+    return _dialog_main_loop(
+        speak=speak,
+        print_terminal=print_terminal,
+        read_customer_input=read_customer_input,
+        cart=cart,
+        think_count=think_count,
+    )
 
 
 def _dialog_checkout_confirm(
