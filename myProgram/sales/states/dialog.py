@@ -340,23 +340,10 @@ def _dialog_c2_second_stage(
             or _equals_strict_short(response, KEYWORDS_CONFIRM_YES_STRICT_SHORT)
         )
         if is_yes:
-            confirm_result = _dialog_checkout_confirm(
-                speak=speak,
-                print_terminal=print_terminal,
-                read_customer_input=read_customer_input,
-                cart=cart,
-            )
-            if confirm_result is True:
-                speak(L3_C1_CHECKOUT_GO)
-                return ("L4", 0)
-            _handle_checkout_confirm_result(confirm_result, cart, speak)
-            return _dialog_continue_after_c2_inner(
-                speak=speak,
-                print_terminal=print_terminal,
-                read_customer_input=read_customer_input,
-                cart=cart,
-                think_count=think_count,
-            )
+            # C-2 是「最後機會」嚴格 yes/no — 顧客主動說 YES 不應再被罰 12s confirm。
+            # _dialog_checkout_confirm 由 L3 主對話的「結帳」意圖路徑保留（仍需商品明細確認）。
+            # （2026-05-26 P3.A：移除 24s 雙漏斗 — 主動回應比 timeout 還慢的反直覺路徑）
+            return ("L4", 0)
 
         # 其他（商品 / 想一下 / 客服 / 亂講）— 嚴格 yes/no 設計下視為 gibberish，
         # silently 消耗、不重置 deadline，下一輪 read 用 remaining 縮短的 timeout 繼續等

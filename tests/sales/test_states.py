@@ -2108,13 +2108,18 @@ def test_l3_c2_second_stage_reject_reruns_dispatch_to_a() -> None:
 ### Then 走鏈路 C-1（speak 結帳語音 + 進 L4）
 # ============================================================
 
-def test_l3_c2_second_stage_checkout_reruns_dispatch_to_c1() -> None:
+def test_l3_c2_second_stage_checkout_goes_directly_to_l4() -> None:
+    """C-2 子狀態 → 顧客說「結帳」（CONFIRM_YES 同義詞）→ 直接進 L4（跳過 checkout_confirm）。
+
+    Note 2026-05-26 P3.A 更新：原為「結帳 → C-1 confirm → '1' → L4」；
+    現在 C-2 YES 路徑直接進 L4，移除多餘的 checkout_confirm 疊加。
+    """
     # Arrange
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # None → C-2 第一段；結帳 → C-1 confirm → "1" 明確確認 → 進 L4
-    customer_input = FakeCustomerInput([None, "結帳", "1"])
+    # None → C-2 第一段；結帳 → YES → 直接 L4
+    customer_input = FakeCustomerInput([None, "結帳"])
 
     # Act
     next_state, _ = states.run_dialog(
@@ -2127,11 +2132,12 @@ def test_l3_c2_second_stage_checkout_reruns_dispatch_to_c1() -> None:
     )
 
     # Assert
-    assert L3_C1_CHECKOUT_GO in speak_calls, (
-        f"C-2 第二段回應結帳應 speak L3_C1_CHECKOUT_GO，實際：{speak_calls}"
-    )
     assert next_state == "L4", (
-        f"結帳應進 L4，實際：{next_state!r}"
+        f"C-2 YES（結帳）應直接進 L4，實際：{next_state!r}"
+    )
+    # 不應出現 checkout_confirm 的「正確嗎」prompt（C-2 YES 跳過 confirm）
+    assert not any("正確嗎" in s for s in speak_calls), (
+        f"C-2 YES 不應觸發 checkout_confirm prompt，實際：{speak_calls}"
     )
 
 
@@ -3349,17 +3355,17 @@ def test_l3_checkout_confirm_timeout_cancels() -> None:
     assert L2_TIMEOUT_TO_HAWK_VOICE in speak_calls
 
 
-def test_l3_c2_yes_keyword_好_proceeds_via_checkout_confirm() -> None:
-    """C-2 子狀態 → 顧客講「好」（CONFIRM_YES）→ 進 checkout_confirm → 確認 → L4。
+def test_l3_c2_yes_keyword_好_proceeds_directly_to_l4() -> None:
+    """C-2 子狀態 → 顧客講「好」（CONFIRM_YES）→ 直接進 L4（跳過 checkout_confirm）。
 
-    2026-05-26 加：原本「好」會被 dispatch 視為「無法判斷」走 B-1 reask；新嚴格 yes/no
-    設計下「好」是明確 YES → 進 confirm 子狀態 → 顧客確認後進 L4。
+    2026-05-26 P3.A 更新：C-2 已是「最後機會」嚴格 yes/no，顧客主動說 YES 不應
+    再被罰 12s confirm（24s 雙漏斗 — 主動回應比 timeout 還慢的反直覺路徑）。
     """
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # None → C-2；「好」 → YES → confirm；"1" 明確確認 → L4
-    customer_input = FakeCustomerInput([None, "好", "1"])
+    # None → C-2；「好」 → YES → 直接 L4（不再呼叫 checkout_confirm）
+    customer_input = FakeCustomerInput([None, "好"])
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
@@ -3370,8 +3376,11 @@ def test_l3_c2_yes_keyword_好_proceeds_via_checkout_confirm() -> None:
         think_count=0,
     )
 
-    assert next_state == "L4", f"「好」應為 YES → confirm → L4，實際：{next_state!r}"
-    assert L3_C1_CHECKOUT_GO in speak_calls
+    assert next_state == "L4", f"「好」應為 YES → 直接 L4，實際：{next_state!r}"
+    # 不應出現 checkout_confirm 的「正確嗎」prompt（C-2 YES 跳過 confirm）
+    assert not any("正確嗎" in s for s in speak_calls), (
+        f"C-2 YES 不應觸發 checkout_confirm prompt，實際：{speak_calls}"
+    )
 
 
 def test_l3_c2_gibberish_silently_ignored_then_timeout_to_l4() -> None:
