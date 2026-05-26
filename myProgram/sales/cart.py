@@ -13,7 +13,7 @@
 
 from typing import TypeAlias
 
-from myProgram.sales.constants import PRODUCTS
+from myProgram.sales.constants import PRODUCTS, MAX_QTY_PER_ITEM
 
 # Cart 型別定義：商品名 → 數量
 Cart: TypeAlias = dict[str, int]
@@ -29,9 +29,19 @@ def add_item(cart: Cart, product: str, qty: int) -> None:
 
     Args:
         cart: 購物車 dict
-        product: 商品名稱（需存在於 PRODUCTS）
-        qty: 數量（正整數）
+        product: 商品名稱（必須存在於 PRODUCTS，否則 raise AssertionError）
+        qty: 數量
+            - qty > MAX_QTY_PER_ITEM → raise AssertionError（防天文數字）
+            - qty <= 0 → silent skip（不加入也不 raise；對應 Wave 3
+              parse_quantity 可能合法回 0 的情境，caller 不必預先 if qty > 0:）
+            - 0 < qty <= MAX_QTY_PER_ITEM → 正常加入 cart
     """
+    assert product in PRODUCTS, f"未知商品: {product!r}"
+    assert qty <= MAX_QTY_PER_ITEM, (
+        f"數量超上限: {product} ×{qty} > {MAX_QTY_PER_ITEM}（單筆訂單防護）"
+    )
+    if qty <= 0:
+        return  # silent skip（顧客明確說 0 / 解析異常負數）
     cart[product] = cart.get(product, 0) + qty
 
 
