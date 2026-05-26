@@ -100,7 +100,10 @@ def run(
             opencv_disable=opencv_disable,
         )
         if next_state == "L1_via_subroutine_a":
-            _assert_cart_empty(cart, "L4 非掃碼退出後（L4-B/C/D 已清 cart）")
+            # L4 非 L5 路徑必清 cart（_l4_exit_b / _l4_exit_d_forced / _l4_service_mode 退出三條
+            # 皆 clear_cart；掃碼 → L5 走 elif 分支由 L5 自身 clear，不踩此 assert）
+            # （2026-05-26 P3.C 修訂：原「L4-B/C/D 已清 cart」漏列 _l4_service_mode 掃碼→L5 路徑）
+            _assert_cart_empty(cart, "L4 非掃碼退出後（L4 三條清 cart 路徑）")
             _invoke_subroutine_a(mute_opencv)
             enter_hawk_immediately = True
             continue

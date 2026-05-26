@@ -516,8 +516,12 @@ def _dialog_main_loop(
             )
             if final is not None:
                 return final
-            # 顧客選繼續 → reset unclear + 重播 L3 entry + 回主等待
+            # 顧客選繼續 → reset 所有 counter + 重播 L3 entry + 回主等待
+            # think_count 也歸零：unclear final「繼續」= 重啟對話，不只清 unclear；
+            # 若只 reset unclear 而保留 think_count，顧客返回後多想一次就可能誤觸 C-2
+            # （2026-05-26 P3.C 加：修 think_count 跨 C-2/continue 累積 bug）
             unclear_count = 0
+            think_count = 0
             speak(L3_ENTRY_PROMPT)
             continue
         speak(L2_B1_CLARIFY if cart_empty else L3_B1_CLARIFY)
