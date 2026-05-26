@@ -63,10 +63,6 @@ def _build_callbacks(state: _S1State) -> dict:
         try:
             raw = input("[商家] > ").strip().lower()
         except (UnicodeDecodeError, EOFError) as e:
-            # Windows console（cp936）下 input() 走 ReadConsoleW → UTF-16 解碼，
-            # 實測不會 raise UnicodeDecodeError；但 Linux Pi 端從 stdin pipe / redirect
-            # 接 non-UTF-8 byte sequence 可能 fire。defensive except 兩端都保護。
-            # （INTENTIONAL，2026-05-26 review B18 文件化）
             print(f"[系統] 輸入解析失敗（{type(e).__name__}），請重試")
             return ""
         raw = normalize_input(raw)  # 2026-05-26 P5 加：商家若用全形輸入法「１」也能對應到 "1"
@@ -93,18 +89,9 @@ def _build_callbacks(state: _S1State) -> dict:
         try:
             raw = input(f"[顧客 timeout={timeout}s，空 Enter=timeout / q=退出] > ").strip()
         except (UnicodeDecodeError, EOFError) as e:
-            # Windows console（cp936）下 input() 走 ReadConsoleW → UTF-16 解碼，
-            # 實測不會 raise UnicodeDecodeError；但 Linux Pi 端從 stdin pipe / redirect
-            # 接 non-UTF-8 byte sequence 可能 fire。defensive except 兩端都保護。
-            # （INTENTIONAL，2026-05-26 review B18 文件化）
             print(f"[系統] 輸入解析失敗（{type(e).__name__}），視為 timeout")
             return None
         raw = normalize_input(raw)  # 2026-05-26 P5 加：IO 邊界統一 normalize（長度上限 / 控制字元 / 全形數字）
-        # TODO(S2+): 真 STT 接入後移除此「q 退出」處理 — S1 chat-driven 為了
-        # 商家測試方便，顧客輸入路徑也允許「q」直接退出程式；production 顧客是
-        # 語音 STT，理論上不會傳「q」，但 STT 把語音「Q」/「kiu」誤識別仍可觸發。
-        # S2+ 接入真 STT 時刪掉此分支（顧客層 q 退出僅是 S1 chat-driven 便利）。
-        # （INTENTIONAL，2026-05-26 review D3 文件化）
         if raw == "q":
             print("[系統] 程式結束（顧客層 q 退出）")
             sys.exit(0)

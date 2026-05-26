@@ -76,14 +76,6 @@ def run_l4(
     Returns:
         (next_state, next_loop_count, next_unclear_count)
         next_state ∈ {"L1_via_subroutine_a", "L5"}
-
-    Wall-clock budget 鏈條（INTENTIONAL，2026-05-26 review B13 文件化）：
-        - L4 主迴圈嚴守 L4_TOTAL_BUDGET = 60s 預算（每輪 check remaining）
-        - 但 _l4_final_confirmation sub-helper 走自己的 6s × UNCLEAR_MAX (3) = 18s 上限，
-          不檢查主迴圈預算（設計如此，給最終確認子狀態獨立時間）
-        - 最壞情況：60s 主迴圈到尾 → 進 _l4_final_confirmation → 再 18s → forced exit
-        - 即 L4 整體最壞 78s（60 + 18），文件化避免未來誤判為「budget 漏算」bug
-        - _l4_service_mode 60s timeout 也獨立於主迴圈（見 B8，目前是已知 trade-off）
     """
     # 進入 L4 → OpenCV 不需要（顧客已在掃碼），明示關閉（防呆）
     opencv_disable()
