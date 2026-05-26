@@ -3,6 +3,17 @@
 包含 L2（首次點餐）對話層的所有字串常數。
 """
 
+__all__ = [
+    "L2_ENTRY_PROMPT",
+    "L2_REJECT_THANKS",
+    "L2_TIMEOUT_TO_HAWK_VOICE",
+    "L2_B1_CLARIFY",
+    "L2_B3_REASK",
+    "L2_B3_THIRD_REJECT",
+    "L2_C_ADDED",
+    "L2_UNCLEAR_REJECT_VOICE",
+]
+
 # ============================================================
 # L2 文字常數
 # ============================================================

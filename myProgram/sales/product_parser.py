@@ -6,9 +6,8 @@
 
 設計原則：
     - 純函式（無 IO / 無 callback）
-    - 從 nlu.py 借用 _CHINESE_DIGIT_MAP + _KEYWORDS_ICED_TEA / _KEYWORDS_SCRATCH
-      （intent / 實體都會用到的 keyword sets；留在 nlu.py 作為第一公民，
-       product_parser 由此 import 使用）
+    - 從 constants/keywords.py 借用 CHINESE_DIGIT_MAP + KEYWORDS_ICED_TEA / KEYWORDS_SCRATCH
+      （2026-05-26 Wave 6：已從 nlu.py 搬至 constants，資料層歸資料層）
     - sales/ 內 caller（dialog / qty_followup）由此 import parse_products，
       不再從 nlu 拿
 
@@ -19,12 +18,8 @@
 
 import re
 
-from myProgram.sales.nlu import (
-    _CHINESE_DIGIT_MAP,
-    _KEYWORDS_ICED_TEA,
-    _KEYWORDS_SCRATCH,
-    _parse_compound_chinese,
-)
+from myProgram.sales.nlu import _parse_compound_chinese
+from myProgram.sales.constants import CHINESE_DIGIT_MAP, KEYWORDS_ICED_TEA, KEYWORDS_SCRATCH
 
 # ============================================================
 # 商品 keyword → 標準商品名映射（從 nlu.py 移過來）
@@ -75,7 +70,7 @@ def _parse_quantity_in_window(window: str) -> int | None:
     if compound is not None and compound > 0:
         return compound
     # 單字中文數字 fallback
-    for char, value in _CHINESE_DIGIT_MAP.items():
+    for char, value in CHINESE_DIGIT_MAP.items():
         if char in window:
             return value
     return None

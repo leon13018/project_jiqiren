@@ -678,6 +678,7 @@ def test_l2_entry_speaks_greeting_and_inits_think_count() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：進入語音是第一個 speak 呼叫
@@ -713,6 +714,7 @@ def test_l2_a_timeout_no_response_triggers_reject_and_subroutine_a() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：timeout 不算「拒絕」→ 應 speak 中性「繼續叫賣」提示而非 L2_REJECT_THANKS
@@ -750,6 +752,7 @@ def test_l2_a_reject_keyword_triggers_subroutine_a() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert
@@ -786,6 +789,7 @@ def test_l2_b1_unknown_input_speaks_clarification_and_stays_in_l2() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：B-1 clarify 語音有被 speak
@@ -819,6 +823,7 @@ def test_l2_b1_unclear_max_triggers_reject_thanks() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：第 UNCLEAR_MAX 次後 speak unclear reject voice
@@ -857,6 +862,7 @@ def test_l2_b1_reset_on_known_intent() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：客服電話有被印
@@ -893,6 +899,7 @@ def test_l2_b2_service_keyword_prints_phone_and_returns_to_l2_loop() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：SERVICE_PHONE 被印到終端
@@ -928,6 +935,7 @@ def test_l2_b3_first_think_increments_count_and_enters_silence() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：沉默期無多餘語音（不應在想一下之後、沉默期中發語音）
@@ -965,6 +973,7 @@ def test_l2_b3_silence_interrupted_by_response_reruns_dispatch() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：走 C 進 L3
@@ -1001,6 +1010,7 @@ def test_l2_b3_silence_timeout_reasks_and_resumes_main_loop() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：L2_B3_REASK 被 speak
@@ -1034,6 +1044,7 @@ def test_l2_b3_second_think_still_silence_below_threshold() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：L2_B3_REASK 應出現兩次（第一次和第二次沉默 timeout 後）
@@ -1071,6 +1082,7 @@ def test_l2_b3_third_think_skips_silence_and_triggers_reject() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=2,  # 已累積 2 次
+        opencv_disable=lambda: None,
     )
 
     # Assert：L2_B3_THIRD_REJECT 被 speak，無沉默（不需要第二個 read 呼叫）
@@ -1104,6 +1116,7 @@ def test_l2_c_iced_tea_default_quantity_adds_cart_and_goes_l3() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert
@@ -1136,6 +1149,7 @@ def test_l2_c_iced_tea_with_chinese_quantity_parses_and_adds() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert
@@ -1167,6 +1181,7 @@ def test_l2_c_qty_followup_gibberish_speaks_clarify_then_uses_next_quantity() ->
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     assert next_state == "L4"
@@ -1191,6 +1206,7 @@ def test_l2_c_qty_followup_service_intent_prints_phone_then_reclarifies() -> Non
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     assert next_state == "L4"
@@ -1213,6 +1229,7 @@ def test_l2_c_qty_followup_reject_cancels_addition_and_reprompts_l2() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # cancel 後 cart 未變（紅茶未加），最後 None timeout → L1
@@ -1237,6 +1254,7 @@ def test_l2_c_iced_tea_no_quantity_asks_then_uses_followup() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     assert next_state == "L4"
@@ -1263,6 +1281,7 @@ def test_l2_c_scratch_card_adds_cart_and_goes_l3() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert
@@ -1295,6 +1314,7 @@ def test_l2_prio_checkout_intent_in_l2_falls_through_to_b1() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：L2 跳過結帳 → 走 B-1
@@ -1336,6 +1356,7 @@ def test_l3_entry_speaks_followup_and_inits_think_count() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：進入語音是第一個 speak 呼叫
@@ -1369,6 +1390,7 @@ def test_l3_a_reject_keyword_clears_cart_and_triggers_subroutine_a() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert
@@ -1408,6 +1430,7 @@ def test_l3_b1_unknown_input_speaks_clarification_and_stays_in_l3() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：B-1 clarify 語音有被 speak
@@ -1444,6 +1467,7 @@ def test_l3_b1_unclear_max_final_confirmation_cancel() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：語音播最終確認 prompt
@@ -1479,6 +1503,7 @@ def test_l3_b1_unclear_max_final_confirmation_continue_then_checkout() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：進 L4
@@ -1509,6 +1534,7 @@ def test_l3_b1_unclear_max_final_confirmation_timeout_cancels() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：拒絕語音 + cart 清空
@@ -1544,6 +1570,7 @@ def test_l3_b1_reset_on_known_intent() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：客服電話有被印
@@ -1579,6 +1606,7 @@ def test_l3_b1_final_confirmation_gibberish_then_timeout() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：prompt 被 speak 多次（初次 + 兩次亂回答重播 = 3）
@@ -1613,6 +1641,7 @@ def test_l3_b2_service_keyword_prints_phone_and_returns_to_l3_loop() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：SERVICE_PHONE 被印到終端
@@ -1647,6 +1676,7 @@ def test_l3_b3_product_default_quantity_adds_cart_and_stays_in_l3() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert
@@ -1683,6 +1713,7 @@ def test_l3_b3_qty_followup_reject_cancels_addition_and_reprompts_l3() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # 刮刮樂 cancel 未加；既有冰紅茶 1 保留
@@ -1710,6 +1741,7 @@ def test_l3_b3_product_no_quantity_asks_then_uses_followup() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # L3 C-1 從 None timeout → C-2 第二段 → L4（C-2 不 confirm）
@@ -1738,6 +1770,7 @@ def test_l3_b3_product_with_quantity_accumulates_existing() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert
@@ -1771,6 +1804,7 @@ def test_l3_b4_first_think_increments_count_and_enters_silence() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：進入語音後，想一下期間不應有多餘語音
@@ -1806,6 +1840,7 @@ def test_l3_b4_silence_interrupted_by_response_reruns_dispatch() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：沉默期有回應（商品）→ B-3 加 cart
@@ -1839,6 +1874,7 @@ def test_l3_b4_silence_timeout_reasks_and_resumes_main_loop() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：L3_REASK 被 speak
@@ -1873,6 +1909,7 @@ def test_l3_b4_second_think_still_silence_below_threshold() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：L3_REASK 應出現兩次（兩次沉默 timeout 後）
@@ -1908,6 +1945,7 @@ def test_l3_b4_third_think_skips_silence_and_triggers_c2_second_stage() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=2,  # 已累積 2 次
+        opencv_disable=lambda: None,
     )
 
     # Assert：C-2 第一段語音被 speak（用 L3_C2_WARNING_TEMPLATE 套 AUTO_CHECKOUT_NOTICE）
@@ -1943,6 +1981,7 @@ def test_l3_c1_checkout_keyword_speaks_and_goes_l4() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert
@@ -1977,6 +2016,7 @@ def test_l3_c2_first_timeout_speaks_warning_and_enters_second_stage() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：C-2 第一段語音被 speak（用 L3_C2_WARNING_TEMPLATE 套 AUTO_CHECKOUT_NOTICE）
@@ -2011,6 +2051,7 @@ def test_l3_c2_second_stage_timeout_goes_l4() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：C-2 第二段 timeout 進 L4
@@ -2044,6 +2085,7 @@ def test_l3_c2_second_stage_product_reruns_dispatch_to_b3() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：商品被忽略，cart 不變
@@ -2085,6 +2127,7 @@ def test_l3_c2_second_stage_reject_reruns_dispatch_to_a() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert
@@ -2132,6 +2175,7 @@ def test_l3_c2_second_stage_checkout_goes_directly_to_l4() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert
@@ -2168,6 +2212,7 @@ def test_l3_prio_l4_service_words_in_l3_falls_through_to_b1() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：L3 視「繼續」為無法判斷 → B-1
@@ -2213,6 +2258,7 @@ def test_l4_entry_calculates_total_prints_detail_and_speaks() -> None:
         cart=cart,
         loop_count=0,
         unclear_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：進入語音包含「234 元」與「掃碼付款」
@@ -2248,6 +2294,7 @@ def test_l4_a_scan_success_speaks_and_goes_l5() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
+        opencv_disable=lambda: None,
     )
 
     # Assert：speak 付款成功，轉 L5，cart 不清空（L5 負責清）
@@ -2281,6 +2328,7 @@ def test_l4_b_reject_keyword_clears_cart_and_triggers_subroutine_a() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
+        opencv_disable=lambda: None,
     )
 
     # Assert：speak 取消語音，清空 cart，回 L1
@@ -2319,6 +2367,7 @@ def test_l4_c_service_keyword_enters_special_mode_with_options() -> None:
         print_terminal=lambda text: terminal_calls.append(text),
         read_customer_input=customer_input.read,
         cart=cart,
+        opencv_disable=lambda: None,
     )
 
     # Assert：終端含電話；語音含選項提示（2026-05-26 post-P8 修：選項 prompt 不再 print_terminal
@@ -2357,6 +2406,7 @@ def test_l4_c_service_input_1_exits_clears_cart() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
+        opencv_disable=lambda: None,
     )
 
     # Assert：cart 清空，回 L1
@@ -2389,6 +2439,7 @@ def test_l4_c_service_exit_keyword_exits_clears_cart() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
+        opencv_disable=lambda: None,
     )
 
     # Assert
@@ -2421,6 +2472,7 @@ def test_l4_c_service_reject_keyword_treated_as_exit() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
+        opencv_disable=lambda: None,
     )
 
     # Assert
@@ -2455,6 +2507,7 @@ def test_l4_c_service_input_2_continues_resets_loop_count() -> None:
         cart=cart,
         loop_count=3,
         unclear_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：cart 保留，next_state = L5（鏈路 A 成功）
@@ -2485,6 +2538,7 @@ def test_l4_c_service_continue_keyword_continues() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
+        opencv_disable=lambda: None,
     )
 
     # Assert：繼續後掃碼 → L5
@@ -2516,6 +2570,7 @@ def test_l4_c_service_input_s_treated_as_continue_then_scan() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
+        opencv_disable=lambda: None,
     )
 
     # Assert：L4_A_PAY_SUCCESS 被 speak，轉 L5
@@ -2549,6 +2604,7 @@ def test_l4_c_service_unrecognized_input_reprompts_and_stays() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
+        opencv_disable=lambda: None,
     )
 
     # Assert：L4_C_OPTIONS_PROMPT 至少出現兩次（一次進入時，一次重複提示）
@@ -2582,6 +2638,7 @@ def test_l4_c_service_timeout_60s_exits_clears_cart() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
+        opencv_disable=lambda: None,
     )
 
     # Assert：cart 清空，回 L1
@@ -2617,6 +2674,7 @@ def test_l4_d_first_timeout_increments_count_and_speaks_neutral() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         loop_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：第 1 次 D 用中性語音（含「54 元」與「請掃碼，或聯繫客服」）
@@ -2653,6 +2711,7 @@ def test_l4_d_second_timeout_speaks_gentle_reminder() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         loop_count=1,  # 已走過第 1 次 D
+        opencv_disable=lambda: None,
     )
 
     # Assert：第 2 次 D（loop_count 從 1 → 2）用柔提醒語音
@@ -2688,6 +2747,7 @@ def test_l4_d_third_timeout_speaks_moderate_urgency() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         loop_count=2,  # 已走過第 2 次 D
+        opencv_disable=lambda: None,
     )
 
     # Assert：第 3 次 D（loop_count 從 2 → 3）用中度催促語音
@@ -2723,6 +2783,7 @@ def test_l4_d_fifth_timeout_speaks_explicit_warning() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         loop_count=4,  # 已走過第 4 次 D
+        opencv_disable=lambda: None,
     )
 
     # Assert：第 5 次 D（loop_count 從 4 → 5）用明確警告語音
@@ -2758,6 +2819,7 @@ def test_l4_d_sixth_timeout_forces_exit_clears_cart() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         loop_count=L4_MAX_LOOPS,  # loop_count == 6 → 強制退
+        opencv_disable=lambda: None,
     )
 
     # Assert：speak 強制退語音，清空 cart，回 L1
@@ -2795,6 +2857,7 @@ def test_l4_e_first_unknown_increments_count_and_reprompts() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         unclear_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert：speak 重問語音，最終 L5
@@ -2830,6 +2893,7 @@ def test_l4_e_think_intent_treated_as_unknown() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
+        opencv_disable=lambda: None,
     )
 
     # Assert：想一下在 L4 走 E，speak 重問
@@ -2863,6 +2927,7 @@ def test_l4_e_checkout_intent_treated_as_unknown() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
+        opencv_disable=lambda: None,
     )
 
     # Assert：結帳在 L4 走 E
@@ -2896,6 +2961,7 @@ def test_l4_e_product_intent_treated_as_unknown() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
+        opencv_disable=lambda: None,
     )
 
     # Assert：商品在 L4 走 E
@@ -2931,6 +2997,7 @@ def test_l4_e_third_unknown_auto_enters_service_mode() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         unclear_count=2,  # 已走過 2 次 E
+        opencv_disable=lambda: None,
     )
 
     # Assert：speak 自動進客服語音 + 進入客服模式（印電話 + 選項提示）
@@ -3099,6 +3166,7 @@ def test_l4_d_final_confirmation_terminal_1_cancels() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         loop_count=L4_MAX_LOOPS,
+        opencv_disable=lambda: None,
     )
 
     assert next_state == "L1_via_subroutine_a"
@@ -3122,6 +3190,7 @@ def test_l4_d_final_confirmation_terminal_2_continues_then_scans() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         loop_count=L4_MAX_LOOPS,
+        opencv_disable=lambda: None,
     )
 
     assert next_state == "L5", "繼續後 s 掃碼應到 L5"
@@ -3141,6 +3210,7 @@ def test_l4_d_final_confirmation_keyword_continue_then_scans() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         loop_count=L4_MAX_LOOPS,
+        opencv_disable=lambda: None,
     )
 
     assert next_state == "L5"
@@ -3162,6 +3232,7 @@ def test_l4_d_final_confirmation_gibberish_then_timeout_cancels() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         loop_count=L4_MAX_LOOPS,
+        opencv_disable=lambda: None,
     )
 
     assert next_state == "L1_via_subroutine_a"
@@ -3189,6 +3260,7 @@ def test_l2_multi_product_with_quantities_all_added_then_l3() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     assert next_state == "L4"
@@ -3210,6 +3282,7 @@ def test_l2_multi_product_one_missing_qty_asks_only_for_that_one() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     assert next_state == "L4"
@@ -3232,6 +3305,7 @@ def test_l2_duplicate_product_accumulates() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     assert next_state == "L4"
@@ -3257,6 +3331,7 @@ def test_l3_checkout_confirm_yes_keyword_proceeds_to_l4() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     assert next_state == "L4"
@@ -3276,6 +3351,7 @@ def test_l3_checkout_confirm_terminal_1_proceeds_to_l4() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     assert next_state == "L4"
@@ -3296,6 +3372,7 @@ def test_l3_checkout_confirm_no_returns_to_l3_main_loop() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # cart 空 + timeout → 鏈路 A 退出
@@ -3322,6 +3399,7 @@ def test_l3_checkout_confirm_terminal_2_returns_to_l3() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     assert L3_CHECKOUT_REJECT_CLEAR_NOTICE in speak_calls
@@ -3351,6 +3429,7 @@ def test_l3_checkout_confirm_timeout_cancels() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     assert next_state == "L1_via_subroutine_a"
@@ -3381,6 +3460,7 @@ def test_l3_checkout_confirm_unclear_exhausted_speaks_distinct_message() -> None
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     assert next_state == "L1_via_subroutine_a"
@@ -3414,6 +3494,7 @@ def test_l3_c2_yes_keyword_好_proceeds_directly_to_l4() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     assert next_state == "L4", f"「好」應為 YES → 直接 L4，實際：{next_state!r}"
@@ -3442,6 +3523,7 @@ def test_l3_c2_gibberish_silently_ignored_then_timeout_to_l4() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # 不應觸發 B-1 reask 提示（嚴格 yes/no 下亂答 silent）
@@ -3473,6 +3555,7 @@ def test_l3_c2_first_stage_no_keyword_cancels_order() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # 不應進 L4（不要 = 取消，不是結帳）
@@ -3506,6 +3589,7 @@ def test_post_c2_loop_cart_empty_timeout_uses_dnc_timeout_and_neutral_voice() ->
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     assert next_state == "L1_via_subroutine_a"
@@ -3529,6 +3613,7 @@ def test_l3_checkout_confirm_summary_shows_all_products() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     confirm_prints = [t for t in speak_calls if "正確嗎" in t]
@@ -3558,6 +3643,7 @@ def test_dialog_empty_cart_speaks_l2_entry_prompt() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     assert L2_ENTRY_PROMPT in speak_calls, (
@@ -3580,6 +3666,7 @@ def test_dialog_nonempty_cart_speaks_l3_entry_prompt() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     assert L3_ENTRY_PROMPT in speak_calls
@@ -3601,6 +3688,7 @@ def test_dialog_empty_to_nonempty_transitions_mode_internally() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     assert next_state == "L4"
@@ -3629,6 +3717,7 @@ def test_dialog_empty_cart_checkout_intent_treated_as_unclear() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # 應 speak L2_B1_CLARIFY 而非進結帳
@@ -3648,6 +3737,7 @@ def test_dialog_empty_cart_timeout_goes_to_l1_via_a_reject() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     assert next_state == "L1_via_subroutine_a"
@@ -3668,6 +3758,7 @@ def test_dialog_nonempty_cart_timeout_triggers_c2_auto_checkout() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     assert next_state == "L4"
@@ -3803,6 +3894,7 @@ def test_c2_meiyou_should_not_be_no() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
+        opencv_disable=lambda: None,
     )
 
     # Assert 1：進 L4（timeout 路徑，非 NO 路徑清 cart 後回 L1）
@@ -3841,6 +3933,7 @@ def test_l4_ack_word_speaks_gentle_and_does_not_count_unclear() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
+        opencv_disable=lambda: None,
     )
 
     # Assert
@@ -3893,6 +3986,7 @@ def test_l4_wallclock_budget_ack_spam_eventually_forced_exit() -> None:
             print_terminal=lambda text: None,
             read_customer_input=customer_input.read,
             cart=cart,
+            opencv_disable=lambda: None,
         )
 
     assert next_state == "L1_via_subroutine_a", (
@@ -3919,6 +4013,7 @@ def test_l4_normal_scan_within_budget_succeeds() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
+        opencv_disable=lambda: None,
     )
 
     assert next_state == "L5", (

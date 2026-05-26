@@ -56,7 +56,7 @@ from myProgram.sales.constants import (
     KEYWORDS_CONFIRM_NO_STRICT_SHORT,
     DIALOG_VAGUE_BUY_REASK,
 )
-from myProgram.sales.nlu import classify_intent, _contains_any, _equals_strict_short
+from myProgram.sales.nlu import classify_intent, contains_any, equals_strict_short
 from myProgram.sales.product_parser import parse_products
 from myProgram.sales import cart as cart_module
 from myProgram.sales.states._l2_l3_qty_followup import resolve_and_add_products
@@ -68,7 +68,8 @@ def run_dialog(
     read_customer_input,
     cart,
     think_count: int = 0,
-    opencv_disable=lambda: None,
+    *,
+    opencv_disable,
 ) -> tuple:
     """統一對話層主迴圈 — cart 狀態驅動。
 
@@ -333,8 +334,8 @@ def _dialog_c2_second_stage(
         #   substring 命中長詞（如「不正確」）；strict-short 命中短詞（如「no/nope」）
         if (
             response == "2"
-            or _contains_any(response, KEYWORDS_CONFIRM_NO)
-            or _equals_strict_short(response, KEYWORDS_CONFIRM_NO_STRICT_SHORT)
+            or contains_any(response, KEYWORDS_CONFIRM_NO)
+            or equals_strict_short(response, KEYWORDS_CONFIRM_NO_STRICT_SHORT)
         ):
             cart_module.clear_cart(cart)
             speak(L3_CHECKOUT_REJECT_CLEAR_NOTICE)
@@ -352,8 +353,8 @@ def _dialog_c2_second_stage(
         # 顧客若「沒了/夠了」想結帳，C-2 timeout 後自然進 L4，仍是正確終點
         is_yes = (
             response == "1"
-            or _contains_any(response, KEYWORDS_CONFIRM_YES)
-            or _equals_strict_short(response, KEYWORDS_CONFIRM_YES_STRICT_SHORT)
+            or contains_any(response, KEYWORDS_CONFIRM_YES)
+            or equals_strict_short(response, KEYWORDS_CONFIRM_YES_STRICT_SHORT)
         )
         if is_yes:
             # C-2 是「最後機會」嚴格 yes/no — 顧客主動說 YES 不應再被罰 12s confirm。
@@ -597,9 +598,9 @@ def _dialog_checkout_confirm(
             return "yes"
         if response == "2":
             return "no_explicit"
-        if _contains_any(response, KEYWORDS_CONFIRM_NO) or _equals_strict_short(response, KEYWORDS_CONFIRM_NO_STRICT_SHORT):
+        if contains_any(response, KEYWORDS_CONFIRM_NO) or equals_strict_short(response, KEYWORDS_CONFIRM_NO_STRICT_SHORT):
             return "no_explicit"
-        if _contains_any(response, KEYWORDS_CONFIRM_YES) or _equals_strict_short(response, KEYWORDS_CONFIRM_YES_STRICT_SHORT):
+        if contains_any(response, KEYWORDS_CONFIRM_YES) or equals_strict_short(response, KEYWORDS_CONFIRM_YES_STRICT_SHORT):
             return "yes"
         unclear_count += 1
         if unclear_count >= CHECKOUT_CONFIRM_UNCLEAR_MAX:

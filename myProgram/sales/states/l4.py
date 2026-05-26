@@ -46,7 +46,8 @@ def run_l4(
     cart,
     loop_count: int = 0,
     unclear_count: int = 0,
-    opencv_disable=lambda: None,
+    *,
+    opencv_disable,
 ) -> tuple:
     """L4 主迴圈：結帳層（印金額 + 等掃碼）。
 

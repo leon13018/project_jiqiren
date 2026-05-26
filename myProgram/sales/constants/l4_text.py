@@ -3,6 +3,22 @@
 包含 L4（付款）對話層的所有字串常數。
 """
 
+__all__ = [
+    "L4_ENTRY_PROMPT_TEMPLATE",
+    "L4_A_PAY_SUCCESS",
+    "L4_B_CANCEL_THANKS",
+    "L4_C_OPTIONS_PROMPT",
+    "L4_D_FORCED_EXIT",
+    "L4_D_FINAL_PROMPT",
+    "L4_E_CLARIFY",
+    "L4_E_AUTO_SERVICE",
+    "L4_ACK_GENTLE",
+    "L4_D_VOICE_NEUTRAL",
+    "L4_D_VOICE_GENTLE",
+    "L4_D_VOICE_MODERATE",
+    "L4_D_VOICE_WARNING",
+]
+
 # ============================================================
 # L4 文字常數
 # ============================================================

@@ -1,7 +1,14 @@
 """L1 文字常數（P8 拆分自 constants.py）。
 
-包含 L1 模式選擇選單相關的所有字串常數，以及跨層通用字串（SERVICE_PHONE）。
+包含 L1 模式選擇選單相關的所有字串常數。
+注意：SERVICE_PHONE 已於 2026-05-26 Wave 6 移至 constants/shared.py（跨層共用）。
 """
+
+__all__ = [
+    "L1_MENU_BANNER",
+    "L1_HAWK_ENTRY_PROMPT",
+    "L1_STANDBY_ENTRY_PROMPT",
+]
 
 # ============================================================
 # L1 文字常數
@@ -25,5 +32,3 @@ L1_HAWK_ENTRY_PROMPT: str = "進入叫賣模式"
 # L1 待機模式進入提示
 L1_STANDBY_ENTRY_PROMPT: str = "進入待機模式，按 r + Enter 回主選單"
 
-# 客服電話（placeholder，demo 前由商家敲定正式號碼）
-SERVICE_PHONE: str = "0900-XXX-XXX"

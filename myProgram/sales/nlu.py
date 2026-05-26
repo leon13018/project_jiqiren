@@ -13,8 +13,8 @@
 注意：
     商品實體解析（parse_products）已於 2026-05-26 P7 搬至
     myProgram/sales/product_parser.py。
-    本模組保留 _KEYWORDS_ICED_TEA / _KEYWORDS_SCRATCH 供 classify_intent
-    內部商品意圖識別使用；product_parser 由此 import 這兩個 keyword set。
+    商品 keyword（KEYWORDS_ICED_TEA / KEYWORDS_SCRATCH）與中文數字映射（CHINESE_DIGIT_MAP）
+    已於 2026-05-26 Wave 6 搬至 myProgram/sales/constants/keywords.py（資料層歸資料層）。
 """
 
 import re
@@ -25,6 +25,9 @@ from myProgram.sales.constants import (
     KEYWORDS_L4_ACK_SHORT,
     KEYWORDS_WANT_TO_BUY_VAGUE,
     KEYWORDS_WANT_TO_BUY_SHORT,
+    KEYWORDS_ICED_TEA,
+    KEYWORDS_SCRATCH,
+    CHINESE_DIGIT_MAP,
 )
 
 # ============================================================
@@ -72,36 +75,19 @@ _KEYWORDS_CHECKOUT = [
 
 _KEYWORDS_SERVICE = ["客服", "聯絡", "聯繫", "contact", "服務"]
 
-# 商品關鍵字含簡體變體（2026-05-26 加）— 使用者 Windows 系統地區設為簡體，
-# 偶爾會直接打簡體商品名（如「红茶」）；其他類別（YES/NO/拒絕/結帳）暫不支援簡體
-# 2026-05-26 P4：移除短詞「tea」（substring 過短，「matter/retake/outreach」含 tea 易誤命中）
-# 改為「iced tea」/「black tea」更具體英文，減少 STT noise 誤命中
-_KEYWORDS_ICED_TEA = [
-    "紅茶", "冰紅茶", "红茶", "冰红茶",      # 繁簡
-    "hong cha", "iced tea", "black tea",      # 拼音 + 具體英文
-]
-
-# 2026-05-26 P4：補「彩卷」（常見錯字）、「樂透/乐透」「即時樂/即时乐」常用同義
-# 避免 demo 場景顧客講「樂透」「彩卷」fall through 到 unclear
-_KEYWORDS_SCRATCH = [
-    "刮刮樂", "刮刮乐", "刮刮", "彩券", "彩卷",  # 「卷」是常見錯字
-    "樂透", "乐透", "即時樂", "即时乐",            # 常用同義
-    "lottery", "scratch",
-]
-
 # 僅 L4 客服模式內生效
 _KEYWORDS_CONTINUE = ["繼續", "接著", "繼續買", "繼續交易", "continue"]
 
 _KEYWORDS_EXIT = ["退出", "取消", "離開", "算了", "不買了", "exit"]
 
 
-def _contains_any(text: str, keywords: list) -> bool:
+def contains_any(text: str, keywords: list) -> bool:
     """大小寫不敏感 substring match — 任一 keyword 出現在 text 內即命中。"""
     text_lower = text.lower()
     return any(kw.lower() in text_lower for kw in keywords)
 
 
-def _equals_strict_short(text: str, keywords: list) -> bool:
+def equals_strict_short(text: str, keywords: list) -> bool:
     """嚴格相等比對（去頭尾空白 + 大小寫不敏感） — 給短單字 keyword 用，避免 substring 誤命中。"""
     return text.strip().lower() in [kw.lower() for kw in keywords]
 
@@ -181,49 +167,49 @@ def classify_intent(text: str, mode: str = "normal") -> Intent:
             return "退出交易"
         if "停止" in text:
             return "退出交易"
-        if _contains_any(text, _KEYWORDS_CONTINUE):
+        if contains_any(text, _KEYWORDS_CONTINUE):
             return "繼續交易"
-        if _contains_any(text, _KEYWORDS_EXIT):
+        if contains_any(text, _KEYWORDS_EXIT):
             return "退出交易"
-        if _equals_strict_short(text, ["no", "nope"]):
+        if equals_strict_short(text, ["no", "nope"]):
             return "退出交易"
 
     # L4 mode 專屬：等待安撫 → 顧客禮貌肯定 / 找手機掃碼（2026-05-26 加；使用者實機 UX 修補）
     # 必須先於 L2/L4 共用的 no/nope 拒絕判定，因為「好/嗯/ok」strict-short 不應被
     # 任何其他分支吃掉；其他 mode 不命中，避免污染 L2 詢問需求 / L3 confirm context 的「好」語意
     if mode == "l4":
-        if _equals_strict_short(text, KEYWORDS_L4_ACK_SHORT):
+        if equals_strict_short(text, KEYWORDS_L4_ACK_SHORT):
             return "等待安撫"
-        if _contains_any(text, KEYWORDS_L4_ACK_OR_WAIT):
+        if contains_any(text, KEYWORDS_L4_ACK_OR_WAIT):
             return "等待安撫"
 
     # L2 / L4 模式：no / nope 強制視為拒絕（覆寫 _KEYWORDS_CHECKOUT 內的預設）
     # 2026-05-25 使用者實測層別語意：L2「沒需求」/ L4「不要了」皆是拒絕，只 L3「沒了」是結帳
     if mode in ("l2", "l4"):
-        if _equals_strict_short(text, ["no", "nope"]):
+        if equals_strict_short(text, ["no", "nope"]):
             return "拒絕"
 
     # L3 (normal mode) 嚴格 reject 判定：只有命中 _KEYWORDS_REJECT_L3_STRICT 才視為拒絕
     # 一般 _KEYWORDS_REJECT 短詞「不要 / 不用 / 不想 / 不買」在 L3 視為「不追加」→ 結帳
     # 2026-05-25 加：使用者實測 L3 顧客講「不用」本意「不需要加購」（同 no/nope 在 L3 的處理）
     if mode == "normal":
-        if _contains_any(text, _KEYWORDS_REJECT_L3_STRICT):
+        if contains_any(text, _KEYWORDS_REJECT_L3_STRICT):
             return "拒絕"
-        if _contains_any(text, _KEYWORDS_REJECT) or _equals_strict_short(text, _KEYWORDS_REJECT_STRICT_SHORT):
+        if contains_any(text, _KEYWORDS_REJECT) or equals_strict_short(text, _KEYWORDS_REJECT_STRICT_SHORT):
             return "結帳"
 
     # 通用優先序（L2/L4 走這 — L3 已在上面 early return）
-    if _contains_any(text, _KEYWORDS_REJECT) or _equals_strict_short(text, _KEYWORDS_REJECT_STRICT_SHORT):
+    if contains_any(text, _KEYWORDS_REJECT) or equals_strict_short(text, _KEYWORDS_REJECT_STRICT_SHORT):
         return "拒絕"
-    if _contains_any(text, _KEYWORDS_THINK):
+    if contains_any(text, _KEYWORDS_THINK):
         return "想一下"
-    if _contains_any(text, _KEYWORDS_CHECKOUT):
+    if contains_any(text, _KEYWORDS_CHECKOUT):
         return "結帳"
-    if _contains_any(text, _KEYWORDS_SERVICE):
+    if contains_any(text, _KEYWORDS_SERVICE):
         return "客服"
-    if _contains_any(text, _KEYWORDS_ICED_TEA):
+    if contains_any(text, KEYWORDS_ICED_TEA):
         return "商品:冰紅茶"
-    if _contains_any(text, _KEYWORDS_SCRATCH):
+    if contains_any(text, KEYWORDS_SCRATCH):
         return "商品:刮刮樂"
 
     # 2026-05-26 加：L2 (DnC) / L3 (DyC) normal mode 顧客講肯定詞但無具體商品名
@@ -231,30 +217,12 @@ def classify_intent(text: str, mode: str = "normal") -> Intent:
     # 等先決判定。strict-short「有/要」防 substring 誤命中「沒有」「不要」
     # （後者已在上方 REJECT / CHECKOUT 分支被攔截）
     if mode in ("l2", "normal"):
-        if _equals_strict_short(text, KEYWORDS_WANT_TO_BUY_SHORT):
+        if equals_strict_short(text, KEYWORDS_WANT_TO_BUY_SHORT):
             return "想買無商品"
-        if _contains_any(text, KEYWORDS_WANT_TO_BUY_VAGUE):
+        if contains_any(text, KEYWORDS_WANT_TO_BUY_VAGUE):
             return "想買無商品"
 
     return "無法判斷"
-
-
-# ============================================================
-# 中文數字映射（含異體字）
-# ============================================================
-
-_CHINESE_DIGIT_MAP: dict = {
-    "一": 1, "壹": 1,
-    "兩": 2, "二": 2, "貳": 2,
-    "三": 3, "參": 3,
-    "四": 4, "肆": 4,
-    "五": 5, "伍": 5,
-    "六": 6, "陸": 6,
-    "七": 7, "柒": 7,
-    "八": 8, "捌": 8,
-    "九": 9, "玖": 9,
-    "十": 10, "拾": 10,
-}
 
 
 # 中文「十 / 百」位乘數（B5 / D10 複合數字支援）
@@ -279,7 +247,7 @@ def _parse_compound_chinese(text: str) -> int | None:
     # 「百」位優先
     m = re.search(rf"([{units}])[百佰]([{units}十拾]*)?", text)
     if m:
-        hundreds = _CHINESE_DIGIT_MAP.get(m.group(1), 1)
+        hundreds = CHINESE_DIGIT_MAP.get(m.group(1), 1)
         rest = m.group(2) or ""
         rest_val = _parse_tens_part(rest)
         return hundreds * 100 + rest_val
@@ -289,8 +257,8 @@ def _parse_compound_chinese(text: str) -> int | None:
     if m:
         tens_char = m.group(1)
         units_char = m.group(2)
-        tens = _CHINESE_DIGIT_MAP.get(tens_char, 1)
-        units_val = _CHINESE_DIGIT_MAP.get(units_char, 0)
+        tens = CHINESE_DIGIT_MAP.get(tens_char, 1)
+        units_val = CHINESE_DIGIT_MAP.get(units_char, 0)
         return tens * 10 + units_val
 
     return None
@@ -306,11 +274,11 @@ def _parse_tens_part(text: str) -> int:
     units = _CHINESE_UNIT_CHARS
     m = re.search(rf"([{units}])?[十拾]([{units}])?", text)
     if m:
-        tens = _CHINESE_DIGIT_MAP.get(m.group(1), 1)
-        u = _CHINESE_DIGIT_MAP.get(m.group(2), 0)
+        tens = CHINESE_DIGIT_MAP.get(m.group(1), 1)
+        u = CHINESE_DIGIT_MAP.get(m.group(2), 0)
         return tens * 10 + u
     # 純個位
-    for char, value in _CHINESE_DIGIT_MAP.items():
+    for char, value in CHINESE_DIGIT_MAP.items():
         if char in text:
             return value
     return 0
@@ -327,7 +295,7 @@ def has_quantity(text: str) -> bool:
     """
     if re.search(r"\d+", text):
         return True
-    return any(char in text for char in _CHINESE_DIGIT_MAP)
+    return any(char in text for char in CHINESE_DIGIT_MAP)
 
 
 def parse_quantity(text: str) -> int:
@@ -336,7 +304,7 @@ def parse_quantity(text: str) -> int:
     判定規則（依優先序）：
         1. 阿拉伯數字優先（re.findall 取第一個非負整數；0 明確回 0）
         2. 複合中文數字（十位 / 百位；如「十二 / 二十 / 一百 / 三十五」）
-        3. 單字中文數字 fallback（依 _CHINESE_DIGIT_MAP）
+        3. 單字中文數字 fallback（依 CHINESE_DIGIT_MAP）
         4. 以上皆無命中 → 預設 1
 
     B16 修正（2026-05-26）：顧客明確說「0 瓶」→ 回 0，不 fallback 為 1。
@@ -364,7 +332,7 @@ def parse_quantity(text: str) -> int:
         return compound
 
     # 單字中文數字 fallback
-    for char, value in _CHINESE_DIGIT_MAP.items():
+    for char, value in CHINESE_DIGIT_MAP.items():
         if char in text:
             return value
 

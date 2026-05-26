@@ -6,6 +6,13 @@
     QTY_PROMPT_TEMPLATE / QTY_CLARIFY_TEMPLATE（追問數量用語）
 """
 
+__all__ = [
+    "PRODUCTS",
+    "MAX_QTY_PER_ITEM",
+    "QTY_PROMPT_TEMPLATE",
+    "QTY_CLARIFY_TEMPLATE",
+]
+
 # ============================================================
 # 商品定義
 # ============================================================

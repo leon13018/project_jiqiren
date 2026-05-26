@@ -4,7 +4,24 @@
     KEYWORDS_CONFIRM_YES / KEYWORDS_CONFIRM_YES_STRICT_SHORT
     KEYWORDS_CONFIRM_NO  / KEYWORDS_CONFIRM_NO_STRICT_SHORT
     HAWK_SLOGANS（叫賣話術）
+    KEYWORDS_ICED_TEA / KEYWORDS_SCRATCH（商品 keyword；2026-05-26 Wave 6 從 nlu.py 搬移）
+    CHINESE_DIGIT_MAP（中文數字映射；2026-05-26 Wave 6 從 nlu.py 搬移，資料層歸資料層）
 """
+
+__all__ = [
+    "HAWK_SLOGANS",
+    "KEYWORDS_CONFIRM_YES",
+    "KEYWORDS_CONFIRM_YES_STRICT_SHORT",
+    "KEYWORDS_CONFIRM_NO",
+    "KEYWORDS_CONFIRM_NO_STRICT_SHORT",
+    "KEYWORDS_L4_ACK_OR_WAIT",
+    "KEYWORDS_L4_ACK_SHORT",
+    "KEYWORDS_WANT_TO_BUY_VAGUE",
+    "KEYWORDS_WANT_TO_BUY_SHORT",
+    "KEYWORDS_ICED_TEA",
+    "KEYWORDS_SCRATCH",
+    "CHINESE_DIGIT_MAP",
+]
 
 # ============================================================
 # 6 組叫賣術語（依 mod 6 輪替）
@@ -100,3 +117,42 @@ KEYWORDS_WANT_TO_BUY_VAGUE: list = [
 # strict-short 集：短單字防 substring 誤命中（如「沒有」含「有」substring，「不要」含「要」substring）
 # 「沒有」「不要」已在 REJECT / CHECKOUT 分支被攔截（排在「想買無商品」之前）
 KEYWORDS_WANT_TO_BUY_SHORT: list = ["有", "要"]
+
+# ============================================================
+# 商品 keyword（2026-05-26 Wave 6 從 nlu.py 搬移；資料層歸資料層）
+# 原底線命名（module-private）改為公開常數。
+# ============================================================
+
+# 冰紅茶關鍵字含簡體變體（2026-05-26 加）— 使用者 Windows 系統地區設為簡體，
+# 偶爾會直接打簡體商品名（如「红茶」）；其他類別（YES/NO/拒絕/結帳）暫不支援簡體
+# 2026-05-26 P4：移除短詞「tea」（substring 過短，「matter/retake/outreach」含 tea 易誤命中）
+# 改為「iced tea」/「black tea」更具體英文，減少 STT noise 誤命中
+KEYWORDS_ICED_TEA: list = [
+    "紅茶", "冰紅茶", "红茶", "冰红茶",      # 繁簡
+    "hong cha", "iced tea", "black tea",      # 拼音 + 具體英文
+]
+
+# 2026-05-26 P4：補「彩卷」（常見錯字）、「樂透/乐透」「即時樂/即时乐」常用同義
+# 避免 demo 場景顧客講「樂透」「彩卷」fall through 到 unclear
+KEYWORDS_SCRATCH: list = [
+    "刮刮樂", "刮刮乐", "刮刮", "彩券", "彩卷",  # 「卷」是常見錯字
+    "樂透", "乐透", "即時樂", "即时乐",            # 常用同義
+    "lottery", "scratch",
+]
+
+# ============================================================
+# 中文數字映射（含異體字）（2026-05-26 Wave 6 從 nlu.py 搬移；資料層歸資料層）
+# ============================================================
+
+CHINESE_DIGIT_MAP: dict = {
+    "一": 1, "壹": 1,
+    "兩": 2, "二": 2, "貳": 2,
+    "三": 3, "參": 3,
+    "四": 4, "肆": 4,
+    "五": 5, "伍": 5,
+    "六": 6, "陸": 6,
+    "七": 7, "柒": 7,
+    "八": 8, "捌": 8,
+    "九": 9, "玖": 9,
+    "十": 10, "拾": 10,
+}
