@@ -21,6 +21,7 @@
 
 from myProgram.sales.constants import (
     PRODUCTS,
+    MAX_QTY_PER_ITEM,
     QTY_PROMPT_TEMPLATE,
     QTY_CLARIFY_TEMPLATE,
     SERVICE_PHONE,
@@ -107,7 +108,23 @@ def _qty_follow_up_sub_loop(
             return True
 
         if has_quantity(follow_up):
-            cart_module.add_item(cart, product, parse_quantity(follow_up))
+            qty = parse_quantity(follow_up)
+            # Wave 4 hotfix（2026-05-26）— caller 端 cart cap 業務檢查
+            # 修 Pi 實機踩坑：顧客輸入「34435454545454545」→ parse_quantity 解析
+            # 為天文數字 → cart.add_item assert raise → 程式 crash。
+            # 解法：add_item 前先查 cart 既有量算 remaining，超量 → speak 友善
+            # 提示 + 不計 attempts 重新追問（speak 已給明確指引算合理重試）。
+            existing = cart_module.get_quantity(cart, product)
+            remaining = MAX_QTY_PER_ITEM - existing
+            if remaining <= 0:
+                # cart 內已達上限 → 無法再加，speak 提示 + skip 此商品
+                speak(f"{product}已達單筆訂單上限 {MAX_QTY_PER_ITEM} {unit}，無法再加")
+                return False
+            if qty > remaining:
+                # 顧客單筆超量（含天文數字 / 累加超量）→ speak 剩餘額度 + 重新追問
+                speak(f"{product}還可加最多 {remaining} {unit}（已有 {existing}），請重新告訴我數量")
+                continue
+            cart_module.add_item(cart, product, qty)
             return True
 
         follow_intent = classify_intent(follow_up, classify_intent_mode)
