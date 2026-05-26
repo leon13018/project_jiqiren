@@ -48,13 +48,13 @@ def test_parse_products_two_products_both_missing_qty() -> None:
     assert result == [("冰紅茶", None), ("刮刮樂", None)]
 
 
-def test_parse_products_duplicate_product_returns_separate_entries() -> None:
-    """重複商品 + 全部都有數量 → 保留各自獨立 entry（caller 累加）。
+def test_parse_products_duplicate_product_overwrite_to_last_qty() -> None:
+    """重複商品 + 全部都有數量 → 保留最後一個 qty 覆寫（顧客修正語意）。
 
-    （2026-05-25 dedup 規則第 3 條：全有數量 → 保留累加。）
+    （2026-05-26 Wave 7a C22：dedup 規則第 3 條改覆寫，「紅茶 2 紅茶 3」→ 3 瓶。）
     """
     result = product_parser.parse_products("冰紅茶 2 冰紅茶 3")
-    assert result == [("冰紅茶", 2), ("冰紅茶", 3)]
+    assert result == [("冰紅茶", 3)]
 
 
 def test_parse_products_duplicate_all_missing_qty_merges_to_single() -> None:

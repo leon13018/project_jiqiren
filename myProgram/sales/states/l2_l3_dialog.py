@@ -243,7 +243,7 @@ def _dialog_dispatch_inner_l3(
         return _dialog_exit_a(speak, cart)
     if intent == "想一下":
         think_count += 1
-        if think_count >= 3:
+        if think_count >= 4:  # 2026-05-26 Wave 7a C13：3 → 4
             return _dialog_c2_second_stage(
                 speak=speak,
                 print_terminal=print_terminal,
@@ -424,7 +424,7 @@ def _dialog_main_loop(
             unclear_count = 0
             think_count += 1
             if cart_empty:
-                # L2 B-3：第 3 次 → 鏈路 A
+                # L2 B-3：第 3 次 → 鏈路 A（L2 退出條件保留 3）
                 if think_count >= 3:
                     speak(L2_B3_THIRD_REJECT)
                     return _dialog_exit_a(speak, cart)
@@ -441,8 +441,8 @@ def _dialog_main_loop(
                 if not cart_module.is_empty(cart):
                     think_count = 0
                 continue
-            # L3 B-4：第 3 次 → C-2 第二段
-            if think_count >= 3:
+            # L3 B-4：第 4 次 → C-2 第二段（2026-05-26 Wave 7a C13：3 → 4）
+            if think_count >= 4:
                 return _dialog_c2_second_stage(
                     speak=speak,
                     print_terminal=print_terminal,
