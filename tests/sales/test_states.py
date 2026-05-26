@@ -1890,8 +1890,7 @@ def test_l3_b4_silence_timeout_reasks_and_resumes_main_loop() -> None:
 ### Scenario: 第 2 次想一下 think_count 增至 2 但仍走沉默不轉 C-2
 ### Given L3 已走過 1 次 B-4，think_count == 1，回到主等待後
 ### When 顧客再次輸入想一下關鍵字
-### Then think_count 變為 2，再次進入沉默等待 6 秒（仍 < 4，未觸發 C-2）
-### （2026-05-26 Wave 7a C13：觸發閾值 3 → 4）
+### Then think_count 變為 2，再次進入沉默等待 6 秒（仍 < 3，未觸發 C-2）
 # ============================================================
 
 def test_l3_b4_second_think_still_silence_below_threshold() -> None:
@@ -1924,11 +1923,10 @@ def test_l3_b4_second_think_still_silence_below_threshold() -> None:
 
 # ============================================================
 # L3-B-4-005
-### Scenario: 第 4 次想一下 think_count 達 4 跳過沉默走 C-2 第二段邏輯
-### Given L3 已走過 3 次 B-4，think_count == 3，回到主等待後
+### Scenario: 第 3 次想一下 think_count 達 3 跳過沉默走 C-2 第二段邏輯
+### Given L3 已走過 2 次 B-4，think_count == 2，回到主等待後
 ### When 顧客再次輸入想一下關鍵字
-### Then think_count 變為 4，跳過 6s 沉默，speak C-2 第一段語音，走 C-2 第二段邏輯
-### （2026-05-26 Wave 7a C13：觸發閾值 3 → 4）
+### Then think_count 變為 3，跳過 6s 沉默，speak C-2 第一段語音，走 C-2 第二段邏輯
 # ============================================================
 
 def test_l3_b4_third_think_skips_silence_and_triggers_c2_second_stage() -> None:
@@ -1936,7 +1934,7 @@ def test_l3_b4_third_think_skips_silence_and_triggers_c2_second_stage() -> None:
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # think_count=3 傳入；一次想一下 → 累加到 4 → 直接走 C-2 第二段；None → L4
+    # think_count=2 傳入；一次想一下 → 累加到 3 → 直接走 C-2 第二段；None → L4
     customer_input = FakeCustomerInput(["想一下", None])
 
     # Act
@@ -1946,14 +1944,14 @@ def test_l3_b4_third_think_skips_silence_and_triggers_c2_second_stage() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        think_count=3,  # 已累積 3 次（Wave 7a C13：觸發閾值 3 → 4）
+        think_count=2,  # 已累積 2 次
         opencv_disable=lambda: None,
     )
 
     # Assert：C-2 第一段語音被 speak（用 L3_C2_WARNING_TEMPLATE 套 AUTO_CHECKOUT_NOTICE）
     c2_warning = L3_C2_WARNING_TEMPLATE.format(seconds=AUTO_CHECKOUT_NOTICE)
     assert c2_warning in speak_calls, (
-        f"第 4 次想一下應 speak C-2 第一段語音，實際：{speak_calls}"
+        f"第 3 次想一下應 speak C-2 第一段語音，實際：{speak_calls}"
     )
     # C-2 第二段 timeout → L4
     assert next_state == "L4"

@@ -27,7 +27,6 @@ from myProgram.sales.constants import (
     L4_D_FINAL_PROMPT,
     L4_E_CLARIFY,
     L4_E_AUTO_SERVICE,
-    L4_QR_MOCK_HINT,
     L4_D_VOICE_NEUTRAL,
     L4_D_VOICE_GENTLE,
     L4_D_VOICE_MODERATE,
@@ -218,7 +217,7 @@ def _l4_print_entry_detail(cart, total: int, print_terminal) -> None:
         )
     lines.append("------------------------------------")
     lines.append(f"總金額：{total} 元（已含九折優惠）")
-    lines.append(L4_QR_MOCK_HINT)
+    lines.append("請掃碼付款（終端輸入 s + Enter 模擬掃碼成功）")
     lines.append("====================================")
     print_terminal("\n".join(lines))
 

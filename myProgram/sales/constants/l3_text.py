@@ -62,9 +62,8 @@ L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE: str = (
 )
 
 # L3 鏈路 C-2 第一段警告語音模板（2026-05-26 改：嚴格 yes/no + 提示有效回答）
-# 2026-05-26 Wave 7a C13：更明確提示結帳 vs 繼續選項，並點出 {seconds} 秒自動結帳
 # {seconds} = AUTO_CHECKOUT_NOTICE；後接 wall-clock 倒數內只認 YES / NO，亂答忽略不重置
-L3_C2_WARNING_TEMPLATE: str = "您似乎還在猶豫，請問要結帳（說『是』）還是繼續想想（說『不要』）？{seconds} 秒後會幫您結帳目前訂單"
+L3_C2_WARNING_TEMPLATE: str = "請問是否要結帳？（語音說『是』/『否』，或終端輸入 1=是 / 2=否）如果沒回應，{seconds} 秒後將為您結帳"
 
 # 注意：DIALOG_VAGUE_BUY_REASK 已於 2026-05-26 Wave 6 移至 constants/shared.py
 # （原因：L2 + L3 通用，跨層性質不應歸單一 L 層 text 檔）

@@ -95,7 +95,7 @@ def parse_products(text: str) -> list:
         **Per-product dedup 規則（2026-05-25 加，使用者實機回報後修正）：**
         1. 同商品全部都**沒**數量 → 合併成一個 (product, None)（只追問一次）
         2. 同商品**至少一個有**數量 → 只保留有數量的 entries，無數量的丟棄
-        3. 同商品**全部都有**數量 → 保留**最後一個** qty 覆寫之前（顧客修正語意）
+        3. 同商品**全部都有**數量 → 全部保留各自為獨立 entry（caller 累加）
 
     範例：
         "紅茶 1 刮刮樂 2"     → [("冰紅茶", 1), ("刮刮樂", 2)]
@@ -106,7 +106,7 @@ def parse_products(text: str) -> list:
         # Dedup 規則
         "刮刮樂 刮刮樂"        → [("刮刮樂", None)]              # 規則 1：合一
         "刮刮樂 3 刮刮樂"      → [("刮刮樂", 3)]                 # 規則 2：丟無數量
-        "紅茶 2 紅茶 3"        → [("冰紅茶", 3)]                 # 規則 3：最後一個覆寫（顧客說「3」）
+        "紅茶 2 紅茶 3"        → [("冰紅茶", 2), ("冰紅茶", 3)]  # 規則 3：累加 5 瓶
     """
     if not text:
         return []
@@ -152,11 +152,8 @@ def parse_products(text: str) -> list:
     seen_missing: set = set()
     for product, qty in raw:
         if product in products_with_qty:
-            # 該商品有任何 qty 帶值 entry → 只保留有 qty 的（規則 2）
-            # 若全部都有 qty（規則 3）→ 保留最後一個 qty 覆寫前面（顧客修正語意）
+            # 該商品有任何 qty 帶值 entry → 只保留有 qty 的（規則 2 + 3）
             if qty is not None:
-                # 移除既有同商品 entry，再加入新的 → 確保最後一個 qty 覆寫之前
-                deduped = [(p, q) for p, q in deduped if p != product]
                 deduped.append((product, qty))
         else:
             # 該商品全部 None → 只保留首次（規則 1）
