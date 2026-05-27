@@ -15,6 +15,7 @@
 
 > 🔒 = `.claude/hooks/` 內 PreToolUse hook 自動 block，不依賴主 agent 自律。
 > `git push origin main` 後也會自動跑 `sync_pi.ps1`（PostToolUse hook，省掉 standard-workflow 步驟 5）。
+> ⚠️ **Background session 例外**：background job session（system context 含「# Background Session」段 + `$CLAUDE_JOB_DIR` env var）內 PostToolUse hook **不會觸發**，主 agent 必須手動跑 `& sync_pi.ps1`（[[standard-workflow]] 步驟 5 / memory [[background-session-hook-skip]]）。
 > 編 `myProgram/sales/*.py` 或 `tests/sales/*.py` 後若沒跑 pytest，Stop hook 會 block 一次提醒（避免漏跑 regression）。
 > 每次新 session 自動注入 `git branch / status / 測試數` 摘要（SessionStart hook，省手動跑指令）。
 > 派 subagent 時自動注入標準規範（SubagentStart hook，取代 subagent-dispatch-protocol 步驟 2-3）。
