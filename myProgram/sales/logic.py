@@ -35,6 +35,7 @@ def run(
     opencv_enable,
     mute_opencv,
     speak,
+    do_action,
     read_customer_input,
     sleep,
     schedule,
@@ -62,6 +63,7 @@ def run(
             opencv_disable=opencv_disable,
             opencv_enable=opencv_enable,
             speak=speak,
+            do_action=do_action,
             exit_program=exit_program,
             schedule=schedule,
             show_hawk_help=show_hawk_help,
@@ -81,6 +83,7 @@ def run(
             cart=cart,
             think_count=0,
             opencv_disable=opencv_disable,
+            do_action=do_action,
         )
         if next_state == "L1_via_subroutine_a":
             _assert_cart_empty(cart, "dialog 退出後（dialog A 已視情況清 cart）")
@@ -99,6 +102,7 @@ def run(
             loop_count=0,
             unclear_count=0,
             opencv_disable=opencv_disable,
+            do_action=do_action,
         )
         if next_state == "L1_via_subroutine_a":
             # L4 非 L5 路徑必清 cart（_l4_exit_b / _l4_exit_d_forced / _l4_service_mode 退出三條
@@ -116,6 +120,7 @@ def run(
             speak=speak,
             cart=cart,
             sleep=sleep,
+            do_action=do_action,
         )
         _assert_cart_empty(cart, "L5 退出後（L5 應已清 cart）")
         _invoke_subroutine_a(mute_opencv)

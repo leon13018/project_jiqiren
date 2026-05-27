@@ -11,8 +11,10 @@ cart 狀態決定模式：
 cart 狀態每輪 main loop 迭代都重新判定 — 未來加「刪除商品」功能時若 cart 變空，
 下一輪自然回到 L2 模式詢問需求（不需額外 transition 邏輯）。
 
-callback 集合：speak / print_terminal / read_customer_input
-（do_action 已於 P1 移除 — S1 stage 從未呼叫，S3+ 真接動作層再加回）
+callback 集合：speak / print_terminal / read_customer_input / do_action
+（do_action 2026-05-27 S3 restore — 只在 run_dialog entry 觸發 ACTION_L2/L3，
+ 後續 _dialog_main_loop / _dialog_dispatch_inner_* 不跑動作；C-2 NO 重入 main_loop
+ 也不重 speak entry，故不重跑動作 — 符合「動作只在 entry」規格）
 
 Return shape：(next_state, next_think_count)
     next_state ∈ {"L4", "L1_via_subroutine_a"}
@@ -55,6 +57,8 @@ from myProgram.sales.constants import (
     KEYWORDS_CONFIRM_YES_STRICT_SHORT,
     KEYWORDS_CONFIRM_NO_STRICT_SHORT,
     DIALOG_VAGUE_BUY_REASK,
+    ACTION_L2,
+    ACTION_L3,
 )
 from myProgram.sales.nlu import classify_intent, contains_any, equals_strict_short
 from myProgram.sales.product_parser import parse_products
@@ -70,6 +74,7 @@ def run_dialog(
     think_count: int = 0,
     *,
     opencv_disable,
+    do_action,
 ) -> tuple:
     """統一對話層主迴圈 — cart 狀態驅動。
 
@@ -82,6 +87,9 @@ def run_dialog(
         opencv_disable: callback() — 關閉 OpenCV 偵測。dialog 進入後不再需要偵測
             （顧客已在面前對話），預設 no-op 給單元測試方便；production wire-up
             必須傳真實 callback（2026-05-25 OpenCV 作用域規格修訂）。
+        do_action: callback(name: str) — 同步阻塞跑廠商動作組（S3 加，2026-05-27）。
+            **只在 entry 觸發一次**：cart 空 → ACTION_L2；cart 非空 → ACTION_L3。
+            後續 main loop / inner dispatch 不跑動作（避免重複動作干擾對話）。
 
     Returns:
         (next_state, next_think_count)
@@ -90,6 +98,10 @@ def run_dialog(
     """
     # 進入 dialog → OpenCV 已用完任務（觸發進 dialog 後不再偵測），明示關閉
     opencv_disable()
+
+    # S3：entry 同步動作（cart 空 = L2 進場揮手；cart 非空 = L3 進場另一動作）
+    # 先動作再 speak entry prompt：動作做完顧客眼神對齊機器，再聽指引較順
+    do_action(ACTION_L2 if cart_module.is_empty(cart) else ACTION_L3)
 
     # Entry prompt 按 cart 狀態決定
     speak(L2_ENTRY_PROMPT if cart_module.is_empty(cart) else L3_ENTRY_PROMPT)

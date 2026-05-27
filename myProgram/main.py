@@ -8,8 +8,9 @@ S1 範圍（incremental-rebuild 第 1 步）：
 A3-d：callback 直接 wire（dict 展開傳 logic.run(**callbacks)），不預先包 Context dataclass。
 A2-c：本檔不持有業務 state（cart / counters），全部由 logic.run 內部管理。
 
-廠商 SDK 隔離：本檔 **S1 階段不 import 廠商 SDK**（do_action 已移除，S3+ 再加回）。
-S3+ 才接 `from myProgram.vendor import ActionGroupControl as Act` 並 wire。
+廠商 SDK 隔離：S3（2026-05-27 加）restore do_action callback — lazy import
+`from myProgram.vendor import ActionGroupControl as Act` 在 do_action 函式內，
+頂層仍不 import 廠商 SDK，保 Windows pytest 兼容性（對齊 speak callback pattern）。
 
 操作說明（S1 chat-driven trick）：
     - L1 hawk 模式：輸入 'c' → 模擬 OpenCV 偵測到顧客 → 下次 check 轉 L2
@@ -40,9 +41,7 @@ class _S1State:
 
 
 def _build_callbacks(state: _S1State) -> dict:
-    """建立 S1 chat-driven callback 集合（11 個）。
-    （do_action 已於 P1 移除 — S1 stage 從未呼叫，S3+ 真接動作層再加回）
-    """
+    """建立 chat-driven callback 集合（13 個，2026-05-27 S3 起加 do_action）。"""
 
     # === 終端 I/O ===
     def print_terminal(text):
@@ -158,6 +157,22 @@ def _build_callbacks(state: _S1State) -> dict:
         from myProgram import tts
         tts.speak(text)
 
+    def do_action(name):
+        """S3 同步動作 callback：lazy import 廠商 SDK + Act.runAction 阻塞至播完。
+
+        對齊 speak callback 的 lazy import pattern — 廠商 SDK 頂層 import 在
+        Windows pytest 環境會 ModuleNotFoundError（pigpio / RPi.GPIO 等 Pi-only
+        依賴）；放函式內讓 Windows 可 import _build_callbacks 不 triggers，Pi
+        端首次呼叫時才實際 import 並 fail-fast。
+
+        Args:
+            name: 動作組名（對應 /home/pi/TonyPi/ActionGroups/<name>.d6a）
+                從 myProgram.sales.constants.actions 取常數，不寫死字串。
+        """
+        from myProgram.vendor import ActionGroupControl as Act  # lazy（Pi-only）
+        print(f"[動作] {name}")  # S3 chat-driven 提示，跟 speak 印 [語音] 對齊
+        Act.runAction(name)  # 同步阻塞至動作播完（典型 2-5 秒）
+
     # === 時間 / 程式控制 ===
     def sleep(seconds):
         """阻塞 seconds 秒（單線程同步阻塞 — S2 起恢復 real time.sleep）。
@@ -190,6 +205,7 @@ def _build_callbacks(state: _S1State) -> dict:
         "opencv_enable": opencv_enable,
         "mute_opencv": mute_opencv,
         "speak": speak,
+        "do_action": do_action,
         "read_customer_input": read_customer_input,
         "sleep": sleep,
         "schedule": schedule,

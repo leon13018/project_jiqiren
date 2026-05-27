@@ -35,6 +35,7 @@ from myProgram.sales.constants import (
     L4_SERVICE_TIMEOUT,
     L4_TOTAL_BUDGET,
     UNCLEAR_MAX,
+    ACTION_L4_PAY,
 )
 from myProgram.sales.nlu import classify_intent
 from myProgram.sales import cart as cart_module
@@ -49,6 +50,7 @@ def run_l4(
     unclear_count: int = 0,
     *,
     opencv_disable,
+    do_action,
 ) -> tuple:
     """L4 主迴圈：結帳層（印金額 + 等掃碼）。
 
@@ -72,6 +74,12 @@ def run_l4(
             必須傳真實 callback（2026-05-25 OpenCV 作用域規格修訂）。
             注意：dialog 進入時已 disable 過；本處 disable 是 defence-in-depth，
             涵蓋未來「不經 dialog 直接進 L4」的可能架構。
+        do_action: callback(name: str) — 同步阻塞跑廠商動作組（S3 加，2026-05-27）。
+            L4 內**只**在鏈路 A 掃碼付款成功（speak L4_A_PAY_SUCCESS 後）觸發
+            ACTION_L4_PAY（鞠躬）；兩處進入鏈路 A 都會跑：
+              (a) `_l4_dispatch_response` 終端 's' 路徑
+              (b) `_l4_service_mode` 客服模式內 's' 路徑
+            L4 其他鏈路（B 取消 / C 客服 prompt / D 催促 / E unclear）不跑動作。
 
     Returns:
         (next_state, next_loop_count, next_unclear_count)
@@ -136,6 +144,7 @@ def run_l4(
                 cart=cart,
                 loop_count=loop_count,
                 unclear_count=unclear_count,
+                do_action=do_action,
             )
             if isinstance(result, tuple):
                 return result
@@ -170,6 +179,7 @@ def run_l4(
             cart=cart,
             loop_count=loop_count,
             unclear_count=unclear_count,
+            do_action=do_action,
         )
 
         if isinstance(result, tuple):
@@ -326,6 +336,7 @@ def _l4_service_mode(
     read_customer_input,
     cart,
     loop_count: int,
+    do_action,
 ) -> tuple | None:
     """L4 鏈路 C 客服特殊模式（不自動返回）。
 
@@ -349,9 +360,10 @@ def _l4_service_mode(
             cart_module.clear_cart(cart)
             return ("L1_via_subroutine_a", 0, 0)
 
-        # 終端 s → 視為繼續 + 掃碼成功 → L5
+        # 終端 s → 視為繼續 + 掃碼成功 → L5（S3：speak 付款成功後跑鞠躬動作）
         if response == "s":
             speak(L4_A_PAY_SUCCESS)
+            do_action(ACTION_L4_PAY)
             return ("L5", 0, 0)
 
         # 終端 1 → 退出（清空 cart）
@@ -390,6 +402,7 @@ def _l4_dispatch_response(
     cart,
     loop_count: int,
     unclear_count: int,
+    do_action,
 ) -> tuple | int | None | str:
     """L4 判定優先序 dispatcher（有回應時）。
 
@@ -406,9 +419,10 @@ def _l4_dispatch_response(
         None  → 客服繼續（loop_count / unclear_count 應 reset），回主迴圈
         "ack" → 等待安撫（主迴圈 continue；不改計數器、不重印明細）
     """
-    # 優先序 1：終端 s → 鏈路 A
+    # 優先序 1：終端 s → 鏈路 A（S3：speak 付款成功語音後跑鞠躬動作）
     if response == "s":
         speak(L4_A_PAY_SUCCESS)
+        do_action(ACTION_L4_PAY)
         return ("L5", 0, 0)
 
     # 優先序 2：拒絕 → 鏈路 B（classify_intent 先做，後面共用 intent）
@@ -431,6 +445,7 @@ def _l4_dispatch_response(
             read_customer_input=read_customer_input,
             cart=cart,
             loop_count=loop_count,
+            do_action=do_action,
         )
         if result is not None:
             return result
@@ -450,6 +465,7 @@ def _l4_dispatch_response(
             read_customer_input=read_customer_input,
             cart=cart,
             loop_count=loop_count,
+            do_action=do_action,
         )
         if result is not None:
             return result

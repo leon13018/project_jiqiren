@@ -15,6 +15,7 @@ from myProgram.sales.constants import (
     L1_HAWK_ENTRY_PROMPT,
     L1_STANDBY_ENTRY_PROMPT,
     SERVICE_PHONE,
+    ACTION_L1_HAWK,
 )
 
 
@@ -61,6 +62,7 @@ def run_l1(
     exit_program,
     schedule,
     show_hawk_help,
+    do_action,
     enter_hawk_immediately: bool = False,
 ):
     """L1 主迴圈：商家模式選擇層。
@@ -79,6 +81,10 @@ def run_l1(
         schedule: callback(seconds, fn) -> None — 排程（叫賣輪播用）
         show_hawk_help: callback() -> None — 印叫賣模式操作提示（B21：取代原
             print_terminal magic string 偵測，由 hawk 鏈路顯式呼叫）
+        do_action: callback(name: str) — 同步阻塞跑廠商動作組（S3 加，2026-05-27）。
+            L1 鏈路內**只**在 hawk entry 第一次觸發 ACTION_L1_HAWK；後續輪播 speak
+            不跑動作（避免 servo 過熱）。production wire-up 必傳；單元測試用
+            lambda no-op 即可。
         enter_hawk_immediately: True 時跳過主選單直接進叫賣模式（2026-05-26 加）。
             用途：logic.py 在 subroutine_a（dialog / L4 cancel / L5 後續緩衝）後設為 True
             → 連續叫賣不中斷，不顯示「請選擇模式：1/2/3」主選單。
@@ -96,6 +102,7 @@ def run_l1(
             opencv_dwell_seconds=opencv_dwell_seconds,
             opencv_enable=opencv_enable,
             speak=speak,
+            do_action=do_action,
             exit_program=exit_program,
             schedule=schedule,
             show_hawk_help=show_hawk_help,
@@ -153,6 +160,7 @@ def run_l1(
                 opencv_dwell_seconds=opencv_dwell_seconds,
                 opencv_enable=opencv_enable,
                 speak=speak,
+                do_action=do_action,
                 exit_program=exit_program,
                 schedule=schedule,
                 show_hawk_help=show_hawk_help,
@@ -216,6 +224,7 @@ def _run_l1_hawk(
     exit_program,
     schedule,
     show_hawk_help,
+    do_action,
 ):
     """鏈路 C — 叫賣模式：立即播第 1 組 + OpenCV 開 → 等 OpenCV 觸發或 q 退出。
 
@@ -229,6 +238,9 @@ def _run_l1_hawk(
     show_hawk_help()
     # 開啟 OpenCV
     opencv_enable()
+    # S3：hawk entry 同步動作（揮手向潛在顧客打招呼）— 只在 entry 跑一次，
+    # 後續 _schedule_hawk_l1 輪播不跑動作（servo 過熱風險，循環動作留給 S5 worker）
+    do_action(ACTION_L1_HAWK)
     # 立即播第 1 組叫賣（無 OPENCV_MUTE 緩衝）
     speak(HAWK_SLOGANS[0])
     # 排程後續叫賣輪播（從索引 1 開始，延遲 HAWK_INTERVAL 秒）

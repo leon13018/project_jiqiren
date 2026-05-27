@@ -9,6 +9,7 @@
     products.py  — PRODUCTS dict + 商品追問語音模板
     keywords.py  — CONFIRM_YES/NO 關鍵字集 + HAWK_SLOGANS + 商品 keyword + 中文數字映射
     shared.py    — 跨層共用文案（SERVICE_PHONE / DIALOG_VAGUE_BUY_REASK）
+    actions.py   — 動作組常數（S3 同步 runAction 動作名，對應 ActionGroups/*.d6a）
     l1_text.py   — L1 文字常數（選單 / 進入提示）
     l2_text.py   — L2 文字常數（首次點餐對話層）
     l3_text.py   — L3 文字常數（加單 / 結帳確認對話層）
@@ -20,6 +21,7 @@ from myProgram.sales.constants.timing import *
 from myProgram.sales.constants.products import *
 from myProgram.sales.constants.keywords import *
 from myProgram.sales.constants.shared import *
+from myProgram.sales.constants.actions import *
 from myProgram.sales.constants.l1_text import *
 from myProgram.sales.constants.l2_text import *
 from myProgram.sales.constants.l3_text import *
