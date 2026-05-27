@@ -1,33 +1,51 @@
-"""S2 同步 TTS 模組 — edge_tts 合成 + mpg123 阻塞播放。
+"""S4 非阻塞 TTS 模組 — daemon worker thread + FIFO queue + shutdown cleanup。
 
-S2 範圍（incremental-rebuild 第 2 步）：
-    - 純單線程同步：speak() 阻塞至播完才 return
-    - 無 worker thread / queue / 中斷邏輯（那些是 S4+ 才加）
-    - Voice：zh-TW-HsiaoChenNeural（台灣女聲）
-    - 合成走 edge_tts.Communicate().save()；播放走 subprocess.run mpg123 -q
+S4 範圍（incremental-rebuild 第 4 步）：
+    - 對外 API 不變：`speak(text)` 仍是 module-level 函式，signature 相容 S2
+    - 新增 `shutdown()`：程式退出時 terminate 當前播放中的 mpg123 + 清空 queue
+    - 改造重點：caller thread 立即返回（不阻塞），實際 synth + 播放在背景 daemon
+      thread 內 FIFO 順序消費
 
-設計準則（vs 舊版 legacy_threading_v1/tts.py）：
-    - import edge_tts 失敗 → 直接 ImportError（fail-fast，不 silent fallback）
-    - runtime 失敗（合成 / 播放炸）→ noisy print 詳細訊息 + return，不 raise（caller dialog 繼續）
-    - 嚴禁 silent except / 籠統印一行 e 就 continue
+S4 動機（S2 同步阻塞實機踩到的問題）：
+    1. L1 hawk speak 期間商家按 q 想退出 → 主線程被 mpg123.wait() 卡死、input()
+       沒在跑、q 只能存 stdin buffer 等 speak 播完才響應（3-5s 延遲）
+    2. 主線程被阻塞時 opencv 也無法 poll（為 S6 真 opencv 偵測鋪路）
+    3. 程式結束時最後一段 mpg123 仍在播完才停（沒 cleanup）
 
-caller（main.py 的 speak callback）使用方式：
+設計準則（依 `.claude/rules/incremental-rebuild.md` S4 段）：
+    - **預設 FIFO 不中斷**：say(text) 只 put 進 queue，不終止當前任務、不清 queue
+      （中斷邏輯是 S7 的選擇性升級，不是 S4 預設）
+    - **單 queue 單消費者**：避免旗號分流 race
+    - **`_proc` lock 保護**：worker thread 設值 vs main thread shutdown 讀/terminate
+      之間 race（thread-safe pattern，依 [[threading-conventions]] 推薦）
+    - **失敗策略保留 S2 noisy**：synth / play 失敗 noisy print + continue 下一輪；
+      shutdown 觸發的 SIGTERM 也走 CalledProcessError path（returncode 負值），
+      仍印訊息但屬 expected exit
+    - **print 在 caller thread**：`speak()` 內立即印 `[語音] xxx`，**不**放到
+      `_loop()` 內 — 保持 SSH log 時序跟 dialog flow 一致（user 看到「[語音]
+      xxx」緊接著「[商家] >」prompt，不會因 worker 延遲導致 log 亂序）
+
+caller（main.py 的 speak callback / main 函式）使用方式：
     >>> from myProgram import tts
-    >>> tts.speak("歡迎光臨")  # 阻塞，等到播放完成才 return
+    >>> tts.speak("歡迎光臨")  # 立即返回（入 queue，不阻塞）
+    >>> # ... 主線程做別的事 ...
+    >>> tts.shutdown()          # 程式退出前 cleanup（terminate + drain queue）
 """
 
 import asyncio
+import queue
 import subprocess
+import threading
 import time
 
-import edge_tts  # fail-fast：缺套件直接 ImportError；S2 demo 環境是 Pi，必須有
+import edge_tts  # fail-fast：缺套件直接 ImportError；S2+ demo 環境是 Pi，必須有
 
 VOICE = "zh-TW-HsiaoChenNeural"  # 台灣女聲
 TMP_MP3 = "/tmp/last_tts.mp3"  # Linux 絕對路徑（path-conventions 規範）
 
 # mpg123 退出時 ALSA buffer 仍可能有未播完的尾巴音訊（~200-400ms）。下一個 speak
-# 立刻啟動新 mpg123 開 ALSA device 會把舊 buffer 沖掉，造成上一句末尾被截斷。
-# 故在 subprocess.run 成功 return 後加此 drain 等待。0.3s 是 Pi 上經驗值，
+# 立刻啟動新 mpg123 開 ALSA device 會把舊 buffer 沖掉,造成上一句末尾被截斷。
+# 故在 Popen.wait() 成功 return 後加此 drain 等待。0.3s 是 Pi 上經驗值,
 # 短句子尾巴 (~200ms) + 安全餘裕 (~100ms)。
 ALSA_DRAIN_SEC: float = 0.3
 
@@ -37,63 +55,182 @@ async def _synthesize(text: str, out_path: str) -> None:
     await edge_tts.Communicate(text=text, voice=VOICE).save(out_path)
 
 
-def speak(text: str) -> None:
-    """同步 TTS：合成 + 播放，阻塞至播完才 return。
+class TtsWorker:
+    """同步 TTS daemon worker：FIFO queue + lock-protected current Popen。
 
-    失敗策略：noisy print 詳細訊息 + return（不 raise，caller dialog 繼續）。
-    分階段（synth / play）try/except 讓使用者知道哪個階段炸的。
+    主線程 say(text) 立即返回；worker 從 queue 依序取 text → synth → play。
+    程式退出時 shutdown() terminate 當前 mpg123 + 清空 queue。
+
+    Thread model（依 [[threading-conventions]] 推薦：blocking 任務全推背景）：
+        - 主線程：呼叫 say(text)（非阻塞 put queue）+ shutdown()（cleanup）
+        - 背景 daemon thread：跑 _loop() 依序消費 queue（同步 synth + play）
+
+    Lock 保護範圍：`self._proc`（worker 寫、main read+terminate 之間 race window）。
+    Lock **不**包 `_proc.wait()` — wait 會 block 2-5s,期間 shutdown 拿不到 lock
+    就 defeat 了 shutdown 的目的。改在 spawn / 清 None 兩個短瞬間獨立加 lock。
     """
-    # 跟 S1 一致：speak 開頭印一行，方便 SSH log 觀察說了什麼
+
+    def __init__(self) -> None:
+        # type hint 用 queue.Queue[str]：Python 3.9+ 支援 generic alias（Pi 是 3.7
+        # 但 string annotation 不會 runtime evaluate，OK）
+        self._q: "queue.Queue[str]" = queue.Queue()
+        self._proc: "subprocess.Popen | None" = None
+        self._lock = threading.Lock()
+        # daemon=True：主程式退出時這個 thread 自動 die（不會卡住整個程序退出）
+        # 但 daemon die 不會自動 terminate 當前 mpg123 子程序 → 仍需顯式 shutdown()
+        threading.Thread(target=self._loop, name="TtsWorker", daemon=True).start()
+
+    def say(self, text: str) -> None:
+        """非阻塞 producer：text 入 queue 立即 return。FIFO 順序消費（不中斷）。
+
+        預設不中斷：text 入 queue 排隊;當前播放完才播下一段。中斷邏輯
+        （新任務覆蓋舊）是 S7 的選擇性升級,S4 不做。
+        """
+        self._q.put(text)
+
+    def _loop(self) -> None:
+        """Daemon worker：get text → synth → play → drain → 下一輪（無限迴圈）。
+
+        queue 空就 block 在 self._q.get() 等待新任務。daemon=True 主程式退出時
+        自動死亡（即使 thread 卡在 get() 也會被 Python runtime 清掉）。
+        """
+        while True:
+            # blocking get：queue 空就等到有任務（無 timeout，等到天荒地老）
+            text = self._q.get()
+
+            # 階段 1：合成 mp3
+            try:
+                asyncio.run(_synthesize(text, TMP_MP3))
+            except Exception as e:
+                # edge_tts 可能 raise NoAudioReceived / WebSocketException / asyncio 相關錯
+                # 不確定具體類型 → 統一 catch Exception，但訊息要詳細
+                print(f"[語音] ⚠️ TTS 失敗（階段=synth）")
+                print(f"[語音]   exception = {type(e).__name__}: {e!r}")
+                print(f"[語音]   text      = {text!r}")
+                print(f"[語音] 此字略過,繼續下一字")
+                continue  # 下一輪 queue.get()
+
+            # 階段 2：播放 mp3（subprocess.Popen → 保留 reference 給 shutdown 用）
+            # 對比 S2 同步版用 subprocess.run：S4 改 Popen + wait 兩段是為了讓
+            # shutdown() 可在播放期間呼叫 _proc.terminate()。
+            #
+            # stdin=DEVNULL（commit f7dab09 加,S2 Pi 實機踩坑）：mpg123 預設讀父
+            # 程序 stdin 接收 control characters（q/s/p/+/- 等）。不設 DEVNULL 時：
+            #   1. 播放期間 user 在 dialog 打的字會被 mpg123 偷走 → 無法進
+            #      Python input() → 顧客以為打了字結果機器人沒反應
+            #   2. user 不小心打到 'q' / 's' → mpg123「Stopped.」+ quit 退出碼非 0
+            #      → CalledProcessError → 整段 dialog flow 中斷
+            # mpg123 從 mp3 路徑參數讀資料、不從 stdin 讀資料 → DEVNULL 不影響播放。
+            try:
+                with self._lock:
+                    # 短臨界區：spawn + 存 ref，不包 wait（避免 shutdown 拿不到 lock）
+                    self._proc = subprocess.Popen(
+                        ["mpg123", "-q", TMP_MP3],
+                        stdin=subprocess.DEVNULL,
+                    )
+                # 等播完（不持 lock — shutdown 可在此期間 terminate）。terminate
+                # 觸發時 wait 返回非 0 returncode（Linux 上 SIGTERM 是 -15）。
+                returncode = self._proc.wait()
+                if returncode != 0:
+                    # check=True 等效手寫：模擬 subprocess.CalledProcessError 行為。
+                    # 走 except 分支印 noisy 訊息（shutdown 觸發的 SIGTERM 也會走這
+                    # path，returncode 負值代表被 signal 中斷 — 是 expected exit
+                    # 但仍印訊息，方便 SSH log 看到「程式退出時殺掉了播放中的 X」）。
+                    raise subprocess.CalledProcessError(
+                        returncode=returncode,
+                        cmd=["mpg123", "-q", TMP_MP3],
+                    )
+            except FileNotFoundError as e:
+                # mpg123 binary 不存在（Pi 未 apt install mpg123）
+                print(f"[語音] ⚠️ TTS 失敗（階段=play）")
+                print(f"[語音]   exception = FileNotFoundError: {e!r}")
+                print(f"[語音]   text      = {text!r}")
+                print(f"[語音]   hint      = 請在 Pi 上執行 `sudo apt install mpg123`")
+                print(f"[語音] 此字略過,繼續下一字")
+                with self._lock:
+                    self._proc = None
+                continue
+            except subprocess.CalledProcessError as e:
+                # mpg123 退出碼非 0（檔案損毀 / 音訊裝置忙 / shutdown SIGTERM 等）
+                print(f"[語音] ⚠️ TTS 失敗（階段=play）")
+                print(f"[語音]   exception = subprocess.CalledProcessError: returncode={e.returncode}")
+                print(f"[語音]   cmd       = {e.cmd}")
+                print(f"[語音]   text      = {text!r}")
+                print(f"[語音] 此字略過,繼續下一字")
+                with self._lock:
+                    self._proc = None
+                continue
+            except Exception as e:
+                # 兜底 — 不明錯誤也要詳細印
+                print(f"[語音] ⚠️ TTS 失敗（階段=play）")
+                print(f"[語音]   exception = {type(e).__name__}: {e!r}")
+                print(f"[語音]   text      = {text!r}")
+                print(f"[語音] 此字略過,繼續下一字")
+                with self._lock:
+                    self._proc = None
+                continue
+
+            # 播放成功（returncode==0）：清 _proc + drain ALSA
+            with self._lock:
+                self._proc = None
+            # 給 ALSA buffer 完成尾巴音訊播放的時間,避免下一個 speak() 立刻啟動
+            # 新 mpg123 沖掉舊 buffer（症狀：「付款成功」尾巴被截）。失敗 path
+            # 不到這裡因 mpg123 沒真播完 = 無 buffer 殘留 = 不需 drain。
+            time.sleep(ALSA_DRAIN_SEC)
+
+    def shutdown(self) -> None:
+        """程式退出 cleanup：terminate 當前 mpg123 + 清空 queue。
+
+        Thread-safe：用 self._lock 保護 _proc 讀取 + terminate 呼叫，避免跟
+        worker thread 設 _proc 之間 race。
+
+        Terminate 後 worker 的 _proc.wait() 會返回非 0 returncode → 走
+        CalledProcessError 分支 noisy print continue。daemon thread 隨主程式
+        退出自動 die，不需 join。
+
+        清空 queue：避免 daemon die 前還消費剩餘任務（雖然 daemon 主退出時
+        會被 runtime 清掉，但 drain 一下更乾淨）。
+        """
+        with self._lock:
+            if self._proc is not None and self._proc.poll() is None:
+                # poll() is None = 還在跑（未退出）；用 terminate 發 SIGTERM
+                try:
+                    self._proc.terminate()
+                except OSError:
+                    # 子程序剛好同時自然結束 → terminate 對已退出 proc 在某些
+                    # 平台 raise OSError（Linux 通常 silent）。安全 swallow。
+                    pass
+            # 清 queue：把剩餘任務全丟掉
+            while not self._q.empty():
+                try:
+                    self._q.get_nowait()
+                except queue.Empty:
+                    break
+
+
+# Module-level singleton：import 時自動啟動 daemon thread。
+# 使用者多次 `from myProgram import tts` 不會重複建（Python module cache）。
+_worker = TtsWorker()
+
+
+def speak(text: str) -> None:
+    """對外 API：非阻塞 TTS（入 queue 立即返回）。
+
+    `print(f"[語音] {text}")` 在 **caller thread** 立即印 — 不放到 worker
+    內 — 是為了保持 SSH log 時序跟 dialog flow 一致（user 看到「[語音] xxx」
+    緊接著「[商家] >」prompt，不會因 worker 延遲導致 log 亂序）。
+
+    對比 S2 同步版：對外 signature 完全相容（接 text、回 None），但行為從
+    「阻塞至播完」改為「立即返回（背景排隊播）」。
+    """
     print(f"[語音] {text}")
+    _worker.say(text)
 
-    # 階段 1：合成 mp3
-    try:
-        asyncio.run(_synthesize(text, TMP_MP3))
-    except Exception as e:
-        # edge_tts 可能 raise NoAudioReceived / WebSocketException / asyncio 相關錯
-        # 不確定具體類型 → 統一 catch Exception，但訊息要詳細
-        print(f"[語音] ⚠️ TTS 失敗（階段=synth）")
-        print(f"[語音]   exception = {type(e).__name__}: {e!r}")
-        print(f"[語音]   text      = {text!r}")
-        print(f"[語音] 此字略過，繼續下一字")
-        return
 
-    # 階段 2：播放 mp3（subprocess.run = 同步阻塞 + check=True 非 0 退出碼 raise）
-    # stdin=DEVNULL：mpg123 預設會讀父程序 stdin 接收 control characters
-    # （q=quit / s=stop / p=pause / +-=volume 等）。不設 DEVNULL 時：
-    #   1. TTS 播放期間 user 在 dialog input prompt 打的字會被 mpg123 偷走
-    #      → 無法進 Python input() → 顧客以為打了字結果機器人沒反應
-    #   2. user 若不小心打到 'q' / 's' → mpg123 印「Stopped.」+ quit 退出碼非 0
-    #      → subprocess.run raise CalledProcessError → 整段 dialog flow 中斷
-    # mpg123 從 mp3 路徑參數讀資料、不從 stdin 讀資料 → DEVNULL 不影響播放。
-    # (2026-05-27 Pi 實機踩坑：L4 entry speak 期間打字導致「Stopped.」中斷 dialog)
-    try:
-        subprocess.run(["mpg123", "-q", TMP_MP3], check=True, stdin=subprocess.DEVNULL)
-    except FileNotFoundError as e:
-        # mpg123 binary 不存在（Pi 未 apt install mpg123）
-        print(f"[語音] ⚠️ TTS 失敗（階段=play）")
-        print(f"[語音]   exception = FileNotFoundError: {e!r}")
-        print(f"[語音]   text      = {text!r}")
-        print(f"[語音]   hint      = 請在 Pi 上執行 `sudo apt install mpg123`")
-        print(f"[語音] 此字略過,繼續下一字")
-        return
-    except subprocess.CalledProcessError as e:
-        # mpg123 退出碼非 0（檔案損毀 / 音訊裝置忙 等）
-        print(f"[語音] ⚠️ TTS 失敗（階段=play）")
-        print(f"[語音]   exception = subprocess.CalledProcessError: returncode={e.returncode}")
-        print(f"[語音]   cmd       = {e.cmd}")
-        print(f"[語音]   text      = {text!r}")
-        print(f"[語音] 此字略過,繼續下一字")
-        return
-    except Exception as e:
-        # 兜底 — 不明錯誤也要詳細印
-        print(f"[語音] ⚠️ TTS 失敗（階段=play）")
-        print(f"[語音]   exception = {type(e).__name__}: {e!r}")
-        print(f"[語音]   text      = {text!r}")
-        print(f"[語音] 此字略過,繼續下一字")
-        return
+def shutdown() -> None:
+    """對外 API：terminate 當前播放 + 清空 queue（main.py exit 時呼叫）。
 
-    # 播放成功才 drain：給 ALSA buffer 完成尾巴音訊播放的時間，避免下一個 speak()
-    # 立刻啟動新 mpg123 沖掉舊 buffer（症狀：「付款成功」尾巴被截）。失敗 return
-    # path 不到這裡因 mpg123 沒真播 = 無 buffer 殘留 = 不需 drain。
-    time.sleep(ALSA_DRAIN_SEC)
+    使用情境：main() 的 finally block 內呼叫，確保程式退出時最後一段
+    mpg123 不會繼續播完才停（S4 解 user 訴求 #3）。
+    """
+    _worker.shutdown()

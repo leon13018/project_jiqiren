@@ -230,6 +230,17 @@ def main():
         pass
     except KeyboardInterrupt:
         print("\n[系統] 中斷退出")
+    finally:
+        # S4：程式退出時 terminate 當前播放中的 mpg123 + 清空 queue，避免
+        # 「程式結束了但 mpg123 還在播完最後一段音檔」（user S4 訴求 #3）。
+        # Lazy import 對齊現有 speak callback 的 lazy import pattern — Windows
+        # pytest 環境無 edge_tts,此 path 走進來時 import 會 ImportError,swallow
+        # 即可（finally 內不該因 cleanup 失敗反過來污染主流程）。
+        try:
+            from myProgram import tts
+            tts.shutdown()
+        except ImportError:
+            pass  # Windows / pytest 無 edge_tts，無 tts module 可用
 
 
 if __name__ == "__main__":
