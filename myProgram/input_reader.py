@@ -98,13 +98,14 @@ class InputReader:
         while True:
             try:
                 raw_bytes = self._source.readline()
-            except OSError:
-                # Windows pytest captured stdin 環境：sys.stdin.buffer.readline()
-                # 會 raise OSError("pytest: reading from stdin while output is
-                # captured!")。module-level singleton `_reader = InputReader()`
-                # 在 pytest collect 時啟動就會撞這條。靜默退出 loop（不污染
-                # pytest warnings 也不影響其他注入 source 的測試）。
-                # production Pi 環境 sys.stdin.buffer 不會 raise OSError。
+            except (OSError, ValueError):
+                # OSError: Windows pytest captured stdin 環境 raise「pytest:
+                # reading from stdin while output is captured!」。module-level
+                # singleton 在 pytest collect 啟動就會撞。
+                # ValueError: shutdown() 期間 sys.stdin.close() 觸發
+                # 「I/O operation on closed file」(2026-05-28 加，配合 shutdown
+                # 主動關閉 stdin 解 Fatal Python error _enter_buffered_busy)。
+                # 兩種情境下都靜默退出 loop（push EOF sentinel 通知 caller）。
                 self._q.put(None)
                 break
             if not raw_bytes:
@@ -195,5 +196,27 @@ def read(timeout: Optional[float]) -> Optional[str]:
 
 
 def shutdown() -> None:
-    """對外 API：清 queue 殘留（main.py finally 呼叫，對齊 tts/action）。"""
+    """對外 API：清 queue 殘留 + 關閉 stdin 解放 reader thread（main.py finally 呼叫）。
+
+    為何要關閉 stdin（2026-05-28 加，Pi 實機踩到）：
+        daemon reader thread 卡在 sys.stdin.buffer.readline() C-level blocking
+        syscall，daemon=True 雖然「主程式退出時自動 die」，但 C-level lock 仍
+        被持有 → Python interpreter shutdown 時 finalizer 撞 lock 印出：
+            Fatal Python error: _enter_buffered_busy: could not acquire lock
+            for <_io.BufferedReader name='<stdin>'> at interpreter shutdown,
+            possibly due to daemon threads
+
+        主動 sys.stdin.close() → reader thread 的 readline() 拿到
+        ValueError("I/O operation on closed file") → _loop except 路徑
+        push None sentinel + break → daemon thread 乾淨退出 + 釋放 stdin
+        lock → finalizer 不再撞 lock。
+
+    對齊 tts/action shutdown 對稱（清自己 queue），但多一步「關 stdin」是
+    input_reader 獨有的 cleanup 責任 — TTS / action 不持有外部 OS resource lock。
+    """
     _reader.shutdown()
+    # 關閉 stdin → reader thread 的 readline 拿到 ValueError 或 b"" → break loop
+    try:
+        sys.stdin.close()
+    except Exception:
+        pass  # 已關閉 / 不可關 / 測試環境替換過 sys.stdin — swallow（finally 內不污染主流程）
