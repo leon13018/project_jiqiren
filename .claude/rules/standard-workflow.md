@@ -18,10 +18,10 @@
 2. `git add <具體檔名>`（不用 `-A` / `.` — PreToolUse hook 會擋）
 3. `git commit -m "..."` 英文簡短訊息，附 `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>`
 4. `git push origin main` — **PostToolUse hook 會自動跑 `sync_pi.ps1`**（async + 120s timeout）
-5. **Background session 雙保險（2026-05-27 加，本輪查 hook bug 時發現）**：
-   - **Background job session 內 PostToolUse hook 不會被 Claude Code 觸發**（live session OK，background session 整輪 push 都不會進 log）→ 主 agent **必須在 push 後手動跑** `& sync_pi.ps1`（用 PowerShell tool；hook 重複跑沒副作用，sync_pi 內 git pull 是 idempotent）
+5. **Background session 雙保險（2026-05-27 加，本輪查 hook bug 時發現；同日 refine）**：
+   - **Background job session 內 PostToolUse hook 行為非 deterministic（不可依賴）** — 實證 push `16a90bd` / `aae2338` 沒觸發，push `f084aba` 觸發；原因未明 → 主 agent **必須在 push 後永遠手動跑** `& sync_pi.ps1`（PowerShell tool；hook 即使偶有自動跑也是 idempotent no-op，~3s SSH 成本可接受）
    - 判斷標準：system context 有「Background Session」段 + `$CLAUDE_JOB_DIR` env var → background；否則 live
-   - Live session 此步驟可省（hook 自動跑）；但「萬一」也 OK 多跑一次（成本 ~3s SSH latency）
+   - Live session 此步驟可省（hook 通常自動跑）；但「永遠跑」是更穩做法，省得記憶哪種 session 類型
 
 > 🪝 自動化說明：步驟 5（原 sync_pi.ps1）已被 `.claude/hooks/auto-sync-pi.ps1` 取代（live session）；background session 仍需主 agent 手動跑。失敗 / 重跑 / background-session-skip 細節見 `.claude/hooks/NOTES.md`。
 

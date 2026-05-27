@@ -364,15 +364,22 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 - **若 commit 跑到 main：** 直接在主 checkout `git push origin main`，跳過 worktree ff-merge（worktree branch 沒 commit 可 merge）；cleanup 流程不變（worktree branch 跟主 checkout 同 commit ancestor，可安全刪）
 - **下次 reproduce 時：** 派發 prompt 第一步要求 subagent 回報 `pwd && git branch --show-current && git rev-parse --git-dir`，跟預期值比對；若不符即停手回報主 agent
 
-### N. Background job session 內 PostToolUse hook 完全不觸發 ⚠️ Claude Code 端行為
-**症狀：** Claude Code background job 模式（`$CLAUDE_JOB_DIR` env var 存在 / system context 含「Background Session」段）內，**整輪所有 Bash tool 跑完都不會觸發 PostToolUse hook**。具體影響：`git push origin main` 後 auto-sync-pi.ps1 不會被 Claude Code 觸發 → Pi 沒同步 → user demo 跑舊版 code（看不到新 wire-up 效果）。
-**踩到時間：** 2026-05-27 S3 同步動作落地 push commit `16a90bd` 後，使用者 Pi 上 `git log -1` 看到 HEAD 仍是 `028ac3f`（前一輪 commit）。檢查 `auto-sync-pi.log` 發現整輪 session 的 push 完全沒進 log（最後 entry 是上一輪 live session 結束 push）。手動 invoke hook script 跑得起來 → 確認是 Claude Code 沒觸發 hook 而非 hook script 本身壞掉。
-**性質：** Claude Code background mode 設計使然（hook event 不發 / env var 不注入 — 未在官方文檔明確記載，但實證如此）。**hook 端無法修**。
+### N. Background job session 內 PostToolUse hook 非 deterministic ⚠️ Claude Code 端行為
+**症狀：** Claude Code background job 模式（`$CLAUDE_JOB_DIR` env var 存在 / system context 含「Background Session」段）內，PostToolUse hook **觸發行為非 deterministic — 有時跑有時不跑，原因未明，視為不可依賴**。具體影響：`git push origin main` 後 auto-sync-pi.ps1 可能沒被 Claude Code 觸發 → Pi 沒同步 → user demo 跑舊版 code。
+**踩到時間：** 2026-05-27 S3 同步動作落地 push commit `16a90bd` 後，使用者 Pi 上 `git log -1` 看到 HEAD 仍是 `028ac3f`（前一輪 commit）。檢查 `auto-sync-pi.log` 發現該 push 沒進 log（最後 entry 是上一輪 live session 結束 push）。手動 invoke hook script 跑得起來 → 確認 hook script 本身沒壞。
+**Finding refine（同日後續觀察）：** 原以為「完全不觸發」，但同一個 background session 內後續 push 行為不一致：
+- `16a90bd` (S3 落地)：沒觸發
+- `aae2338` (hook fix)：沒觸發
+- `f084aba` (CLAUDE.md docs)：**觸發了**（log 23:21:48 entry）
+
+→ 結論：**非 deterministic 而非絕對不觸發**。規律未明（command 結構 / timing race / async hook + 120s timeout 互動？均為 hypothesis）。
+**性質：** Claude Code background mode 設計 / bug — 未在官方文檔明確記載。**hook 端無法修**（hook script 本身沒問題）。
 **Workaround**（規則層補強）：
-- 主 agent 在每次 push 後 explicit 跑 `& sync_pi.ps1`（用 PowerShell tool）。
-- live session 也跑無副作用（hook 已先跑過 → 第二次 sync 是 idempotent no-op，只浪費 ~3s SSH latency）。
-- 規則檔已加註：`standard-workflow.md` 步驟 5 / `worktree-workflow.md` 階段 4「Background session 雙保險」段。
+- 主 agent 在每次 push 後 **永遠 explicit 跑** `& sync_pi.ps1`（PowerShell tool）— 不要試圖判斷 hook 這次有沒有跑
+- hook 偶有自動跑 → 手動跑變 idempotent no-op（git pull → Already up to date），浪費 ~3s SSH latency 可接受
+- 規則檔已加註：`standard-workflow.md` 步驟 5 / `worktree-workflow.md` 階段 4「Background session 雙保險」段
 **判斷標準：** 看 system context — 有「# Background Session」段 + 提到 `$CLAUDE_JOB_DIR` 路徑 → background；否則 live。
+**未來如要 root cause 釐清：** 系統性 reproduce — 每次 push 後同步看 hook log，搜集 N 次樣本看跑 / 沒跑的差異變因。本輪 demo 推進優先，紀錄到此停。
 
 ---
 
