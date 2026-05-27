@@ -49,10 +49,33 @@ TMP_MP3 = "/tmp/last_tts.mp3"  # Linux 絕對路徑（path-conventions 規範）
 # 短句子尾巴 (~200ms) + 安全餘裕 (~100ms)。
 ALSA_DRAIN_SEC: float = 0.3
 
+# 語速分段（2026-05-28 加）— 依 voice constants 字數分佈三段式：
+#   短句 (≤ 13 字)  → +3%   例：「付款成功」「謝謝光臨，歡迎再來」
+#   中句 (14-22 字) → +6%   例：「您好，請問需要購買什麼東西嗎？」「好的，已加入購物車，請問還有額外需要購買的嗎？」
+#   長句 (≥ 23 字)  → +9%   例：「不好意思我聽不太懂，請問要買什麼呢？或者您想聯繫客服？」
+# edge-tts rate 格式：`[+-]\d+%` 必帶正負號 + 只能整數（client regex 強制）。Azure
+# 服務端有效範圍 -50% ~ +100%（0.5x ~ 2x）。
+# 字數用 `len(text)` 算，中文每字 1 code point；含標點（標點 ≈ 短停頓 token）。
+# Template 字串如 L4_ENTRY_PROMPT_TEMPLATE 在 caller 已 format 過才進來，len() 算實際 spoken length。
+RATE_SHORT: str = "+3%"
+RATE_MEDIUM: str = "+6%"
+RATE_LONG: str = "+9%"
+MEDIUM_THRESHOLD: int = 14  # 字數 >= 此值視為中句
+LONG_THRESHOLD: int = 23    # 字數 >= 此值視為長句
+
+
+def _pick_rate(text: str) -> str:
+    """依字數選 rate：< 14 短 / 14-22 中 / >= 23 長。"""
+    if len(text) >= LONG_THRESHOLD:
+        return RATE_LONG
+    if len(text) >= MEDIUM_THRESHOLD:
+        return RATE_MEDIUM
+    return RATE_SHORT
+
 
 async def _synthesize(text: str, out_path: str) -> None:
-    """edge_tts async 合成至 out_path（覆寫）。"""
-    await edge_tts.Communicate(text=text, voice=VOICE).save(out_path)
+    """edge_tts async 合成至 out_path（覆寫）；rate 依字數三段式（見 _pick_rate）。"""
+    await edge_tts.Communicate(text=text, voice=VOICE, rate=_pick_rate(text)).save(out_path)
 
 
 class TtsWorker:
