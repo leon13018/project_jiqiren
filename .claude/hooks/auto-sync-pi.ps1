@@ -67,6 +67,15 @@ if (-not (Test-Path $logDir)) {
 try {
     & $syncScript 2>&1 | Out-File -FilePath $logFile -Append -Encoding utf8
     "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] sync_pi.ps1 completed" | Out-File -FilePath $logFile -Append -Encoding utf8
+
+    # 2026-05-27 加：sync 後清 Pi 端 __pycache__，避免 stale .pyc 攔截 latest source。
+    # 背景：Pi 實機 reproduce 顯示 git pull 拉到 latest source 但 Python 仍 import
+    # cached .pyc（NLU HP-1「沒」strict_short → 結帳 修補不生效，「沒」走 unclear）。
+    # 清光 __pycache__ 後 Python 強制重新 compile latest source。
+    # idempotent — 沒有 __pycache__ 也只是 find 返 0 個結果，cost ~50ms SSH latency。
+    "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Clearing Pi __pycache__ ..." | Out-File -FilePath $logFile -Append -Encoding utf8
+    ssh "pi@raspberrypi.local" "find /home/pi/Desktop/project_jiqiren -name '__pycache__' -type d -exec rm -rf {} +" 2>&1 | Out-File -FilePath $logFile -Append -Encoding utf8
+    "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Pi __pycache__ cleared" | Out-File -FilePath $logFile -Append -Encoding utf8
 } catch {
     "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] sync_pi.ps1 ERROR: $_" | Out-File -FilePath $logFile -Append -Encoding utf8
 }
