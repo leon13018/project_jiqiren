@@ -300,6 +300,23 @@ def main():
             input_reader.shutdown()
         except ImportError:
             pass  # 理論不會發生（純 stdlib），結構對稱用
+        # 2026-05-28 hot fix：強退避開 daemon thread 卡 stdin readline syscall
+        # 害 Python finalizer hang 的問題。
+        #
+        # 背景：input_reader daemon thread 阻塞在 sys.stdin.buffer.readline()
+        # 的 C-level kernel syscall。input_reader.shutdown 已嘗試 sys.stdin.close()
+        # 觸發 ValueError unblock readline，但 Linux kernel close(fd) 不會 wake
+        # 已阻塞在 read(fd) 的 thread（implementation-defined 行為）— next read
+        # 才 EBADF。結果：main() return 後 Python finalizer 卡在 stdin lock 互動，
+        # user 必須按鍵 unblock readline syscall 才退出（Pi 2026-05-28 實機踩到）。
+        #
+        # 解法：所有 worker shutdown 已跑完（tts terminate mpg123 + action stopAction
+        # + input_reader clear queue + close stdin），可安全 os._exit(0) 強退 process。
+        # 跳過 Python finalizer（atexit / module finalize / daemon thread join）對
+        # 本專案無副作用 — 無 logging flush / 無 pickle save / daemon=True 隨 process
+        # die 是設計目的。
+        import os
+        os._exit(0)
 
 
 if __name__ == "__main__":
