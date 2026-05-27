@@ -196,27 +196,26 @@ def read(timeout: Optional[float]) -> Optional[str]:
 
 
 def shutdown() -> None:
-    """對外 API：清 queue 殘留 + 關閉 stdin 解放 reader thread（main.py finally 呼叫）。
+    """對外 API：清 queue 殘留（main.py finally 呼叫，對齊 tts/action）。
 
-    為何要關閉 stdin（2026-05-28 加，Pi 實機踩到）：
-        daemon reader thread 卡在 sys.stdin.buffer.readline() C-level blocking
-        syscall，daemon=True 雖然「主程式退出時自動 die」，但 C-level lock 仍
-        被持有 → Python interpreter shutdown 時 finalizer 撞 lock 印出：
-            Fatal Python error: _enter_buffered_busy: could not acquire lock
-            for <_io.BufferedReader name='<stdin>'> at interpreter shutdown,
-            possibly due to daemon threads
+    歷史 / 為何不關 stdin（2026-05-28 Pi 實機 root cause 排查）：
+        曾經這裡有 `sys.stdin.close()` 試圖「主動 unblock daemon reader thread 的
+        readline syscall」+ 抑制 interpreter shutdown 階段的 Fatal Python error
+        訊息。實測在 Pi 上**反而 hang**：
+        1. `sys.stdin.close()` 內部 acquire stdin BufferedReader 的 lock
+        2. 但 daemon reader thread 此刻正卡在 `readline()` syscall 持有那個 lock
+        3. main thread 永遠拿不到 lock → close() 卡死 → main 沒到 os._exit
+        4. user 必須按一個鍵 → kernel deliver byte → reader readline 返回 →
+           release lock → main close 終於 OK → 繼續走到 os._exit → 真退出
+        結論：close stdin 反 productive。Linux kernel `close(fd)` 本來也 unblock
+        不了 in-syscall read（kernel implementation-defined：只 mark fd 不可用，
+        next read 才 EBADF），所以這個 close 完全沒解決 hang，只造成 lock
+        deadlock。
 
-        主動 sys.stdin.close() → reader thread 的 readline() 拿到
-        ValueError("I/O operation on closed file") → _loop except 路徑
-        push None sentinel + break → daemon thread 乾淨退出 + 釋放 stdin
-        lock → finalizer 不再撞 lock。
+    現在策略：shutdown 只 clear queue（instant，無 IO，不卡）。daemon reader
+    thread 隨 main 的 os._exit(0) 殺 process 一起 die — Python 不會在 finalizer
+    階段卡 stdin lock 因為根本沒 finalizer（os._exit 跳過 finalize）。
 
-    對齊 tts/action shutdown 對稱（清自己 queue），但多一步「關 stdin」是
-    input_reader 獨有的 cleanup 責任 — TTS / action 不持有外部 OS resource lock。
+    對齊 tts/action shutdown 對稱（純清自己 queue）。
     """
     _reader.shutdown()
-    # 關閉 stdin → reader thread 的 readline 拿到 ValueError 或 b"" → break loop
-    try:
-        sys.stdin.close()
-    except Exception:
-        pass  # 已關閉 / 不可關 / 測試環境替換過 sys.stdin — swallow（finally 內不污染主流程）
