@@ -741,6 +741,52 @@ def test_l1_hawk_q_nonq_q_does_not_exit() -> None:
     )
 
 
+def test_l1_hawk_q_polling_empty_then_q_should_exit() -> None:
+    """S6 hot fix（2026-05-28 Pi 實機踩到）：hawk polling 模式下 q 之間
+    的 polling timeout 空字串不該 reset _q_confirm_pending。
+
+    舊行為（bug）：hawk 主迴圈改 read_terminal_key(timeout=0.1) polling 後，
+    第一次 q 設 pending=True 後 100ms 內 polling 返回 "" → 走非 q 路徑 →
+    `_reset_q_confirm()` 把 pending 弄成 False → user 真按的第二個 q 又被當
+    第一次 → 連按多次 q 永遠退不出（Pi log 顯示連按 7 次 q 全在印「確定退出？」）。
+
+    修法：l1._run_l1_hawk 內 `_reset_q_confirm()` 只在 `key != ""` 時跑；
+    polling 空 read 直接 continue 下一輪、不動 pending。
+
+    Test 序列：1（進 hawk）→ q（pending=True 印提示）→ "" "" ""（polling 空
+    read 三次，**不**該 reset）→ q（pending 仍 True，真退）。
+    """
+    exit_calls: list = []
+    printed: list = []
+    opencv = FakeOpencv(dwell_value=0.0)  # 不觸發 L2
+    kbd = FakeKeyboardInput(["1", "q", "", "", "", "q"])
+
+    states.run_l1(
+        print_terminal=lambda text: printed.append(text),
+        read_terminal_key=kbd.read,
+        opencv_dwell_seconds=opencv.dwell_seconds,
+        opencv_disable=opencv.disable,
+        opencv_enable=opencv.enable,
+        speak=lambda text: None,
+        exit_program=lambda: exit_calls.append(True),
+        schedule=FakeScheduler().schedule,
+        show_hawk_help=lambda *a, **k: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # Assert：exit 只被呼叫一次（第二個 q 觸發；polling 空 read 沒 reset pending）
+    assert len(exit_calls) == 1, (
+        f"hawk polling 空 read 不該 reset confirm；q → ''*3 → q 應退出（exit_calls=1）。"
+        f"若空 read 仍 reset，第二個 q 被當第一次，exit_calls=0。實際 {len(exit_calls)}"
+    )
+    # Assert：只印一次「確定退出」（第一個 q 印；第二個 q 直接 exit 不再印提示）
+    confirm_hint_count = sum(1 for p in printed if "確定退出" in p)
+    assert confirm_hint_count == 1, (
+        f"polling 空 read 不該 reset → 只有第一個 q 印『確定退出』(1 次)，第二個 q 直接退。"
+        f"若 reset 發生會看到 2 次提示。實際 {confirm_hint_count}"
+    )
+
+
 # ============================================================
 # L2 測試用 stub
 # ============================================================

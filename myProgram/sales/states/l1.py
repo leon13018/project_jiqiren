@@ -261,8 +261,12 @@ def _run_l1_hawk(
             if _handle_q_press(exit_program, print_terminal):
                 continue  # 第一次 q，繼續叫賣 + 等下一個鍵
             return None  # 第二次 q：exit_program 已被呼叫
-        # 非 q 鍵（含 "" 空 read / 1 / 2 / 3 等）：reset confirm，繼續叫賣
-        _reset_q_confirm()
+        # 2026-05-28 hot fix：polling 模式下 "" = timeout 無輸入，**不該 reset
+        # confirm**（之前 Pi 實機踩到：第一次 q 設 _q_confirm_pending=True 後
+        # 100ms 內 polling 又返回 ""→reset→第二次 q 又被當第一次，連按 q 永遠
+        # 退不出）。只在「真實非 q 鍵」時 reset 避免「q → 1 → q」誤觸退出。
+        if key != "":
+            _reset_q_confirm()
 
 
 def _schedule_hawk_l1(speak, schedule, hawk_index: int) -> None:
