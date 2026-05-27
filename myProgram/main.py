@@ -69,19 +69,9 @@ def _build_callbacks(state: _S1State) -> dict:
         """
         try:
             raw = input("[商家] > ").strip().lower()
-        except UnicodeDecodeError as e:
-            # 2026-05-27 Wave 4 hotfix 3：改 noisy debug — 印失敗 raw bytes hex
-            # 讓使用者可截圖回報哪個 byte 序列炸的（Pi locale 已確認 UTF-8，
-            # 真正根因可能是 IME / SSH transit / 異常 byte，需 hex 才能定位）。
-            print(f"[系統] ⚠️ 輸入解碼失敗（UnicodeDecodeError）")
-            print(f"[系統]   codec   = {e.encoding}")
-            print(f"[系統]   reason  = {e.reason}")
-            print(f"[系統]   range   = start={e.start} end={e.end}")
-            failed_bytes = e.object[e.start:e.end] if e.object else b""
-            print(f"[系統]   raw hex = {failed_bytes.hex() if failed_bytes else 'N/A'}")
-            print(f"[系統] 請截圖回報以上訊息給開發者排查；本次輸入忽略")
-            return ""
         except EOFError:
+            # stdin 被關閉（重定向結束等）— UnicodeDecodeError 由 main() 內
+            # sys.stdin.reconfigure(errors='replace') 統一接住，不會冒到這裡
             print(f"[系統] 輸入讀取失敗（EOFError，stdin 已關閉），本次輸入忽略")
             return ""
         raw = normalize_input(raw)  # 2026-05-26 P5 加：商家若用全形輸入法「１」也能對應到 "1"
@@ -103,20 +93,10 @@ def _build_callbacks(state: _S1State) -> dict:
         空 Enter → 模擬 timeout（return None）
         'q' → S1 wire-up 便利：直接退出程式（production 不會有人講「q」當顧客語音）
         其他 → 返回字串
-        非 UTF-8 byte / EOF → 視為 timeout（return None），避免 Python input() raise
+        EOF → 視為 timeout（return None）；UnicodeDecodeError 由 main() reconfigure 接住
         """
         try:
             raw = input(f"[顧客 timeout={timeout}s，空 Enter=timeout / q=退出] > ").strip()
-        except UnicodeDecodeError as e:
-            # 2026-05-27 Wave 4 hotfix 3：改 noisy debug — 印失敗 raw bytes hex
-            print(f"[系統] ⚠️ 輸入解碼失敗（UnicodeDecodeError）")
-            print(f"[系統]   codec   = {e.encoding}")
-            print(f"[系統]   reason  = {e.reason}")
-            print(f"[系統]   range   = start={e.start} end={e.end}")
-            failed_bytes = e.object[e.start:e.end] if e.object else b""
-            print(f"[系統]   raw hex = {failed_bytes.hex() if failed_bytes else 'N/A'}")
-            print(f"[系統] 請截圖回報以上訊息給開發者排查；本次視為 timeout")
-            return None
         except EOFError:
             print(f"[系統] 輸入讀取失敗（EOFError，stdin 已關閉），本次視為 timeout")
             return None
@@ -211,6 +191,15 @@ def _build_callbacks(state: _S1State) -> dict:
 
 def main():
     """S1 v2 入口。"""
+    # 強制 stdin 用 UTF-8 + errors='replace'，繞過 TextIOWrapper buffer 殘留 partial
+    # multibyte byte 造成的 UnicodeDecodeError。背景：2026-05-27 Pi 實測使用者輸入
+    # 「刮刮樂冰紅茶」時 input() 於 byte 0xe5 (UTF-8 leading byte) 報「invalid
+    # continuation byte」— 此訊息邏輯上矛盾（0xe5 應期待 continuation 跟其後而
+    # 非反過來），唯一解釋是 stdin 內部 buffer 殘留前輪 partial UTF-8 序列、
+    # 把新一輪 leading byte 當作期待中的 continuation。reconfigure errors='replace'
+    # 把無效 byte 換成 U+FFFD (�) 不 raise，input 仍走 normalize_input + NLU pipe；
+    # 即使含 � 進 NLU 也比「一次 timeout 就退 dialog」友善。
+    sys.stdin.reconfigure(encoding="utf-8", errors="replace")
     print("=" * 50)
     print("Project_01 互動式銷售輔助機器人 — S1 v2 模擬模式")
     print("（純單線程對話、無語音 / 動作 / OpenCV / 廠商 SDK）")
