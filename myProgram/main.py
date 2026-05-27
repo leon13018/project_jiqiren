@@ -76,13 +76,16 @@ def _build_callbacks(state: _S1State) -> dict:
             return ""
         raw = normalize_input(raw)  # 2026-05-26 P5 加：商家若用全形輸入法「１」也能對應到 "1"
         if raw == "c":
-            state.opencv_dwell = OPENCV_DWELL + 0.5
-            # 區分「mute 期間 'c' 被吃掉」vs「真的觸發 L2」訊息（2026-05-26 加；
-            # 之前都印同一句「已自動觸發 L2」造成使用者按兩次以為應該觸發但沒反應的誤會）
+            # 2026-05-27 改：mute 期間 'c' 不設 dwell（嚴格行為，對齊 print 字面）。
+            # 舊版會在 mute 期間也設 state.opencv_dwell = OPENCV_DWELL+0.5 殘留到
+            # mute 結束 → opencv_dwell_seconds 自動觸發 L2，與 print「擋下，請等 mute
+            # 結束再按 'c'」訊息矛盾。現在 mute 內 'c' 完全忽略，商家必須等 mute
+            # 結束後再按一次才會觸發 L2。
             remaining = state.opencv_mute_until - time.monotonic()
             if remaining > 0:
-                print(f"[模擬] 收到 'c'，但 opencv 還在 mute 期間（剩 {remaining:.1f}s）→ 本次 detection 被擋下，請等 mute 結束再按 'c'")
+                print(f"[模擬] 收到 'c'，但 opencv 還在 mute 期間（剩 {remaining:.1f}s）→ 已忽略，請等 mute 結束後再按 'c' 才會觸發 L2")
             else:
+                state.opencv_dwell = OPENCV_DWELL + 0.5
                 print("[模擬] OpenCV 偵測到顧客 → 已自動觸發 L2（hawk loop 下次迭代立即 check opencv，無需再按鍵）")
             return ""  # 不返回有效鍵；由 L1 hawk 主迴圈下次 check opencv
         return raw  # post-P8（2026-05-26）：原 `raw[:1]` 會把「123」截為「1」誤進叫賣模式、「3434」截為「3」誤進客服。改回整段不截，依賴 caller `== "1"` 嚴格比對。
@@ -157,13 +160,19 @@ def _build_callbacks(state: _S1State) -> dict:
 
     # === 時間 / 程式控制 ===
     def sleep(seconds):
-        """S1 sleep：印訊息但不真阻塞（純單線程 chat-driven 無實際時序需求）。
+        """阻塞 seconds 秒（單線程同步阻塞 — S2 起恢復 real time.sleep）。
 
-        Why 不 time.sleep：S1 階段無真實 TTS 需要等播完、無真實 OpenCV mute 期間需要 tick；
-        真 sleep 只會卡住主線程連商家 q 退出都送不進去（壞 UX）。S4+ 上 threading 時改
-        worker thread sleep / timer fire-and-forget，主線程立即返回，sleep 期間 q 仍可送入。
+        實作 L5 規格意圖：thanks 後等 THANK_DELAY=3s 給顧客轉身離開的禮貌間隔，
+        避免「謝謝光臨」剛播完就立刻接「歡迎光臨」叫賣下個顧客造成擁擠感。
+
+        歷史：S1 階段曾改為 print no-op + 立即返回，當時 docstring 寫「真 sleep
+        會卡住主線程連 q 退出都送不進去」。**S2 同步阻塞 TTS 接入後該前提已失效**
+        — speak() 本身就同步阻塞主線程到播完（典型 2-4s），TTS 阻塞期間 q 也送
+        不進來，sleep 阻塞同等狀況、未新增副作用。S4+ 上 threading 時可改 worker
+        thread sleep 不阻塞主迴圈。
         """
-        print(f"[等待] {seconds}s（S1 跳過實際 sleep，立即返回）")
+        print(f"[等待] {seconds}s")
+        time.sleep(seconds)
 
     def schedule(seconds, fn):
         """S1 schedule：不真排程，僅印警告（單線程不能背景跑）。"""
