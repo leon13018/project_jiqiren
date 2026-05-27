@@ -59,8 +59,16 @@ def speak(text: str) -> None:
         return
 
     # 階段 2：播放 mp3（subprocess.run = 同步阻塞 + check=True 非 0 退出碼 raise）
+    # stdin=DEVNULL：mpg123 預設會讀父程序 stdin 接收 control characters
+    # （q=quit / s=stop / p=pause / +-=volume 等）。不設 DEVNULL 時：
+    #   1. TTS 播放期間 user 在 dialog input prompt 打的字會被 mpg123 偷走
+    #      → 無法進 Python input() → 顧客以為打了字結果機器人沒反應
+    #   2. user 若不小心打到 'q' / 's' → mpg123 印「Stopped.」+ quit 退出碼非 0
+    #      → subprocess.run raise CalledProcessError → 整段 dialog flow 中斷
+    # mpg123 從 mp3 路徑參數讀資料、不從 stdin 讀資料 → DEVNULL 不影響播放。
+    # (2026-05-27 Pi 實機踩坑：L4 entry speak 期間打字導致「Stopped.」中斷 dialog)
     try:
-        subprocess.run(["mpg123", "-q", TMP_MP3], check=True)
+        subprocess.run(["mpg123", "-q", TMP_MP3], check=True, stdin=subprocess.DEVNULL)
     except FileNotFoundError as e:
         # mpg123 binary 不存在（Pi 未 apt install mpg123）
         print(f"[語音] ⚠️ TTS 失敗（階段=play）")
