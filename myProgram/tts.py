@@ -18,11 +18,18 @@ caller（main.py 的 speak callback）使用方式：
 
 import asyncio
 import subprocess
+import time
 
 import edge_tts  # fail-fast：缺套件直接 ImportError；S2 demo 環境是 Pi，必須有
 
 VOICE = "zh-TW-HsiaoChenNeural"  # 台灣女聲
 TMP_MP3 = "/tmp/last_tts.mp3"  # Linux 絕對路徑（path-conventions 規範）
+
+# mpg123 退出時 ALSA buffer 仍可能有未播完的尾巴音訊（~200-400ms）。下一個 speak
+# 立刻啟動新 mpg123 開 ALSA device 會把舊 buffer 沖掉，造成上一句末尾被截斷。
+# 故在 subprocess.run 成功 return 後加此 drain 等待。0.3s 是 Pi 上經驗值，
+# 短句子尾巴 (~200ms) + 安全餘裕 (~100ms)。
+ALSA_DRAIN_SEC: float = 0.3
 
 
 async def _synthesize(text: str, out_path: str) -> None:
@@ -77,3 +84,8 @@ def speak(text: str) -> None:
         print(f"[語音]   text      = {text!r}")
         print(f"[語音] 此字略過,繼續下一字")
         return
+
+    # 播放成功才 drain：給 ALSA buffer 完成尾巴音訊播放的時間，避免下一個 speak()
+    # 立刻啟動新 mpg123 沖掉舊 buffer（症狀：「付款成功」尾巴被截）。失敗 return
+    # path 不到這裡因 mpg123 沒真播 = 無 buffer 殘留 = 不需 drain。
+    time.sleep(ALSA_DRAIN_SEC)
