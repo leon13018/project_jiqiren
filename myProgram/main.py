@@ -58,21 +58,31 @@ def _build_callbacks(state: _S1State) -> dict:
         """
         print(">>> [模擬提示] 叫賣模式只接受兩個鍵：'c' = 模擬 OpenCV 偵測顧客 → 轉 L2；'q' = 退出程式。其他輸入會被忽略。<<<")
 
-    def read_terminal_key():
-        """讀商家鍵盤輸入（嚴格匹配整段；多字元自動失配被 caller 忽略）。
+    def read_terminal_key(timeout=0.1):
+        """讀商家鍵盤輸入（非阻塞 polling；嚴格匹配整段；多字元自動失配被 caller 忽略）。
+
+        S6（incremental-rebuild 第 6 步）改造：原本 `input()` 阻塞 → 改透過
+        `input_reader.read(timeout)` 從 daemon reader thread 的 queue 取。
+        預設 timeout=0.1s 是 hawk 主迴圈 polling cadence — 主線程不再被阻塞，
+        OpenCV dwell check / TTS worker / action worker 等可真正並行推進。
+
+        timeout 內無輸入 → input_reader 返回 None → 本函式回 ""（對齊既有「無輸入」
+        語意，caller 走 fallback；舊 EOFError 路徑也是回 ""，行為相容）。
 
         特殊 'c' 鍵（嚴格相等才觸發）：模擬 OpenCV 偵測到顧客 → 設 dwell ≥ OPENCV_DWELL。
         其他：回傳完整輸入（不截首字元）。caller 用 `key == "1"` / `"2"` / `"3"` / `"q"` /
         `"r"` 嚴格比對；像「123」/「3434」/「2543333」這類多字元亂打**自然不匹配任何
         單字元 menu key → 自動 ignored**（不再像舊版會截首字元誤進模式）。
         """
-        try:
-            raw = input("[商家] > ").strip().lower()
-        except EOFError:
-            # stdin 被關閉（重定向結束等）— UnicodeDecodeError 由 main() 內
-            # sys.stdin.reconfigure(errors='replace') 統一接住，不會冒到這裡
-            print(f"[系統] 輸入讀取失敗（EOFError，stdin 已關閉），本次輸入忽略")
+        # Lazy import：對齊 tts.speak / action.do 的 lazy import pattern；
+        # input_reader 雖無 vendor 依賴（純 stdlib），對齊結構讓 Windows pytest
+        # 經 `from myProgram.main import _build_callbacks` 不會強制啟動 reader thread。
+        from myProgram import input_reader
+        raw = input_reader.read(timeout)
+        if raw is None:
+            # timeout 內無輸入 → 回空字串（caller 走 fallback；無輸入語意對齊舊版）
             return ""
+        raw = raw.strip().lower()
         raw = normalize_input(raw)  # 2026-05-26 P5 加：商家若用全形輸入法「１」也能對應到 "1"
         if raw == "c":
             # 2026-05-27 改：mute 期間 'c' 不設 dwell（嚴格行為，對齊 print 字面）。
@@ -90,18 +100,25 @@ def _build_callbacks(state: _S1State) -> dict:
         return raw  # post-P8（2026-05-26）：原 `raw[:1]` 會把「123」截為「1」誤進叫賣模式、「3434」截為「3」誤進客服。改回整段不截，依賴 caller `== "1"` 嚴格比對。
 
     def read_customer_input(timeout):
-        """讀顧客輸入（語音模擬）。
+        """讀顧客輸入（語音模擬，非阻塞 timeout）。
 
-        空 Enter → 模擬 timeout（return None）
+        S6（incremental-rebuild 第 6 步）改造：原本 `input()` 阻塞使得 L4
+        60s wall-clock 預算實際沒在跑（input 不支援 timeout） → 改透過
+        `input_reader.read(timeout)` 從 daemon reader thread 的 queue 取。
+        現在 timeout 真的會生效，L4 預算耗盡可真正 forced exit。
+
+        timeout 內無輸入（顧客沒打字 / 沒掃碼）→ input_reader 返回 None →
+        本函式回 None（既有 timeout 語意）。
+
         'q' → S1 wire-up 便利：直接退出程式（production 不會有人講「q」當顧客語音）
         其他 → 返回字串
-        EOF → 視為 timeout（return None）；UnicodeDecodeError 由 main() reconfigure 接住
         """
-        try:
-            raw = input(f"[顧客 timeout={timeout}s，空 Enter=timeout / q=退出] > ").strip()
-        except EOFError:
-            print(f"[系統] 輸入讀取失敗（EOFError，stdin 已關閉），本次視為 timeout")
-            return None
+        # Lazy import：對齊 read_terminal_key / tts.speak / action.do 的 lazy import pattern。
+        from myProgram import input_reader
+        raw = input_reader.read(timeout)
+        if raw is None:
+            return None  # timeout（既有語意）
+        raw = raw.strip()
         raw = normalize_input(raw)  # 2026-05-26 P5 加：IO 邊界統一 normalize（長度上限 / 控制字元 / 全形數字）
         # TODO(S2+): 真 STT 接入後移除此「q 退出」處理 — S1 chat-driven 為了
         # 商家測試方便，顧客輸入路徑也允許「q」直接退出程式；production 顧客是
@@ -217,16 +234,14 @@ def _build_callbacks(state: _S1State) -> dict:
 
 
 def main():
-    """S1 v2 入口。"""
-    # 強制 stdin 用 UTF-8 + errors='replace'，繞過 TextIOWrapper buffer 殘留 partial
-    # multibyte byte 造成的 UnicodeDecodeError。背景：2026-05-27 Pi 實測使用者輸入
-    # 「刮刮樂冰紅茶」時 input() 於 byte 0xe5 (UTF-8 leading byte) 報「invalid
-    # continuation byte」— 此訊息邏輯上矛盾（0xe5 應期待 continuation 跟其後而
-    # 非反過來），唯一解釋是 stdin 內部 buffer 殘留前輪 partial UTF-8 序列、
-    # 把新一輪 leading byte 當作期待中的 continuation。reconfigure errors='replace'
-    # 把無效 byte 換成 U+FFFD (�) 不 raise，input 仍走 normalize_input + NLU pipe；
-    # 即使含 � 進 NLU 也比「一次 timeout 就退 dialog」友善。
-    sys.stdin.reconfigure(encoding="utf-8", errors="replace")
+    """S1 v2 入口。
+
+    S6（2026-05-28）起 stdin 由 `myProgram.input_reader` daemon thread 透過
+    `sys.stdin.buffer.readline()` 拿 bytes 自己 `decode(errors="replace")`，
+    繞過 TextIOWrapper buffer 邏輯 → 徹底消除舊版 reconfigure hack 處理的
+    「partial multibyte 殘留」bug class（2026-05-27 Pi「刮刮樂冰紅茶」於 0xe5
+    raise「invalid continuation byte」案例）。
+    """
     print("=" * 50)
     print("Project_01 互動式銷售輔助機器人 — S1 v2 模擬模式")
     print("（純單線程對話、無語音 / 動作 / OpenCV / 廠商 SDK）")
@@ -272,6 +287,15 @@ def main():
             action.shutdown()
         except ImportError:
             pass  # Windows / pytest 無 vendor SDK，無 action module 可用
+        # S6：程式退出時清 input_reader queue 殘留（對齊 tts/action shutdown 對稱性）。
+        # input_reader 純 stdlib（queue / threading / sys），理論不會 ImportError；
+        # 保留 try/except 跟 tts/action shutdown 結構對稱、防呆。daemon=True 隨主程式
+        # 退出自動 die，不需 join。
+        try:
+            from myProgram import input_reader
+            input_reader.shutdown()
+        except ImportError:
+            pass  # 理論不會發生（純 stdlib），結構對稱用
 
 
 if __name__ == "__main__":

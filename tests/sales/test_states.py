@@ -159,12 +159,17 @@ def test_sub_a_only_calls_mute_no_unmute_no_speak() -> None:
 # ============================================================
 
 class FakeKeyboardInput:
-    """模擬鍵盤輸入序列。每次 read() 回下一個 key。"""
+    """模擬鍵盤輸入序列。每次 read() 回下一個 key。
+
+    S6（2026-05-28）：read() signature 加 timeout 參數對齊 production
+    `read_terminal_key(timeout=0.1)`（input_reader-based polling）。測試用
+    list pop，不關心 timeout 值，純接收後忽略。
+    """
 
     def __init__(self, key_sequence: list) -> None:
         self._keys = list(key_sequence)
 
-    def read(self) -> str:
+    def read(self, timeout=None) -> str:
         return self._keys.pop(0) if self._keys else ""
 
 
