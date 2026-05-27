@@ -34,6 +34,7 @@ from myProgram.sales.constants import (
     L2_B3_THIRD_REJECT,
     L2_C_ADDED,
     L3_ENTRY_PROMPT,
+    L2_TO_L3_TRANSITION,
     L3_REJECT_THANKS,
     L3_B1_CLARIFY,
     L3_REASK,
@@ -1137,7 +1138,7 @@ def test_l2_b3_silence_interrupted_by_response_reruns_dispatch() -> None:
     assert cart_module.get_quantity(cart, "冰紅茶") == 1, (
         f"cart 應加入冰紅茶 ×1，實際：{cart}"
     )
-    assert L2_C_ADDED in speak_calls, "應 speak L2_C_ADDED"
+    assert L2_TO_L3_TRANSITION in speak_calls, "應 speak L2_TO_L3_TRANSITION（合成 voice）"
 
 
 # ============================================================
@@ -1255,7 +1256,7 @@ def test_l2_b3_third_think_skips_silence_and_triggers_reject() -> None:
 # Scenario: 顧客回應冰紅茶關鍵字加 1 杯入 cart 並進 L3
 # Given L2 等待顧客回應中，cart 為空
 # When 顧客輸入「冰紅茶」（命中商品 — 冰紅茶，無數量描述）
-# Then 數量解析為 1（預設），cart = {冰紅茶: 1}，系統 speak L2_C_ADDED，轉到 L3
+# Then 數量解析為 1（預設），cart = {冰紅茶: 1}，系統 speak L2_TO_L3_TRANSITION（合成 voice），轉到 L3
 # ============================================================
 
 def test_l2_c_iced_tea_default_quantity_adds_cart_and_goes_l3() -> None:
@@ -1282,7 +1283,7 @@ def test_l2_c_iced_tea_default_quantity_adds_cart_and_goes_l3() -> None:
     assert cart_module.get_quantity(cart, "冰紅茶") == 1, (
         f"cart 應有冰紅茶 ×1，實際：{cart}"
     )
-    assert L2_C_ADDED in speak_calls, "應 speak L2_C_ADDED"
+    assert L2_TO_L3_TRANSITION in speak_calls, "應 speak L2_TO_L3_TRANSITION（合成 voice）"
 
 
 # ============================================================
@@ -1427,7 +1428,7 @@ def test_l2_c_iced_tea_no_quantity_asks_then_uses_followup() -> None:
     assert any("冰紅茶" in s and "瓶" in s for s in speak_calls), (
         f"應 speak 追問「請問冰紅茶要幾瓶？」風格語音，實際：{speak_calls}"
     )
-    assert L2_C_ADDED in speak_calls
+    assert L2_TO_L3_TRANSITION in speak_calls
 
 
 def test_l2_c_scratch_card_adds_cart_and_goes_l3() -> None:
@@ -3914,7 +3915,7 @@ def test_dialog_empty_to_nonempty_transitions_mode_internally() -> None:
     """cart 由空變非空，dialog 主迴圈下一輪自動切 L3 mode (cart-state-driven 核心驗證)。"""
     speak_calls: list = []
     cart = cart_module.new_cart()
-    # 加紅茶 → cart 變非空 → L2_C_ADDED 先 speak（cart 從空變非空才用此語音）
+    # 加紅茶 → cart 變非空 → L2_TO_L3_TRANSITION speak（合成 voice，cart 從空變非空才用此語音）
     # 後續 None None → cart 已非空，C-2 → L4
     customer_input = FakeCustomerInput(["紅茶 1", None, None])
 
@@ -3932,13 +3933,9 @@ def test_dialog_empty_to_nonempty_transitions_mode_internally() -> None:
     assert next_state == "L4"
     # 進 dialog 時 cart 空 → L2 entry
     assert L2_ENTRY_PROMPT in speak_calls
-    # 加完商品 cart 非空 → L2_C_ADDED（首次加單語音）
-    assert L2_C_ADDED in speak_calls
-    # cart 從空變非空後必須補播 L3_ENTRY_PROMPT（規格書 L2.md 鏈路 C「進 L3」+ L3.md 進入時動作）
-    # 漏播會讓顧客以為對話結束、6s timeout 直接進 C-2 自動結帳（2026-05-25 實機踩到 bug）
-    assert L3_ENTRY_PROMPT in speak_calls
-    # 順序：L2_C_ADDED 必須在 L3_ENTRY_PROMPT 之前（先報「已加入」再問「還要嗎」）
-    assert speak_calls.index(L2_C_ADDED) < speak_calls.index(L3_ENTRY_PROMPT)
+    # 加完商品 cart 非空 → L2_TO_L3_TRANSITION（合成 voice 取代原 L2_C_ADDED + L3_ENTRY_PROMPT
+    # 兩條獨立 speak；S4 非阻塞 worker 兩條間 ALSA drain 停頓問題解除，順序 implicit 在合成常數內）
+    assert L2_TO_L3_TRANSITION in speak_calls
 
 
 def test_dialog_empty_cart_checkout_intent_treated_as_unclear() -> None:
@@ -4536,7 +4533,7 @@ def test_resolve_and_add_products_single_huge_qty_caps_and_speaks() -> None:
     speak_calls: list = []
     cart = cart_module.new_cart()
     # cart 空 → "紅茶 100"（一次給超量）→ cap 50 加入 + speak →
-    # added=True → speak L2_C_ADDED + L3_ENTRY_PROMPT → continue 主迴圈 →
+    # added=True → speak L2_TO_L3_TRANSITION（合成 voice）→ continue 主迴圈 →
     # 後續 FakeCustomerInput 序列耗盡返 None → L3 timeout → C-2 → None → ("L4", 0)
     customer_input = FakeCustomerInput(["紅茶 100"])
 
@@ -4924,11 +4921,11 @@ def test_dialog_l3_action_triggered_on_main_loop_transition() -> None:
 
     Bug fix（2026-05-27 Pi demo 實測）：原 S3 只在 run_dialog entry 跑 do_action，
     顧客在 L2 加單成功後系統繼續對話到 L3 但沒重跑動作。修補後 main_loop
-    `was_empty` 分支內 speak(L2_C_ADDED) 前插 do_action(ACTION_L3)。
+    `was_empty` 分支內 speak(L2_TO_L3_TRANSITION) 前插 do_action(ACTION_L3)。
     """
     do_action_calls: list = []
     cart = cart_module.new_cart()  # 空 cart → 進 L2 mode → entry ACTION_L2
-    # 「紅茶 1」一個輸入加單成功 → cart 非空 → speak L2_C_ADDED + L3_ENTRY_PROMPT
+    # 「紅茶 1」一個輸入加單成功 → cart 非空 → speak L2_TO_L3_TRANSITION（合成 voice）
     # 後續 main_loop timeout → C-2 自動結帳進 L4
     customer_input = FakeCustomerInput(["紅茶 1"])
 

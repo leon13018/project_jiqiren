@@ -6,6 +6,7 @@
 
 __all__ = [
     "L3_ENTRY_PROMPT",
+    "L2_TO_L3_TRANSITION",
     "L3_REJECT_THANKS",
     "L3_B1_CLARIFY",
     "L3_REASK",
@@ -24,6 +25,13 @@ __all__ = [
 
 # L3 進入時詢問語音（詢問額外需求）
 L3_ENTRY_PROMPT: str = "請問還有額外需要購買的嗎？"
+
+# L2→L3 加單成功 transition 的合成 voice（短逗號連貫，TTS 中間不斷）。
+# 取代原本兩條連續 speak(L2_C_ADDED) + speak(L3_ENTRY_PROMPT) 模式：
+# S4 非阻塞 worker 兩條間有「synth + ALSA drain 0.3s」停頓，合成一條 → 一次 synth
+# + 自然句內逗號短停頓，使用者實機 demo 反饋更流暢。僅用於 cart 從空→非空 transition；
+# 其他 path（cart 一進來就非空的 entry / L3 沉默 reask）仍用獨立的 L3_ENTRY_PROMPT。
+L2_TO_L3_TRANSITION: str = "好的，已加入購物車，請問還有額外需要購買的嗎？"
 
 # L3 鏈路 A 拒絕語音（整單作廢）
 L3_REJECT_THANKS: str = "好的，取消這次購物，謝謝光臨"

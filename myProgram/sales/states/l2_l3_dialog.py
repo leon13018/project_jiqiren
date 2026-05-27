@@ -39,9 +39,9 @@ from myProgram.sales.constants import (
     L2_B1_CLARIFY,
     L2_B3_REASK,
     L2_B3_THIRD_REJECT,
-    L2_C_ADDED,
     L2_UNCLEAR_REJECT_VOICE,
     L3_ENTRY_PROMPT,
+    L2_TO_L3_TRANSITION,
     L3_REJECT_THANKS,
     L3_B1_CLARIFY,
     L3_REASK,
@@ -237,15 +237,15 @@ def _dialog_dispatch_inner_l2(
             classify_intent_mode="l2",
         )
         if added:
-            # cart 從空 → 非空：補播 L3_ENTRY_PROMPT 銜接到 L3 模式
-            # （與主迴圈 transition 行為一致，見規格書 L2.md 鏈路 C「進 L3」）
+            # cart 從空 → 非空：speak L2_TO_L3_TRANSITION（合成 voice，原 L2_C_ADDED +
+            # L3_ENTRY_PROMPT 兩條 speak 合併為一句連貫播報，S4 非阻塞 worker 兩條間
+            # 「synth + ALSA drain 0.3s」停頓問題解除；見規格書 L2.md 鏈路 C「進 L3」）
             # B11：沉默期內加單同樣是 L2→L3 切換點，think_count 交由主迴圈 caller 處理
             # （_dialog_dispatch_inner_l2 不直接改 think_count；回 None 後主迴圈
             #  下一輪 was_empty 已為 False，think_count reset 在主迴圈 was_empty 分支已處理）
             # S3 同步動作（2026-05-27 fix）：L2→L3 transition 觸發 ACTION_L3，跟主迴圈一致
             do_action(ACTION_L3)
-            speak(L2_C_ADDED)
-            speak(L3_ENTRY_PROMPT)
+            speak(L2_TO_L3_TRANSITION)
             return None
         speak(L2_B3_REASK)
         return None
@@ -580,9 +580,10 @@ def _dialog_main_loop(
                 classify_intent_mode=nlu_mode,
             )
             if added:
-                # cart 從空 → 非空：speak L2_C_ADDED + L3_ENTRY_PROMPT
-                #   （規格書 L2.md 鏈路 C「進 L3」+ L3.md 進入時動作；
-                #    漏播 L3_ENTRY_PROMPT 會讓顧客以為對話結束，6s timeout 直接觸發 C-2 自動結帳）
+                # cart 從空 → 非空：speak L2_TO_L3_TRANSITION（合成 voice，原 L2_C_ADDED +
+                # L3_ENTRY_PROMPT 兩條 speak 合併為一句連貫播報，S4 非阻塞 worker 兩條間
+                # 「synth + ALSA drain 0.3s」停頓問題解除；見規格書 L2.md 鏈路 C「進 L3」+ L3.md 進入時動作；
+                # 漏播會讓顧客以為對話結束、6s timeout 直接觸發 C-2 自動結帳）
                 # cart 已非空：speak L3_REASK（額外加單後重問）
                 if was_empty:
                     # B11：L2→L3 cart-state 切換點 reset think_count
@@ -592,8 +593,7 @@ def _dialog_main_loop(
                     # S3 同步動作（2026-05-27 fix）：L2→L3 transition 觸發 ACTION_L3
                     # — 修補「只在 run_dialog entry 跑」漏洞（Pi demo 實測 L2 加單後沒跑動作）
                     do_action(ACTION_L3)
-                    speak(L2_C_ADDED)
-                    speak(L3_ENTRY_PROMPT)
+                    speak(L2_TO_L3_TRANSITION)
                 else:
                     speak(L3_REASK)
                 continue
