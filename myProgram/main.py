@@ -158,20 +158,22 @@ def _build_callbacks(state: _S1State) -> dict:
         tts.speak(text)
 
     def do_action(name):
-        """S3 同步動作 callback：lazy import 廠商 SDK + Act.runAction 阻塞至播完。
+        """S5 非阻塞動作 callback：lazy import action 模組 + enqueue 立即返回。
 
-        對齊 speak callback 的 lazy import pattern — 廠商 SDK 頂層 import 在
-        Windows pytest 環境會 ModuleNotFoundError（pigpio / RPi.GPIO 等 Pi-only
-        依賴）；放函式內讓 Windows 可 import _build_callbacks 不 triggers，Pi
-        端首次呼叫時才實際 import 並 fail-fast。
+        對齊 speak callback 的 lazy import pattern — action 模組頂層雖無 vendor
+        import，但 module-level 建 worker singleton 會啟動 daemon thread；放函式
+        內讓 Windows pytest 可 import _build_callbacks 不觸發 worker 啟動。
+
+        對比 S3 同步版：對外 signature 不變（接 name、回 None），但行為從
+        「阻塞至動作播完（2-5 秒）」改為「立即返回（背景 worker 排隊播）」—
+        動作 + 語音可真正並行（S3 主線程被 runAction 卡死的問題解除）。
 
         Args:
             name: 動作組名（對應 /home/pi/TonyPi/ActionGroups/<name>.d6a）
                 從 myProgram.sales.constants.actions 取常數，不寫死字串。
         """
-        from myProgram.vendor import ActionGroupControl as Act  # lazy（Pi-only）
-        print(f"[動作] {name}")  # S3 chat-driven 提示，跟 speak 印 [語音] 對齊
-        Act.runAction(name)  # 同步阻塞至動作播完（典型 2-5 秒）
+        from myProgram import action  # lazy（避免 import _build_callbacks 觸發 worker start）
+        action.do(name)  # action.do 內自己印 [動作] xxx + enqueue（不阻塞）
 
     # === 時間 / 程式控制 ===
     def sleep(seconds):
@@ -257,6 +259,19 @@ def main():
             tts.shutdown()
         except ImportError:
             pass  # Windows / pytest 無 edge_tts，無 tts module 可用
+        # S5：程式退出時清 action queue + 守衛呼叫 Act.stopAction（sticky 旗號
+        # 處理見 [[vendor-stop-action-sticky]] memory）。跟 tts.shutdown 對稱
+        # — Windows pytest 環境無 vendor SDK（pigpio / RPi.GPIO 等 Pi-only），
+        # import action 觸發 module-level _worker 建立時若意外 reach 到 vendor
+        # import 會 ImportError；swallow 即可（finally 內不該因 cleanup 失敗
+        # 反過來污染主流程）。實際上 action 頂層不 import vendor，worker thread
+        # 內第一次 dispatch 才 import — 純 import action 模組本身在 Windows 也
+        # 不會 ImportError；但保留 try/except 跟 tts.shutdown 結構對稱、防呆。
+        try:
+            from myProgram import action
+            action.shutdown()
+        except ImportError:
+            pass  # Windows / pytest 無 vendor SDK，無 action module 可用
 
 
 if __name__ == "__main__":
