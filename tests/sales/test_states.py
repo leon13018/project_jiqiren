@@ -4916,3 +4916,90 @@ def test_l5_entry_calls_do_action_after_thanks() -> None:
     assert sleep_calls == [THANK_DELAY], (
         f"sleep 應被以 THANK_DELAY 呼叫一次，實際：{sleep_calls}"
     )
+
+
+def test_dialog_l3_action_triggered_on_main_loop_transition() -> None:
+    """L2→L3 transition（main_loop 路徑）：顧客在主迴圈說商品 → cart 從空變非空 → 觸發 ACTION_L3。
+
+    Bug fix（2026-05-27 Pi demo 實測）：原 S3 只在 run_dialog entry 跑 do_action，
+    顧客在 L2 加單成功後系統繼續對話到 L3 但沒重跑動作。修補後 main_loop
+    `was_empty` 分支內 speak(L2_C_ADDED) 前插 do_action(ACTION_L3)。
+    """
+    do_action_calls: list = []
+    cart = cart_module.new_cart()  # 空 cart → 進 L2 mode → entry ACTION_L2
+    # 「紅茶 1」一個輸入加單成功 → cart 非空 → speak L2_C_ADDED + L3_ENTRY_PROMPT
+    # 後續 main_loop timeout → C-2 自動結帳進 L4
+    customer_input = FakeCustomerInput(["紅茶 1"])
+
+    states.run_dialog(
+        speak=lambda text: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda name: do_action_calls.append(name),
+    )
+
+    # Assert：entry ACTION_L2 一次 + main_loop transition ACTION_L3 一次
+    assert do_action_calls == [ACTION_L2, ACTION_L3], (
+        f"L2→L3 main_loop transition 應 do_action 序列 [ACTION_L2, ACTION_L3]，"
+        f"實際：{do_action_calls}"
+    )
+
+
+def test_dialog_l3_action_triggered_on_silence_transition() -> None:
+    """L2→L3 transition（silence 路徑）：顧客在 B-3 沉默期內加單 → 觸發 ACTION_L3。
+
+    覆蓋 _dialog_dispatch_inner_l2 內 added 分支的 do_action 插入點（main_loop 是另一條路徑）。
+    """
+    do_action_calls: list = []
+    cart = cart_module.new_cart()
+    # ["想一下" → 進 B-3 silence, "紅茶 1" → silence 期內加單 → trigger ACTION_L3]
+    # silence 結束回 main_loop continue → 下次 timeout → C-2 進 L4
+    customer_input = FakeCustomerInput(["想一下", "紅茶 1"])
+
+    states.run_dialog(
+        speak=lambda text: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda name: do_action_calls.append(name),
+    )
+
+    # Assert：entry ACTION_L2 + silence transition ACTION_L3
+    assert do_action_calls == [ACTION_L2, ACTION_L3], (
+        f"L2→L3 silence transition 應 do_action 序列 [ACTION_L2, ACTION_L3]，"
+        f"實際：{do_action_calls}"
+    )
+
+
+def test_dialog_l3_action_NOT_triggered_on_subsequent_add() -> None:
+    """cart 已非空時加單（L3 內加更多商品）→ 不重跑 ACTION_L3。
+
+    設計規範：每層只 entry 一次跑動作；L3 內後續加單只 speak L3_REASK，
+    不重跑動作（避免每次加單都動，servo 過熱風險）。
+    """
+    do_action_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 2)  # cart 非空 → entry 走 L3 mode 跑 ACTION_L3
+    # 「刮刮樂 3」L3 內加新商品 → cart 仍非空 → speak L3_REASK，**不**跑 do_action
+    # 後續 timeout → C-2 進 L4
+    customer_input = FakeCustomerInput(["刮刮樂 3"])
+
+    states.run_dialog(
+        speak=lambda text: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda name: do_action_calls.append(name),
+    )
+
+    # Assert：只 entry 跑 ACTION_L3 一次，後續加單不重跑
+    assert do_action_calls == [ACTION_L3], (
+        f"L3 內後續加單不應重跑 ACTION_L3，預期 [ACTION_L3]，實際：{do_action_calls}"
+    )
