@@ -58,13 +58,17 @@ def _build_callbacks(state: _S1State) -> dict:
         """
         print(">>> [模擬提示] 叫賣模式只接受兩個鍵：'c' = 模擬 OpenCV 偵測顧客 → 轉 L2；'q' = 退出程式。其他輸入會被忽略。<<<")
 
-    def read_terminal_key(timeout=0.1):
-        """讀商家鍵盤輸入（非阻塞 polling；嚴格匹配整段；多字元自動失配被 caller 忽略）。
+    def read_terminal_key(timeout=None):
+        """讀商家鍵盤輸入（嚴格匹配整段；多字元自動失配被 caller 忽略）。
 
         S6（incremental-rebuild 第 6 步）改造：原本 `input()` 阻塞 → 改透過
         `input_reader.read(timeout)` 從 daemon reader thread 的 queue 取。
-        預設 timeout=0.1s 是 hawk 主迴圈 polling cadence — 主線程不再被阻塞，
-        OpenCV dwell check / TTS worker / action worker 等可真正並行推進。
+
+        **預設 timeout=None（無限阻塞等鍵）**：適用主選單 / standby 兩個 caller
+        — 它們期待「使用者按鍵才繼續」語意，busy polling 會每 100ms 重印 banner
+        造成洗版（2026-05-28 Pi 實機踩到的 hot fix；之前 default 設 0.1 是設計錯誤）。
+        hawk 主迴圈必須跟 OpenCV polling 並行，**caller 顯式傳 timeout=0.1**
+        走 polling cadence（見 l1._run_l1_hawk）。
 
         timeout 內無輸入 → input_reader 返回 None → 本函式回 ""（對齊既有「無輸入」
         語意，caller 走 fallback；舊 EOFError 路徑也是回 ""，行為相容）。

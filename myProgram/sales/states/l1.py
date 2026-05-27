@@ -251,8 +251,11 @@ def _run_l1_hawk(
         # 檢查 OpenCV dwell（有無顧客持續停留）
         if opencv_dwell_seconds() >= OPENCV_DWELL:
             return "L2"
-        # 讀鍵（non-blocking；測試以序列模擬）
-        key = read_terminal_key()
+        # 讀鍵（hawk 模式必須跟 OpenCV polling 並行，顯式傳 timeout=0.1
+        # 走 polling cadence；無輸入返回 ""，下一輪 check dwell + 再讀。
+        # 2026-05-28 hot fix：之前 read_terminal_key default=0.1 連累主選單 /
+        # standby 兩個 caller busy loop，default 已改 None；hawk 這裡顯式傳）
+        key = read_terminal_key(timeout=0.1)
         if key == "q":
             # C14：第一次 q 印提示，第二次 q 才真退
             if _handle_q_press(exit_program, print_terminal):
