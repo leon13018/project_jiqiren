@@ -114,7 +114,6 @@ def run(
         _assert_cart_nonempty(cart, "進 L5（從 L4-A 帶 cart）")
         next_state, _, _ = states.run_l5(
             speak=speak,
-            mute_opencv=mute_opencv,
             cart=cart,
             sleep=sleep,
         )

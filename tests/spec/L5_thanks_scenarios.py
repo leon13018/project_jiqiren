@@ -12,8 +12,6 @@ L5 設計約束（最簡單一層）：
     - **唯一進入**：L4 鏈路 A 掃碼成功
     - **無顧客互動**：3s 等待期間不接受任何顧客輸入（除全域 q 退出，屬主迴圈級）
     - **唯一出口**：3s 後自動套用 L0 子例程 A 回 L1
-    - **OpenCV mute**：L5 進入時 mute THANK_DELAY(3s)，與子例程 A 自身 mute OPENCV_MUTE(12s)
-      串接形成總 15s 屏蔽期，防下一顧客在致謝期間誤觸 L2
     - **cart 清空**：L5 進入時清空（規格敲定 — vs L4-A 不清，由 L5 統一負責）
 
 callback 集合（subagent 自決細節）：
@@ -32,16 +30,6 @@ loop_count 與 unclear_count reset 為 0）
 # ============================================================
 # L5-ENTRY：進入時動作（4 個獨立可驗證行為，但「do_action」TBD 不入測試）
 # ============================================================
-
-## L5-ENTRY-001
-### Scenario: 進入 L5 立即啟動 OpenCV mute 屏蔽致謝期間
-### Given 從 L4 鏈路 A（掃碼成功）進入 L5
-### When run_l5 啟動執行進入時動作
-### Then mute_opencv 被呼叫一次，屏蔽 THANK_DELAY（3）秒
-###      （與子例程 A 自身 mute OPENCV_MUTE 串接形成總 15s 屏蔽期）
-def test_l5_entry_mutes_opencv_for_thank_delay() -> None:
-    pass
-
 
 ## L5-ENTRY-002
 ### Scenario: 進入 L5 播致謝語音

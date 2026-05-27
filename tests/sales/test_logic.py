@@ -249,7 +249,7 @@ def test_logic_l5_exit_with_empty_cart_triggers_subroutine_a(monkeypatch):
         # L4-A：掃碼成功，不清 cart（L5 負責清）
         return ("L5", 0, 0)
 
-    def stub_run_l5(*, speak, mute_opencv, cart, sleep):
+    def stub_run_l5(*, speak, cart, sleep):
         # L5 清 cart（正常行為）
         cart.clear()
         return ("L1", 0, 0)

@@ -5,7 +5,6 @@
     - L0-SUB-A-002：OPENCV_MUTE 秒後 OpenCV 恢復且立即播第 1 組叫賣
     - L0-SUB-A-003：第一輪叫賣後每 HAWK_INTERVAL 秒換下一組
     - L0-SUB-A-004：連續輪替超過 6 組時以 mod 6 回到第 1 組
-    - L5-ENTRY-001：進入 L5 立即啟動 OpenCV mute 屏蔽致謝期間
     - L5-ENTRY-002：進入 L5 播致謝語音
     - L5-ENTRY-003：進入 L5 清空 cart 完成交易重置
     - L5-A-001：等待 THANK_DELAY 秒後自動套用子例程 A 回 L1
@@ -3181,40 +3180,6 @@ def test_l4_e_third_unknown_auto_enters_service_mode() -> None:
 
 
 # ============================================================
-# L5-ENTRY-001
-# ============================================================
-
-## L5-ENTRY-001
-### Scenario: 進入 L5 立即啟動 OpenCV mute 屏蔽致謝期間
-### Given 從 L4 鏈路 A（掃碼成功）進入 L5
-### When run_l5 啟動執行進入時動作
-### Then mute_opencv 被呼叫一次，屏蔽 THANK_DELAY（3）秒
-def test_l5_entry_mutes_opencv_for_thank_delay() -> None:
-    # Arrange
-    mute_calls: list = []
-    speak_calls: list = []
-    sleep_calls: list = []
-    cart: dict = {"冰紅茶": 2, "刮刮樂": 1}
-
-    # Act
-    states.run_l5(
-        speak=lambda text: speak_calls.append(text),
-
-        mute_opencv=lambda secs: mute_calls.append(secs),
-        cart=cart,
-        sleep=lambda secs: sleep_calls.append(secs),
-    )
-
-    # Assert — L5-ENTRY-001：mute_opencv 被呼叫一次，屏蔽 THANK_DELAY 秒
-    assert len(mute_calls) == 1, (
-        f"mute_opencv 應被呼叫一次，實際：{mute_calls}"
-    )
-    assert mute_calls[0] == THANK_DELAY, (
-        f"mute_opencv 應屏蔽 THANK_DELAY={THANK_DELAY} 秒，實際：{mute_calls[0]}"
-    )
-
-
-# ============================================================
 # L5-ENTRY-002
 # ============================================================
 
@@ -3225,7 +3190,6 @@ def test_l5_entry_mutes_opencv_for_thank_delay() -> None:
 ### Then 系統 speak 致謝語音（L5_THANKS 常數）
 def test_l5_entry_speaks_thanks_message() -> None:
     # Arrange
-    mute_calls: list = []
     speak_calls: list = []
     sleep_calls: list = []
     cart: dict = {"冰紅茶": 2, "刮刮樂": 1}
@@ -3233,8 +3197,6 @@ def test_l5_entry_speaks_thanks_message() -> None:
     # Act
     states.run_l5(
         speak=lambda text: speak_calls.append(text),
-
-        mute_opencv=lambda secs: mute_calls.append(secs),
         cart=cart,
         sleep=lambda secs: sleep_calls.append(secs),
     )
@@ -3256,7 +3218,6 @@ def test_l5_entry_speaks_thanks_message() -> None:
 ### Then cart 被清空（cart 內無任何商品）
 def test_l5_entry_clears_cart() -> None:
     # Arrange
-    mute_calls: list = []
     speak_calls: list = []
     sleep_calls: list = []
     cart: dict = {"冰紅茶": 2, "刮刮樂": 1}
@@ -3264,8 +3225,6 @@ def test_l5_entry_clears_cart() -> None:
     # Act
     states.run_l5(
         speak=lambda text: speak_calls.append(text),
-
-        mute_opencv=lambda secs: mute_calls.append(secs),
         cart=cart,
         sleep=lambda secs: sleep_calls.append(secs),
     )
@@ -3291,7 +3250,6 @@ def test_l5_entry_clears_cart() -> None:
 ###      read_customer_input 被呼叫一次當純等待（timeout=THANK_DELAY 秒）
 def test_l5_a_returns_to_l1_via_subroutine_a_after_thank_delay() -> None:
     # Arrange
-    mute_calls: list = []
     speak_calls: list = []
     sleep_calls: list = []
     cart: dict = {"冰紅茶": 2, "刮刮樂": 1}
@@ -3299,8 +3257,6 @@ def test_l5_a_returns_to_l1_via_subroutine_a_after_thank_delay() -> None:
     # Act
     result = states.run_l5(
         speak=lambda text: speak_calls.append(text),
-
-        mute_opencv=lambda secs: mute_calls.append(secs),
         cart=cart,
         sleep=lambda secs: sleep_calls.append(secs),
     )
