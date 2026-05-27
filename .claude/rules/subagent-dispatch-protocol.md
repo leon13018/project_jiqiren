@@ -4,7 +4,7 @@
 
 **派發時機（預設行為）：** plan mode 完成後 → 一律派 subagent（單一任務）/ agent teams（複雜任務）執行，**除非使用者明確要求主 agent 直接寫**。主 agent 留做規劃 / 審查 / 邊界判斷。
 
-**預設模型：** `Agent({model: "sonnet"})`。Agent 工具不接受 `effort` / `thinking` / context window 參數，要 high effort 必須**在 prompt 內明確要求**「extended thinking、仔細思考、嚴格依規範執行」。
+**預設模型：** `Agent({model: "opus"})`，**prompt 內必須明示**「請以 extended thinking + xhigh effort 仔細思考、嚴格依規範執行、寧可慢、不要錯」。Agent 工具不接受 `effort` / `thinking` / context window 參數，xhigh effort 必須靠 prompt 文字達成。**Why 2026-05-28 從 sonnet 改 opus：** [[wave-workflow-6-protections]] 實測 sonnet v1 Wave 7-10 連續踩 4 坑（Gotcha M / 雙寫 main / pytest 失準 / 漏更新 test）vs opus xhigh v2 零坑，既然 opus xhigh 是「跨檔 refactor 安全選項」乾脆預設化，省得每次判斷任務複雜度。**例外：** 純研究 / Explore 類 subagent 仍可手動指定 sonnet（成本考量）。
 
 **派發前必做：**
 

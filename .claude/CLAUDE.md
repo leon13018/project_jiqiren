@@ -32,7 +32,7 @@
 
 ## 👥 Subagent / Agent Teams 派發協議
 
-派發 subagent / team 寫程式時的協議：觸發時機、預設模型 (`Agent({model: "sonnet"})`)、派發前 4 步、派發後審查。
+派發 subagent / team 寫程式時的協議：觸發時機、預設模型 (`Agent({model: "opus"})` + prompt 內塞 extended thinking + xhigh effort)、派發前 4 步、派發後審查。
 → **詳細：`.claude/rules/subagent-dispatch-protocol.md`**
 
 ---

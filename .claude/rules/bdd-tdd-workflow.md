@@ -89,7 +89,7 @@ S1 v2 起，所有 `myProgram/sales/` 內的業務邏輯實作必須走 **BDD sp
    - **testing-anti-patterns**（禁測 mock 行為 / callback stub 用純函式 lambda）
    - **bdd 規範**（scenario ID 對應）
    - 本檔案（bdd-tdd-workflow）對應「subagent 任務描述」段
-3. Subagent 模型：**Sonnet**（subagent-dispatch 預設）
+3. Subagent 模型：**Opus**（subagent-dispatch 預設，prompt 內塞 extended thinking + xhigh effort）
 
 **Subagent 任務描述（必須在 prompt 內明確要求）：**
 
