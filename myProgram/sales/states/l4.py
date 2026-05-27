@@ -118,10 +118,14 @@ def run_l4(
                 )
                 if result is not None:
                     return result  # 取消 → ("L1_via_subroutine_a", 0, 0)
-                # None → 顧客選繼續 → reset counter + QR 刷新 + 回主迴圈
+                # None → 顧客選繼續 → reset counter + QR 刷新 + 重 speak entry + 回主迴圈
+                # 2026-05-27 加 re-speak：對齊 L2/L3 dialog 客服 re-speak fix (a2eee27)
+                # — 顧客只聽語音不看終端，重印明細無法傳達「現在仍在 L4 等掃碼」context，
+                # 必須 speak entry prompt 讓顧客知道下一步動作。
                 loop_count = 0
                 unclear_count = 0
                 _l4_print_entry_detail(cart, total, print_terminal)
+                speak(L4_ENTRY_PROMPT_TEMPLATE.format(total=total))
                 continue
             # 有回應 → 仍走判定優先序
             result = _l4_dispatch_response(
@@ -190,7 +194,11 @@ def run_l4(
         loop_count = 0
         unclear_count = 0
         # QR 刷新：客服繼續後重印金額明細，幫助顧客回到 L4 主場景對齊狀態
+        # 2026-05-27 加 re-speak：對齊 L2/L3 dialog 客服 re-speak fix (a2eee27)
+        # — 顧客只聽語音不看終端，重印明細無法傳達「現在仍在 L4 等掃碼」context，
+        # 必須 speak entry prompt 讓顧客知道下一步動作。
         _l4_print_entry_detail(cart, total, print_terminal)
+        speak(L4_ENTRY_PROMPT_TEMPLATE.format(total=total))
 
 
 def _l4_print_entry_detail(cart, total: int, print_terminal) -> None:
