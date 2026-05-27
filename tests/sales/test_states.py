@@ -4283,11 +4283,11 @@ def test_vague_buy_does_not_increment_unclear_count() -> None:
 
 
 def test_qty_followup_single_quantity_exceeds_cap_speaks_remaining_and_retries() -> None:
-    """顧客單筆 follow-up 說超量（> MAX_QTY_PER_ITEM）→ speak「還可加最多」提示 + 重新追問。"""
+    """顧客單筆 follow-up 說超量（> MAX_QTY_PER_ITEM）→ speak「最多還能點」提示 + 重新追問。"""
     from myProgram.sales.constants import MAX_QTY_PER_ITEM
     speak_calls: list = []
     cart = cart_module.new_cart()
-    # 紅茶（無數量） → 追問 → "100"（超量 50） → speak「還可加最多 50」 → "5" → 加 5
+    # 紅茶（無數量） → 追問 → "100"（超量 50） → speak「最多還能點 50」 → "5" → 加 5
     customer_input = FakeCustomerInput(["紅茶", "100", "5"])
 
     next_state, _ = states.run_dialog(
@@ -4303,9 +4303,9 @@ def test_qty_followup_single_quantity_exceeds_cap_speaks_remaining_and_retries()
     assert cart_module.get_quantity(cart, "冰紅茶") == 5, (
         f"應加 5 瓶（超量 100 被擋後 follow-up 改 5），實際：{dict(cart)}"
     )
-    # 應有「還可加最多 50」提示（cart 為空，remaining = MAX_QTY_PER_ITEM = 50）
-    assert any("還可加最多" in s and str(MAX_QTY_PER_ITEM) in s for s in speak_calls), (
-        f"預期『還可加最多 {MAX_QTY_PER_ITEM}』提示，實際 speak_calls={speak_calls}"
+    # 應有「最多還能點 50」提示（cart 為空，remaining = MAX_QTY_PER_ITEM = 50）
+    assert any("最多還能點" in s and str(MAX_QTY_PER_ITEM) in s for s in speak_calls), (
+        f"預期『最多還能點 {MAX_QTY_PER_ITEM}』提示，實際 speak_calls={speak_calls}"
     )
 
 
@@ -4315,7 +4315,7 @@ def test_qty_followup_cumulative_quantity_exceeds_cap_speaks_remaining() -> None
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 30)  # 預設 cart 已有 30 瓶（L3 場景）
     # 從 L3 入口 → 追問鏈路：「紅茶」(無數量) → "25"（累加 30+25=55 > 50）
-    # → speak「還可加最多 20」 → "15" → 加 15（30+15=45 OK）→ None None timeout → L4
+    # → speak「最多還能點 20」 → "15" → 加 15（30+15=45 OK）→ None None timeout → L4
     customer_input = FakeCustomerInput(["紅茶", "25", "15", None, None])
 
     next_state, _ = states.run_dialog(
@@ -4331,13 +4331,13 @@ def test_qty_followup_cumulative_quantity_exceeds_cap_speaks_remaining() -> None
         f"預期 30 + 15 = 45，實際：{dict(cart)}"
     )
     # remaining = 50 - 30 = 20
-    assert any("還可加最多" in s and "20" in s for s in speak_calls), (
-        f"預期『還可加最多 20』提示，實際 speak_calls={speak_calls}"
+    assert any("最多還能點" in s and "20" in s for s in speak_calls), (
+        f"預期『最多還能點 20』提示，實際 speak_calls={speak_calls}"
     )
 
 
 def test_qty_followup_cart_at_cap_speaks_and_skips_product() -> None:
-    """cart 已達上限（50 瓶冰紅茶）→ 再 follow-up 加 1 瓶 → speak「已達單筆訂單上限」+ skip 此商品。"""
+    """cart 已達上限（50 瓶冰紅茶）→ 再 follow-up 加 1 瓶 → speak「已經點到單筆上限」+ skip 此商品。"""
     from myProgram.sales.constants import MAX_QTY_PER_ITEM
     speak_calls: list = []
     cart = cart_module.new_cart()
@@ -4357,17 +4357,17 @@ def test_qty_followup_cart_at_cap_speaks_and_skips_product() -> None:
     assert cart_module.get_quantity(cart, "冰紅茶") == MAX_QTY_PER_ITEM, (
         f"cart 不應變動（已達上限），實際：{dict(cart)}"
     )
-    assert any("已達單筆訂單上限" in s for s in speak_calls), (
-        f"預期『已達單筆訂單上限』提示，實際 speak_calls={speak_calls}"
+    assert any("已經點到單筆上限" in s for s in speak_calls), (
+        f"預期『已經點到單筆上限』提示，實際 speak_calls={speak_calls}"
     )
 
 
 def test_qty_followup_huge_number_does_not_crash() -> None:
-    """Regression guard — 顧客輸入天文數字「34435454545454545」不該 crash，應走「還可加最多」提示流程。"""
+    """Regression guard — 顧客輸入天文數字「34435454545454545」不該 crash，應走「最多還能點」提示流程。"""
     speak_calls: list = []
     cart = cart_module.new_cart()
     # 紅茶（無數量）→ 追問 → "34435454545454545"（天文數字 > MAX_QTY_PER_ITEM）
-    # → speak「還可加最多 50」 → "3" → 加 3
+    # → speak「最多還能點 50」 → "3" → 加 3
     customer_input = FakeCustomerInput(["紅茶", "34435454545454545", "3"])
 
     next_state, _ = states.run_dialog(
@@ -4384,8 +4384,8 @@ def test_qty_followup_huge_number_does_not_crash() -> None:
         f"天文數字被擋後改 3 應加 3 瓶，實際：{dict(cart)}"
     )
     # 不該 raise AssertionError；應走 speak 提示流程
-    assert any("還可加最多" in s for s in speak_calls), (
-        f"預期『還可加最多』提示，實際 speak_calls={speak_calls}"
+    assert any("最多還能點" in s for s in speak_calls), (
+        f"預期『最多還能點』提示，實際 speak_calls={speak_calls}"
     )
 
 
@@ -4405,7 +4405,7 @@ def test_qty_followup_huge_number_does_not_crash() -> None:
 
 
 def test_resolve_and_add_products_single_huge_qty_caps_and_speaks() -> None:
-    """顧客一次說「紅茶 100」(超 MAX 50) → cap 加入 50 + speak「達單筆上限」通知。"""
+    """顧客一次說「紅茶 100」(超 MAX 50) → cap 加入 50 + speak「達到單筆上限」通知。"""
     from myProgram.sales.constants import MAX_QTY_PER_ITEM
     speak_calls: list = []
     cart = cart_module.new_cart()
@@ -4426,8 +4426,8 @@ def test_resolve_and_add_products_single_huge_qty_caps_and_speaks() -> None:
     assert cart_module.get_quantity(cart, "冰紅茶") == MAX_QTY_PER_ITEM, (
         f"應 cap 為上限 {MAX_QTY_PER_ITEM}，實際：{dict(cart)}"
     )
-    assert any("達單筆上限" in s for s in speak_calls), (
-        f"預期『達單筆上限』提示，實際 speak_calls={speak_calls}"
+    assert any("達到單筆上限" in s for s in speak_calls), (
+        f"預期『達到單筆上限』提示，實際 speak_calls={speak_calls}"
     )
 
 
@@ -4452,8 +4452,8 @@ def test_resolve_and_add_products_cumulative_over_cap_caps_to_remaining() -> Non
     assert cart_module.get_quantity(cart, "冰紅茶") == 50, (
         f"預期 30 + cap(20) = 50，實際：{dict(cart)}"
     )
-    assert any("達單筆上限" in s for s in speak_calls), (
-        f"預期『達單筆上限』提示，實際 speak_calls={speak_calls}"
+    assert any("達到單筆上限" in s for s in speak_calls), (
+        f"預期『達到單筆上限』提示，實際 speak_calls={speak_calls}"
     )
 
 
@@ -4464,7 +4464,7 @@ def test_resolve_and_add_products_at_cap_skips_and_speaks() -> None:
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", MAX_QTY_PER_ITEM)  # 已達上限
     # cart 非空（達上限）→ L3 模式 → "紅茶 5" → resolve for loop remaining=0
-    # → speak「已達單筆訂單上限... 無法再加」+ continue → added_count=0
+    # → speak「已經點到單筆上限... 無法再加」+ continue → added_count=0
     # → resolve 返 False → caller speak L3_REASK → continue → None → C-2 → None → L4
     customer_input = FakeCustomerInput(["紅茶 5"])
 
@@ -4480,8 +4480,8 @@ def test_resolve_and_add_products_at_cap_skips_and_speaks() -> None:
     assert cart_module.get_quantity(cart, "冰紅茶") == MAX_QTY_PER_ITEM, (
         f"cart 不應變動（已達上限），實際：{dict(cart)}"
     )
-    assert any("已達單筆訂單上限" in s and "無法再加" in s for s in speak_calls), (
-        f"預期『已達單筆訂單上限... 無法再加』提示，實際 speak_calls={speak_calls}"
+    assert any("已經點到單筆上限" in s and "無法再加" in s for s in speak_calls), (
+        f"預期『已經點到單筆上限... 無法再加』提示，實際 speak_calls={speak_calls}"
     )
 
 
@@ -4506,8 +4506,8 @@ def test_resolve_and_add_products_huge_number_does_not_crash() -> None:
     assert cart_module.get_quantity(cart, "冰紅茶") == MAX_QTY_PER_ITEM, (
         f"天文數字應 cap 為上限 {MAX_QTY_PER_ITEM}，實際：{dict(cart)}"
     )
-    assert any("達單筆上限" in s for s in speak_calls), (
-        f"預期『達單筆上限』提示，實際 speak_calls={speak_calls}"
+    assert any("達到單筆上限" in s for s in speak_calls), (
+        f"預期『達到單筆上限』提示，實際 speak_calls={speak_calls}"
     )
 
 
@@ -4534,6 +4534,6 @@ def test_resolve_and_add_products_multi_product_partial_cap() -> None:
     assert cart_module.get_quantity(cart, "刮刮樂") == 3, (
         f"刮刮樂應正常加 3，實際：{dict(cart)}"
     )
-    assert any("達單筆上限" in s for s in speak_calls), (
-        f"預期『達單筆上限』提示，實際 speak_calls={speak_calls}"
+    assert any("達到單筆上限" in s for s in speak_calls), (
+        f"預期『達到單筆上限』提示，實際 speak_calls={speak_calls}"
     )

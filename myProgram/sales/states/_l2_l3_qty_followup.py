@@ -70,12 +70,12 @@ def resolve_and_add_products(
             unit = PRODUCTS[product]["單位"]
             if remaining <= 0:
                 # cart 內已達上限 → 完全 skip + speak 通知
-                speak(f"{product}已達單筆訂單上限 {MAX_QTY_PER_ITEM} {unit}，無法再加")
+                speak(f"{product}已經點到單筆上限 {MAX_QTY_PER_ITEM} {unit}，無法再加")
                 continue
             if qty > remaining:
                 # 超量（含天文數字 / 累加超量）→ cap 為 remaining + speak 透明告知
                 cart_module.add_item(cart, product, remaining)
-                speak(f"{product}已加入 {remaining} {unit}（達單筆上限 {MAX_QTY_PER_ITEM} {unit}，您要求的 {qty} 超量）")
+                speak(f"{product}已加入 {remaining} {unit}，已達到單筆上限 {MAX_QTY_PER_ITEM} {unit}，您剛才要的 {qty} {unit}超過上限")
                 added_count += 1
                 continue
             # 正常加入
@@ -137,11 +137,11 @@ def _qty_follow_up_sub_loop(
             remaining = MAX_QTY_PER_ITEM - existing
             if remaining <= 0:
                 # cart 內已達上限 → 無法再加，speak 提示 + skip 此商品
-                speak(f"{product}已達單筆訂單上限 {MAX_QTY_PER_ITEM} {unit}，無法再加")
+                speak(f"{product}已經點到單筆上限 {MAX_QTY_PER_ITEM} {unit}，無法再加")
                 return False
             if qty > remaining:
                 # 顧客單筆超量（含天文數字 / 累加超量）→ speak 剩餘額度 + 重新追問
-                speak(f"{product}還可加最多 {remaining} {unit}（已有 {existing}），請重新告訴我數量")
+                speak(f"{product}最多還能點 {remaining} {unit}，目前累計點了 {existing} {unit}，請重新告訴我數量")
                 continue
             cart_module.add_item(cart, product, qty)
             return True
