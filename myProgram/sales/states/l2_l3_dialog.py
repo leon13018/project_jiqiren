@@ -62,6 +62,7 @@ from myProgram.sales.constants import (
     DIALOG_VAGUE_BUY_REASK,
     ACTION_L2,
     ACTION_L3,
+    ACTION_L3_CHECKOUT_GO,
 )
 from myProgram.sales.nlu import classify_intent, contains_any, equals_strict_short
 from myProgram.sales.product_parser import parse_products
@@ -162,6 +163,7 @@ def _dialog_think_silence_l3(
     read_customer_input,
     cart,
     think_count: int,
+    do_action,
 ) -> tuple | int | None:
     """L3 B-4 想一下沉默期（think_count < 3）：等 6s，有回應重 dispatch；無回應 → 重問。"""
     inner = read_customer_input(timeout=WAIT_NO_RESPONSE)
@@ -175,6 +177,7 @@ def _dialog_think_silence_l3(
         read_customer_input=read_customer_input,
         cart=cart,
         think_count=think_count,
+        do_action=do_action,
     )
 
 
@@ -257,6 +260,7 @@ def _dialog_dispatch_inner_l3(
     read_customer_input,
     cart,
     think_count: int,
+    do_action,
 ) -> tuple | int | None:
     """L3 B-4 沉默期 / C-2 第二段內顧客有回應 → 重跑 L3 mode 判定。
 
@@ -287,6 +291,7 @@ def _dialog_dispatch_inner_l3(
             read_customer_input=read_customer_input,
             cart=cart,
             think_count=think_count,
+            do_action=do_action,
         )
     if intent == "結帳":
         # L3 結帳 → C-1 confirm
@@ -298,6 +303,9 @@ def _dialog_dispatch_inner_l3(
         )
         if result == "yes":
             speak(L3_C1_CHECKOUT_GO)
+            # S3 L3→L4 transition 動作（2026-05-28 加）：指向螢幕引導顧客掃碼視線
+            # 先 speak 再動作 — 跟 L4_PAY / L5_FAREWELL 一致 pattern（聽到語音 → 注意力對齊 → 視線跟指向）
+            do_action(ACTION_L3_CHECKOUT_GO)
             return ("L4", 0)
         _handle_checkout_confirm_result(result, cart, speak)
         return None
@@ -511,6 +519,7 @@ def _dialog_main_loop(
                 read_customer_input=read_customer_input,
                 cart=cart,
                 think_count=think_count,
+                do_action=do_action,
             )
             if isinstance(result, tuple):
                 return result
@@ -538,6 +547,8 @@ def _dialog_main_loop(
             )
             if result == "yes":
                 speak(L3_C1_CHECKOUT_GO)
+                # S3 L3→L4 transition 動作（2026-05-28 加）：指向螢幕引導顧客掃碼視線
+                do_action(ACTION_L3_CHECKOUT_GO)
                 return ("L4", 0)
             # 否認 / timeout → 清空 cart + 對應通知；下一輪 cart 空 → l2 mode → DnC
             _handle_checkout_confirm_result(result, cart, speak)

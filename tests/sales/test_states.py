@@ -4685,6 +4685,7 @@ from myProgram.sales.constants import (
     ACTION_L1_HAWK,
     ACTION_L2,
     ACTION_L3,
+    ACTION_L3_CHECKOUT_GO,
     ACTION_L4_PAY,
     ACTION_L5_FAREWELL,
 )
@@ -5002,4 +5003,62 @@ def test_dialog_l3_action_NOT_triggered_on_subsequent_add() -> None:
     # Assert：只 entry 跑 ACTION_L3 一次，後續加單不重跑
     assert do_action_calls == [ACTION_L3], (
         f"L3 內後續加單不應重跑 ACTION_L3，預期 [ACTION_L3]，實際：{do_action_calls}"
+    )
+
+
+def test_dialog_l3_checkout_go_action_triggered_via_main_loop() -> None:
+    """L3 → L4 transition（main_loop 路徑）：顧客結帳意圖 + confirm yes → ACTION_L3_CHECKOUT_GO。
+
+    2026-05-28 加：使用者要求進 L4 等掃碼前加引導動作（point_screen）。
+    """
+    do_action_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 2)  # cart 非空 → entry L3 mode 跑 ACTION_L3
+    # ["結帳" → main_loop intent=結帳 → checkout_confirm, "對" → yes → speak + do_action → L4]
+    customer_input = FakeCustomerInput(["結帳", "對"])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda name: do_action_calls.append(name),
+    )
+
+    assert next_state == "L4"
+    # Assert：entry ACTION_L3 + L3→L4 transition ACTION_L3_CHECKOUT_GO
+    assert do_action_calls == [ACTION_L3, ACTION_L3_CHECKOUT_GO], (
+        f"L3 → L4 main_loop transition 應 do_action 序列 [ACTION_L3, ACTION_L3_CHECKOUT_GO]，"
+        f"實際：{do_action_calls}"
+    )
+
+
+def test_dialog_l3_checkout_go_action_triggered_via_silence_period() -> None:
+    """L3 → L4 transition（silence path）：silence 期內結帳 + confirm yes → ACTION_L3_CHECKOUT_GO。
+
+    覆蓋 _dialog_dispatch_inner_l3 內結帳 path 的 do_action 插入點（main_loop 是另一條）。
+    """
+    do_action_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 2)  # cart 非空 → entry L3 mode
+    # ["想一下" → 進 B-4 silence, "結帳" → silence 期內 dispatch_inner_l3 intent=結帳,
+    #  "對" → checkout_confirm yes → speak + do_action → L4]
+    customer_input = FakeCustomerInput(["想一下", "結帳", "對"])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda name: do_action_calls.append(name),
+    )
+
+    assert next_state == "L4"
+    assert do_action_calls == [ACTION_L3, ACTION_L3_CHECKOUT_GO], (
+        f"L3 → L4 silence transition 應 do_action 序列 [ACTION_L3, ACTION_L3_CHECKOUT_GO]，"
+        f"實際：{do_action_calls}"
     )

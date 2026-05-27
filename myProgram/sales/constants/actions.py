@@ -13,6 +13,7 @@ __all__ = [
     "ACTION_L1_HAWK",
     "ACTION_L2",
     "ACTION_L3",
+    "ACTION_L3_CHECKOUT_GO",
     "ACTION_L4_PAY",
     "ACTION_L5_FAREWELL",
 ]
@@ -25,6 +26,12 @@ ACTION_L2: str = "L2"
 
 # L3 dialog entry（cart 非空，加單 / 結帳分支） — 使用者自訂 .d6a
 ACTION_L3: str = "L3"
+
+# L3 → L4 transition（結帳確認通過，進 L4 等掃碼）— 指向螢幕引導顧客掃碼視線（廠商原生動作）
+# 2026-05-28 加：Pi demo 後使用者要求補一個「進 L4 等掃碼」的引導動作 — 跟 speak
+# 「好的，為您結帳」同步，用 point_screen 把顧客視線拉到螢幕，引導掃碼流程。
+# 命名跟 L3_C1_CHECKOUT_GO speak 變數對齊。
+ACTION_L3_CHECKOUT_GO: str = "point_screen"
 
 # L4 鏈路 A 掃碼付款成功 — 鞠躬致謝（廠商原生動作）
 ACTION_L4_PAY: str = "bow"
