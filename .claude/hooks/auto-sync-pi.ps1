@@ -67,17 +67,28 @@ if (-not (Test-Path $logDir)) {
 try {
     & $syncScript 2>&1 | Out-File -FilePath $logFile -Append -Encoding utf8
     "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] sync_pi.ps1 completed" | Out-File -FilePath $logFile -Append -Encoding utf8
+} catch {
+    # 注意：實測 sync_pi.ps1 內 ssh git pull 寫 "From https://github.com/..." 進度訊息
+    # 進 stderr，PowerShell ($ErrorActionPreference=Stop) 會把此 ErrorRecord 拋來這裡。
+    # 但 git pull 本身**仍會成功**（只是 progress msg 被當 error）—這標籤是誤標。
+    "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] sync_pi.ps1 ERROR: $_" | Out-File -FilePath $logFile -Append -Encoding utf8
+}
 
-    # 2026-05-27 加：sync 後清 Pi 端 __pycache__，避免 stale .pyc 攔截 latest source。
-    # 背景：Pi 實機 reproduce 顯示 git pull 拉到 latest source 但 Python 仍 import
-    # cached .pyc（NLU HP-1「沒」strict_short → 結帳 修補不生效，「沒」走 unclear）。
-    # 清光 __pycache__ 後 Python 強制重新 compile latest source。
-    # idempotent — 沒有 __pycache__ 也只是 find 返 0 個結果，cost ~50ms SSH latency。
+# 2026-05-27 加：sync 後清 Pi 端 __pycache__，避免 stale .pyc 攔截 latest source。
+# 背景：Pi 實機 reproduce 顯示 git pull 拉到 latest source 但 Python 仍 import
+# cached .pyc（NLU HP-1「沒」strict_short → 結帳 修補不生效，「沒」走 unclear）。
+# 清光 __pycache__ 後 Python 強制重新 compile latest source。
+# idempotent — 沒有 __pycache__ 也只是 find 返 0 個結果，cost ~50ms SSH latency。
+#
+# **獨立 try/catch（不接前面 sync_pi.ps1 的 try）**：因為 sync_pi.ps1 內 ssh
+# git pull 的 stderr progress msg 會被 PowerShell 當 ErrorRecord 拋進前一個 catch，
+# 害這條清理也被跳過。獨立 try 確保「sync 即使被誤標 error 也仍清 pycache」。
+try {
     "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Clearing Pi __pycache__ ..." | Out-File -FilePath $logFile -Append -Encoding utf8
     ssh "pi@raspberrypi.local" "find /home/pi/Desktop/project_jiqiren -name '__pycache__' -type d -exec rm -rf {} +" 2>&1 | Out-File -FilePath $logFile -Append -Encoding utf8
     "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Pi __pycache__ cleared" | Out-File -FilePath $logFile -Append -Encoding utf8
 } catch {
-    "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] sync_pi.ps1 ERROR: $_" | Out-File -FilePath $logFile -Append -Encoding utf8
+    "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Pi __pycache__ clean ERROR: $_" | Out-File -FilePath $logFile -Append -Encoding utf8
 }
 
 exit 0
