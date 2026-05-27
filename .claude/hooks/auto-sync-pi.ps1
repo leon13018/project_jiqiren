@@ -64,14 +64,30 @@ if (-not (Test-Path $logDir)) {
 "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Triggered by: $cmd" | Out-File -FilePath $logFile -Append -Encoding utf8
 
 # 跑 sync_pi.ps1（output 也進 log）
+#
+# 2026-05-27 修：之前用 `try { ... } catch` + `$ErrorActionPreference='Stop'` 在處理 `2>&1` 時會
+# 把 native command（ssh / git）的 stderr 包成 ErrorRecord 進 pipeline → 觸發 terminating error
+# → 跳到 catch。實測踩到兩種 stderr 雜訊：(1) `git pull` 印 "From https://github.com/..." 進度訊息；
+# (2) OpenSSH 新版量子安全警告「This session may be vulnerable to "store now, decrypt later"
+# attacks. ** The server may need to be upgraded.」。兩者都不是真錯誤，但都會 trigger 誤標
+# 並中斷後續流程（特別是 pycache 清理被跳過 → demo 跑 stale .pyc）。
+#
+# 修法：inline 切 ErrorActionPreference='Continue' 跑 native command，改用 $LASTEXITCODE
+# 判斷成功失敗（這是 native command 才有的可靠指標）；finally 恢復原 EAP。
+$eapBackup = $ErrorActionPreference
 try {
+    $ErrorActionPreference = 'Continue'
     & $syncScript 2>&1 | Out-File -FilePath $logFile -Append -Encoding utf8
-    "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] sync_pi.ps1 completed" | Out-File -FilePath $logFile -Append -Encoding utf8
+    $syncExit = $LASTEXITCODE
+    if ($syncExit -eq 0) {
+        "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] sync_pi.ps1 completed exit=0" | Out-File -FilePath $logFile -Append -Encoding utf8
+    } else {
+        "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] sync_pi.ps1 exit=$syncExit (非零 — sync 可能失敗，需檢查上方輸出)" | Out-File -FilePath $logFile -Append -Encoding utf8
+    }
 } catch {
-    # 注意：實測 sync_pi.ps1 內 ssh git pull 寫 "From https://github.com/..." 進度訊息
-    # 進 stderr，PowerShell ($ErrorActionPreference=Stop) 會把此 ErrorRecord 拋來這裡。
-    # 但 git pull 本身**仍會成功**（只是 progress msg 被當 error）—這標籤是誤標。
-    "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] sync_pi.ps1 ERROR: $_" | Out-File -FilePath $logFile -Append -Encoding utf8
+    "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] sync_pi.ps1 unexpected exception: $_" | Out-File -FilePath $logFile -Append -Encoding utf8
+} finally {
+    $ErrorActionPreference = $eapBackup
 }
 
 # 2026-05-27 加：sync 後清 Pi 端 __pycache__，避免 stale .pyc 攔截 latest source。
@@ -80,15 +96,22 @@ try {
 # 清光 __pycache__ 後 Python 強制重新 compile latest source。
 # idempotent — 沒有 __pycache__ 也只是 find 返 0 個結果，cost ~50ms SSH latency。
 #
-# **獨立 try/catch（不接前面 sync_pi.ps1 的 try）**：因為 sync_pi.ps1 內 ssh
-# git pull 的 stderr progress msg 會被 PowerShell 當 ErrorRecord 拋進前一個 catch，
-# 害這條清理也被跳過。獨立 try 確保「sync 即使被誤標 error 也仍清 pycache」。
+# **獨立 try（不接前面 sync_pi.ps1 的 try）**：確保「sync 即使被誤標 error 也仍清 pycache」。
+# 同樣 inline 切 EAP='Continue' 處理 ssh 自身的 stderr 警告（OpenSSH 量子安全 / host key 等）。
 try {
     "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Clearing Pi __pycache__ ..." | Out-File -FilePath $logFile -Append -Encoding utf8
+    $ErrorActionPreference = 'Continue'
     ssh "pi@raspberrypi.local" "find /home/pi/Desktop/project_jiqiren -name '__pycache__' -type d -exec rm -rf {} +" 2>&1 | Out-File -FilePath $logFile -Append -Encoding utf8
-    "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Pi __pycache__ cleared" | Out-File -FilePath $logFile -Append -Encoding utf8
+    $cleanExit = $LASTEXITCODE
+    if ($cleanExit -eq 0) {
+        "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Pi __pycache__ cleared exit=0" | Out-File -FilePath $logFile -Append -Encoding utf8
+    } else {
+        "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Pi __pycache__ clean exit=$cleanExit (非零)" | Out-File -FilePath $logFile -Append -Encoding utf8
+    }
 } catch {
-    "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Pi __pycache__ clean ERROR: $_" | Out-File -FilePath $logFile -Append -Encoding utf8
+    "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Pi __pycache__ clean unexpected exception: $_" | Out-File -FilePath $logFile -Append -Encoding utf8
+} finally {
+    $ErrorActionPreference = $eapBackup
 }
 
 exit 0

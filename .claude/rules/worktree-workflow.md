@@ -12,7 +12,8 @@
 4. **收尾（合規後）**：
    - `ExitWorktree(action="keep")` → 切回主 checkout
    - `git merge worktree-<task-name> --ff-only`
-   - `git push origin main` → **PostToolUse hook 自動跑 sync_pi.ps1**（無需手動）
+   - `git push origin main` → **PostToolUse hook 自動跑 sync_pi.ps1**（live session 自動 / background session 主 agent 必須手動 — 見 `standard-workflow.md` 步驟 5 註解）
+   - **Background session 雙保險**：push 後跑 `& sync_pi.ps1`（PowerShell tool；hook 重複跑無副作用）
 5. **清理（push + sync 成功後立即執行）**：
    - `git worktree remove .claude/worktrees/<task-name>`
    - `git branch -d worktree-<task-name>`

@@ -279,10 +279,13 @@ $utf8Bom = New-Object System.Text.UTF8Encoding $true
 [System.IO.File]::WriteAllText($path, (Get-Content $path -Raw -Encoding UTF8), $utf8Bom)
 ```
 
-### B. `$ErrorActionPreference = 'Stop'` + git stderr 互動 cosmetic bug
-**症狀：** auto-sync-pi.ps1 log 偶寫「ERROR: From https://github.com/...」但 sync 實際成功
-**原因：** PS 5.1 把 native cmd（git）的 stderr 當 NativeCommandError，配合 `ErrorActionPreference = 'Stop'` → try/catch 抓到，誤判 error
-**狀態：** 還沒修；功能無影響；TODO 改 `'Continue'` 包裹 git 呼叫
+### B. `$ErrorActionPreference = 'Stop'` + native command stderr 互動 ⚠️ 已修
+**症狀：** auto-sync-pi.ps1 log 寫「sync_pi.ps1 ERROR: ...」並中斷 try block。實測踩到兩種 stderr 雜訊：
+1. `git pull` 印 "From https://github.com/..." 進度訊息進 stderr（原有 finding）
+2. **OpenSSH 新版量子安全警告**（2026-05-27 新踩）：`** WARNING: connection is not using a post-quantum key exchange algorithm. ** This session may be vulnerable to "store now, decrypt later" attacks.` — Pi 的 OpenSSH 沒支援 post-quantum kex 時 client 端 unconditional 印
+**原因：** PS 5.1 在 `2>&1` 時把 native command stderr 包成 `NativeCommandError` ErrorRecord 進 pipeline；`ErrorActionPreference = 'Stop'` 把它當 terminating error → 跳到 catch → 後續流程（含 pycache 清理）被跳過。
+**修法：** 2026-05-27 commit — `auto-sync-pi.ps1` 兩個 try block 內 inline `$ErrorActionPreference = 'Continue'` 跑 native command，改用 `$LASTEXITCODE` 判斷成功失敗（native command 才有的可靠指標）；`finally` 恢復原 EAP。
+**驗證：** 修後手動 invoke hook，log 應寫「sync_pi.ps1 completed exit=0」+「Pi __pycache__ cleared exit=0」而非 ERROR。
 
 ### C. SessionStart 在 subagent 內是否 fire — 官方未明說
 **官方原文：** `subagent behavior is not addressed in the SessionStart documentation`
@@ -360,6 +363,16 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 - **派發後必驗：** subagent 回報 commit SHA 後，跑 `git branch --contains <SHA>` 確認落在 worktree-* branch（已加入 `subagent-dispatch-protocol.md` 派發後必做段）
 - **若 commit 跑到 main：** 直接在主 checkout `git push origin main`，跳過 worktree ff-merge（worktree branch 沒 commit 可 merge）；cleanup 流程不變（worktree branch 跟主 checkout 同 commit ancestor，可安全刪）
 - **下次 reproduce 時：** 派發 prompt 第一步要求 subagent 回報 `pwd && git branch --show-current && git rev-parse --git-dir`，跟預期值比對；若不符即停手回報主 agent
+
+### N. Background job session 內 PostToolUse hook 完全不觸發 ⚠️ Claude Code 端行為
+**症狀：** Claude Code background job 模式（`$CLAUDE_JOB_DIR` env var 存在 / system context 含「Background Session」段）內，**整輪所有 Bash tool 跑完都不會觸發 PostToolUse hook**。具體影響：`git push origin main` 後 auto-sync-pi.ps1 不會被 Claude Code 觸發 → Pi 沒同步 → user demo 跑舊版 code（看不到新 wire-up 效果）。
+**踩到時間：** 2026-05-27 S3 同步動作落地 push commit `16a90bd` 後，使用者 Pi 上 `git log -1` 看到 HEAD 仍是 `028ac3f`（前一輪 commit）。檢查 `auto-sync-pi.log` 發現整輪 session 的 push 完全沒進 log（最後 entry 是上一輪 live session 結束 push）。手動 invoke hook script 跑得起來 → 確認是 Claude Code 沒觸發 hook 而非 hook script 本身壞掉。
+**性質：** Claude Code background mode 設計使然（hook event 不發 / env var 不注入 — 未在官方文檔明確記載，但實證如此）。**hook 端無法修**。
+**Workaround**（規則層補強）：
+- 主 agent 在每次 push 後 explicit 跑 `& sync_pi.ps1`（用 PowerShell tool）。
+- live session 也跑無副作用（hook 已先跑過 → 第二次 sync 是 idempotent no-op，只浪費 ~3s SSH latency）。
+- 規則檔已加註：`standard-workflow.md` 步驟 5 / `worktree-workflow.md` 階段 4「Background session 雙保險」段。
+**判斷標準：** 看 system context — 有「# Background Session」段 + 提到 `$CLAUDE_JOB_DIR` 路徑 → background；否則 live。
 
 ---
 
