@@ -113,16 +113,23 @@ def run_l1(
         # ---- 印選單 ----
         print_terminal(L1_MENU_BANNER)
 
-        # ---- 讀使用者輸入 ----
-        key = read_terminal_key()
+        # ---- 讀使用者輸入（內層 loop：q confirm 期間不重印 banner / opencv_disable）----
+        # 2026-05-27 改：q confirm 等下個鍵時，外層的 opencv_disable + banner
+        # 重印是視覺雜訊（每按一次 q 就會看到一遍 menu）。內層 loop 專責「等下個
+        # 有效鍵」；只有真要重 show banner 的場景（客服 / 待機 sub-routine 返回 /
+        # 亂打鍵忽略）才 break 出外層 while。
+        while True:
+            key = read_terminal_key()
 
-        if key == "q":
-            # C14：第一次 q 印提示，第二次 q 才真退
-            if _handle_q_press(exit_program, print_terminal):
-                continue  # 第一次 q，重印選單後繼續等下一個鍵
-            return None  # 第二次 q：exit_program 已被呼叫
-        # 非 q 鍵：reset confirm（避免「q → 1 → q」誤觸退出）
-        _reset_q_confirm()
+            if key == "q":
+                # C14：第一次 q 印提示，第二次 q 才真退
+                if _handle_q_press(exit_program, print_terminal):
+                    continue  # 第一次 q — 內層 continue，**不**重印 banner
+                return None  # 第二次 q：exit_program 已被呼叫
+
+            # 非 q 鍵：reset confirm（避免「q → 1 → q」誤觸退出）+ 跳出內層 dispatch
+            _reset_q_confirm()
+            break
         if key == "3":
             _run_l1_service(print_terminal, opencv_disable)
             # 客服印完電話立即回選單（continue 到下一輪）
