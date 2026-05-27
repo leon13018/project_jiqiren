@@ -81,7 +81,7 @@ git 內核 5 步（status → add → commit → push → sync），內嵌在 Wo
 
 ## 📝 BDD + TDD 開發流程（DORMANT 2026-05-25）
 
-S1 v2 sales/ L0-L5 全層完成後**休眠** — 後續 S2-S7 / wire-up / HTML 不走 BDD+TDD，改走 Pi 實機測試 + 回報 + 改 code 迴圈（見 🔁 Incremental rebuild）。**僅在新增 `myProgram/sales/` 業務邏輯時重啟**（重啟條件 + 完整 4 階段 playbook 仍在 `.claude/rules/bdd-tdd-workflow.md`，既有 245 tests（2026-05-27 S2/S4 session 後：248 - L5 mute 移除 1 - stdin reconfigure 移 2 UnicodeDecodeError test = 245）仍是 sales/ 的 regression 安全網）。
+S1 v2 sales/ L0-L5 全層完成後**休眠** — 後續 S2-S7 / wire-up / HTML 不走 BDD+TDD，改走 Pi 實機測試 + 回報 + 改 code 迴圈（見 🔁 Incremental rebuild）。**僅在新增 `myProgram/sales/` 業務邏輯時重啟**（重啟條件 + 完整 4 階段 playbook 仍在 `.claude/rules/bdd-tdd-workflow.md`，既有 257 tests（2026-05-27 S2/S4 後 245；2026-05-27/28 S3 同步動作 callback 接入 +12 = 257）仍是 sales/ 的 regression 安全網）。
 
 ---
 
