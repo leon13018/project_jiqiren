@@ -14,7 +14,8 @@
 4. **不要用 `git add -A` / `git add .`** 🔒 hook 強制執法 — 明確列出檔名，避免誤加。
 
 > 🔒 = `.claude/hooks/` 內 PreToolUse hook 自動 block，不依賴主 agent 自律。
-> ⚠️ **`git push` 後必須手動跑 `& sync_pi.ps1`（PowerShell tool）**：PostToolUse hook 在 live / background session 皆偶發不觸發（2026-05-28 live session 確認），不可依賴 — 完整記錄見 `.claude/hooks/NOTES.md` Gotcha N。
+> `git push origin main` 後也會自動跑 `sync_pi.ps1`（PostToolUse hook，省掉 standard-workflow 步驟 5）。
+> ⚠️ **Background session 例外**：background job session（system context 含「# Background Session」段 + `$CLAUDE_JOB_DIR` env var）內 PostToolUse hook 行為**非 deterministic（不可依賴）** — 實證有時跑有時不跑，原因未明；主 agent push 後必須手動跑 `& sync_pi.ps1`（[[standard-workflow]] 步驟 5 / memory [[background-session-hook-skip]]）。
 > 編 `myProgram/sales/*.py` 或 `tests/sales/*.py` 後若沒跑 pytest，Stop hook 會 block 一次提醒（避免漏跑 regression）。
 > 每次新 session 自動注入 `git branch / status / 測試數` 摘要（SessionStart hook，省手動跑指令）。
 > 派 subagent 時自動注入標準規範（SubagentStart hook，取代 subagent-dispatch-protocol 步驟 2-3）。
@@ -84,7 +85,7 @@ git 內核 5 步（status → add → commit → push → sync），內嵌在 Wo
 
 ## 📝 BDD + TDD 開發流程（DORMANT 2026-05-25）
 
-S1 v2 sales/ L0-L5 全層完成後**休眠** — 後續 S2-S7 / wire-up / HTML 不走 BDD+TDD，改走 Pi 實機測試 + 回報 + 改 code 迴圈（見 🔁 Incremental rebuild）。**僅在新增 `myProgram/sales/` 業務邏輯時重啟**（重啟條件 + 完整 4 階段 playbook 仍在 `.claude/rules/bdd-tdd-workflow.md`，既有 **265 tests**（2026-05-27 S2/S4 後 245 → S3 +12 = 257 → 2026-05-28 Session C S6 input_reader +8 -4 decode_error +sweep = 264 → c2 三選一 strict-short「結」+1 = 265）仍是 sales/ 的 regression 安全網）。
+S1 v2 sales/ L0-L5 全層完成後**休眠** — 後續 S2-S7 / wire-up / HTML 不走 BDD+TDD，改走 Pi 實機測試 + 回報 + 改 code 迴圈（見 🔁 Incremental rebuild）。**僅在新增 `myProgram/sales/` 業務邏輯時重啟**（重啟條件 + 完整 4 階段 playbook 仍在 `.claude/rules/bdd-tdd-workflow.md`，既有 257 tests（2026-05-27 S2/S4 後 245；2026-05-27/28 S3 同步動作 callback 接入 +12 = 257）仍是 sales/ 的 regression 安全網）。
 
 ---
 
