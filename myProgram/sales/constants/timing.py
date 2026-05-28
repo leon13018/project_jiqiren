@@ -15,6 +15,7 @@ __all__ = [
     "OPENCV_MUTE",
     "THANK_DELAY",
     "AUTO_CHECKOUT_NOTICE",
+    "C2_DECISION_TIMEOUT",
     "L4_MAX_LOOPS",
     "UNCLEAR_MAX",
     "OPENCV_DWELL",
@@ -55,6 +56,12 @@ THANK_DELAY: int = 3
 # （2026-05-26 從 10 → 12：跟 DnC/DyC/checkout-confirm 對齊；同時改嚴格 yes/no
 #   倒數不重置 — 亂答忽略不重置計時器，只認 CONFIRM_YES / CONFIRM_NO + 終端 1/2）
 AUTO_CHECKOUT_NOTICE: int = 12
+
+# L3 C-2 第二段三選一倒數秒數（2026-05-28 加；新設計從 AUTO_CHECKOUT_NOTICE=12 縮短為 6）
+# wall-clock budget — 亂答消耗 budget 防無限拖延；倒數歸零視為「結賬」path
+# 直接進 L4（跳過 _dialog_checkout_confirm），符合 user prompt 字面 promise
+# 「如 6 秒內未答復將進行結賬」— silent customer 預期被結帳而非清 cart 退。
+C2_DECISION_TIMEOUT: int = 6
 
 # L4 印金額循環最多次數（達到強制退）；總長 42 秒
 L4_MAX_LOOPS: int = 6

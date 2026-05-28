@@ -18,6 +18,12 @@ __all__ = [
     "KEYWORDS_CONFIRM_YES_STRICT_SHORT",
     "KEYWORDS_CONFIRM_NO",
     "KEYWORDS_CONFIRM_NO_STRICT_SHORT",
+    "KEYWORDS_C2_CONTINUE",
+    "KEYWORDS_C2_CONTINUE_STRICT_SHORT",
+    "KEYWORDS_C2_CHECKOUT",
+    "KEYWORDS_C2_CHECKOUT_STRICT_SHORT",
+    "KEYWORDS_C2_CANCEL",
+    "KEYWORDS_C2_CANCEL_STRICT_SHORT",
     "KEYWORDS_L4_ACK_OR_WAIT",
     "KEYWORDS_L4_ACK_SHORT",
     "KEYWORDS_WANT_TO_BUY_VAGUE",
@@ -78,6 +84,33 @@ KEYWORDS_CONFIRM_NO: list = [
 
 # NO strict-short 集（短單字/短英文，只在完全等於時命中）
 KEYWORDS_CONFIRM_NO_STRICT_SHORT: list = ["no", "nope", "n", "否"]
+
+# ============================================================
+# L3 C-2 第二段三選一意圖（2026-05-28 加）
+# 取代既有 c2 用 CONFIRM_YES/NO 二元 — 改成「繼續選購 / 結帳 / 取消購買」明確三選一
+# 解 Pi demo bug：顧客講「不要」（意圖：不要結帳、繼續逛）被當成「拒絕整單」清 cart
+# 設計：單字 token（繼續 / 結 / 取消）substring 風險高（如「結束 / 繼續努力 / 取消會議」非結帳意圖）
+#   → 用 strict-short 完全相等才命中
+# ============================================================
+
+# 繼續購物 — 顧客想繼續加單，不清 cart 重入 dialog 主迴圈
+KEYWORDS_C2_CONTINUE: list = [
+    "繼續選購", "選購商品", "繼續選", "選商品", "先選購",
+]
+KEYWORDS_C2_CONTINUE_STRICT_SHORT: list = ["繼續"]
+
+# 結帳 — 顧客明確想結帳；經 _dialog_checkout_confirm 確認明細再進 L4
+KEYWORDS_C2_CHECKOUT: list = [
+    "結賬", "直接結賬", "幫我結賬", "進入結賬", "結賬吧", "那就結賬吧",
+    "我想直接結賬", "我想要結賬", "先結賬", "我想先結賬好了",
+]
+KEYWORDS_C2_CHECKOUT_STRICT_SHORT: list = ["結"]
+
+# 取消購買 — 顧客想離開，清 cart + 退 L1 hawk（reuse _dialog_exit_a 既有 helper）
+KEYWORDS_C2_CANCEL: list = [
+    "幫我取消購買", "幫我取消", "取消吧", "那就取消吧", "取消它",
+]
+KEYWORDS_C2_CANCEL_STRICT_SHORT: list = ["取消"]
 
 # ============================================================
 # L4 結帳等掃碼期間顧客的「等待 / 安撫」詞（2026-05-26 加；使用者實機 UX 修補）

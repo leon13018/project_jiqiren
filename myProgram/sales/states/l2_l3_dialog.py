@@ -31,6 +31,7 @@ from myProgram.sales.constants import (
     DNC_TIMEOUT,
     DYC_TIMEOUT,
     AUTO_CHECKOUT_NOTICE,
+    C2_DECISION_TIMEOUT,
     SERVICE_PHONE,
     UNCLEAR_MAX,
     L2_ENTRY_PROMPT,
@@ -59,6 +60,12 @@ from myProgram.sales.constants import (
     KEYWORDS_CONFIRM_NO,
     KEYWORDS_CONFIRM_YES_STRICT_SHORT,
     KEYWORDS_CONFIRM_NO_STRICT_SHORT,
+    KEYWORDS_C2_CONTINUE,
+    KEYWORDS_C2_CONTINUE_STRICT_SHORT,
+    KEYWORDS_C2_CHECKOUT,
+    KEYWORDS_C2_CHECKOUT_STRICT_SHORT,
+    KEYWORDS_C2_CANCEL,
+    KEYWORDS_C2_CANCEL_STRICT_SHORT,
     DIALOG_VAGUE_BUY_REASK,
     ACTION_L2,
     ACTION_L3,
@@ -342,52 +349,62 @@ def _dialog_c2_second_stage(
     think_count: int,
     do_action,
 ) -> tuple:
-    """L3 C-2 第二段：嚴格 yes/no 子狀態（2026-05-26 重構）。
+    """L3 C-2 第二段：三選一子狀態（2026-05-28 重構：二元 yes/no → 繼續/結帳/取消）。
 
     設計：
-    - speak C-2 警告 + 「請說『是』/『否』」提示
-    - 啟動 wall-clock 倒數 deadline = now + AUTO_CHECKOUT_NOTICE（12s）
+    - speak C-2 三選一警告（L3_C2_WARNING_TEMPLATE）+ wall-clock budget C2_DECISION_TIMEOUT (6s)
     - 期間 read_customer_input，**亂答忽略不重置計時** — remaining 不斷縮短
-    - 只認：CONFIRM_YES / "1" → 進 checkout_confirm；CONFIRM_NO / "2" → 取消清 cart
-    - 其他（商品 / 想一下 / 客服 / 亂講）→ 視為 gibberish，silently 消耗 input，繼續倒數
-    - deadline 內無有效回應 / read 返回 None → 自動進 L4 結帳
+    - Three-way dispatcher（CANCEL 優先：顧客錢包 conservative）：
+        - CANCEL（KEYWORDS_C2_CANCEL + strict-short ["取消"]）→ _dialog_exit_a：
+          清 cart + speak L3_REJECT_THANKS + return ("L1_via_subroutine_a", 0)
+        - CONTINUE（KEYWORDS_C2_CONTINUE + strict-short ["繼續"]）→ _dialog_main_loop：
+          不清 cart，重入 dialog 主迴圈讓顧客繼續加單
+        - CHECKOUT（KEYWORDS_C2_CHECKOUT + strict-short ["結"]）→ _c2_checkout_via_confirm：
+          經 _dialog_checkout_confirm 確認明細 → "yes" 進 L4；非 yes 清 cart + 重入
+    - 亂答（不在三組 keyword）→ silent 倒數（第一次提示「請說『繼續』、『結賬』或『取消』」，後續 silent）
+    - 倒數歸零 / response is None（silent customer）→ _c2_direct_checkout：直接 L4
+      跳過 confirm（遵守 user prompt 字面 promise「6 秒內未答復將進行結賬」）
 
-    為何嚴格：規格書 yes/no prompt 避免 NLU 在 L3 normal mode 把「不要」誤分為「結帳」
-    再進 checkout confirm 的多步繞路；同時避免亂答觸發 B-1 reask 子流程的另一個 timer。
+    解 Pi demo 2026-05-28 UX bug：舊版「結帳（是）/ 想想（不要）」二元，顧客「不要」歧義
+    （「不要結帳」vs「不要整單」）被當成「拒絕整單」清 cart。新三選一語意明確、無歧義。
 
-    Timeout 鏈條（INTENTIONAL，2026-05-26 review B14 文件化）：
-        - C-2 第二段 12s 倒數內無 yes/no 回應 → return ("L4", 0) 自動進 L4
-        - 進 L4 後若顧客仍無回應，L4_TOTAL_BUDGET = 60s 預算耗盡 → forced exit + clear cart
-        - 即「L3 dialog timeout → C-2 12s → L4 60s」最壞 72s 顧客缺席期間系統還在等
-        - 鏈條最終 default = clear cart 不扣錢（符合 confirm-default-must-be-conservative）
-        - 不是 bug — 設計意圖：給顧客最大寬容期間考慮，仍守住「不默默扣錢」保險
+    Timeout 行為對比（vs 舊版）：
+        舊：12s wall-clock budget → 倒數歸零 / silent → return ("L4", 0)
+        新：6s wall-clock budget → 倒數歸零 / silent → 直接 L4（跳過 confirm，user 字面 promise）
+        新：CHECKOUT keyword 主動觸發 → 經 _dialog_checkout_confirm（user 答 B 區分主動 vs silent）
+
+    為何 silent 跳 confirm 而 keyword 經 confirm：
+        - silent customer：已被 prompt 警告「6 秒未答將結賬」，再加 confirm 罰 12s 違反 promise
+        - keyword customer：主動表達意圖 → 給「確認金額明細」最後機會（user 答 B）
     """
-    speak(L3_C2_WARNING_TEMPLATE.format(seconds=AUTO_CHECKOUT_NOTICE))
+    speak(L3_C2_WARNING_TEMPLATE.format(seconds=C2_DECISION_TIMEOUT))
 
-    deadline = time.monotonic() + AUTO_CHECKOUT_NOTICE
-    prompted_once = False  # C16：第一次亂答才 speak 提示，後續 silent（不重置 deadline）
+    deadline = time.monotonic() + C2_DECISION_TIMEOUT
+    prompted_once = False  # 第一次亂答才 speak 提示，後續 silent（不重置 deadline）
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            # 倒數歸零（亂答耗盡 budget）→ 自動進 L4
-            return ("L4", 0)
+            # 倒數歸零（亂答耗盡 budget）→ 直接 L4（user 字面 promise）
+            return _c2_direct_checkout(speak, do_action)
 
         response = read_customer_input(timeout=remaining)
         if response is None:
-            # read 直接 timeout（顧客全程沒回應）→ 自動進 L4
-            return ("L4", 0)
+            # read 直接 timeout（顧客全程沒回應）→ 直接 L4
+            return _c2_direct_checkout(speak, do_action)
 
-        # NO 先檢查 — 防止 L3 normal NLU 把「不要」誤分為「結帳」造成繞路
-        # 使用 substring + strict-short 雙路：
-        #   substring 命中長詞（如「不正確」）；strict-short 命中短詞（如「no/nope」）
+        # 三選一 dispatcher（2026-05-28 重構：CANCEL 優先，顧客錢包 conservative）
+        # CANCEL：清 cart + 退 L1（reuse _dialog_exit_a：speak L3_REJECT_THANKS + clear cart）
         if (
-            response == "2"
-            or contains_any(response, KEYWORDS_CONFIRM_NO)
-            or equals_strict_short(response, KEYWORDS_CONFIRM_NO_STRICT_SHORT)
+            contains_any(response, KEYWORDS_C2_CANCEL)
+            or equals_strict_short(response, KEYWORDS_C2_CANCEL_STRICT_SHORT)
         ):
-            cart_module.clear_cart(cart)
-            speak(L3_CHECKOUT_REJECT_CLEAR_NOTICE)
-            # C-2 NO → 重入 dialog 主迴圈（跳過 entry prompt + opencv_disable）
+            return _dialog_exit_a(speak, cart)
+
+        # CONTINUE：不清 cart，重入 dialog 主迴圈（顧客繼續加單）
+        if (
+            contains_any(response, KEYWORDS_C2_CONTINUE)
+            or equals_strict_short(response, KEYWORDS_C2_CONTINUE_STRICT_SHORT)
+        ):
             return _dialog_main_loop(
                 speak=speak,
                 print_terminal=print_terminal,
@@ -397,26 +414,81 @@ def _dialog_c2_second_stage(
                 do_action=do_action,
             )
 
-        # YES 檢查：明確肯定詞（substring + strict-short 雙路）
-        # 移除 classify_intent==結帳 條件：lenient 模式會把「no/nope/沒了」誤命中 YES
-        # 顧客若「沒了/夠了」想結帳，C-2 timeout 後自然進 L4，仍是正確終點
-        is_yes = (
-            response == "1"
-            or contains_any(response, KEYWORDS_CONFIRM_YES)
-            or equals_strict_short(response, KEYWORDS_CONFIRM_YES_STRICT_SHORT)
-        )
-        if is_yes:
-            # C-2 是「最後機會」嚴格 yes/no — 顧客主動說 YES 不應再被罰 12s confirm。
-            # _dialog_checkout_confirm 由 L3 主對話的「結帳」意圖路徑保留（仍需商品明細確認）。
-            # （2026-05-26 P3.A：移除 24s 雙漏斗 — 主動回應比 timeout 還慢的反直覺路徑）
-            return ("L4", 0)
+        # CHECKOUT：顧客主動講結帳 → 經 _dialog_checkout_confirm 確認明細
+        # （vs timeout path 直接 L4 — user 答 B「主動結帳要 confirm」，timeout 不該被罰）
+        if (
+            contains_any(response, KEYWORDS_C2_CHECKOUT)
+            or equals_strict_short(response, KEYWORDS_C2_CHECKOUT_STRICT_SHORT)
+        ):
+            return _c2_checkout_via_confirm(
+                speak=speak,
+                print_terminal=print_terminal,
+                read_customer_input=read_customer_input,
+                cart=cart,
+                think_count=think_count,
+                do_action=do_action,
+            )
 
-        # 其他（商品 / 想一下 / 客服 / 亂講）— 嚴格 yes/no 設計下視為 gibberish
-        # C16：第一次亂答 speak 一次提示，後續 silent；不重置 deadline
+        # 其他（不在三組 keyword 內）— 視為亂答
+        # 第一次亂答 speak 一次提示，後續 silent；不重置 deadline
         if not prompted_once:
-            speak("請說『是』或『否』")
+            speak("請說『繼續』、『結賬』或『取消』")
             prompted_once = True
         continue
+
+
+def _c2_direct_checkout(speak, do_action) -> tuple:
+    """C-2 timeout path：silent customer 直接 L4，跳過 confirm，無 transition cue。
+
+    遵守 L3_C2_WARNING_TEMPLATE 字面 promise「如 6 秒內未答復將進行結賬」。
+    silent customer = 已被預告 → 直接 transition L4（L4 entry 自己 speak「您即將結帳...」）。
+
+    對比 L3 C-1 / CHECKOUT keyword path：那兩個 path 顧客主動表達結帳意圖 → 加
+    speak(L3_C1_CHECKOUT_GO) + do_action(ACTION_L3_CHECKOUT_GO) 作為「確認你選的」
+    transition cue；silent customer 沒主動表達，無需此 cue（且加 cue 會讓既有
+    L2→L3 transition action 測試誤判多 entry trigger）。
+    """
+    # speak / do_action 參數保留簽名一致性，但目前不使用（silent path 不加 cue）
+    return ("L4", 0)
+
+
+def _c2_checkout_via_confirm(
+    speak,
+    print_terminal,
+    read_customer_input,
+    cart,
+    think_count: int,
+    do_action,
+) -> tuple:
+    """C-2 CHECKOUT keyword path：經 _dialog_checkout_confirm 確認明細 → L4 或重入。
+
+    對齊既有 L3 C-1 結帳 path（_dialog_dispatch_inner_l3 line 296-311 of dialog.py）
+    — 共用 confirm 子狀態。
+
+    為何 CHECKOUT keyword 走 confirm 而 timeout 跳過 confirm：
+        - keyword：顧客主動表達結帳意圖 → 給「確認金額明細」最後機會（user 答 B）
+        - timeout：顧客 silent → 已被 prompt 警告「6 秒未答復將進行結賬」→ 直接 L4 不罰
+    """
+    result = _dialog_checkout_confirm(
+        speak=speak,
+        print_terminal=print_terminal,
+        read_customer_input=read_customer_input,
+        cart=cart,
+    )
+    if result == "yes":
+        speak(L3_C1_CHECKOUT_GO)
+        do_action(ACTION_L3_CHECKOUT_GO)
+        return ("L4", 0)
+    # 非 yes → 清 cart + speak 通知 + 重入 dialog 主迴圈
+    _handle_checkout_confirm_result(result, cart, speak)
+    return _dialog_main_loop(
+        speak=speak,
+        print_terminal=print_terminal,
+        read_customer_input=read_customer_input,
+        cart=cart,
+        think_count=think_count,
+        do_action=do_action,
+    )
 
 
 def _dialog_main_loop(
