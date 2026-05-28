@@ -4480,65 +4480,33 @@ def test_qty_followup_single_quantity_exceeds_cap_speaks_remaining_and_retries()
     )
 
 
-def test_qty_followup_cap_retry_timeout_reprompts_does_not_advance() -> None:
-    """2026-05-28 Pi 實機 user 訴求 v2：cap retry timeout 重 speak 同 prompt + continue。
+def test_qty_followup_cap_retry_blocks_until_valid_no_reprompt_no_default() -> None:
+    """2026-05-28 Pi 實機 user 訴求 v3：cap retry 期間 sub-loop **無限等顧客回答**
+    （read 用 timeout=None），不重 speak、不推進、不 cancel — 直到顧客主動行動
+    （合法數字 / 拒絕 / 結帳）才退出。
 
-    Pi 場景：顧客說「刮刮樂」→ 系統問「幾張？」→ 顧客「3424」→ 系統 speak
-    「最多 50 還能點...請重新告訴我數量」→ 顧客 timeout（沒重答）→
-    **系統重 speak 同 prompt**（不推進、不 cancel）→ 顧客終於答合法數字「10」
-    → 加 cart 進 L3。
+    場景：顧客說「刮刮樂」→ 系統問「幾張？」→ 顧客「3424」→ 系統 speak
+    「最多 50 還能點...請重新告訴我數量」→ 顧客 think 很久 → 顧客終於答合法
+    數字「10」→ 加 cart 進 L3。
 
-    user 訴求：「直到答對為止」 — cap retry 不該默默推進（加 1）也不該默默 cancel
-    （違反原規格希望顧客重答），只在顧客主動講「不要了 / 結帳」等 reject intent
-    才 skip 此商品。timeout 重複提示直到顧客主動行動。
+    user 訴求：cap retry 期間不該有任何 timeout 行為（不重 speak、不推進、不
+    cancel）— 顧客在思考、不該被催促。只在顧客主動講「不要了 / 結帳」等 reject
+    intent 才 skip 此商品（既有 follow_intent path → return False）。
 
-    驗證重 speak 至少 2 次（原 cap + timeout 重 speak）、cart 最終加 10 張、
-    沒「這次先不加」（沒 cancel）。
+    驗證 cap warning speak 只有 1 次（原 cap 觸發；無 timeout 重 speak）、cart 最終
+    加 10 張、沒「這次先不加」（沒 cancel）、沒「為您加 1」之類 default 訊息。
+
+    Implementation note：cap_retry=True 時 prod code 走 read_customer_input(timeout=None)
+    — input_reader.read(timeout=None) 是無限阻塞 queue.get。實機顧客真不答 → 永
+    遠等。FakeCustomerInput 不理會 timeout 參數仍按序 pop list，這個 test 用合法
+    重答驗證「沒走 timeout path」（speak 只 1 次 + cart 加正確量）。
     """
     from myProgram.sales.constants import MAX_QTY_PER_ITEM
     speak_calls: list = []
     cart = cart_module.new_cart()
-    # 「刮刮樂」(無數量) → "3424"(超量) → speak「最多 50」→ None (timeout, 重 speak)
-    # → "10"(合法) → 加 10 → None None → L4
-    customer_input = FakeCustomerInput(["刮刮樂", "3424", None, "10", None, None])
-
-    next_state, _ = states.run_dialog(
-        speak=lambda text: speak_calls.append(text),
-        print_terminal=lambda text: None,
-        read_customer_input=customer_input.read,
-        cart=cart,
-        think_count=0,
-        opencv_disable=lambda: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # cart 應有 10 張刮刮樂（cap retry timeout 重 prompt 後重答 10 成功加入）
-    assert cart_module.get_quantity(cart, "刮刮樂") == 10, (
-        f"cap retry timeout 重 prompt 後重答 10 應加 10 張，實際：{dict(cart)}"
-    )
-    # 「最多還能點 50」應 speak 至少 2 次（原 cap 觸發 + timeout 重 speak）
-    cap_warning_count = sum(
-        1 for s in speak_calls if "最多還能點" in s and str(MAX_QTY_PER_ITEM) in s
-    )
-    assert cap_warning_count >= 2, (
-        f"預期『最多還能點 {MAX_QTY_PER_ITEM}』提示至少 2 次（cap 觸發 + timeout 重 speak），"
-        f"實際 {cap_warning_count} 次。speak_calls={speak_calls}"
-    )
-    # 不該有「這次先不加」訊息（cap retry timeout 不該 cancel）
-    assert not any("這次先不加" in s for s in speak_calls), (
-        f"cap retry timeout 不該 cancel，但 speak 含『這次先不加』。實際 speak_calls={speak_calls}"
-    )
-
-
-def test_qty_followup_cap_retry_then_valid_qty_still_adds() -> None:
-    """Cap retry 後 user 有重答合法數字 → 應正常加 cart（驗 cap_retry flag 不擋住合法 path）。
-
-    驗證 cap_retry flag 是 sticky 但只影響 timeout path；user 重答合法數字仍
-    走正常 add_item 路徑（不被 flag 擋）。
-    """
-    speak_calls: list = []
-    cart = cart_module.new_cart()
-    # 「刮刮樂」(無數量) → "3424"（超量）→ speak「最多 50」→ "10"（合法）→ 加 10
+    # 「刮刮樂」(無數量) → "3424"(超量) → speak「最多 50」→ "10"(合法) → 加 10
+    # 序列不含 None 模擬 timeout，因為 cap retry 期間 prod code 用 timeout=None
+    # 不會觸發 timeout path（stub 也 N/A）
     customer_input = FakeCustomerInput(["刮刮樂", "3424", "10", None, None])
 
     next_state, _ = states.run_dialog(
@@ -4553,11 +4521,56 @@ def test_qty_followup_cap_retry_then_valid_qty_still_adds() -> None:
 
     # cart 應有 10 張刮刮樂（cap retry 後重答合法數字成功加入）
     assert cart_module.get_quantity(cart, "刮刮樂") == 10, (
-        f"預期 cap retry 後合法重答應加 10 張，實際：{dict(cart)}"
+        f"cap retry 後合法重答 10 應加 10 張，實際：{dict(cart)}"
     )
-    # 不該有「這次先不加」訊息（cancel path 沒走到）
+    # 「最多還能點 50」應只 speak 1 次（原 cap 觸發；新行為不重 speak）
+    cap_warning_count = sum(
+        1 for s in speak_calls if "最多還能點" in s and str(MAX_QTY_PER_ITEM) in s
+    )
+    assert cap_warning_count == 1, (
+        f"預期『最多還能點 {MAX_QTY_PER_ITEM}』只 speak 1 次（cap 觸發；cap retry "
+        f"期間 timeout=None 不重 speak），實際 {cap_warning_count} 次。"
+        f"speak_calls={speak_calls}"
+    )
+    # 不該有「這次先不加」訊息（cap retry 不 cancel）
     assert not any("這次先不加" in s for s in speak_calls), (
-        f"合法重答後不該觸發 cancel speak，實際 speak_calls={speak_calls}"
+        f"cap retry 不該 cancel，但 speak 含『這次先不加』。實際 speak_calls={speak_calls}"
+    )
+
+
+def test_qty_followup_cap_retry_eof_sentinel_cancels_safety_net() -> None:
+    """Safety net：cap retry 期間若拿到 None（EOF sentinel from reader thread）→
+    cancel 此商品 + speak「好的，這次先不加 X」。
+
+    Production 場景：input_reader daemon thread EOF 推 None sentinel（罕見，
+    主程式 exit 前 reader thread die 時）。此時 sub-loop 無法繼續等待 → 視為
+    cancel 此商品避免死循環。
+
+    驗證 follow_up == None 在 cap_retry=True 期間走 cancel path。
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 「刮刮樂」→ "3424"(超量) → speak「最多 50」→ None(模擬 EOF) → cancel
+    customer_input = FakeCustomerInput(["刮刮樂", "3424", None, None, None])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # cart 不該有刮刮樂（EOF safety net cancel）
+    assert cart_module.get_quantity(cart, "刮刮樂") == 0, (
+        f"EOF sentinel 應 cancel 此商品（safety net），實際 cart={dict(cart)}"
+    )
+    # 應有「這次先不加 刮刮樂」訊息
+    assert any("這次先不加" in s and "刮刮樂" in s for s in speak_calls), (
+        f"預期 EOF safety net cancel 應 speak『這次先不加 刮刮樂』，"
+        f"實際 speak_calls={speak_calls}"
     )
 
 
