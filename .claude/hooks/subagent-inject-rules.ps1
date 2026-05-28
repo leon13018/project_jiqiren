@@ -45,7 +45,7 @@ Write-Output @"
 
 ### ⛔ 絕對禁止（PreToolUse hook 已強制執法）
 
-1. **修改 ``myProgram/ActionGroupControl.py`` / ``myProgram/Board.py``** — 廠商 Hiwonder TonyPi SDK，改了破壞硬體通訊。只能 Read / import 使用。
+1. **修改 ``myProgram/vendor/ActionGroupControl.py`` / ``myProgram/vendor/Board.py``** — 廠商 Hiwonder TonyPi SDK，改了破壞硬體通訊。只能 Read / import 使用。
 2. **在 Windows 安裝任何依賴**（pip / npm / apt）— 執行環境是 Pi，本機只負責編輯與 git。
 3. **用 ``git add -A`` / ``git add .``** — 必須明列檔名，避免誤加 ignored / 敏感檔。
 
