@@ -119,11 +119,13 @@ def _qty_follow_up_sub_loop(
     """
     attempts = 0
     # cap_retry: 顧客曾在本 sub-loop 內因超量被擋（speak「最多 X 還能點...請重新告訴
-    # 我數量」）→ 後續 timeout 不該預設加 1（顧客明確意圖大量、被 cap 拒絕後沒重答
-    # 不該被默默變成「加 1」，違反 expectation 又動到顧客錢包）。對應
-    # [[confirm-default-must-be-conservative]]：timeout default 必須 cancel，不該
-    # 沉默推進。第一輪初始追問 timeout 才走 default qty=1（避免無限迴圈、user 沒
-    # 主動表達數量意圖時的合理 fallback）。
+    # 我數量」）→ 後續 timeout 不該預設加 1，改成**重 speak 同 prompt + continue**
+    # 等顧客主動行動（合法數字 / 拒絕 / 結帳）。user expectation：「直到答對為止」
+    # — 顧客明確要超量被 cap 擋後沒重答 → 系統應持續提醒，不該默默變成「加 1」
+    # 也不該默默 cancel；只在顧客主動講「不要了 / 結帳」等 reject intent 才 skip
+    # 此商品（既有 follow_intent == 拒絕 / 結帳 path → return False 處理）。
+    # 第一輪初始追問 timeout 才走 default qty=1 fallback（避免顧客一開始就不答無
+    # 任何意圖時的死循環）。
     cap_retry = False
     while True:
         follow_up = read_customer_input(timeout=WAIT_NO_RESPONSE)
@@ -131,11 +133,13 @@ def _qty_follow_up_sub_loop(
         if follow_up is None:
             # Timeout
             if cap_retry:
-                # 2026-05-28 hot fix（Pi 實機踩到）：cap retry 期間 timeout 不加 1
-                # 而是 cancel — 顧客已明確要 N 張（N>remaining）被 cap 擋下，沒重答
-                # 不該預設「那我幫你加 1 張」（顧客錢包違反 expectation）。
-                speak(f"好的，這次先不加{product}")
-                return False
+                # 2026-05-28 hot fix v2（Pi 實機 user 訴求修正）：cap retry 期間
+                # timeout 重 speak 同 prompt + continue，**不推進、不 cancel**。
+                # 重新算 remaining/existing（cart state 沒變所以同值，但語義清楚）。
+                existing = cart_module.get_quantity(cart, product)
+                remaining = MAX_QTY_PER_ITEM - existing
+                speak(f"{product}最多還能點 {remaining} {unit}，目前累計點了 {existing} {unit}，請重新告訴我數量")
+                continue
             # 第一輪初始追問 timeout → 預設 1 加 cart（避免無限迴圈）
             cart_module.add_item(cart, product, 1)
             return True
@@ -156,7 +160,7 @@ def _qty_follow_up_sub_loop(
             if qty > remaining:
                 # 顧客單筆超量（含天文數字 / 累加超量）→ speak 剩餘額度 + 重新追問
                 speak(f"{product}最多還能點 {remaining} {unit}，目前累計點了 {existing} {unit}，請重新告訴我數量")
-                cap_retry = True  # 後續 timeout 應 cancel 而非預設加 1
+                cap_retry = True  # 後續 timeout 重 speak 同 prompt（不推進、不 cancel）
                 continue
             cart_module.add_item(cart, product, qty)
             return True
