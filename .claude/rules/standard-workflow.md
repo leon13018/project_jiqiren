@@ -11,18 +11,15 @@
 - 變更全在 ignored 路徑（`resources/presentation/` / `resources/userPrompt/` / `sync_pi.ps1` / `.claude/settings.local.json` / `.claude/worktrees/`）→ `git status` 看不到任何 diff
 - 沒有任何檔案改動
 
-**觸發時依序執行（4 步 + hook 自動 sync）：**
+**觸發時依序執行（5 步）：**
 1. `git status` + `git diff` 確認變更範圍
 1a. **（條件性）撰寫 Pi 端操作說明書**：若本輪變更涉及 Pi 端動作（見 `.claude/rules/pi-side-trigger.md`），主 agent **新增一個檔**到 `resources/pineedtodo/<檔名>.md`（**append-only：既有檔不動**），納入下一步的 `git add`。不觸發直接跳過。
 1b. **（條件性）更新 projectStructure.md**：若本輪變更改動到專案資料結構（見 `.claude/rules/projectstructure-trigger.md`），主 agent 編輯 `resources/projectStructure/projectStructure.md`（目錄樹 + 職責表 + 更新紀錄），納入下一步的 `git add`。不觸發直接跳過。
 2. `git add <具體檔名>`（不用 `-A` / `.` — PreToolUse hook 會擋）
 3. `git commit -m "..."` 英文簡短訊息，附 `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>`
-4. `git push origin main` — **PostToolUse hook 會自動跑 `sync_pi.ps1`**（async + 120s timeout）
-5. **Background session 雙保險（2026-05-27 加，本輪查 hook bug 時發現；同日 refine）**：
-   - **Background job session 內 PostToolUse hook 行為非 deterministic（不可依賴）** — 實證 push `16a90bd` / `aae2338` 沒觸發，push `f084aba` 觸發；原因未明 → 主 agent **必須在 push 後永遠手動跑** `& sync_pi.ps1`（PowerShell tool；hook 即使偶有自動跑也是 idempotent no-op，~3s SSH 成本可接受）
-   - 判斷標準：system context 有「Background Session」段 + `$CLAUDE_JOB_DIR` env var → background；否則 live
-   - Live session 此步驟可省（hook 通常自動跑）；但「永遠跑」是更穩做法，省得記憶哪種 session 類型
+4. `git push origin main`
+5. **`& sync_pi.ps1`（PowerShell tool）— 永遠手動跑，不論 live / background session**。hook 即使自動跑也是 idempotent no-op（`Already up to date`，~3s 成本可接受）。
 
-> 🪝 自動化說明：步驟 5（原 sync_pi.ps1）已被 `.claude/hooks/auto-sync-pi.ps1` 取代（live session）；background session 仍需主 agent 手動跑。失敗 / 重跑 / background-session-skip 細節見 `.claude/hooks/NOTES.md`。
+> ⚠️ **為何不能信賴 hook 自動 sync（2026-05-28 更新）：** PostToolUse hook 在 background session 已知非 deterministic；**live session 也確認偶發不觸發**（push `048ddc2`：regex 測試 True，script 正常，log 完全無 entry）。根因不明（Claude Code 端）。完整記錄：`.claude/hooks/NOTES.md` Gotcha N。
 
 詳細補充準則 / 歷史 bug 教訓 → memory `standard-workflow`
