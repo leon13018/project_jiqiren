@@ -1,7 +1,7 @@
 # 專案目錄結構
 
 > 本檔案記錄整個專案的資料夾與檔案結構，方便日後快速查閱。
-> 最後更新：2026-05-28（S6 非阻塞 input 完成：新增 `myProgram/input_reader.py` daemon reader thread + bytes-level decode；main.py 兩個 callback 改透過 `input_reader.read(timeout)` 取輸入；移除 `sys.stdin.reconfigure` hack 及 `test_main_decode_error.py`，HEAD `c3563b3`，263 tests）
+> 最後更新：2026-05-28（新增 `.claude/agents/sales-coder.md` 自訂 subagent，frontmatter 預載 karpathy + TDD SKILL 完整內容，取代之前 prompt 內 reference summary；CLAUDE.md + subagent-dispatch-protocol.md 同步更新派發協議；HEAD `a1612d5`，265 tests）
 
 ---
 
@@ -270,6 +270,8 @@ __pycache__/
 | `.claude/skills/` | 使用者自訂 skill 目錄（2026-05-24 加入）— Claude Code 偵測到匹配條件時自動載入 |
 | `.claude/skills/test-driven-development/SKILL.md` | TDD 實踐 skill：Red-Green-Refactor 流程 + Iron Law（無失敗測試前不寫產品碼）；S1 v2 寫 `sales_logic.py` 前載入 |
 | `.claude/skills/test-driven-development/testing-anti-patterns.md` | 測試反模式（禁測 mock 行為 / 禁為測試在產品碼加方法 / mock 不是被測物件）；寫測試或加 mock 時參考 |
+| `.claude/agents/` | 自訂 subagent 定義目錄（2026-05-28 加入）— Markdown 檔含 YAML frontmatter（name / description / model / effort / skills / tools 等），啟動時官方機制注入 SKILL 完整內容到 subagent context |
+| `.claude/agents/sales-coder.md` | sales-coder 自訂 subagent：寫 `myProgram/sales/` 業務邏輯 + `tests/sales/` 測試 + wire-up 用；frontmatter 預設 `model: opus` / `effort: xhigh` / 預載 `andrej-karpathy-skills:karpathy-guidelines` + `test-driven-development` 兩個 SKILL 完整內容 |
 | `.claude/settings.local.json` | Claude Code 本機設定（gitignored）|
 | `.claude/worktrees/` | EnterWorktree 建立的暫存工作目錄（gitignored；任務完成後 cleanup） |
 
