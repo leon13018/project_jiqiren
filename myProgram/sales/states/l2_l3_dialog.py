@@ -438,17 +438,18 @@ def _dialog_c2_second_stage(
 
 
 def _c2_direct_checkout(speak, do_action) -> tuple:
-    """C-2 timeout path：silent customer 直接 L4，跳過 confirm，無 transition cue。
+    """C-2 timeout path：silent customer 直接 L4，跳過 confirm，附 transition cue。
 
-    遵守 L3_C2_WARNING_TEMPLATE 字面 promise「如 6 秒內未答復將進行結賬」。
-    silent customer = 已被預告 → 直接 transition L4（L4 entry 自己 speak「您即將結帳...」）。
+    遵守 L3_C2_WARNING_TEMPLATE 字面 promise「如 6 秒內未答復將進行結賬」—
+    silent customer = 已被預告 → 不再經 confirm，直接 transition L4。
 
-    對比 L3 C-1 / CHECKOUT keyword path：那兩個 path 顧客主動表達結帳意圖 → 加
-    speak(L3_C1_CHECKOUT_GO) + do_action(ACTION_L3_CHECKOUT_GO) 作為「確認你選的」
-    transition cue；silent customer 沒主動表達，無需此 cue（且加 cue 會讓既有
-    L2→L3 transition action 測試誤判多 entry trigger）。
+    與 L3 C-1（main_loop / silence）及 CHECKOUT keyword path 一致：進 L4 前
+    speak(L3_C1_CHECKOUT_GO) + do_action(ACTION_L3_CHECKOUT_GO) 作為 transition cue
+    （語音「好的，為您結帳」+ 指向螢幕引導掃碼視線）。2026-05-28 Pi 實測補齊
+    此路徑的 cue（原本漏跑，UX 與其他結帳路徑不一致）。
     """
-    # speak / do_action 參數保留簽名一致性，但目前不使用（silent path 不加 cue）
+    speak(L3_C1_CHECKOUT_GO)
+    do_action(ACTION_L3_CHECKOUT_GO)
     return ("L4", 0)
 
 

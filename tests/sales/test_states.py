@@ -5026,7 +5026,7 @@ def test_dialog_l3_action_triggered_on_main_loop_transition() -> None:
     do_action_calls: list = []
     cart = cart_module.new_cart()  # 空 cart → 進 L2 mode → entry ACTION_L2
     # 「紅茶 1」一個輸入加單成功 → cart 非空 → speak L2_TO_L3_TRANSITION（合成 voice）
-    # 後續 main_loop timeout → C-2 自動結帳進 L4
+    # 後續 main_loop timeout → C-2 自動結帳進 L4（附 ACTION_L3_CHECKOUT_GO transition cue）
     customer_input = FakeCustomerInput(["紅茶 1"])
 
     states.run_dialog(
@@ -5039,10 +5039,10 @@ def test_dialog_l3_action_triggered_on_main_loop_transition() -> None:
         do_action=lambda name: do_action_calls.append(name),
     )
 
-    # Assert：entry ACTION_L2 一次 + main_loop transition ACTION_L3 一次
-    assert do_action_calls == [ACTION_L2, ACTION_L3], (
-        f"L2→L3 main_loop transition 應 do_action 序列 [ACTION_L2, ACTION_L3]，"
-        f"實際：{do_action_calls}"
+    # Assert：entry ACTION_L2 一次 + main_loop transition ACTION_L3 一次 + C-2 timeout transition cue
+    assert do_action_calls == [ACTION_L2, ACTION_L3, ACTION_L3_CHECKOUT_GO], (
+        f"L2→L3 main_loop transition 應 do_action 序列 "
+        f"[ACTION_L2, ACTION_L3, ACTION_L3_CHECKOUT_GO]，實際：{do_action_calls}"
     )
 
 
@@ -5054,7 +5054,7 @@ def test_dialog_l3_action_triggered_on_silence_transition() -> None:
     do_action_calls: list = []
     cart = cart_module.new_cart()
     # ["想一下" → 進 B-3 silence, "紅茶 1" → silence 期內加單 → trigger ACTION_L3]
-    # silence 結束回 main_loop continue → 下次 timeout → C-2 進 L4
+    # silence 結束回 main_loop continue → 下次 timeout → C-2 進 L4（附 ACTION_L3_CHECKOUT_GO cue）
     customer_input = FakeCustomerInput(["想一下", "紅茶 1"])
 
     states.run_dialog(
@@ -5067,10 +5067,10 @@ def test_dialog_l3_action_triggered_on_silence_transition() -> None:
         do_action=lambda name: do_action_calls.append(name),
     )
 
-    # Assert：entry ACTION_L2 + silence transition ACTION_L3
-    assert do_action_calls == [ACTION_L2, ACTION_L3], (
-        f"L2→L3 silence transition 應 do_action 序列 [ACTION_L2, ACTION_L3]，"
-        f"實際：{do_action_calls}"
+    # Assert：entry ACTION_L2 + silence transition ACTION_L3 + C-2 timeout transition cue
+    assert do_action_calls == [ACTION_L2, ACTION_L3, ACTION_L3_CHECKOUT_GO], (
+        f"L2→L3 silence transition 應 do_action 序列 "
+        f"[ACTION_L2, ACTION_L3, ACTION_L3_CHECKOUT_GO]，實際：{do_action_calls}"
     )
 
 
@@ -5083,8 +5083,8 @@ def test_dialog_l3_action_NOT_triggered_on_subsequent_add() -> None:
     do_action_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 2)  # cart 非空 → entry 走 L3 mode 跑 ACTION_L3
-    # 「刮刮樂 3」L3 內加新商品 → cart 仍非空 → speak L3_REASK，**不**跑 do_action
-    # 後續 timeout → C-2 進 L4
+    # 「刮刮樂 3」L3 內加新商品 → cart 仍非空 → speak L3_REASK，**不**重跑 ACTION_L3
+    # 後續 timeout → C-2 進 L4（附 ACTION_L3_CHECKOUT_GO transition cue）
     customer_input = FakeCustomerInput(["刮刮樂 3"])
 
     states.run_dialog(
@@ -5097,9 +5097,10 @@ def test_dialog_l3_action_NOT_triggered_on_subsequent_add() -> None:
         do_action=lambda name: do_action_calls.append(name),
     )
 
-    # Assert：只 entry 跑 ACTION_L3 一次，後續加單不重跑
-    assert do_action_calls == [ACTION_L3], (
-        f"L3 內後續加單不應重跑 ACTION_L3，預期 [ACTION_L3]，實際：{do_action_calls}"
+    # Assert：只 entry 跑 ACTION_L3 一次（加單不重跑）+ C-2 timeout transition cue
+    assert do_action_calls == [ACTION_L3, ACTION_L3_CHECKOUT_GO], (
+        f"L3 內後續加單不應重跑 ACTION_L3，預期 [ACTION_L3, ACTION_L3_CHECKOUT_GO]，"
+        f"實際：{do_action_calls}"
     )
 
 
@@ -5158,4 +5159,39 @@ def test_dialog_l3_checkout_go_action_triggered_via_silence_period() -> None:
     assert do_action_calls == [ACTION_L3, ACTION_L3_CHECKOUT_GO], (
         f"L3 → L4 silence transition 應 do_action 序列 [ACTION_L3, ACTION_L3_CHECKOUT_GO]，"
         f"實際：{do_action_calls}"
+    )
+
+
+def test_dialog_l3_c2_timeout_calls_checkout_go_action() -> None:
+    """L3 C-2 timeout path：silent customer → _c2_direct_checkout 應 do_action(ACTION_L3_CHECKOUT_GO)。
+
+    2026-05-28 加：使用者 Pi 實測發現 C-2 timeout 自動結帳路徑漏跑 transition cue
+    （speak L3_C1_CHECKOUT_GO + do_action ACTION_L3_CHECKOUT_GO），跟 C-1 main_loop / silence
+    及 CHECKOUT keyword 路徑不一致。本測試覆蓋 timeout 路徑的 do_action 插入點。
+
+    情境：cart 非空 → 進 dialog 主迴圈 → 首輪 read 直接 timeout（None）→ C-2 second_stage →
+    第二段 read 又 timeout（None）→ _c2_direct_checkout → 應加 ACTION_L3_CHECKOUT_GO 到序列。
+    """
+    do_action_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 2)  # cart 非空 → entry L3 mode 跑 ACTION_L3
+    # [None → main_loop timeout → 進 C-2 second_stage,
+    #  None → C-2 second_stage read timeout → _c2_direct_checkout → L4]
+    customer_input = FakeCustomerInput([None, None])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda name: do_action_calls.append(name),
+    )
+
+    assert next_state == "L4"
+    # 不斷言完整序列（避免因 entry action 數量影響）— 只驗證 transition cue 有觸發
+    assert ACTION_L3_CHECKOUT_GO in do_action_calls, (
+        f"C-2 timeout path 應觸發 ACTION_L3_CHECKOUT_GO transition cue，"
+        f"實際 do_action 序列：{do_action_calls}"
     )
