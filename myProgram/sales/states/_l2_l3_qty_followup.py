@@ -118,27 +118,11 @@ def _qty_follow_up_sub_loop(
         True 已加入 cart（含 timeout 預設 1）；False 顧客在追問內拒絕 → skip 該商品
     """
     attempts = 0
-    # cap_retry: 顧客曾在本 sub-loop 內因超量被擋（speak「最多 X 還能點...請重新告訴
-    # 我數量」）→ 後續 read **改用 timeout=None 無限等顧客回答**，不重 speak、不
-    # 推進、不 cancel。只在顧客主動行動（合法數字 / 拒絕 / 結帳）才退出 sub-loop。
-    # 對應 user 訴求「直到顧客答對為止」— 任何 timeout 行為都會違反顧客 expectation
-    # （他被擋下後在思考、不該被催促或被默默推進）。
-    # 第一輪初始追問仍走 WAIT_NO_RESPONSE timeout → default qty=1 fallback（避免
-    # 顧客一開始就完全沒回應 + 沒任何意圖時的死循環）。
-    cap_retry = False
     while True:
-        # cap_retry 期間 timeout=None 無限阻塞等顧客；初始追問仍走 WAIT_NO_RESPONSE
-        timeout = None if cap_retry else WAIT_NO_RESPONSE
-        follow_up = read_customer_input(timeout=timeout)
+        follow_up = read_customer_input(timeout=WAIT_NO_RESPONSE)
 
         if follow_up is None:
-            # 初始追問 timeout (cap_retry=False) → 預設 1 加 cart（避免顧客完全
-            # 沒回應 + 無意圖時死循環）。cap_retry 期間理論不會走到此 path 因
-            # timeout=None；但 EOF 罕見場景仍可能 push None sentinel — 視為 cancel
-            # 此商品（safety net，production 不會 EOF stdin）。
-            if cap_retry:
-                speak(f"好的，這次先不加{product}")
-                return False
+            # Timeout → 預設 1 加 cart
             cart_module.add_item(cart, product, 1)
             return True
 
@@ -158,7 +142,6 @@ def _qty_follow_up_sub_loop(
             if qty > remaining:
                 # 顧客單筆超量（含天文數字 / 累加超量）→ speak 剩餘額度 + 重新追問
                 speak(f"{product}最多還能點 {remaining} {unit}，目前累計點了 {existing} {unit}，請重新告訴我數量")
-                cap_retry = True  # 後續 timeout 重 speak 同 prompt（不推進、不 cancel）
                 continue
             cart_module.add_item(cart, product, qty)
             return True
