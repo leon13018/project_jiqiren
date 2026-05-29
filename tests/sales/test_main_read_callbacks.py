@@ -14,7 +14,7 @@
     1. read_customer_input：wait_idle 必須在 input_reader.read 之前被 call
        （顧客層全 read 點自動 cover TTS 等待）
     2. read_terminal_key：wait_idle 不該被 call（regression 防護 — L1 hawk 主迴圈
-       polling cadence 0.1s，加 wait_idle 會被 max_wait=10s 卡死）
+       polling cadence 0.1s，加 wait_idle 會被 max_wait=30s 卡死）
     3. sleep：wait_idle 必須在 time.sleep 之前被 call（L5 THANK_DELAY=3s 規格
        promise「顧客 3 秒離開時間」從 speak 完才起算；只等 TTS 不等 do_action）
 
@@ -93,8 +93,8 @@ def test_read_terminal_key_does_not_call_wait_idle(monkeypatch):
     """v3 regression：商家層 hawk polling 不應被 wait_idle 卡。
 
     L1 hawk 主迴圈以 timeout=0.1s polling 跟 OpenCV 並行；若加 wait_idle，
-    其 max_wait=10s 會把 hawk polling cadence 完全卡死（規格 hawk 12s 全程
-    被 TTS 卡死）。商家層 speak 多是 status notification（「已開啟偵測」），
+    其 max_wait=30s 會把 hawk polling cadence 完全卡死（規格 hawk 12s 內
+    TTS 大半都卡）。商家層 speak 多是 status notification（「已開啟偵測」），
     不需要顧客式「等播完再倒數」語意。
     """
     wait_idle_calls = []

@@ -6,7 +6,7 @@
     - 用 threading.Condition + _pending counter（取代 _active bool）
     - say() 原子 inc _pending + put queue（防 R1 race window）
     - worker finally 內 dec _pending + notify_all
-    - wait_idle(max_wait=10.0) 阻塞至 _pending==0 或 timeout
+    - wait_idle(max_wait=30.0) 阻塞至 _pending==0 或 timeout
 
 注入策略：
     - 用 monkeypatch 替換 _synthesize / subprocess.Popen 避免實際呼叫網路 / mpg123
@@ -271,3 +271,39 @@ def test_say_and_wait_idle_thread_safe_under_concurrent_load(monkeypatch):
     assert result is True, "並發 say 後 wait_idle 應 return True"
     # 直接驗 _pending 確實歸 0
     assert worker._pending == 0, f"最終 _pending 應為 0，實際 {worker._pending}"
+
+
+# ============================================================
+# Test 7：default max_wait regression lock（2026-05-30 commit 7661f10）
+# ============================================================
+
+
+def test_wait_idle_default_max_wait_is_30_seconds():
+    """v3 commit 7661f10：default max_wait 從 10s bump 30s。
+
+    鎖死 default value — 下次改要同步更新此 test + docstring + inline comments。
+    驗 3 處 default 一致：
+      - TtsWorker.wait_idle method default
+      - module-level wait_idle() 對外 API default
+      - speak_and_wait() default
+    """
+    import inspect
+
+    sig = inspect.signature(TtsWorker.wait_idle)
+    assert sig.parameters["max_wait"].default == 30.0, (
+        f"TtsWorker.wait_idle max_wait default should be 30.0, "
+        f"got {sig.parameters['max_wait'].default}"
+    )
+
+    # 也檢查 module-level wait_idle 跟 speak_and_wait 的 default 一致
+    sig_module = inspect.signature(tts_module.wait_idle)
+    assert sig_module.parameters["max_wait"].default == 30.0, (
+        f"module-level wait_idle max_wait default should be 30.0, "
+        f"got {sig_module.parameters['max_wait'].default}"
+    )
+
+    sig_speak_wait = inspect.signature(tts_module.speak_and_wait)
+    assert sig_speak_wait.parameters["max_wait"].default == 30.0, (
+        f"speak_and_wait max_wait default should be 30.0, "
+        f"got {sig_speak_wait.parameters['max_wait'].default}"
+    )

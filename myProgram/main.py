@@ -124,7 +124,8 @@ def _build_callbacks(state: _S1State) -> dict:
         對非 budget caller 自動 cover TTS 等待（不必逐個 speak 改 speak_and_wait）。
         """
         # 2026-05-30 v3：等 TTS 播完才開始倒數（避免顧客還在聽 prompt 就被扣秒）
-        # max_wait=10s 防 synth/mpg123 hang 永久阻塞（v1 P0 已修；見 tts.wait_idle）
+        # max_wait=30s 防 synth/mpg123 hang 永久阻塞（v1 P0 已修；見 tts.wait_idle）
+        # 2026-05-30 從 10s bump 30s（commit 7661f10）— Pi 實測 hawk + L2 entry back-to-back 超 10s
         # Lazy import 對齊既有 speak callback pattern（Windows pytest 不觸發 edge_tts import）
         from myProgram import tts
         tts.wait_idle()
