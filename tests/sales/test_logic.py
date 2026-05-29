@@ -67,7 +67,7 @@ def test_logic_assert_cart_empty_violation_raises(monkeypatch):
         return "L2"
 
     def stub_run_dialog(*, speak, print_terminal, read_customer_input, cart, think_count,
-                        opencv_disable, do_action):
+                        opencv_disable, do_action, speak_and_wait=None):
         call_counts["run_dialog"] += 1
         # 第一次把 cart 加商品但不清空，然後返 L1_via_subroutine_a
         cart["冰紅茶"] = 1
@@ -140,7 +140,7 @@ def test_logic_dialog_exits_to_subroutine_a_with_empty_cart(monkeypatch):
         return "L2"
 
     def stub_run_dialog(*, speak, print_terminal, read_customer_input, cart, think_count,
-                        opencv_disable, do_action):
+                        opencv_disable, do_action, speak_and_wait=None):
         # dialog 清空 cart（正常行為）後返回 L1_via_subroutine_a
         cart.clear()
         return ("L1_via_subroutine_a", 0)
@@ -189,13 +189,13 @@ def test_logic_l4_non_scan_exit_with_empty_cart(monkeypatch):
         return "L2"
 
     def stub_run_dialog(*, speak, print_terminal, read_customer_input, cart, think_count,
-                        opencv_disable, do_action):
+                        opencv_disable, do_action, speak_and_wait=None):
         # 加入商品進 cart（模擬顧客完成點餐）
         cart["冰紅茶"] = 2
         return ("L4", 0)
 
     def stub_run_l4(*, speak, print_terminal, read_customer_input, cart, loop_count,
-                    unclear_count, opencv_disable, do_action):
+                    unclear_count, opencv_disable, do_action, speak_and_wait=None):
         # L4 取消路徑：清 cart 後返 L1_via_subroutine_a
         cart.clear()
         return ("L1_via_subroutine_a", 0, 0)
@@ -241,12 +241,12 @@ def test_logic_l5_exit_with_empty_cart_triggers_subroutine_a(monkeypatch):
         return "L2"
 
     def stub_run_dialog(*, speak, print_terminal, read_customer_input, cart, think_count,
-                        opencv_disable, do_action):
+                        opencv_disable, do_action, speak_and_wait=None):
         cart["刮刮樂"] = 1
         return ("L4", 0)
 
     def stub_run_l4(*, speak, print_terminal, read_customer_input, cart, loop_count,
-                    unclear_count, opencv_disable, do_action):
+                    unclear_count, opencv_disable, do_action, speak_and_wait=None):
         # L4-A：掃碼成功，不清 cart（L5 負責清）
         return ("L5", 0, 0)
 
@@ -313,7 +313,7 @@ def test_logic_enter_hawk_immediately_consumed_after_l1(monkeypatch):
     dialog_call_count = {"n": 0}
 
     def stub_run_dialog(*, speak, print_terminal, read_customer_input, cart, think_count,
-                        opencv_disable, do_action):
+                        opencv_disable, do_action, speak_and_wait=None):
         dialog_call_count["n"] += 1
         cart.clear()
         if dialog_call_count["n"] == 1:
@@ -325,7 +325,7 @@ def test_logic_enter_hawk_immediately_consumed_after_l1(monkeypatch):
             return ("L4", 0)
 
     def stub_run_l4(*, speak, print_terminal, read_customer_input, cart, loop_count,
-                    unclear_count, opencv_disable, do_action):
+                    unclear_count, opencv_disable, do_action, speak_and_wait=None):
         # L4 取消路徑：清 cart + 退出 subroutine_a → flag=True
         cart.clear()
         return ("L1_via_subroutine_a", 0, 0)

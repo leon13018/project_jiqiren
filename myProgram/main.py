@@ -178,6 +178,22 @@ def _build_callbacks(state: _S1State) -> dict:
         from myProgram import tts
         tts.speak(text)
 
+    def speak_and_wait(text):
+        """同步阻塞 TTS — 給 wall-clock budget pattern caller 用（2026-05-30 v2 加）。
+
+        相比 speak（非阻塞 enqueue）：阻塞至 TTS 完整播完才 return，讓 caller 之後
+        算 deadline = monotonic + N 時，N 秒 budget 不被 TTS 播放時間吃掉。
+
+        Wire-up 範圍（grep 過 wall-clock budget pattern 共 3 處）：
+            - sales/states/_cancel_confirm.py: speak CANCEL_CONFIRM_PROMPT
+            - sales/states/l2_l3_dialog.py: _dialog_c2_second_stage speak warning
+            - sales/states/l4.py: run_l4 entry speak total prompt
+
+        Lazy import 對齊既有 speak callback pattern。
+        """
+        from myProgram import tts
+        tts.speak_and_wait(text)
+
     def do_action(name):
         """S5 非阻塞動作 callback：lazy import action 模組 + enqueue 立即返回。
 
@@ -228,6 +244,7 @@ def _build_callbacks(state: _S1State) -> dict:
         "opencv_enable": opencv_enable,
         "mute_opencv": mute_opencv,
         "speak": speak,
+        "speak_and_wait": speak_and_wait,
         "do_action": do_action,
         "read_customer_input": read_customer_input,
         "sleep": sleep,

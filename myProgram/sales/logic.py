@@ -41,6 +41,7 @@ def run(
     schedule,
     exit_program,
     show_hawk_help,
+    speak_and_wait=None,
 ) -> None:
     """S1 v2 主迴圈：L1 → dialog → L4 → L5 → 子例程 A → L1 cycle。
 
@@ -84,6 +85,7 @@ def run(
             think_count=0,
             opencv_disable=opencv_disable,
             do_action=do_action,
+            speak_and_wait=speak_and_wait,
         )
         if next_state == "L1_via_subroutine_a":
             _assert_cart_empty(cart, "dialog 退出後（dialog A 已視情況清 cart）")
@@ -103,6 +105,7 @@ def run(
             unclear_count=0,
             opencv_disable=opencv_disable,
             do_action=do_action,
+            speak_and_wait=speak_and_wait,
         )
         if next_state == "L1_via_subroutine_a":
             # L4 非 L5 路徑必清 cart（_l4_exit_b / _l4_exit_d_forced / _l4_service_mode 退出三條

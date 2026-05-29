@@ -91,8 +91,14 @@ def run_dialog(
     *,
     opencv_disable,
     do_action,
+    speak_and_wait=None,
 ) -> tuple:
     """統一對話層主迴圈 — cart 狀態驅動。
+
+    speak_and_wait（2026-05-30 v2 加）：同步阻塞 speak callback。為 None 時
+    fallback 到 speak（向後兼容既有測試）；production wire-up 必須傳真實 callback，
+    供 wall-clock budget pattern 子函式用（_dialog_c2_second_stage / cancel_confirm
+    從 TTS 播完起算 deadline，不被 synth/play 時間吃掉 budget）。
 
     Args:
         speak: callback(text: str) — 語音播放
@@ -132,6 +138,7 @@ def run_dialog(
         cart=cart,
         think_count=think_count,
         do_action=do_action,
+        speak_and_wait=speak_and_wait,
     )
 
 
@@ -152,6 +159,7 @@ def _dialog_think_silence_l2(
     cart,
     think_count: int,
     do_action,
+    speak_and_wait=None,
 ) -> tuple | None:
     """L2 B-3 想一下沉默期（think_count < 3）：等 6s，有回應重 dispatch；無回應 → 重問。"""
     inner = read_customer_input(timeout=WAIT_NO_RESPONSE)
@@ -166,6 +174,7 @@ def _dialog_think_silence_l2(
         cart=cart,
         think_count=think_count,
         do_action=do_action,
+        speak_and_wait=speak_and_wait,
     )
 
 
@@ -176,6 +185,7 @@ def _dialog_think_silence_l3(
     cart,
     think_count: int,
     do_action,
+    speak_and_wait=None,
 ) -> tuple | int | None:
     """L3 B-4 想一下沉默期（think_count < 3）：等 6s，有回應重 dispatch；無回應 → 重問。"""
     inner = read_customer_input(timeout=WAIT_NO_RESPONSE)
@@ -190,6 +200,7 @@ def _dialog_think_silence_l3(
         cart=cart,
         think_count=think_count,
         do_action=do_action,
+        speak_and_wait=speak_and_wait,
     )
 
 
@@ -201,6 +212,7 @@ def _dialog_dispatch_inner_l2(
     cart,
     think_count: int,
     do_action,
+    speak_and_wait=None,
 ) -> tuple | None:
     """L2 B-3 沉默期內顧客有回應 → 重跑 L2 mode 判定（cart 仍空假設）。
 
@@ -211,7 +223,7 @@ def _dialog_dispatch_inner_l2(
     intent = classify_intent(response, "l2")
     if intent == "拒絕":
         # 2026-05-29 cross-L cancel：拒絕意圖 → 先過 cancel_confirm gate
-        if cancel_confirm(speak, read_customer_input):
+        if cancel_confirm(speak, read_customer_input, speak_and_wait=speak_and_wait):
             return _dialog_exit_a(speak, cart)
         # 顧客 NO「不要取消」→ speak 繼續服務通知，回主等待重 prompt
         speak(CANCEL_DECLINED_NOTICE)
@@ -229,6 +241,7 @@ def _dialog_dispatch_inner_l2(
             cart=cart,
             think_count=think_count,
             do_action=do_action,
+            speak_and_wait=speak_and_wait,
         )
     if intent == "結帳":
         # L2 結帳當 B-1 unclear → speak clarify 回主等待
@@ -280,6 +293,7 @@ def _dialog_dispatch_inner_l3(
     cart,
     think_count: int,
     do_action,
+    speak_and_wait=None,
 ) -> tuple | int | None:
     """L3 B-4 沉默期 / C-2 第二段內顧客有回應 → 重跑 L3 mode 判定。
 
@@ -291,7 +305,7 @@ def _dialog_dispatch_inner_l3(
     intent = classify_intent(response, "normal")
     if intent == "拒絕":
         # 2026-05-29 cross-L cancel：拒絕意圖 → 先過 cancel_confirm gate
-        if cancel_confirm(speak, read_customer_input):
+        if cancel_confirm(speak, read_customer_input, speak_and_wait=speak_and_wait):
             return _dialog_exit_a(speak, cart)
         # 顧客 NO「不要取消」→ speak 繼續服務通知，回主等待重 prompt
         speak(CANCEL_DECLINED_NOTICE)
@@ -308,6 +322,7 @@ def _dialog_dispatch_inner_l3(
                 read_customer_input=read_customer_input,
                 cart=cart,
                 think_count=think_count,
+                speak_and_wait=speak_and_wait,
             )
         return _dialog_think_silence_l3(
             speak=speak,
@@ -316,6 +331,7 @@ def _dialog_dispatch_inner_l3(
             cart=cart,
             think_count=think_count,
             do_action=do_action,
+            speak_and_wait=speak_and_wait,
         )
     if intent == "結帳":
         # L3 結帳 → C-1 confirm
@@ -324,6 +340,7 @@ def _dialog_dispatch_inner_l3(
             print_terminal=print_terminal,
             read_customer_input=read_customer_input,
             cart=cart,
+            speak_and_wait=speak_and_wait,
         )
         if result == "yes":
             speak(L3_C1_CHECKOUT_GO)
@@ -366,6 +383,7 @@ def _dialog_c2_second_stage(
     cart,
     think_count: int,
     do_action,
+    speak_and_wait=None,
 ) -> tuple:
     """L3 C-2 第二段：三選一子狀態（2026-05-28 重構：二元 yes/no → 繼續/結帳/取消）。
 
@@ -393,7 +411,10 @@ def _dialog_c2_second_stage(
     字面 promise 寬鬆解讀：新文案「{seconds} 秒後自動結賬」中「自動結賬」可解為
     「自動啟動結賬流程」（含 confirm 子狀態），不嚴格等於「跳過所有確認直接扣款」。
     """
-    speak(L3_C2_WARNING_TEMPLATE.format(seconds=C2_DECISION_TIMEOUT))
+    # 2026-05-30 v2：speak_and_wait warning 後算 deadline — 顧客拿到完整
+    # C2_DECISION_TIMEOUT 秒 budget，而非「budget 減 warning 播放時間」
+    _speak_blocking = speak_and_wait if speak_and_wait is not None else speak
+    _speak_blocking(L3_C2_WARNING_TEMPLATE.format(seconds=C2_DECISION_TIMEOUT))
 
     deadline = time.monotonic() + C2_DECISION_TIMEOUT
     prompted_once = False  # 第一次亂答才 speak 提示，後續 silent（不重置 deadline）
@@ -408,6 +429,7 @@ def _dialog_c2_second_stage(
                 cart=cart,
                 think_count=think_count,
                 do_action=do_action,
+                speak_and_wait=speak_and_wait,
             )
 
         response = read_customer_input(timeout=remaining)
@@ -420,6 +442,7 @@ def _dialog_c2_second_stage(
                 cart=cart,
                 think_count=think_count,
                 do_action=do_action,
+                speak_and_wait=speak_and_wait,
             )
 
         # 三選一 dispatcher（2026-05-28 重構：CANCEL 優先，顧客錢包 conservative）
@@ -442,6 +465,7 @@ def _dialog_c2_second_stage(
                 cart=cart,
                 think_count=think_count,
                 do_action=do_action,
+                speak_and_wait=speak_and_wait,
             )
 
         # CHECKOUT：顧客主動講結帳 → 經 _dialog_checkout_confirm 確認明細
@@ -457,6 +481,7 @@ def _dialog_c2_second_stage(
                 cart=cart,
                 think_count=think_count,
                 do_action=do_action,
+                speak_and_wait=speak_and_wait,
             )
 
         # 其他（不在三組 keyword 內）— 視為亂答
@@ -474,6 +499,7 @@ def _c2_checkout_via_confirm(
     cart,
     think_count: int,
     do_action,
+    speak_and_wait=None,
 ) -> tuple:
     """C-2 結賬 path（合流：CHECKOUT keyword + silent timeout 都走這裡）。
 
@@ -482,7 +508,7 @@ def _c2_checkout_via_confirm(
     對齊既有 L3 C-1 結帳 path（_dialog_dispatch_inner_l3 / _dialog_main_loop 結帳分支）
     — 共用 confirm 子狀態。
 
-    2026-05-29 反轉：silent timeout 不再走 _c2_direct_checkout 直接 L4，
+    2026-05-29 反轉：silent timeout 不再走 _c2_direct_checkout 直接 L4,
     合流到此函數經 confirm（與 CHECKOUT keyword path 完全一致）。新文案
     「{seconds} 秒後自動結賬」字面 promise 寬鬆解讀為「自動啟動結賬流程」
     （含 confirm 子狀態保護顧客錢包）。
@@ -492,6 +518,7 @@ def _c2_checkout_via_confirm(
         print_terminal=print_terminal,
         read_customer_input=read_customer_input,
         cart=cart,
+        speak_and_wait=speak_and_wait,
     )
     if result == "yes":
         speak(L3_C1_CHECKOUT_GO)
@@ -506,6 +533,7 @@ def _c2_checkout_via_confirm(
         cart=cart,
         think_count=think_count,
         do_action=do_action,
+        speak_and_wait=speak_and_wait,
     )
 
 
@@ -516,6 +544,7 @@ def _dialog_main_loop(
     cart,
     think_count: int,
     do_action,
+    speak_and_wait=None,
 ) -> tuple:
     """dialog 主迴圈 core — 由 run_dialog 與 _dialog_continue_after_c2_inner 共用。
 
@@ -559,6 +588,7 @@ def _dialog_main_loop(
                 cart=cart,
                 think_count=think_count,
                 do_action=do_action,
+                speak_and_wait=speak_and_wait,
             )
 
         # === 判定優先序（cart 狀態決定 NLU mode + 行為）===
@@ -568,7 +598,7 @@ def _dialog_main_loop(
         # 拒絕意圖 → 先過 cancel_confirm gate（2026-05-29 cross-L cancel）
         # True → 鏈路 A（依 cart 狀態決定是否清 cart）；False → speak 繼續通知後 continue 重 prompt
         if intent == "拒絕":
-            if cancel_confirm(speak, read_customer_input):
+            if cancel_confirm(speak, read_customer_input, speak_and_wait=speak_and_wait):
                 return _dialog_exit_a(speak, cart)
             speak(CANCEL_DECLINED_NOTICE)
             continue
@@ -589,6 +619,7 @@ def _dialog_main_loop(
                     cart=cart,
                     think_count=think_count,
                     do_action=do_action,
+                    speak_and_wait=speak_and_wait,
                 )
                 if isinstance(result, tuple):
                     return result
@@ -606,6 +637,7 @@ def _dialog_main_loop(
                     cart=cart,
                     think_count=think_count,
                     do_action=do_action,
+                    speak_and_wait=speak_and_wait,
                 )
             result = _dialog_think_silence_l3(
                 speak=speak,
@@ -614,6 +646,7 @@ def _dialog_main_loop(
                 cart=cart,
                 think_count=think_count,
                 do_action=do_action,
+                speak_and_wait=speak_and_wait,
             )
             if isinstance(result, tuple):
                 return result
@@ -638,6 +671,7 @@ def _dialog_main_loop(
                 print_terminal=print_terminal,
                 read_customer_input=read_customer_input,
                 cart=cart,
+                speak_and_wait=speak_and_wait,
             )
             if result == "yes":
                 speak(L3_C1_CHECKOUT_GO)
@@ -717,6 +751,7 @@ def _dialog_main_loop(
                 print_terminal=print_terminal,
                 read_customer_input=read_customer_input,
                 cart=cart,
+                speak_and_wait=speak_and_wait,
             )
             if final is not None:
                 return final
@@ -736,6 +771,7 @@ def _dialog_checkout_confirm(
     print_terminal,
     read_customer_input,
     cart,
+    speak_and_wait=None,
 ) -> bool:
     """L3 C-1 結帳前 confirm 子狀態（每次重 prompt 重置 timeout + unclear 上限）。
 
@@ -774,7 +810,7 @@ def _dialog_checkout_confirm(
         # YES → 直接 return "no_explicit"（讓 caller 走清 cart 退場路徑）
         # NO → speak DECLINED 後 continue（不計入 unclear_count，這是顧客明確意圖溝通）
         if is_cancel_intent(response):
-            if cancel_confirm(speak, read_customer_input):
+            if cancel_confirm(speak, read_customer_input, speak_and_wait=speak_and_wait):
                 return "no_explicit"
             speak(CANCEL_DECLINED_NOTICE)
             speak(prompt)
@@ -820,6 +856,7 @@ def _dialog_unclear_final_confirmation(
     print_terminal,
     read_customer_input,
     cart,
+    speak_and_wait=None,
 ) -> tuple | None:
     """L3 B-1 累積到 UNCLEAR_MAX 後的最終確認子狀態（仿 L4 D；2026-05-26 重構 wall-clock）。
 
@@ -844,7 +881,7 @@ def _dialog_unclear_final_confirmation(
         if intent == "退出交易":
             # 2026-05-29 cross-L cancel：unclear final 內語音退出 intent → 先過 cancel_confirm gate
             # （終端 "1" / silent timeout / unclear exhausted 仍直接退，不 gate — 那些是介面操作非 cancel intent）
-            if cancel_confirm(speak, read_customer_input):
+            if cancel_confirm(speak, read_customer_input, speak_and_wait=speak_and_wait):
                 return _dialog_exit_a(speak, cart)
             # NO → speak DECLINED + 重 prompt unclear final + continue（不計 unclear_count）
             speak(CANCEL_DECLINED_NOTICE)

@@ -27,12 +27,16 @@ from myProgram.sales.constants import (
 from myProgram.sales.nlu import contains_any, equals_strict_short, classify_intent
 
 
-def cancel_confirm(speak, read_customer_input) -> bool:
+def cancel_confirm(speak, read_customer_input, speak_and_wait=None) -> bool:
     """跨層共用 cancel confirm 6s wall-clock budget 子狀態。
 
     Args:
-        speak: callback(text: str) — 語音播放
+        speak: callback(text: str) — 語音播放（非阻塞）
         read_customer_input: callback(timeout: float) -> str | None — 等顧客回應
+        speak_and_wait: callback(text: str) — 同步阻塞 speak（2026-05-30 v2 加）。
+            為 None 時 fallback 到 speak（向後兼容既有測試）；production wire-up
+            必須傳真實 callback，讓 6s budget 從 TTS 播完起算（不被 synth/play
+            時間吃掉）— 這是 user 已對齊的「從 speak 播完起算」semantic。
 
     Returns:
         True — 確認取消（YES keyword 命中 / silent timeout / 亂答耗盡 budget）
@@ -44,7 +48,10 @@ def cancel_confirm(speak, read_customer_input) -> bool:
         - 亂答消耗 budget 不重置（避免無限延長）
         - budget 耗盡 / silent → True（user 字面 promise）
     """
-    speak(CANCEL_CONFIRM_PROMPT)
+    # 2026-05-30 v2：speak_and_wait CANCEL_CONFIRM_PROMPT 後算 deadline — 顧客拿到
+    # 完整 CANCEL_CONFIRM_TIMEOUT (6s) budget，而非「6s 減 prompt 播放時間」
+    _speak_blocking = speak_and_wait if speak_and_wait is not None else speak
+    _speak_blocking(CANCEL_CONFIRM_PROMPT)
     deadline = time.monotonic() + CANCEL_CONFIRM_TIMEOUT
 
     while True:

@@ -53,6 +53,7 @@ def run_l4(
     *,
     opencv_disable,
     do_action,
+    speak_and_wait=None,
 ) -> tuple:
     """L4 主迴圈：結帳層（印金額 + 等掃碼）。
 
@@ -101,7 +102,10 @@ def run_l4(
     # 進入時動作：計算總額、印明細、speak 總額語音
     total = cart_module.calc_total(cart)
     _l4_print_entry_detail(cart, total, print_terminal)
-    speak(L4_ENTRY_PROMPT_TEMPLATE.format(total=total))
+    # 2026-05-30 v2：speak_and_wait 進場 prompt 後算 deadline — 顧客拿到完整
+    # L4_TOTAL_BUDGET (60s) budget，而非「60s 減 entry prompt 播放時間」（~3-4s）
+    _speak_blocking = speak_and_wait if speak_and_wait is not None else speak
+    _speak_blocking(L4_ENTRY_PROMPT_TEMPLATE.format(total=total))
 
     # 2026-05-26 方案 B：L4 全程 wall-clock 預算（60s）
     # ack 路徑 speak gentle 後 continue 不重設 deadline — 顧客可講禮貌詞但整體上限固定
@@ -125,6 +129,7 @@ def run_l4(
                     read_customer_input=read_customer_input,
                     cart=cart,
                     total=total,
+                    speak_and_wait=speak_and_wait,
                 )
                 if result is not None:
                     return result  # 取消 → ("L1_via_subroutine_a", 0, 0)
@@ -147,6 +152,7 @@ def run_l4(
                 loop_count=loop_count,
                 unclear_count=unclear_count,
                 do_action=do_action,
+                speak_and_wait=speak_and_wait,
             )
             if isinstance(result, tuple):
                 return result
@@ -182,6 +188,7 @@ def run_l4(
             loop_count=loop_count,
             unclear_count=unclear_count,
             do_action=do_action,
+            speak_and_wait=speak_and_wait,
         )
 
         if isinstance(result, tuple):
@@ -287,6 +294,7 @@ def _l4_final_confirmation(
     read_customer_input,
     cart,
     total: int,
+    speak_and_wait=None,
 ) -> tuple | None:
     """L4 D 達上限後的最終確認子狀態（2026-05-25 加；2026-05-26 重構 wall-clock）。
 
@@ -323,7 +331,7 @@ def _l4_final_confirmation(
         if intent == "退出交易":
             # 2026-05-29 cross-L cancel：L4 final 內語音退出 intent → 先過 cancel_confirm gate
             # （終端 "1" / silent timeout / unclear exhausted 仍直接退，不 gate）
-            if cancel_confirm(speak, read_customer_input):
+            if cancel_confirm(speak, read_customer_input, speak_and_wait=speak_and_wait):
                 return _l4_exit_d_forced(speak, cart)
             # NO → speak DECLINED + 重 prompt L4 final + continue（不計 unclear_count）
             speak(CANCEL_DECLINED_NOTICE)
@@ -346,6 +354,7 @@ def _l4_service_mode(
     cart,
     loop_count: int,
     do_action,
+    speak_and_wait=None,
 ) -> tuple | None:
     """L4 鏈路 C 客服特殊模式（不自動返回）。
 
@@ -390,7 +399,7 @@ def _l4_service_mode(
         if intent == "退出交易":
             # 2026-05-29 cross-L cancel：service mode 內語音退出 intent → 先過 cancel_confirm gate
             # （終端 "1" / silent 60s timeout 仍直接退，不 gate — 那些是介面操作 / 預設安全退場）
-            if cancel_confirm(speak, read_customer_input):
+            if cancel_confirm(speak, read_customer_input, speak_and_wait=speak_and_wait):
                 cart_module.clear_cart(cart)
                 return ("L1_via_subroutine_a", 0, 0)
             # NO → speak DECLINED + 重 prompt service options + continue
@@ -401,7 +410,7 @@ def _l4_service_mode(
         if intent == "拒絕":
             # fallback：不強制顧客學「退出」一詞
             # 2026-05-29 cross-L cancel：fallback reject 也走 cancel_confirm gate
-            if cancel_confirm(speak, read_customer_input):
+            if cancel_confirm(speak, read_customer_input, speak_and_wait=speak_and_wait):
                 cart_module.clear_cart(cart)
                 return ("L1_via_subroutine_a", 0, 0)
             speak(CANCEL_DECLINED_NOTICE)
@@ -424,6 +433,7 @@ def _l4_dispatch_response(
     loop_count: int,
     unclear_count: int,
     do_action,
+    speak_and_wait=None,
 ) -> tuple | int | None | str:
     """L4 判定優先序 dispatcher（有回應時）。
 
@@ -458,7 +468,7 @@ def _l4_dispatch_response(
     if intent == "拒絕":
         # 2026-05-29 cross-L cancel：拒絕意圖 → 先過 cancel_confirm gate
         # True → 鏈路 B 清 cart 退 L1；False → speak 繼續通知，回主迴圈 continue（不重置 budget）
-        if cancel_confirm(speak, read_customer_input):
+        if cancel_confirm(speak, read_customer_input, speak_and_wait=speak_and_wait):
             return _l4_exit_b(speak, cart)
         speak(CANCEL_DECLINED_NOTICE)
         # 回主迴圈 continue（無計數器需更新；wall-clock budget 保留不重置）
@@ -473,6 +483,7 @@ def _l4_dispatch_response(
             cart=cart,
             loop_count=loop_count,
             do_action=do_action,
+            speak_and_wait=speak_and_wait,
         )
         if result is not None:
             return result
@@ -493,6 +504,7 @@ def _l4_dispatch_response(
             cart=cart,
             loop_count=loop_count,
             do_action=do_action,
+            speak_and_wait=speak_and_wait,
         )
         if result is not None:
             return result
