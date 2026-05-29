@@ -1177,10 +1177,12 @@ def test_l2_b3_silence_interrupted_by_response_reruns_dispatch() -> None:
     # Arrange
     speak_calls: list = []
     cart = cart_module.new_cart()
-    # 想一下 → 沉默期；沉默期內顧客回「冰紅茶」(無 qty) → followup None 預設 qty=1 加單 → L3；
+    # 想一下 → 沉默期；沉默期內顧客回「冰紅茶」(無 qty) → followup「一瓶」加 1 → L3；
     # 主 None → C-2 → C-2 None → confirm；「對」 → confirm yes → L4
     # （2026-05-29 silent timeout 改經 confirm 合流路徑，需 confirm yes 才到 L4 + 保留 cart）
-    customer_input = FakeCustomerInput(["想一下", "冰紅茶", None, None, None, "對"])
+    # （2026-05-29 qty timeout 反轉：followup 不能用 None — None 改為 skip 該商品。此 test
+    #  原意是「沉默期內回應商品成功加 cart 進 L3」，改用顯式數量「一瓶」保留原 scenario 行為。）
+    customer_input = FakeCustomerInput(["想一下", "冰紅茶", "一瓶", None, None, "對"])
 
     # Act
     next_state, next_think_count = states.run_dialog(
@@ -1327,9 +1329,11 @@ def test_l2_c_iced_tea_default_quantity_adds_cart_and_goes_l3() -> None:
     # Arrange
     speak_calls: list = []
     cart = cart_module.new_cart()
-    # 冰紅茶（無 qty）→ followup → None 預設 qty=1 加單 → main_loop None → C-2 → C-2 None
+    # 冰紅茶（無 qty）→ followup「一瓶」加 1 → L3；main_loop None → C-2 → C-2 None
     # → confirm；「對」 → confirm yes → L4（2026-05-29 silent timeout 改經 confirm 合流路徑）
-    customer_input = FakeCustomerInput(["冰紅茶", None, None, None, "對"])
+    # （2026-05-29 qty timeout 反轉：followup 不能用 None — None 改為 skip 該商品。改用顯式
+    #  數量「一瓶」保留原 scenario「冰紅茶 ×1 進 L3」行為。）
+    customer_input = FakeCustomerInput(["冰紅茶", "一瓶", None, None, "對"])
 
     # Act
     next_state, next_think_count = states.run_dialog(
@@ -1474,6 +1478,85 @@ def test_l2_c_qty_followup_reject_cancels_addition_and_reprompts_l2() -> None:
     )
 
 
+def test_l2_c_qty_followup_timeout_skips_product_and_reprompts_l2() -> None:
+    """2026-05-29 反轉：qty 追問內 silent timeout → skip 該商品（不加 cart）+ speak「先不加」+ L2_B3_REASK。
+
+    原行為（reverted）：timeout → 預設加 1 瓶。
+    新行為（user Pi demo 後決定）：timeout 視為顧客不想買此商品 → skip。
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 紅茶 → ask → None（timeout）→ speak skip + return False → L2_B3_REASK → 主迴圈 continue
+    # → None → L2-A timeout reject → L1
+    customer_input = FakeCustomerInput(["紅茶", None, None])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # timeout 後 cart 不應加入冰紅茶（過去會自動加 1）
+    assert cart_module.is_empty(cart), (
+        f"qty 追問 timeout 應 skip 該商品，cart 應為空，實際：{cart}"
+    )
+    # speak「好的，這次先不加 X」通知（對齊 attempts cap 路徑文案）
+    assert any("先不加" in s and "冰紅茶" in s for s in speak_calls), (
+        f"timeout skip 應 speak「好的，這次先不加冰紅茶」，實際：{speak_calls}"
+    )
+    # caller 跑完 resolve 後 speak L2_B3_REASK（cart 仍空 → L2 entry-equivalent）
+    assert L2_B3_REASK in speak_calls, (
+        f"全商品 skip 後應 speak L2_B3_REASK 回 L2 entry，實際：{speak_calls}"
+    )
+    # 最後 None → L2-A timeout 退 L1
+    assert next_state == "L1_via_subroutine_a"
+
+
+def test_l3_b3_qty_followup_timeout_skips_product_and_reprompts_l3() -> None:
+    """2026-05-29 反轉：L3 qty 追問內 silent timeout → skip 該商品（不加 cart）+ speak「先不加」+ L3_REASK。
+
+    cart 已含其他商品 → skip 後 cart 不變，L3_REASK 回 L3 entry，主迴圈繼續。
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # 「我要刮刮樂」(無數量) → ask 幾張 → None（timeout）→ speak skip + return False → L3_REASK
+    # → 主迴圈 continue → None → C-2 silent → None → confirm；「對」 → confirm yes → L4
+    customer_input = FakeCustomerInput(["我要刮刮樂", None, None, None, "對"])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # 刮刮樂未加（timeout skip）；冰紅茶保留
+    assert cart_module.get_quantity(cart, "刮刮樂") == 0, (
+        f"qty 追問 timeout 應 skip 刮刮樂，實際：{cart}"
+    )
+    assert cart_module.get_quantity(cart, "冰紅茶") == 1, (
+        f"既有冰紅茶應保留，實際：{cart}"
+    )
+    assert any("先不加" in s and "刮刮樂" in s for s in speak_calls), (
+        f"timeout skip 應 speak「好的，這次先不加刮刮樂」，實際：{speak_calls}"
+    )
+    assert L3_REASK in speak_calls, (
+        f"skip 後應 speak L3_REASK 回 L3 entry，實際：{speak_calls}"
+    )
+    # confirm yes → L4
+    assert next_state == "L4"
+
+
 def test_l2_c_iced_tea_no_quantity_asks_then_uses_followup() -> None:
     """2026-05-25 加：商品意圖無數量 → 系統追問「您要幾瓶？」→ 用 follow-up 數量加 cart。"""
     speak_calls: list = []
@@ -1508,9 +1591,11 @@ def test_l2_c_iced_tea_no_quantity_asks_then_uses_followup() -> None:
 def test_l2_c_scratch_card_adds_cart_and_goes_l3() -> None:
     # Arrange
     cart = cart_module.new_cart()
-    # 刮刮樂（無 qty）→ followup → None 預設 qty=1 加單 → main_loop None → C-2 → C-2 None
+    # 刮刮樂（無 qty）→ followup「一張」加 1 → L3；main_loop None → C-2 → C-2 None
     # → confirm；「對」 → confirm yes → L4（2026-05-29 silent timeout 改經 confirm 合流路徑）
-    customer_input = FakeCustomerInput(["刮刮樂", None, None, None, "對"])
+    # （2026-05-29 qty timeout 反轉：followup 不能用 None — None 改為 skip 該商品。改用顯式
+    #  數量「一張」保留原 scenario「刮刮樂 ×1 進 L3」行為。）
+    customer_input = FakeCustomerInput(["刮刮樂", "一張", None, None, "對"])
 
     # Act
     next_state, _ = states.run_dialog(
@@ -1965,9 +2050,11 @@ def test_l3_b3_product_default_quantity_adds_cart_and_stays_in_l3() -> None:
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # 商品（無 qty）→ followup → None 預設 qty=1 加單 → main_loop None → C-2 → C-2 None
+    # 商品（無 qty）→ followup「一張」加 1 → 留 L3；main_loop None → C-2 → C-2 None
     # → confirm；「對」 → confirm yes → L4（2026-05-29 silent timeout 改經 confirm 合流路徑）
-    customer_input = FakeCustomerInput(["刮刮樂", None, None, None, "對"])
+    # （2026-05-29 qty timeout 反轉：followup 不能用 None — None 改為 skip 該商品。改用顯式
+    #  數量「一張」保留原 scenario「刮刮樂加入 cart ×1 留 L3」行為。）
+    customer_input = FakeCustomerInput(["刮刮樂", "一張", None, None, "對"])
 
     # Act
     next_state, _ = states.run_dialog(
@@ -2138,10 +2225,12 @@ def test_l3_b4_silence_interrupted_by_response_reruns_dispatch() -> None:
     # Arrange
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # 想一下 → 沉默期回應「冰紅茶」(無 qty) → followup None 預設 qty=1 加 cart →
+    # 想一下 → 沉默期回應「冰紅茶」(無 qty) → followup「一瓶」加 cart 1 →
     # main_loop None → C-2 → C-2 None → confirm；「對」 → confirm yes → L4
     # （2026-05-29 silent timeout 改經 confirm 合流路徑，需 confirm yes 才到 L4 + 保留 cart）
-    customer_input = FakeCustomerInput(["等等", "冰紅茶", None, None, None, "對"])
+    # （2026-05-29 qty timeout 反轉：followup 不能用 None — None 改為 skip 該商品。改用顯式
+    #  數量「一瓶」保留原 scenario「沉默期內回應商品成功加 cart」行為。）
+    customer_input = FakeCustomerInput(["等等", "冰紅茶", "一瓶", None, None, "對"])
 
     # Act
     next_state, _ = states.run_dialog(

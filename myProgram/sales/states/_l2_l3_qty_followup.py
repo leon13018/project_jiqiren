@@ -6,7 +6,7 @@
 
 追問 sub-loop 分流（6 個分支）：
     1. 顧客回應含數量 → 用該數量加 cart → 返 True
-    2. 顧客 timeout（None）→ 預設 qty=1 加 cart → 返 True（避免無限迴圈）
+    2. 顧客 timeout（None）→ skip 該商品 + speak 通知 → 返 False（2026-05-29 反轉，原本預設加 1）
     3. 顧客講「客服」→ print_terminal 印電話 → 重新 speak clarify → 繼續追問（不計入 attempts）
     4. 顧客講「拒絕」（L2 用 mode='l2' / L3 用 mode='normal'）→ skip 該商品 → 返 False
     5. 顧客講「結帳」（L3 normal mode 「不要 / 不用」→ 視為不追加此商品）→ 返 False
@@ -115,16 +115,17 @@ def _qty_follow_up_sub_loop(
     """QTY 追問 sub-loop（給 resolve_and_add_products 用，每個缺數量商品獨立呼叫）。
 
     Returns:
-        True 已加入 cart（含 timeout 預設 1）；False 顧客在追問內拒絕 → skip 該商品
+        True 已加入 cart；False 顧客在追問內拒絕 / timeout → skip 該商品
     """
     attempts = 0
     while True:
         follow_up = read_customer_input(timeout=WAIT_NO_RESPONSE)
 
         if follow_up is None:
-            # Timeout → 預設 1 加 cart
-            cart_module.add_item(cart, product, 1)
-            return True
+            # Timeout → skip 該商品（2026-05-29 反轉：原本自動加 1 改成視為顧客不買此商品）
+            # caller 在 resolve_and_add_products 全跑完後會 speak L2/L3 reask（回該層 entry）
+            speak(f"好的，這次先不加{product}")
+            return False
 
         if has_quantity(follow_up):
             qty = parse_quantity(follow_up)
