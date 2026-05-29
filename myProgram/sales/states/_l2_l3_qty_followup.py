@@ -65,6 +65,7 @@ def resolve_and_add_products(
     print_terminal,
     read_customer_input,
     classify_intent_mode: str,
+    speak_and_wait=None,
 ) -> tuple[bool, list[str]]:
     """多商品版本（2026-05-25 加，B 方案）：把 parse_products 解出的 list 全部加 cart。
 
@@ -79,6 +80,11 @@ def resolve_and_add_products(
     Args:
         products: list of (product_name, qty_or_None) — from parse_products
         cart, speak, print_terminal, read_customer_input, classify_intent_mode: 同 single
+        speak_and_wait（2026-05-30 v3 加）：同步阻塞 speak callback。為 None 時
+            fallback 到 speak（向後兼容既有測試）；production wire-up 必須傳真實
+            callback，讓「speak qty prompt 後接 read」path（QTY_PROMPT_TEMPLATE /
+            QTY_CLARIFY_TEMPLATE / cart cap mid-loop reprompt）從 TTS 播完才開始
+            算 WAIT_NO_RESPONSE=6s — 否則 2-3s 語音吃掉一半預算。
 
     Returns:
         (True, []) — 至少一個商品加入 cart，且全部 sub_loop 未 skip
@@ -88,6 +94,11 @@ def resolve_and_add_products(
 
         cancel_notices 順序對應 products 內出現順序；caller 用全形「，」拼成單一 speak。
     """
+    # 2026-05-30 v3：「speak prompt 後接 read」path 走 speak_and_wait — read 從 TTS
+    # 播完才起算 timeout。其他即時通知（cart cap / qty 超量 / 已達上限 skip）保持
+    # speak（無後續 read，無 UX 影響）。
+    _speak_blocking = speak_and_wait if speak_and_wait is not None else speak
+
     added_count = 0
     cancel_notices: list[str] = []
 
@@ -119,7 +130,8 @@ def resolve_and_add_products(
         # 該商品缺數量 → 進追問 sub-loop
         unit = PRODUCTS[product]["單位"]
         # 多商品場景明示是「哪個商品」要問數量
-        speak(QTY_PROMPT_TEMPLATE.format(product=product, unit=unit))
+        # 2026-05-30 v3：speak_and_wait — 6s timeout 從 TTS 播完才起算
+        _speak_blocking(QTY_PROMPT_TEMPLATE.format(product=product, unit=unit))
 
         accepted, cancel_notice = _qty_follow_up_sub_loop(
             product=product,
@@ -129,6 +141,7 @@ def resolve_and_add_products(
             read_customer_input=read_customer_input,
             classify_intent_mode=classify_intent_mode,
             cart=cart,
+            speak_and_wait=speak_and_wait,
         )
         if accepted:
             added_count += 1
@@ -146,6 +159,7 @@ def _qty_follow_up_sub_loop(
     read_customer_input,
     classify_intent_mode: str,
     cart,
+    speak_and_wait=None,
 ) -> tuple[bool, str | None]:
     """QTY 追問 sub-loop（給 resolve_and_add_products 用，每個缺數量商品獨立呼叫）。
 
@@ -153,12 +167,17 @@ def _qty_follow_up_sub_loop(
     不再即時 speak PRODUCT_CANCELLED_NOTICE，改 return 該字串給 caller 拼接到 reask；
     其他即時通知（cart cap / qty 超量 / 客服）保持即時 speak（與 cancel UX 不同）。
 
+    2026-05-30 v3：speak_and_wait — 「speak prompt 後接 read」path（cart cap 超量
+    重提 / 客服 clarify / attempts clarify）走 speak_and_wait，讓 6s read timeout 從
+    TTS 播完才起算。其他即時通知（cart cap skip 不再 read）保持 speak。
+
     Returns:
         (True, None) — 已加入 cart
         (False, cancel_notice_str) — 顧客在追問內 timeout / 拒絕 / 結帳-as-skip / attempts cap
                                      → skip 該商品；caller 用 notice 拼接 reask 後單一 speak
         (False, None) — cart cap 上限 skip（即時 speak 通知已發出，不需 caller 二次處理）
     """
+    _speak_blocking = speak_and_wait if speak_and_wait is not None else speak
     cancel_notice = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product=product)
     attempts = 0
     while True:
@@ -184,7 +203,8 @@ def _qty_follow_up_sub_loop(
                 return False, None
             if qty > remaining:
                 # 顧客單筆超量（含天文數字 / 累加超量）→ speak 剩餘額度 + 重新追問
-                speak(f"{product}最多還能點 {remaining} {unit}，目前累計點了 {existing} {unit}，請重新告訴我數量")
+                # 2026-05-30 v3：speak_and_wait — 6s read timeout 從 TTS 播完才起算
+                _speak_blocking(f"{product}最多還能點 {remaining} {unit}，目前累計點了 {existing} {unit}，請重新告訴我數量")
                 continue
             cart_module.add_item(cart, product, qty)
             return True, None
@@ -193,8 +213,9 @@ def _qty_follow_up_sub_loop(
 
         if follow_intent == "客服":
             # 客服不計入 attempts
+            # 2026-05-30 v3：speak_and_wait — 6s read timeout 從 TTS 播完才起算
             print_terminal(SERVICE_PHONE)
-            speak(QTY_CLARIFY_TEMPLATE.format(unit=unit))
+            _speak_blocking(QTY_CLARIFY_TEMPLATE.format(unit=unit))
             continue
 
         if follow_intent == "拒絕":
@@ -211,6 +232,7 @@ def _qty_follow_up_sub_loop(
         if attempts >= 3:
             # B4：達 attempts cap → notice 不即時 speak，return 給 caller 拼接到 reask
             return False, cancel_notice
-        speak(QTY_CLARIFY_TEMPLATE.format(unit=unit))
+        # 2026-05-30 v3：speak_and_wait — 6s read timeout 從 TTS 播完才起算
+        _speak_blocking(QTY_CLARIFY_TEMPLATE.format(unit=unit))
 
 

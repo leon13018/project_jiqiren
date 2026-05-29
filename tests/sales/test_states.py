@@ -5923,3 +5923,77 @@ def test_dialog_l3_checkout_go_action_triggered_via_silence_period() -> None:
         f"L3 → L4 silence transition 應 do_action 序列 [ACTION_L3, ACTION_L3_CHECKOUT_GO]，"
         f"實際：{do_action_calls}"
     )
+
+
+# ============================================================
+# 2026-05-30 v3 — qty followup 也用 speak_and_wait（接續 c418004 v2）
+#
+# 背景：v2 commit c418004 把 wall-clock budget 用的 callers（cancel_confirm /
+# _dialog_c2_second_stage / run_l4 entry）改用 speak_and_wait — deadline 從 TTS
+# 播完才起算。User Pi demo 發現 qty followup「請問冰紅茶要幾瓶？」也踩同樣 UX
+# bug：speak 非阻塞 + read_customer_input(timeout=WAIT_NO_RESPONSE=6s) 立即倒數，
+# 2-3s 語音吃掉一半預算 → 顧客真正可回應只剩 ~3s。
+#
+# 修法：qty followup「speak prompt 後接 read」path 都改用 speak_and_wait
+# （signature 加 kwarg，None fallback 至 speak — 向後兼容既有 fixture）
+# ============================================================
+
+
+def test_qty_followup_initial_prompt_uses_speak_and_wait() -> None:
+    """初次 qty followup prompt「請問冰紅茶要幾瓶？」應走 speak_and_wait，讓 6s timeout 從 TTS 播完起算。"""
+    speak_calls: list = []
+    speak_and_wait_calls: list = []
+    cart = cart_module.new_cart()
+    # 紅茶（無數量）→ resolve_and_add_products 內走追問 path → 應呼叫 speak_and_wait(QTY_PROMPT_TEMPLATE...)
+    # 後續 "2" 入 cart → None None C-2 silent → confirm；「對」 → confirm yes → L4
+    customer_input = FakeCustomerInput(["紅茶", "2", None, None, "對"])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+        speak_and_wait=lambda text: speak_and_wait_calls.append(text),
+    )
+
+    assert next_state == "L4"
+    # 初次 qty prompt「請問冰紅茶要幾瓶？」必須走 speak_and_wait
+    assert any("冰紅茶" in s and "幾瓶" in s for s in speak_and_wait_calls), (
+        f"預期 speak_and_wait 收到『請問冰紅茶要幾瓶？』風格 prompt，"
+        f"實際 speak_and_wait_calls={speak_and_wait_calls}, speak_calls={speak_calls}"
+    )
+
+
+def test_qty_followup_clarify_after_unclear_uses_speak_and_wait() -> None:
+    """qty followup attempts++ clarify prompt（顧客回應無法判斷時）應走 speak_and_wait。"""
+    speak_calls: list = []
+    speak_and_wait_calls: list = []
+    cart = cart_module.new_cart()
+    # 紅茶（無數量）→ 追問 → "嗯嗯"（無法判斷 → attempts=1 speak clarify） → "3" → 加 3
+    # → None None C-2 silent → confirm；「對」 → confirm yes → L4
+    customer_input = FakeCustomerInput(["紅茶", "嗯嗯", "3", None, None, "對"])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+        speak_and_wait=lambda text: speak_and_wait_calls.append(text),
+    )
+
+    assert next_state == "L4"
+    # clarify prompt（QTY_CLARIFY_TEMPLATE「不好意思我聽不太懂，請問您要幾{unit}...」）必須走 speak_and_wait
+    # 兩個 speak_and_wait call 預期：initial prompt + clarify prompt
+    assert len(speak_and_wait_calls) >= 2, (
+        f"預期至少 2 個 speak_and_wait（initial + clarify），實際 {speak_and_wait_calls}"
+    )
+    assert any("不好意思" in s and "幾" in s for s in speak_and_wait_calls), (
+        f"預期 speak_and_wait 收到 clarify 風格 prompt，"
+        f"實際 speak_and_wait_calls={speak_and_wait_calls}"
+    )

@@ -265,6 +265,7 @@ def _dialog_dispatch_inner_l2(
             print_terminal=print_terminal,
             read_customer_input=read_customer_input,
             classify_intent_mode="l2",
+            speak_and_wait=speak_and_wait,
         )
         if added:
             # cart 從空 → 非空：speak L2_TO_L3_TRANSITION（合成 voice，原 L2_C_ADDED +
@@ -368,6 +369,7 @@ def _dialog_dispatch_inner_l3(
             print_terminal=print_terminal,
             read_customer_input=read_customer_input,
             classify_intent_mode="normal",
+            speak_and_wait=speak_and_wait,
         )
         # 2026-05-30 合成 speak：cancel notices 拼接到 L3_REASK 前
         speak(_prepend_cancel_notices(cancel_notices, L3_REASK))
@@ -706,6 +708,7 @@ def _dialog_main_loop(
                 print_terminal=print_terminal,
                 read_customer_input=read_customer_input,
                 classify_intent_mode=nlu_mode,
+                speak_and_wait=speak_and_wait,
             )
             if added:
                 # cart 從空 → 非空：speak L2_TO_L3_TRANSITION（合成 voice，原 L2_C_ADDED +
