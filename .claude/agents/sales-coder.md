@@ -36,7 +36,7 @@ skills:
 
 1. **不要修改 `myProgram/vendor/ActionGroupControl.py` 和 `myProgram/vendor/Board.py`** — 廠商 Hiwonder TonyPi SDK，PreToolUse hook 強制執法
 2. **不要在 Windows 安裝任何依賴**（pip / npm / apt）— 執行環境是 Pi
-3. **不要在 Windows import 任何依賴廠商 SDK 的程式碼** — 必 ImportError
+3. **不要嘗試在 Windows import / 執行任何依賴廠商 SDK 的程式碼** — 必 ImportError
 4. **不要用 `git add -A` / `git add .`** — 必須明列檔名
 
 ## ✍️ 編寫程式碼準則（karpathy-guidelines 已預載，但這裡 recap）
