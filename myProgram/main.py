@@ -114,9 +114,16 @@ def _build_callbacks(state: _S1State) -> dict:
         timeout 內無輸入（顧客沒打字 / 沒掃碼）→ input_reader 返回 None →
         本函式回 None（既有 timeout 語意）。
 
+        2026-05-30 加：read 前先呼叫 `tts.wait_idle()` 等 TTS 播完才開始
+        倒數。原本 S4 非阻塞 speak 後立即倒數會「吃掉」顧客聽 prompt 的時間，
+        導致顧客還在聽就被扣秒。
+
         'q' → S1 wire-up 便利：直接退出程式（production 不會有人講「q」當顧客語音）
         其他 → 返回字串
         """
+        # 等 TTS 播完才開始倒數 timeout（2026-05-30 加）— lazy import 對齊既有 pattern。
+        from myProgram import tts
+        tts.wait_idle()
         # Lazy import：對齊 read_terminal_key / tts.speak / action.do 的 lazy import pattern。
         from myProgram import input_reader
         raw = input_reader.read(timeout)
