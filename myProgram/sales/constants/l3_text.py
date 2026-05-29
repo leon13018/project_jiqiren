@@ -77,8 +77,8 @@ L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE: str = (
 # 解 Pi demo 2026-05-28 UX bug：舊版「結帳（是）/ 想想（不要）」二元，顧客「不要」歧義
 # （「不要結帳」vs「不要整單」）被誤判為「拒絕整單」清 cart。新三選一語意明確、無歧義。
 L3_C2_WARNING_TEMPLATE: str = (
-    "請問您想要繼續選購商品、結賬還是取消購買，"
-    "{seconds} 秒後自動結賬。"
+    "請問您想要繼續選購商品、結賬還是取消購買？"
+    "{seconds}秒後將自動結賬。"
 )
 
 # 注意：DIALOG_VAGUE_BUY_REASK 已於 2026-05-26 Wave 6 移至 constants/shared.py
