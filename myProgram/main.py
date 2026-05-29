@@ -116,7 +116,18 @@ def _build_callbacks(state: _S1State) -> dict:
 
         'q' → S1 wire-up 便利：直接退出程式（production 不會有人講「q」當顧客語音）
         其他 → 返回字串
+
+        2026-05-30 v3：read 前先 `tts.wait_idle()` 等 TTS 播完才開始倒數
+        （取代 v1 8e3aa67 reverted 設計；現在安全因為 v2 c418004 修了 P0/P1 +
+        給 wall-clock budget caller `speak_and_wait` 顯式控制 deadline）。
+        對 wall-clock budget caller 是 no-op（speak_and_wait 後 pending=0 immediate）；
+        對非 budget caller 自動 cover TTS 等待（不必逐個 speak 改 speak_and_wait）。
         """
+        # 2026-05-30 v3：等 TTS 播完才開始倒數（避免顧客還在聽 prompt 就被扣秒）
+        # max_wait=10s 防 synth/mpg123 hang 永久阻塞（v1 P0 已修；見 tts.wait_idle）
+        # Lazy import 對齊既有 speak callback pattern（Windows pytest 不觸發 edge_tts import）
+        from myProgram import tts
+        tts.wait_idle()
         # Lazy import：對齊 read_terminal_key / tts.speak / action.do 的 lazy import pattern。
         from myProgram import input_reader
         raw = input_reader.read(timeout)
