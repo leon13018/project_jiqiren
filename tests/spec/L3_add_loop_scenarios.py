@@ -198,10 +198,10 @@ def test_l3_c2_first_timeout_speaks_warning_and_enters_second_stage() -> None:
 
 
 ## L3-C-2-002
-### Scenario: C-2 第二段 10 秒仍無回應自動進 L4 結帳
+### Scenario: C-2 第二段 silent timeout 經 confirm 進 L4 結帳（2026-05-29 反轉合流路徑）
 ### Given L3 處於 C-2 第二段等待中（已過第一段 6s + 已播警告語音）
-### When 第二段 10 秒內無任何顧客回應
-### Then 直接進 L4（自動結帳完成）
+### When 第二段 silent timeout → 進 confirm 子狀態 → 顧客確認「對」
+### Then 進 L4（與 CHECKOUT keyword path 完全合流，2026-05-29 反轉）
 def test_l3_c2_second_stage_timeout_goes_l4() -> None:
     pass
 

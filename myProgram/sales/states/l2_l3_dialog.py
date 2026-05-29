@@ -362,20 +362,18 @@ def _dialog_c2_second_stage(
         - CHECKOUT（KEYWORDS_C2_CHECKOUT + strict-short ["結"]）→ _c2_checkout_via_confirm：
           經 _dialog_checkout_confirm 確認明細 → "yes" 進 L4；非 yes 清 cart + 重入
     - 亂答（不在三組 keyword）→ silent 倒數（第一次提示「請說『繼續』、『結賬』或『取消』」，後續 silent）
-    - 倒數歸零 / response is None（silent customer）→ _c2_direct_checkout：直接 L4
-      跳過 confirm（遵守 user prompt 字面 promise「6 秒內未答復將進行結賬」）
+    - 倒數歸零 / response is None（silent customer）→ _c2_checkout_via_confirm：進 confirm 子狀態
+      （2026-05-29 反轉：silent timeout 不再直接 L4，與 CHECKOUT keyword path 合流經 confirm）
 
     解 Pi demo 2026-05-28 UX bug：舊版「結帳（是）/ 想想（不要）」二元，顧客「不要」歧義
     （「不要結帳」vs「不要整單」）被當成「拒絕整單」清 cart。新三選一語意明確、無歧義。
 
-    Timeout 行為對比（vs 舊版）：
-        舊：12s wall-clock budget → 倒數歸零 / silent → return ("L4", 0)
-        新：6s wall-clock budget → 倒數歸零 / silent → 直接 L4（跳過 confirm，user 字面 promise）
-        新：CHECKOUT keyword 主動觸發 → 經 _dialog_checkout_confirm（user 答 B 區分主動 vs silent）
+    Timeout 行為（2026-05-29 反轉）：
+        silent / 倒數歸零 → 經 _c2_checkout_via_confirm（confirm yes 進 L4；非 yes 清 cart + 重入 dialog）
+        CHECKOUT keyword → 經 _c2_checkout_via_confirm（兩條 path 完全合流）
 
-    為何 silent 跳 confirm 而 keyword 經 confirm：
-        - silent customer：已被 prompt 警告「6 秒未答將結賬」，再加 confirm 罰 12s 違反 promise
-        - keyword customer：主動表達意圖 → 給「確認金額明細」最後機會（user 答 B）
+    字面 promise 寬鬆解讀：新文案「{seconds} 秒後自動結賬」中「自動結賬」可解為
+    「自動啟動結賬流程」（含 confirm 子狀態），不嚴格等於「跳過所有確認直接扣款」。
     """
     speak(L3_C2_WARNING_TEMPLATE.format(seconds=C2_DECISION_TIMEOUT))
 
@@ -384,13 +382,27 @@ def _dialog_c2_second_stage(
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            # 倒數歸零（亂答耗盡 budget）→ 直接 L4（user 字面 promise）
-            return _c2_direct_checkout(speak, do_action)
+            # 倒數歸零（亂答耗盡 budget）→ 進 confirm（與 CHECKOUT keyword path 合流）
+            return _c2_checkout_via_confirm(
+                speak=speak,
+                print_terminal=print_terminal,
+                read_customer_input=read_customer_input,
+                cart=cart,
+                think_count=think_count,
+                do_action=do_action,
+            )
 
         response = read_customer_input(timeout=remaining)
         if response is None:
-            # read 直接 timeout（顧客全程沒回應）→ 直接 L4
-            return _c2_direct_checkout(speak, do_action)
+            # read 直接 timeout（顧客全程沒回應）→ 進 confirm（與 CHECKOUT keyword path 合流）
+            return _c2_checkout_via_confirm(
+                speak=speak,
+                print_terminal=print_terminal,
+                read_customer_input=read_customer_input,
+                cart=cart,
+                think_count=think_count,
+                do_action=do_action,
+            )
 
         # 三選一 dispatcher（2026-05-28 重構：CANCEL 優先，顧客錢包 conservative）
         # CANCEL：清 cart + 退 L1（reuse _dialog_exit_a：speak L3_REJECT_THANKS + clear cart）
@@ -415,7 +427,7 @@ def _dialog_c2_second_stage(
             )
 
         # CHECKOUT：顧客主動講結帳 → 經 _dialog_checkout_confirm 確認明細
-        # （vs timeout path 直接 L4 — user 答 B「主動結帳要 confirm」，timeout 不該被罰）
+        # （2026-05-29 反轉：timeout path 也合流到此函數，兩條 path 完全一致）
         if (
             contains_any(response, KEYWORDS_C2_CHECKOUT)
             or equals_strict_short(response, KEYWORDS_C2_CHECKOUT_STRICT_SHORT)
@@ -437,27 +449,6 @@ def _dialog_c2_second_stage(
         continue
 
 
-def _c2_direct_checkout(speak, do_action) -> tuple:
-    """C-2 timeout path：silent customer 直接 L4，跳過 confirm，但仍加 ack cue。
-
-    遵守 L3_C2_WARNING_TEMPLATE 字面 promise「如 6 秒內未答復將進行結賬」。
-    silent customer = 已被預告 → 直接 transition L4（L4 entry 自己 speak「您即將結帳...」）。
-
-    對齊 L3 C-1 / CHECKOUT keyword path 的 transition UX：speak(L3_C1_CHECKOUT_GO)
-    + do_action(ACTION_L3_CHECKOUT_GO) 作為「loading-bar 等價過場 cue」，告知顧客
-    「機器已收到結帳意圖、正在切換」。
-
-    為何 silent path 也加 cue（2026-05-29 反轉 2026-05-28 原始 design）：
-        - tts-prompt-as-ux-pacing 原則：短 ack speak 是過場 UX，不是冗餘
-        - ux-over-technical-correctness 原則：使用者當下體驗 > 技術背後完美
-        - Pi demo 實測：silent timeout 缺 cue → 顧客感覺機器「沒反應就跳結帳」突兀
-        - 對齊 CHECKOUT keyword path：兩條 path 都進 L4，UX 應一致
-    """
-    speak(L3_C1_CHECKOUT_GO)
-    do_action(ACTION_L3_CHECKOUT_GO)
-    return ("L4", 0)
-
-
 def _c2_checkout_via_confirm(
     speak,
     print_terminal,
@@ -466,14 +457,17 @@ def _c2_checkout_via_confirm(
     think_count: int,
     do_action,
 ) -> tuple:
-    """C-2 CHECKOUT keyword path：經 _dialog_checkout_confirm 確認明細 → L4 或重入。
+    """C-2 結賬 path（合流：CHECKOUT keyword + silent timeout 都走這裡）。
 
-    對齊既有 L3 C-1 結帳 path（_dialog_dispatch_inner_l3 line 296-311 of dialog.py）
+    經 _dialog_checkout_confirm 確認明細 → "yes" 進 L4；非 yes 清 cart + 重入 dialog 主迴圈。
+
+    對齊既有 L3 C-1 結帳 path（_dialog_dispatch_inner_l3 / _dialog_main_loop 結帳分支）
     — 共用 confirm 子狀態。
 
-    為何 CHECKOUT keyword 走 confirm 而 timeout 跳過 confirm：
-        - keyword：顧客主動表達結帳意圖 → 給「確認金額明細」最後機會（user 答 B）
-        - timeout：顧客 silent → 已被 prompt 警告「6 秒未答復將進行結賬」→ 直接 L4 不罰
+    2026-05-29 反轉：silent timeout 不再走 _c2_direct_checkout 直接 L4，
+    合流到此函數經 confirm（與 CHECKOUT keyword path 完全一致）。新文案
+    「{seconds} 秒後自動結賬」字面 promise 寬鬆解讀為「自動啟動結賬流程」
+    （含 confirm 子狀態保護顧客錢包）。
     """
     result = _dialog_checkout_confirm(
         speak=speak,

@@ -71,13 +71,14 @@ L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE: str = (
 
 # L3 鏈路 C-2 第二段三選一警告語音模板（2026-05-28 重構：從二元 yes/no 改三選一）
 # {seconds} = C2_DECISION_TIMEOUT (6s)；wall-clock 倒數內辨識 CONTINUE / CHECKOUT / CANCEL
-# 三組 keyword + 各自 strict-short。亂答消耗 budget 不重置；倒數歸零 = 直接 L4 結帳。
+# 三組 keyword + 各自 strict-short。亂答消耗 budget 不重置；倒數歸零 = 進 confirm 子狀態
+#（2026-05-29 反轉：silent timeout 不再直接 L4，與 CHECKOUT keyword path 合流經 confirm）。
 #
 # 解 Pi demo 2026-05-28 UX bug：舊版「結帳（是）/ 想想（不要）」二元，顧客「不要」歧義
 # （「不要結帳」vs「不要整單」）被誤判為「拒絕整單」清 cart。新三選一語意明確、無歧義。
 L3_C2_WARNING_TEMPLATE: str = (
     "請問您想要繼續選購商品、結賬還是取消購買，"
-    "如 {seconds} 秒內未答復將進行結賬。"
+    "{seconds} 秒後自動結賬。"
 )
 
 # 注意：DIALOG_VAGUE_BUY_REASK 已於 2026-05-26 Wave 6 移至 constants/shared.py
