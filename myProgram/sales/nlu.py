@@ -37,9 +37,17 @@ from myProgram.sales.constants import (
 # REJECT substring 集（移除「沒/没」單字、「沒有/沒了/不了/没有」→ 移到 strict-short，
 # 避免「沒有問題」「等不了」「受不了」等口語被 substring 誤命中）
 # HP-1 / C5：「沒有 / 沒了 / 不了 / 没有」從 substring 集移出，改 strict-short
+# 2026-05-29 加：cross-L cancel 意圖明確 phrase（user 列表擴充）
+#   「我想取消交易」「取消交易」「我要取消交易」「退出交易」
+#   會被 _dialog_main_loop / _dialog_dispatch_inner_l2 偵測到後，
+#   經 cancel_confirm gate 才真正退 L1
 _KEYWORDS_REJECT = [
     "不要", "不用", "不想", "不買", "不買了",
     "不买", "不想买", "不买了",  # 簡體變體
+    # 2026-05-29 cross-L cancel 擴充
+    "取消交易", "退出交易", "我想取消交易", "我要取消交易",
+    "取消交易吧", "我想要取消交易",
+    "取消这次交易", "退出这次交易",  # 簡體
 ]
 
 # REJECT strict-short 集（只在 text.strip() 完全等於時命中，避免 substring 誤命中）
@@ -59,6 +67,11 @@ _KEYWORDS_REJECT_L3_STRICT = [
     "全部取消", "全部不要", "都不要", "都取消", "整單取消", "取消",
     # 簡體變體（使用者 Windows IME 是簡體，實機踩過簡體輸入）
     "整单取消", "不想买了", "取消购买", "不买了",
+    # 2026-05-29 cross-L cancel 擴充（user 列表）— 明確「取消交易 / 退出交易」phrase
+    # 在 L3 strict reject 也應命中（雖然「取消」substring 已命中，明示 phrase 提升可讀性）
+    "取消交易", "退出交易", "我想取消交易", "我要取消交易",
+    "取消交易吧", "我想要取消交易",
+    "取消这次交易", "退出这次交易",  # 簡體
 ]
 
 _KEYWORDS_THINK = ["等等", "等一下", "稍等", "想想", "考慮", "想一下", "hold on", "wait"]

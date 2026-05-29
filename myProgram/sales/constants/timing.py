@@ -23,6 +23,7 @@ __all__ = [
     "CHECKOUT_CONFIRM_UNCLEAR_MAX",
     "L4_SERVICE_TIMEOUT",
     "L4_TOTAL_BUDGET",
+    "CANCEL_CONFIRM_TIMEOUT",
 ]
 
 # ============================================================
@@ -88,3 +89,9 @@ L4_SERVICE_TIMEOUT: int = 60
 # 從進入 L4 起算，含所有 ack/timeout/unclear 路徑共用；達 0 → 強制 exit
 # 60s 是合理上限：D 鏈路 6 次 × 6s = 36s + buffer ≈ 60s，與 L4_SERVICE_TIMEOUT 對稱
 L4_TOTAL_BUDGET: int = 60
+
+# Cross-L cancel confirm 子狀態 wall-clock 預算（2026-05-29 加）
+# 跨 L2/L3/L4 任何 read 點偵測到 cancel intent 後進此確認狀態。
+# 與 C2_DECISION_TIMEOUT 對齊（6s）— 都是「已警告倒數中」的緊湊子狀態，避免顧客等太久。
+# silent / 倒數歸零 → 視為 YES（取消），跟 _dialog_c2_second_stage 同樣 wall-clock 行為。
+CANCEL_CONFIRM_TIMEOUT: float = 6.0

@@ -36,9 +36,11 @@ from myProgram.sales.constants import (
     L4_TOTAL_BUDGET,
     UNCLEAR_MAX,
     ACTION_L4_PAY,
+    CANCEL_DECLINED_NOTICE,
 )
 from myProgram.sales.nlu import classify_intent
 from myProgram.sales import cart as cart_module
+from myProgram.sales.states._cancel_confirm import cancel_confirm
 
 
 def run_l4(
@@ -435,7 +437,13 @@ def _l4_dispatch_response(
         return "ack"
 
     if intent == "拒絕":
-        return _l4_exit_b(speak, cart)
+        # 2026-05-29 cross-L cancel：拒絕意圖 → 先過 cancel_confirm gate
+        # True → 鏈路 B 清 cart 退 L1；False → speak 繼續通知，回主迴圈 continue（不重置 budget）
+        if cancel_confirm(speak, read_customer_input):
+            return _l4_exit_b(speak, cart)
+        speak(CANCEL_DECLINED_NOTICE)
+        # 回主迴圈 continue（無計數器需更新；wall-clock budget 保留不重置）
+        return "ack"
 
     # 優先序 4：客服 → 鏈路 C
     if intent == "客服":

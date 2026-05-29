@@ -67,6 +67,7 @@ from myProgram.sales.constants import (
     KEYWORDS_C2_CANCEL,
     KEYWORDS_C2_CANCEL_STRICT_SHORT,
     DIALOG_VAGUE_BUY_REASK,
+    CANCEL_DECLINED_NOTICE,
     ACTION_L2,
     ACTION_L3,
     ACTION_L3_CHECKOUT_GO,
@@ -75,6 +76,7 @@ from myProgram.sales.nlu import classify_intent, contains_any, equals_strict_sho
 from myProgram.sales.product_parser import parse_products
 from myProgram.sales import cart as cart_module
 from myProgram.sales.states._l2_l3_qty_followup import resolve_and_add_products
+from myProgram.sales.states._cancel_confirm import cancel_confirm, is_cancel_intent
 
 
 def run_dialog(
@@ -205,7 +207,12 @@ def _dialog_dispatch_inner_l2(
     """
     intent = classify_intent(response, "l2")
     if intent == "拒絕":
-        return _dialog_exit_a(speak, cart)
+        # 2026-05-29 cross-L cancel：拒絕意圖 → 先過 cancel_confirm gate
+        if cancel_confirm(speak, read_customer_input):
+            return _dialog_exit_a(speak, cart)
+        # 顧客 NO「不要取消」→ speak 繼續服務通知，回主等待重 prompt
+        speak(CANCEL_DECLINED_NOTICE)
+        return None
     if intent == "想一下":
         # 沉默期內又說想一下 → 遞增 think_count + 再走 B-3
         think_count += 1
@@ -278,7 +285,12 @@ def _dialog_dispatch_inner_l3(
     """
     intent = classify_intent(response, "normal")
     if intent == "拒絕":
-        return _dialog_exit_a(speak, cart)
+        # 2026-05-29 cross-L cancel：拒絕意圖 → 先過 cancel_confirm gate
+        if cancel_confirm(speak, read_customer_input):
+            return _dialog_exit_a(speak, cart)
+        # 顧客 NO「不要取消」→ speak 繼續服務通知，回主等待重 prompt
+        speak(CANCEL_DECLINED_NOTICE)
+        return None
     if intent == "想一下":
         think_count += 1
         # C13 (2026-05-26 Wave 7a)：L3 模式 think_count 觸發 C-2 條件 3 → 4
@@ -547,9 +559,13 @@ def _dialog_main_loop(
         nlu_mode = "l2" if cart_empty else "normal"
         intent = classify_intent(response, nlu_mode)
 
-        # 拒絕意圖 → 鏈路 A（自動依 cart 狀態決定是否清 cart）
+        # 拒絕意圖 → 先過 cancel_confirm gate（2026-05-29 cross-L cancel）
+        # True → 鏈路 A（依 cart 狀態決定是否清 cart）；False → speak 繼續通知後 continue 重 prompt
         if intent == "拒絕":
-            return _dialog_exit_a(speak, cart)
+            if cancel_confirm(speak, read_customer_input):
+                return _dialog_exit_a(speak, cart)
+            speak(CANCEL_DECLINED_NOTICE)
+            continue
 
         # 想一下意圖 → B-3/B-4（行為依 cart 狀態）
         if intent == "想一下":
@@ -745,6 +761,15 @@ def _dialog_checkout_confirm(
             return "yes"
         if response == "2":
             return "no_explicit"
+        # 2026-05-29 cross-L cancel：confirm 子狀態內偵測 cancel intent → 經 cancel_confirm gate
+        # YES → 直接 return "no_explicit"（讓 caller 走清 cart 退場路徑）
+        # NO → speak DECLINED 後 continue（不計入 unclear_count，這是顧客明確意圖溝通）
+        if is_cancel_intent(response):
+            if cancel_confirm(speak, read_customer_input):
+                return "no_explicit"
+            speak(CANCEL_DECLINED_NOTICE)
+            speak(prompt)
+            continue
         if contains_any(response, KEYWORDS_CONFIRM_NO) or equals_strict_short(response, KEYWORDS_CONFIRM_NO_STRICT_SHORT):
             return "no_explicit"
         if contains_any(response, KEYWORDS_CONFIRM_YES) or equals_strict_short(response, KEYWORDS_CONFIRM_YES_STRICT_SHORT):

@@ -31,6 +31,10 @@ __all__ = [
     "KEYWORDS_ICED_TEA",
     "KEYWORDS_SCRATCH",
     "CHINESE_DIGIT_MAP",
+    "KEYWORDS_CANCEL_CONFIRM_YES",
+    "KEYWORDS_CANCEL_CONFIRM_YES_STRICT_SHORT",
+    "KEYWORDS_CANCEL_CONFIRM_NO",
+    "KEYWORDS_CANCEL_CONFIRM_NO_STRICT_SHORT",
 ]
 
 # ============================================================
@@ -220,3 +224,47 @@ CHINESE_DIGIT_MAP: dict = {
     "九": 9, "玖": 9,
     "十": 10, "拾": 10,
 }
+
+# ============================================================
+# Cross-L cancel confirm 子狀態 YES / NO 關鍵字（2026-05-29 加）
+# 跨 L2/L3/L4 任何 read 點偵測 cancel intent 後進 6s confirm 用。
+#
+# NO 必須先 check（caller 端固定順序）— 避免「不要取消」substring 含「取消」誤命中 YES。
+# YES 含「取消」strict_short：顧客已在 confirm prompt context 內，「取消」獨立詞 = 重複確認；
+# NO 含「繼續」/「不要」/「別」短詞 strict_short：明確拒絕取消、繼續交易。
+# ============================================================
+
+# YES substring 集（長詞，substring match 安全）
+KEYWORDS_CANCEL_CONFIRM_YES: list = [
+    # 繁體
+    "是的", "沒錯", "沒錯的", "確認取消",
+    "我想取消", "是的我想取消", "取消吧", "給我取消",
+    "取消這次", "取消這次交易", "取消交易",
+    # 簡體
+    "我想取消", "取消这次", "取消这次交易", "取消交易",
+    # 英文
+    "yes cancel", "cancel it",
+]
+
+# YES strict-short 集（短詞，完全相等才命中）
+# 「取消」單字：在 confirm context 內明確 = 重複確認取消
+KEYWORDS_CANCEL_CONFIRM_YES_STRICT_SHORT: list = [
+    "是", "對", "對的", "好", "好的", "取消", "yes",
+]
+
+# NO substring 集（長詞，substring match 安全）
+# 必須先 check（防「不要取消」誤命中 YES「取消」substring）
+KEYWORDS_CANCEL_CONFIRM_NO: list = [
+    # 繁體
+    "不要取消", "不想取消", "別取消", "別給我取消",
+    "繼續交易", "我想繼續交易", "給我繼續交易",
+    "不取消", "我不想取消",
+    # 簡體
+    "不要取消", "不想取消", "别取消",
+    "继续交易", "我想继续交易",
+]
+
+# NO strict-short 集（短詞，完全相等才命中）
+KEYWORDS_CANCEL_CONFIRM_NO_STRICT_SHORT: list = [
+    "否", "不", "不要", "不想", "我不想", "別", "别", "繼續", "继续", "no",
+]

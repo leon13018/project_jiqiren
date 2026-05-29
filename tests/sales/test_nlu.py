@@ -34,6 +34,25 @@ def test_nlu_l3_strict_reject_phrases_classified_as_reject() -> None:
     assert nlu.classify_intent("不買了") == "拒絕"
 
 
+def test_nlu_cross_l_cancel_phrases_classified_as_reject() -> None:
+    """2026-05-29 cross-L cancel 擴充：「取消交易」等 phrase 應分類為「拒絕」。
+
+    覆蓋 L2 (l2 mode) / L4 (l4 mode) / L3 (normal mode strict)。
+    後端 dispatch 接收「拒絕」intent 後會進 cancel_confirm gate。
+    """
+    # L2 mode
+    assert nlu.classify_intent("我想取消交易", "l2") == "拒絕"
+    assert nlu.classify_intent("取消交易", "l2") == "拒絕"
+    assert nlu.classify_intent("我要取消交易", "l2") == "拒絕"
+    assert nlu.classify_intent("退出交易", "l2") == "拒絕"
+    # L4 mode
+    assert nlu.classify_intent("取消交易", "l4") == "拒絕"
+    # L3 mode（normal）— strict reject 也應命中
+    assert nlu.classify_intent("取消交易") == "拒絕"
+    assert nlu.classify_intent("退出交易") == "拒絕"
+    assert nlu.classify_intent("我想取消交易") == "拒絕"
+
+
 def test_nlu_l3_lenient_no_more_classified_as_checkout() -> None:
     """L3 (normal mode): 一般 reject 短詞「不要 / 不用 / 不想 / 不買」視為「不追加」→ 結帳。"""
     assert nlu.classify_intent("不要") == "結帳"

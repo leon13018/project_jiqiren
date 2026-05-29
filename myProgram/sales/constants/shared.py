@@ -9,7 +9,13 @@
 # 底線命名（module-private alias）避免 wildcard re-export 污染。
 from myProgram.sales.constants.products import PRODUCTS as _PRODUCTS
 
-__all__ = ["SERVICE_PHONE", "DIALOG_VAGUE_BUY_REASK"]
+__all__ = [
+    "SERVICE_PHONE",
+    "DIALOG_VAGUE_BUY_REASK",
+    "CANCEL_CONFIRM_PROMPT",
+    "CANCEL_CONFIRMED_NOTICE",
+    "CANCEL_DECLINED_NOTICE",
+]
 
 # 客服電話（L1 客服模式 / L4 客服模式 / qty followup 客服 trigger 等）
 # 原位置：l1_text.py（Wave 6 移出 — 跨多層使用，應歸 shared）
@@ -23,3 +29,9 @@ DIALOG_VAGUE_BUY_REASK: str = (
     f"冰紅茶（{_PRODUCTS['冰紅茶']['實際']} 元/瓶）"
     f"或刮刮樂（{_PRODUCTS['刮刮樂']['實際']} 元/張）"
 )
+
+# Cross-L cancel confirm 子狀態文案（2026-05-29 加）
+# 跨 L2/L3/L4 任何 read 點偵測 cancel intent 後進 6s confirm
+CANCEL_CONFIRM_PROMPT: str = "您是否想取消這次交易？6 秒後系統將自動取消"
+CANCEL_CONFIRMED_NOTICE: str = "好的，已為您取消這次交易"
+CANCEL_DECLINED_NOTICE: str = "好的，繼續為您服務"
