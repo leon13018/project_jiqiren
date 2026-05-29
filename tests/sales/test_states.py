@@ -1478,12 +1478,10 @@ def test_l2_c_qty_followup_reject_cancels_addition_and_reprompts_l2() -> None:
     # cancel 後 cart 未變（紅茶未加），最後 None timeout → L1
     assert next_state == "L1_via_subroutine_a"
     assert cart_module.is_empty(cart), f"cancel 後 cart 應為空，實際：{cart}"
-    assert L2_B3_REASK in speak_calls, (
-        f"cancel 後應 speak L2_B3_REASK，實際：{speak_calls}"
-    )
-    # 2026-05-29 UX 統一：拒絕 path 須 speak PRODUCT_CANCELLED_NOTICE
-    assert PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="冰紅茶") in speak_calls, (
-        f"拒絕 skip 應 speak「商品冰紅茶已幫您取消」，實際：{speak_calls}"
+    # 2026-05-30 合成 speak：cancel notice 與 L2_B3_REASK 拼成單一 speak，用 substring search
+    notice = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="冰紅茶")
+    assert any(notice in s and L2_B3_REASK in s for s in speak_calls), (
+        f"cancel 後應 speak 合成「{notice}，{L2_B3_REASK}」，實際：{speak_calls}"
     )
 
 
@@ -1514,15 +1512,58 @@ def test_l2_c_qty_followup_timeout_skips_product_and_reprompts_l2() -> None:
     assert cart_module.is_empty(cart), (
         f"qty 追問 timeout 應 skip 該商品，cart 應為空，實際：{cart}"
     )
-    # 2026-05-29 統一 4 個 skip 分支文案：speak PRODUCT_CANCELLED_NOTICE_TEMPLATE
-    assert PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="冰紅茶") in speak_calls, (
-        f"timeout skip 應 speak「商品冰紅茶已幫您取消」，實際：{speak_calls}"
-    )
-    # caller 跑完 resolve 後 speak L2_B3_REASK（cart 仍空 → L2 entry-equivalent）
-    assert L2_B3_REASK in speak_calls, (
-        f"全商品 skip 後應 speak L2_B3_REASK 回 L2 entry，實際：{speak_calls}"
+    # 2026-05-30 合成 speak：cancel notice 與 L2_B3_REASK 拼成單一 speak，用 substring search
+    notice = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="冰紅茶")
+    assert any(notice in s and L2_B3_REASK in s for s in speak_calls), (
+        f"timeout skip 應 speak 合成「{notice}，{L2_B3_REASK}」，實際：{speak_calls}"
     )
     # 最後 None → L2-A timeout 退 L1
+    assert next_state == "L1_via_subroutine_a"
+
+
+def test_l2_c_qty_followup_multi_product_all_cancel_combined_speak() -> None:
+    """2026-05-30 加：L2 多商品全 skip → 多個 cancel notice + reask 拼成單一 speak。
+
+    場景：顧客講「紅茶和刮刮樂」（兩商品皆無數量）→ 各自 sub_loop timeout →
+    speak_calls 應含一條合成字串：「商品冰紅茶已幫您取消，商品刮刮樂已幫您取消，{L2_B3_REASK}」
+    （兩個 notice 之間用全形「，」分隔；最後與 reask 也用全形「，」分隔）。
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 「紅茶和刮刮樂」(兩商品無數量) → ask 紅茶 → None → ask 刮刮樂 → None
+    # → resolve 跑完返 (False, [notice 冰紅茶, notice 刮刮樂])
+    # → caller 拼接 + speak 單一字串 → 主迴圈 continue → None → L2-A timeout 退 L1
+    customer_input = FakeCustomerInput(["紅茶和刮刮樂", None, None, None])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # 兩商品皆 skip，cart 仍空
+    assert cart_module.is_empty(cart), f"全 skip 後 cart 應為空，實際：{cart}"
+    # 兩個 cancel notice + L2_B3_REASK 應在同一個 speak 字串內，順序為 products 出現順序
+    notice_tea = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="冰紅茶")
+    notice_card = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="刮刮樂")
+    expected_combined = f"{notice_tea}，{notice_card}，{L2_B3_REASK}"
+    assert expected_combined in speak_calls, (
+        f"多商品全 skip 應 speak 合成「{expected_combined}」單一字串，實際：{speak_calls}"
+    )
+    # 確認非「先 speak notice 再分別 speak reask」三段式（既有 separate speak 不該出現）
+    assert notice_tea not in speak_calls, (
+        f"cancel notice 不該獨立 speak（應合成），實際：{speak_calls}"
+    )
+    assert notice_card not in speak_calls, (
+        f"cancel notice 不該獨立 speak（應合成），實際：{speak_calls}"
+    )
+    assert L2_B3_REASK not in speak_calls, (
+        f"L2_B3_REASK 不該獨立 speak（應合成），實際：{speak_calls}"
+    )
     assert next_state == "L1_via_subroutine_a"
 
 
@@ -1556,12 +1597,10 @@ def test_l3_b3_qty_followup_timeout_skips_product_and_reprompts_l3() -> None:
     assert cart_module.get_quantity(cart, "冰紅茶") == 1, (
         f"既有冰紅茶應保留，實際：{cart}"
     )
-    # 2026-05-29 統一 4 個 skip 分支文案：speak PRODUCT_CANCELLED_NOTICE_TEMPLATE
-    assert PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="刮刮樂") in speak_calls, (
-        f"timeout skip 應 speak「商品刮刮樂已幫您取消」，實際：{speak_calls}"
-    )
-    assert L3_REASK in speak_calls, (
-        f"skip 後應 speak L3_REASK 回 L3 entry，實際：{speak_calls}"
+    # 2026-05-30 合成 speak：cancel notice 與 L3_REASK 拼成單一 speak，用 substring search
+    notice = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="刮刮樂")
+    assert any(notice in s and L3_REASK in s for s in speak_calls), (
+        f"timeout skip 應 speak 合成「{notice}，{L3_REASK}」，實際：{speak_calls}"
     )
     # confirm yes → L4
     assert next_state == "L4"
@@ -2122,10 +2161,10 @@ def test_l3_b3_qty_followup_reject_cancels_addition_and_reprompts_l3() -> None:
         f"刮刮樂應 cancel 未加，實際：{cart}"
     )
     assert cart_module.get_quantity(cart, "冰紅茶") == 1
-    assert L3_REASK in speak_calls
-    # 2026-05-29 UX 統一：拒絕 path 須 speak PRODUCT_CANCELLED_NOTICE
-    assert PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="刮刮樂") in speak_calls, (
-        f"L3 拒絕 skip 應 speak「商品刮刮樂已幫您取消」，實際：{speak_calls}"
+    # 2026-05-30 合成 speak：cancel notice 與 L3_REASK 拼成單一 speak，用 substring search
+    notice = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="刮刮樂")
+    assert any(notice in s and L3_REASK in s for s in speak_calls), (
+        f"L3 拒絕 skip 應 speak 合成「{notice}，{L3_REASK}」，實際：{speak_calls}"
     )
     # 最終經 C-2 → L4
     assert next_state == "L4"
@@ -2162,11 +2201,11 @@ def test_l3_b3_qty_followup_checkout_as_skip_speaks_cancelled_notice() -> None:
         f"結帳-as-skip 後刮刮樂應未加，實際：{cart}"
     )
     assert cart_module.get_quantity(cart, "冰紅茶") == 1
-    # 結帳-as-skip 須 speak PRODUCT_CANCELLED_NOTICE
-    assert PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="刮刮樂") in speak_calls, (
-        f"結帳-as-skip 應 speak「商品刮刮樂已幫您取消」，實際：{speak_calls}"
+    # 2026-05-30 合成 speak：cancel notice 與 L3_REASK 拼成單一 speak，用 substring search
+    notice = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="刮刮樂")
+    assert any(notice in s and L3_REASK in s for s in speak_calls), (
+        f"結帳-as-skip 應 speak 合成「{notice}，{L3_REASK}」，實際：{speak_calls}"
     )
-    assert L3_REASK in speak_calls
     assert next_state == "L4"
 
 
@@ -2201,11 +2240,11 @@ def test_l3_b3_qty_followup_attempts_cap_speaks_cancelled_notice() -> None:
         f"attempts cap 後刮刮樂應未加，實際：{cart}"
     )
     assert cart_module.get_quantity(cart, "冰紅茶") == 1
-    # attempts cap 須 speak PRODUCT_CANCELLED_NOTICE（2026-05-29 文案統一）
-    assert PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="刮刮樂") in speak_calls, (
-        f"attempts cap 應 speak「商品刮刮樂已幫您取消」，實際：{speak_calls}"
+    # 2026-05-30 合成 speak：cancel notice 與 L3_REASK 拼成單一 speak，用 substring search
+    notice = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="刮刮樂")
+    assert any(notice in s and L3_REASK in s for s in speak_calls), (
+        f"attempts cap 應 speak 合成「{notice}，{L3_REASK}」，實際：{speak_calls}"
     )
-    assert L3_REASK in speak_calls
     assert next_state == "L4"
 
 

@@ -242,7 +242,7 @@ def _dialog_dispatch_inner_l2(
         return None
     products = parse_products(response)
     if products:
-        added = resolve_and_add_products(
+        added, cancel_notices = resolve_and_add_products(
             products=products,
             cart=cart,
             speak=speak,
@@ -259,9 +259,11 @@ def _dialog_dispatch_inner_l2(
             #  下一輪 was_empty 已為 False，think_count reset 在主迴圈 was_empty 分支已處理）
             # S3 同步動作（2026-05-27 fix）：L2→L3 transition 觸發 ACTION_L3，跟主迴圈一致
             do_action(ACTION_L3)
-            speak(L2_TO_L3_TRANSITION)
+            # 2026-05-30 合成 speak：部分 skip 的 cancel notice 拼接到 transition 前
+            speak(_prepend_cancel_notices(cancel_notices, L2_TO_L3_TRANSITION))
             return None
-        speak(L2_B3_REASK)
+        # 全 skip → 拼接 cancel notices 與 L2_B3_REASK 為單一 speak
+        speak(_prepend_cancel_notices(cancel_notices, L2_B3_REASK))
         return None
     speak(L2_B1_CLARIFY)
     return None
@@ -339,7 +341,7 @@ def _dialog_dispatch_inner_l3(
         return None
     products = parse_products(response)
     if products:
-        resolve_and_add_products(
+        _added, cancel_notices = resolve_and_add_products(
             products=products,
             cart=cart,
             speak=speak,
@@ -347,7 +349,8 @@ def _dialog_dispatch_inner_l3(
             read_customer_input=read_customer_input,
             classify_intent_mode="normal",
         )
-        speak(L3_REASK)
+        # 2026-05-30 合成 speak：cancel notices 拼接到 L3_REASK 前
+        speak(_prepend_cancel_notices(cancel_notices, L3_REASK))
         return None
     speak(L3_B1_CLARIFY)
     return None
@@ -659,7 +662,7 @@ def _dialog_main_loop(
         if products:
             unclear_count = 0
             was_empty = cart_empty
-            added = resolve_and_add_products(
+            added, cancel_notices = resolve_and_add_products(
                 products=products,
                 cart=cart,
                 speak=speak,
@@ -673,6 +676,7 @@ def _dialog_main_loop(
                 # 「synth + ALSA drain 0.3s」停頓問題解除；見規格書 L2.md 鏈路 C「進 L3」+ L3.md 進入時動作；
                 # 漏播會讓顧客以為對話結束、6s timeout 直接觸發 C-2 自動結帳）
                 # cart 已非空：speak L3_REASK（額外加單後重問）
+                # 2026-05-30 合成 speak：cancel notices 拼接到 transition / reask 前
                 if was_empty:
                     # B11：L2→L3 cart-state 切換點 reset think_count
                     # 各 mode 獨立計數：L2 think_count 不應污染 L3；否則顧客在 L2 想一下兩次
@@ -681,12 +685,14 @@ def _dialog_main_loop(
                     # S3 同步動作（2026-05-27 fix）：L2→L3 transition 觸發 ACTION_L3
                     # — 修補「只在 run_dialog entry 跑」漏洞（Pi demo 實測 L2 加單後沒跑動作）
                     do_action(ACTION_L3)
-                    speak(L2_TO_L3_TRANSITION)
+                    speak(_prepend_cancel_notices(cancel_notices, L2_TO_L3_TRANSITION))
                 else:
-                    speak(L3_REASK)
+                    speak(_prepend_cancel_notices(cancel_notices, L3_REASK))
                 continue
             # 全部商品在追問內取消 → re-prompt 依當前 cart 狀態
-            speak(L2_B3_REASK if cart_empty else L3_REASK)
+            # 2026-05-30 合成 speak：cancel notices 拼接到 reask 前
+            reask = L2_B3_REASK if cart_empty else L3_REASK
+            speak(_prepend_cancel_notices(cancel_notices, reask))
             continue
 
         # 2026-05-26 加：L2/L3 通用「想買無商品」溫和引導（與 L4「等待安撫」pattern 一致）
@@ -847,6 +853,24 @@ def _dialog_unclear_final_confirmation(
         if unclear_count >= UNCLEAR_MAX:
             return _dialog_exit_a(speak, cart)
         speak(L3_UNCLEAR_FINAL_PROMPT)
+
+
+def _prepend_cancel_notices(cancel_notices: list[str], reask: str) -> str:
+    """把 sub_loop skip 累積的 cancel notice list 與後續 reask text 拼成單一 speak 字串。
+
+    2026-05-30 加：解 Pi demo「先聽到『商品 X 已幫您取消』再隔停頓聽到『請問需要購買
+    什麼東西嗎？』」兩段 separate speak 的 UX 不連貫（S4 非阻塞 worker 兩段間 synth +
+    ALSA drain 0.3s 停頓明顯）。改成一段合成 voice。
+
+    格式：用全形「，」分隔（繁中標點）— 中文語感比半形「,」自然。
+
+    Returns:
+        cancel_notices 空 → 直接返 reask（無拼接，與既有行為一致）
+        cancel_notices 非空 → 「notice1，notice2，...，reask」單一字串
+    """
+    if not cancel_notices:
+        return reask
+    return "，".join(cancel_notices) + "，" + reask
 
 
 def _build_order_summary(cart) -> str:
