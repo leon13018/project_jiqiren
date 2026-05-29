@@ -235,7 +235,17 @@ def _build_callbacks(state: _S1State) -> dict:
         — speak() 本身就同步阻塞主線程到播完（典型 2-4s），TTS 阻塞期間 q 也送
         不進來，sleep 阻塞同等狀況、未新增副作用。S4+ 上 threading 時可改 worker
         thread sleep 不阻塞主迴圈。
+
+        2026-05-30 v3：sleep 前先 `tts.wait_idle()` 等 TTS 播完才開始倒數
+        （對齊 read_customer_input v3 075309a 的 wait-then-count pattern）。
+        解 L5 latent bug：S4 後 speak 非阻塞 + S5 後 do_action 非阻塞 →
+        sleep(3) 立即倒數 → 顧客 effective 離開時間 ~1s 而非規格 3s。
+        只等 TTS，不等 do_action — 揮手動作可跟 3s 禮貌間隔並行（regular UX）。
         """
+        # 2026-05-30 v3：等 TTS 播完才開始倒數（規格 3s「禮貌間隔」生效）
+        # Lazy import 對齊既有 speak / read_customer_input callback pattern
+        from myProgram import tts
+        tts.wait_idle()
         print(f"[等待] {seconds}s")
         time.sleep(seconds)
 
