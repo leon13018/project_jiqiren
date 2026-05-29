@@ -15,6 +15,7 @@ __all__ = [
     "CANCEL_CONFIRM_PROMPT",
     "CANCEL_CONFIRMED_NOTICE",
     "CANCEL_DECLINED_NOTICE",
+    "PRODUCT_CANCELLED_NOTICE_TEMPLATE",
 ]
 
 # 客服電話（L1 客服模式 / L4 客服模式 / qty followup 客服 trigger 等）
@@ -35,3 +36,8 @@ DIALOG_VAGUE_BUY_REASK: str = (
 CANCEL_CONFIRM_PROMPT: str = "您是否想取消這次交易？6 秒後系統將自動取消"
 CANCEL_CONFIRMED_NOTICE: str = "好的，已為您取消這次交易"
 CANCEL_DECLINED_NOTICE: str = "好的，繼續為您服務"
+
+# qty_followup 4 個 skip 分支統一通知文案（2026-05-29 加）
+# 對應 _qty_follow_up_sub_loop 內 timeout / 拒絕 / 結帳-as-skip / attempts cap 四路徑
+# UX：speak 該通知 + caller 端 L2/L3 reask 構成完整「商品已取消、對話繼續」訊息
+PRODUCT_CANCELLED_NOTICE_TEMPLATE: str = "商品{product}已幫您取消"

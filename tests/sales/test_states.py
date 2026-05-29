@@ -61,6 +61,7 @@ from myProgram.sales.constants import (
     L4_E_AUTO_SERVICE,
     QTY_PROMPT_TEMPLATE,
     QTY_CLARIFY_TEMPLATE,
+    PRODUCT_CANCELLED_NOTICE_TEMPLATE,
     L4_D_VOICE_NEUTRAL,
     L4_D_VOICE_GENTLE,
     L4_D_VOICE_MODERATE,
@@ -1453,7 +1454,11 @@ def test_l2_c_qty_followup_service_intent_prints_phone_then_reclarifies() -> Non
 
 
 def test_l2_c_qty_followup_reject_cancels_addition_and_reprompts_l2() -> None:
-    """2026-05-25 加：qty 追問內顧客講拒絕（L2 mode '不要' → 拒絕）→ 取消加單 + speak L2_B3_REASK。"""
+    """2026-05-25 加：qty 追問內顧客講拒絕（L2 mode '不要' → 拒絕）→ 取消加單 + speak L2_B3_REASK。
+
+    2026-05-29 UX 統一：拒絕 path 新增 speak PRODUCT_CANCELLED_NOTICE_TEMPLATE
+    （之前 silent skip → 顧客只聽到 reask，UX 不清楚）。
+    """
     speak_calls: list = []
     cart = cart_module.new_cart()
     # 紅茶 → ask → "不要" → cancel → L2_B3_REASK → 主迴圈 continue → None → L2-A timeout reject → L1
@@ -1475,6 +1480,10 @@ def test_l2_c_qty_followup_reject_cancels_addition_and_reprompts_l2() -> None:
     assert cart_module.is_empty(cart), f"cancel 後 cart 應為空，實際：{cart}"
     assert L2_B3_REASK in speak_calls, (
         f"cancel 後應 speak L2_B3_REASK，實際：{speak_calls}"
+    )
+    # 2026-05-29 UX 統一：拒絕 path 須 speak PRODUCT_CANCELLED_NOTICE
+    assert PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="冰紅茶") in speak_calls, (
+        f"拒絕 skip 應 speak「商品冰紅茶已幫您取消」，實際：{speak_calls}"
     )
 
 
@@ -1505,9 +1514,9 @@ def test_l2_c_qty_followup_timeout_skips_product_and_reprompts_l2() -> None:
     assert cart_module.is_empty(cart), (
         f"qty 追問 timeout 應 skip 該商品，cart 應為空，實際：{cart}"
     )
-    # speak「好的，這次先不加 X」通知（對齊 attempts cap 路徑文案）
-    assert any("先不加" in s and "冰紅茶" in s for s in speak_calls), (
-        f"timeout skip 應 speak「好的，這次先不加冰紅茶」，實際：{speak_calls}"
+    # 2026-05-29 統一 4 個 skip 分支文案：speak PRODUCT_CANCELLED_NOTICE_TEMPLATE
+    assert PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="冰紅茶") in speak_calls, (
+        f"timeout skip 應 speak「商品冰紅茶已幫您取消」，實際：{speak_calls}"
     )
     # caller 跑完 resolve 後 speak L2_B3_REASK（cart 仍空 → L2 entry-equivalent）
     assert L2_B3_REASK in speak_calls, (
@@ -1547,8 +1556,9 @@ def test_l3_b3_qty_followup_timeout_skips_product_and_reprompts_l3() -> None:
     assert cart_module.get_quantity(cart, "冰紅茶") == 1, (
         f"既有冰紅茶應保留，實際：{cart}"
     )
-    assert any("先不加" in s and "刮刮樂" in s for s in speak_calls), (
-        f"timeout skip 應 speak「好的，這次先不加刮刮樂」，實際：{speak_calls}"
+    # 2026-05-29 統一 4 個 skip 分支文案：speak PRODUCT_CANCELLED_NOTICE_TEMPLATE
+    assert PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="刮刮樂") in speak_calls, (
+        f"timeout skip 應 speak「商品刮刮樂已幫您取消」，實際：{speak_calls}"
     )
     assert L3_REASK in speak_calls, (
         f"skip 後應 speak L3_REASK 回 L3 entry，實際：{speak_calls}"
@@ -2113,7 +2123,89 @@ def test_l3_b3_qty_followup_reject_cancels_addition_and_reprompts_l3() -> None:
     )
     assert cart_module.get_quantity(cart, "冰紅茶") == 1
     assert L3_REASK in speak_calls
+    # 2026-05-29 UX 統一：拒絕 path 須 speak PRODUCT_CANCELLED_NOTICE
+    assert PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="刮刮樂") in speak_calls, (
+        f"L3 拒絕 skip 應 speak「商品刮刮樂已幫您取消」，實際：{speak_calls}"
+    )
     # 最終經 C-2 → L4
+    assert next_state == "L4"
+
+
+def test_l3_b3_qty_followup_checkout_as_skip_speaks_cancelled_notice() -> None:
+    """2026-05-29 新加：L3 qty 追問內顧客講「不用」（L3 normal mode → 分類為結帳意圖）
+    → skip 該商品 + speak PRODUCT_CANCELLED_NOTICE_TEMPLATE + 退出 sub-loop。
+
+    L3 normal mode 下「不要 / 不用」短詞不算「整單作廢」拒絕，而是「不追加此商品」結帳意圖。
+    對 qty_followup 而言 = skip 該商品（同其他 3 個 skip 分支統一文案）。
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # 「我要刮刮樂」(無數量) → ask 幾張 → "不用"（L3 normal → 結帳-as-skip）
+    # → speak PRODUCT_CANCELLED_NOTICE + return False → L3_REASK
+    # → 主迴圈 None → C-2 → None → confirm；「對」 → confirm yes → L4
+    customer_input = FakeCustomerInput(["我要刮刮樂", "不用", None, None, "對"])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # 刮刮樂未加；既有冰紅茶 1 保留
+    assert cart_module.get_quantity(cart, "刮刮樂") == 0, (
+        f"結帳-as-skip 後刮刮樂應未加，實際：{cart}"
+    )
+    assert cart_module.get_quantity(cart, "冰紅茶") == 1
+    # 結帳-as-skip 須 speak PRODUCT_CANCELLED_NOTICE
+    assert PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="刮刮樂") in speak_calls, (
+        f"結帳-as-skip 應 speak「商品刮刮樂已幫您取消」，實際：{speak_calls}"
+    )
+    assert L3_REASK in speak_calls
+    assert next_state == "L4"
+
+
+def test_l3_b3_qty_followup_attempts_cap_speaks_cancelled_notice() -> None:
+    """2026-05-29 新加：L3 qty 追問內顧客連續講 3 次無法判斷的話（無 qty / 無 intent）
+    → 達 attempts cap → speak PRODUCT_CANCELLED_NOTICE_TEMPLATE + 退出 sub-loop。
+
+    （之前文案「好的，這次先不加 X」，2026-05-29 統一為 PRODUCT_CANCELLED_NOTICE_TEMPLATE。）
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # 「我要刮刮樂」(無數量) → ask 幾張 → "abc" × 3 → attempts cap → speak notice + return False
+    # → L3_REASK → None → C-2 → None → confirm；「對」 → L4
+    customer_input = FakeCustomerInput(
+        ["我要刮刮樂", "abc", "def", "ghi", None, None, "對"]
+    )
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # 刮刮樂未加；既有冰紅茶 1 保留
+    assert cart_module.get_quantity(cart, "刮刮樂") == 0, (
+        f"attempts cap 後刮刮樂應未加，實際：{cart}"
+    )
+    assert cart_module.get_quantity(cart, "冰紅茶") == 1
+    # attempts cap 須 speak PRODUCT_CANCELLED_NOTICE（2026-05-29 文案統一）
+    assert PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="刮刮樂") in speak_calls, (
+        f"attempts cap 應 speak「商品刮刮樂已幫您取消」，實際：{speak_calls}"
+    )
+    assert L3_REASK in speak_calls
     assert next_state == "L4"
 
 

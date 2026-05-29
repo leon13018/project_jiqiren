@@ -6,11 +6,14 @@
 
 追問 sub-loop 分流（6 個分支）：
     1. 顧客回應含數量 → 用該數量加 cart → 返 True
-    2. 顧客 timeout（None）→ skip 該商品 + speak 通知 → 返 False（2026-05-29 反轉，原本預設加 1）
+    2. 顧客 timeout（None）→ skip 該商品 + speak PRODUCT_CANCELLED_NOTICE → 返 False（2026-05-29 反轉，原本預設加 1）
     3. 顧客講「客服」→ print_terminal 印電話 → 重新 speak clarify → 繼續追問（不計入 attempts）
-    4. 顧客講「拒絕」（L2 用 mode='l2' / L3 用 mode='normal'）→ skip 該商品 → 返 False
-    5. 顧客講「結帳」（L3 normal mode 「不要 / 不用」→ 視為不追加此商品）→ 返 False
-    6. 其他（想一下 / 商品 / 無法判斷）→ speak clarify → attempts++；達 3 次上限 speak 跳過 + 返 False
+    4. 顧客講「拒絕」（L2 用 mode='l2' / L3 用 mode='normal'）→ skip 該商品 + speak PRODUCT_CANCELLED_NOTICE → 返 False
+    5. 顧客講「結帳」（L3 normal mode 「不要 / 不用」→ 視為不追加此商品）→ skip 該商品 + speak PRODUCT_CANCELLED_NOTICE → 返 False
+    6. 其他（想一下 / 商品 / 無法判斷）→ speak clarify → attempts++；達 3 次上限 speak PRODUCT_CANCELLED_NOTICE 跳過 + 返 False
+
+2026-05-29 UX 統一：4 個 skip 分支（2/4/5/6）全部 speak 同一 PRODUCT_CANCELLED_NOTICE_TEMPLATE
+「商品{product}已幫您取消」，配合 caller 端 L2_B3_REASK / L3_REASK 構成完整通知。
 
 設計原則：
     - 接受 callback 注入（speak / print_terminal / read_customer_input）
@@ -26,6 +29,7 @@ from myProgram.sales.constants import (
     QTY_CLARIFY_TEMPLATE,
     SERVICE_PHONE,
     WAIT_NO_RESPONSE,
+    PRODUCT_CANCELLED_NOTICE_TEMPLATE,
 )
 from myProgram.sales.nlu import parse_quantity, has_quantity, classify_intent
 from myProgram.sales import cart as cart_module
@@ -124,7 +128,7 @@ def _qty_follow_up_sub_loop(
         if follow_up is None:
             # Timeout → skip 該商品（2026-05-29 反轉：原本自動加 1 改成視為顧客不買此商品）
             # caller 在 resolve_and_add_products 全跑完後會 speak L2/L3 reask（回該層 entry）
-            speak(f"好的，這次先不加{product}")
+            speak(PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product=product))
             return False
 
         if has_quantity(follow_up):
@@ -156,17 +160,21 @@ def _qty_follow_up_sub_loop(
             continue
 
         if follow_intent == "拒絕":
+            # 2026-05-29 UX 統一：speak「商品 X 已幫您取消」+ 退出
+            speak(PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product=product))
             return False
 
         if follow_intent == "結帳":
             # B3：L3 normal mode「不要 / 不用」被分類為結帳意圖 — 視為「不追加此商品」
+            # 2026-05-29 UX 統一：speak「商品 X 已幫您取消」+ 退出
+            speak(PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product=product))
             return False
 
         # 其他（無法判斷 / 想一下 / 商品 等）
         attempts += 1
         if attempts >= 3:
-            # B4：達 attempts cap → speak 跳過 + 退出
-            speak(f"好的，這次先不加{product}")
+            # B4：達 attempts cap → speak 統一 PRODUCT_CANCELLED_NOTICE + 退出
+            speak(PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product=product))
             return False
         speak(QTY_CLARIFY_TEMPLATE.format(unit=unit))
 
