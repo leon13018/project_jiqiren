@@ -5039,10 +5039,11 @@ def test_dialog_l3_action_triggered_on_main_loop_transition() -> None:
         do_action=lambda name: do_action_calls.append(name),
     )
 
-    # Assert：entry ACTION_L2 一次 + main_loop transition ACTION_L3 一次
-    assert do_action_calls == [ACTION_L2, ACTION_L3], (
-        f"L2→L3 main_loop transition 應 do_action 序列 [ACTION_L2, ACTION_L3]，"
-        f"實際：{do_action_calls}"
+    # Assert：entry ACTION_L2 + main_loop transition ACTION_L3
+    # + input 耗盡 → C-2 silent timeout 進 L4 → ack cue ACTION_L3_CHECKOUT_GO（2026-05-29 反轉）
+    assert do_action_calls == [ACTION_L2, ACTION_L3, ACTION_L3_CHECKOUT_GO], (
+        f"L2→L3 main_loop transition 應 do_action 序列 "
+        f"[ACTION_L2, ACTION_L3, ACTION_L3_CHECKOUT_GO]，實際：{do_action_calls}"
     )
 
 
@@ -5068,9 +5069,10 @@ def test_dialog_l3_action_triggered_on_silence_transition() -> None:
     )
 
     # Assert：entry ACTION_L2 + silence transition ACTION_L3
-    assert do_action_calls == [ACTION_L2, ACTION_L3], (
-        f"L2→L3 silence transition 應 do_action 序列 [ACTION_L2, ACTION_L3]，"
-        f"實際：{do_action_calls}"
+    # + input 耗盡 → C-2 silent timeout 進 L4 → ack cue ACTION_L3_CHECKOUT_GO（2026-05-29 反轉）
+    assert do_action_calls == [ACTION_L2, ACTION_L3, ACTION_L3_CHECKOUT_GO], (
+        f"L2→L3 silence transition 應 do_action 序列 "
+        f"[ACTION_L2, ACTION_L3, ACTION_L3_CHECKOUT_GO]，實際：{do_action_calls}"
     )
 
 
@@ -5098,8 +5100,10 @@ def test_dialog_l3_action_NOT_triggered_on_subsequent_add() -> None:
     )
 
     # Assert：只 entry 跑 ACTION_L3 一次，後續加單不重跑
-    assert do_action_calls == [ACTION_L3], (
-        f"L3 內後續加單不應重跑 ACTION_L3，預期 [ACTION_L3]，實際：{do_action_calls}"
+    # + input 耗盡 → C-2 silent timeout 進 L4 → ack cue ACTION_L3_CHECKOUT_GO（2026-05-29 反轉）
+    assert do_action_calls == [ACTION_L3, ACTION_L3_CHECKOUT_GO], (
+        f"L3 內後續加單不應重跑 ACTION_L3，預期 "
+        f"[ACTION_L3, ACTION_L3_CHECKOUT_GO]，實際：{do_action_calls}"
     )
 
 

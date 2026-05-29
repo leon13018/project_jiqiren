@@ -438,17 +438,23 @@ def _dialog_c2_second_stage(
 
 
 def _c2_direct_checkout(speak, do_action) -> tuple:
-    """C-2 timeout path：silent customer 直接 L4，跳過 confirm，無 transition cue。
+    """C-2 timeout path：silent customer 直接 L4，跳過 confirm，但仍加 ack cue。
 
     遵守 L3_C2_WARNING_TEMPLATE 字面 promise「如 6 秒內未答復將進行結賬」。
     silent customer = 已被預告 → 直接 transition L4（L4 entry 自己 speak「您即將結帳...」）。
 
-    對比 L3 C-1 / CHECKOUT keyword path：那兩個 path 顧客主動表達結帳意圖 → 加
-    speak(L3_C1_CHECKOUT_GO) + do_action(ACTION_L3_CHECKOUT_GO) 作為「確認你選的」
-    transition cue；silent customer 沒主動表達，無需此 cue（且加 cue 會讓既有
-    L2→L3 transition action 測試誤判多 entry trigger）。
+    對齊 L3 C-1 / CHECKOUT keyword path 的 transition UX：speak(L3_C1_CHECKOUT_GO)
+    + do_action(ACTION_L3_CHECKOUT_GO) 作為「loading-bar 等價過場 cue」，告知顧客
+    「機器已收到結帳意圖、正在切換」。
+
+    為何 silent path 也加 cue（2026-05-29 反轉 2026-05-28 原始 design）：
+        - tts-prompt-as-ux-pacing 原則：短 ack speak 是過場 UX，不是冗餘
+        - ux-over-technical-correctness 原則：使用者當下體驗 > 技術背後完美
+        - Pi demo 實測：silent timeout 缺 cue → 顧客感覺機器「沒反應就跳結帳」突兀
+        - 對齊 CHECKOUT keyword path：兩條 path 都進 L4，UX 應一致
     """
-    # speak / do_action 參數保留簽名一致性，但目前不使用（silent path 不加 cue）
+    speak(L3_C1_CHECKOUT_GO)
+    do_action(ACTION_L3_CHECKOUT_GO)
     return ("L4", 0)
 
 
