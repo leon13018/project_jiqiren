@@ -833,7 +833,14 @@ def _dialog_unclear_final_confirmation(
             return None
         intent = classify_intent(response, "l4_service")
         if intent == "退出交易":
-            return _dialog_exit_a(speak, cart)
+            # 2026-05-29 cross-L cancel：unclear final 內語音退出 intent → 先過 cancel_confirm gate
+            # （終端 "1" / silent timeout / unclear exhausted 仍直接退，不 gate — 那些是介面操作非 cancel intent）
+            if cancel_confirm(speak, read_customer_input):
+                return _dialog_exit_a(speak, cart)
+            # NO → speak DECLINED + 重 prompt unclear final + continue（不計 unclear_count）
+            speak(CANCEL_DECLINED_NOTICE)
+            speak(L3_UNCLEAR_FINAL_PROMPT)
+            continue
         if intent == "繼續交易":
             return None
         unclear_count += 1

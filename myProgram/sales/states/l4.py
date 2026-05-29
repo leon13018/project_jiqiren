@@ -321,7 +321,14 @@ def _l4_final_confirmation(
         # 語音意圖（用 l4_service mode，已含繼續 / 退出 keyword 處理 + no/nope → 退出）
         intent = classify_intent(response, "l4_service")
         if intent == "退出交易":
-            return _l4_exit_d_forced(speak, cart)
+            # 2026-05-29 cross-L cancel：L4 final 內語音退出 intent → 先過 cancel_confirm gate
+            # （終端 "1" / silent timeout / unclear exhausted 仍直接退，不 gate）
+            if cancel_confirm(speak, read_customer_input):
+                return _l4_exit_d_forced(speak, cart)
+            # NO → speak DECLINED + 重 prompt L4 final + continue（不計 unclear_count）
+            speak(CANCEL_DECLINED_NOTICE)
+            speak(L4_D_FINAL_PROMPT)
+            continue
         if intent == "繼續交易":
             return None
 
@@ -381,13 +388,25 @@ def _l4_service_mode(
         intent = classify_intent(response, "l4_service")
 
         if intent == "退出交易":
-            cart_module.clear_cart(cart)
-            return ("L1_via_subroutine_a", 0, 0)
+            # 2026-05-29 cross-L cancel：service mode 內語音退出 intent → 先過 cancel_confirm gate
+            # （終端 "1" / silent 60s timeout 仍直接退，不 gate — 那些是介面操作 / 預設安全退場）
+            if cancel_confirm(speak, read_customer_input):
+                cart_module.clear_cart(cart)
+                return ("L1_via_subroutine_a", 0, 0)
+            # NO → speak DECLINED + 重 prompt service options + continue
+            speak(CANCEL_DECLINED_NOTICE)
+            speak(L4_C_OPTIONS_PROMPT)
+            continue
 
         if intent == "拒絕":
             # fallback：不強制顧客學「退出」一詞
-            cart_module.clear_cart(cart)
-            return ("L1_via_subroutine_a", 0, 0)
+            # 2026-05-29 cross-L cancel：fallback reject 也走 cancel_confirm gate
+            if cancel_confirm(speak, read_customer_input):
+                cart_module.clear_cart(cart)
+                return ("L1_via_subroutine_a", 0, 0)
+            speak(CANCEL_DECLINED_NOTICE)
+            speak(L4_C_OPTIONS_PROMPT)
+            continue
 
         if intent == "繼續交易":
             return None

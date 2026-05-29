@@ -2904,6 +2904,192 @@ def test_cross_l_cancel_intent_phrase_triggers_confirm() -> None:
 
 
 # ============================================================
+# Cross-L cancel：inner state path gate 系列（2026-05-29 加）
+# _dialog_unclear_final_confirmation / _l4_final_confirmation / _l4_service_mode
+# 三個 inner state path 原本透過 _KEYWORDS_EXIT 直接退出，現在加 cancel_confirm gate
+# 統一 UX：所有 cancel detection 都經 6s 確認子狀態
+# ============================================================
+
+def test_unclear_final_cancel_intent_routes_via_cancel_confirm() -> None:
+    """L3 unclear final 子狀態內顧客講退出 keyword → cancel_confirm YES → 清 cart 退 L1。
+
+    對應 _dialog_unclear_final_confirmation 內新增的 cancel_confirm gate（2026-05-29）。
+    顧客在「請按 1 取消 / 2 繼續」最終確認時講「退出」語音 keyword → 不該直接退、
+    經 6s 確認後才退（保護「退出」誤觸）。
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # UNCLEAR_MAX 次 B-1 → 進 unclear final → 「退出」keyword → cancel_confirm → 「是的」YES → 清 cart 退 L1
+    inputs = ["asdf"] * UNCLEAR_MAX + ["退出", "是的"]
+    customer_input = FakeCustomerInput(inputs)
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # Assert：unclear final prompt + cancel_confirm prompt + 退場語音 + cart 清空 + 退 L1
+    assert L3_UNCLEAR_FINAL_PROMPT in speak_calls
+    assert CANCEL_CONFIRM_PROMPT in speak_calls, (
+        f"unclear final 內 cancel intent 應先進 cancel_confirm，實際：{speak_calls}"
+    )
+    assert L3_REJECT_THANKS in speak_calls
+    assert cart_module.is_empty(cart)
+    assert next_state == "L1_via_subroutine_a"
+
+
+def test_unclear_final_cancel_intent_no_continues() -> None:
+    """L3 unclear final 內 cancel intent → cancel_confirm NO → 繼續主迴圈、cart 保留。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # UNCLEAR_MAX 次 B-1 → unclear final → 「退出」→ cancel_confirm → 「不要取消」NO → 重 prompt
+    # → 「2」繼續 → 主迴圈 → 「結帳」→ 「1」confirm yes → L4
+    inputs = ["asdf"] * UNCLEAR_MAX + ["退出", "不要取消", "2", "結帳", "1"]
+    customer_input = FakeCustomerInput(inputs)
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # Assert：cancel_confirm prompt + DECLINED notice + cart 保留 + 最終 L4
+    assert CANCEL_CONFIRM_PROMPT in speak_calls
+    assert CANCEL_DECLINED_NOTICE in speak_calls
+    assert L3_REJECT_THANKS not in speak_calls, (
+        f"NO path 不應 speak L3_REJECT_THANKS（cart 應保留），實際：{speak_calls}"
+    )
+    assert not cart_module.is_empty(cart), f"NO path 後 cart 應保留，實際：{cart}"
+    assert next_state == "L4"
+
+
+def test_l4_final_confirmation_cancel_intent_routes_via_cancel_confirm() -> None:
+    """L4 final confirmation 子狀態內顧客講退出 keyword → cancel_confirm YES → 清 cart 退 L1。
+
+    對應 _l4_final_confirmation 內新增的 cancel_confirm gate（2026-05-29）。
+    顧客在 D 達上限後最終確認時講「退出」語音 keyword → 不該直接退、經 6s 確認後才退。
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # loop_count=L4_MAX_LOOPS + None → 進 final → 「退出」keyword → cancel_confirm → 「是的」YES → 清 cart 退 L1
+    customer_input = FakeCustomerInput([None, "退出", "是的"])
+
+    next_state, _, _ = states.run_l4(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        loop_count=L4_MAX_LOOPS,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # Assert：final prompt + cancel_confirm prompt + 強制退語音 + cart 清空 + 退 L1
+    assert L4_D_FINAL_PROMPT in speak_calls
+    assert CANCEL_CONFIRM_PROMPT in speak_calls, (
+        f"L4 final 內 cancel intent 應先進 cancel_confirm，實際：{speak_calls}"
+    )
+    assert L4_D_FORCED_EXIT in speak_calls
+    assert cart_module.is_empty(cart)
+    assert next_state == "L1_via_subroutine_a"
+
+
+def test_l4_final_confirmation_cancel_intent_no_continues() -> None:
+    """L4 final 內 cancel intent → cancel_confirm NO → 繼續 final 等明確 1/2、cart 保留。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # loop_count=MAX + None → final → 「退出」→ cancel_confirm → 「不要取消」NO → 重 prompt
+    # → 「2」繼續 → 主迴圈 → 「s」掃碼 L5
+    customer_input = FakeCustomerInput([None, "退出", "不要取消", "2", "s"])
+
+    next_state, _, _ = states.run_l4(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        loop_count=L4_MAX_LOOPS,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # Assert：cancel_confirm prompt + DECLINED + cart 保留 + 最終 L5
+    assert CANCEL_CONFIRM_PROMPT in speak_calls
+    assert CANCEL_DECLINED_NOTICE in speak_calls
+    assert L4_D_FORCED_EXIT not in speak_calls, (
+        f"NO path 不應 speak L4_D_FORCED_EXIT（cart 應保留），實際：{speak_calls}"
+    )
+    assert not cart_module.is_empty(cart), f"NO path 後 cart 應保留，實際：{cart}"
+    assert next_state == "L5"
+
+
+def test_l4_service_mode_cancel_intent_routes_via_cancel_confirm() -> None:
+    """L4 service mode 內顧客講退出 keyword → cancel_confirm YES → 清 cart 退 L1。
+
+    對應 _l4_service_mode 內新增的 cancel_confirm gate（2026-05-29）。
+    L4 客服模式內顧客講「退出」/「不要」語音 → 不該直接退、經 6s 確認後才退。
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # 「客服」→ 進入 service mode；「退出」keyword → cancel_confirm → 「是的」YES → 清 cart 退 L1
+    customer_input = FakeCustomerInput(["客服", "退出", "是的"])
+
+    next_state, _, _ = states.run_l4(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # Assert：cancel_confirm prompt + cart 清空 + 退 L1
+    assert CANCEL_CONFIRM_PROMPT in speak_calls, (
+        f"service mode 內 cancel intent 應先進 cancel_confirm，實際：{speak_calls}"
+    )
+    assert cart_module.is_empty(cart)
+    assert next_state == "L1_via_subroutine_a"
+
+
+def test_l4_service_mode_cancel_intent_no_continues() -> None:
+    """L4 service mode 內 cancel intent → cancel_confirm NO → 重 prompt 繼續 service mode、cart 保留。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # 「客服」→ service mode；「不要」→ cancel_confirm → 「不要取消」NO → 重 prompt
+    # → 「2」繼續 → 主迴圈 → 「s」掃碼 L5
+    customer_input = FakeCustomerInput(["客服", "不要", "不要取消", "2", "s"])
+
+    next_state, _, _ = states.run_l4(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # Assert：cancel_confirm prompt + DECLINED + cart 保留 + 最終 L5
+    assert CANCEL_CONFIRM_PROMPT in speak_calls
+    assert CANCEL_DECLINED_NOTICE in speak_calls
+    assert not cart_module.is_empty(cart), f"NO path 後 cart 應保留，實際：{cart}"
+    assert next_state == "L5"
+
+
+# ============================================================
 # L4-C-001
 ## L4-C-001
 ### Scenario: 顧客回應客服關鍵字進入客服模式印電話並提示兩選項
@@ -2990,15 +3176,17 @@ def test_l4_c_service_input_1_exits_clears_cart() -> None:
 # ============================================================
 
 def test_l4_c_service_exit_keyword_exits_clears_cart() -> None:
+    """service mode 內退出 keyword 經 cancel_confirm gate 後清 cart 退 L1（2026-05-29 cross-L cancel）。"""
     # Arrange
+    speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # 客服 → 進入客服模式，退出 → 退出交易意圖
-    customer_input = FakeCustomerInput(["客服", "退出"])
+    # 客服 → 進入客服模式，退出 → 退出交易意圖；「是的」→ cancel_confirm YES → 清 cart 退 L1
+    customer_input = FakeCustomerInput(["客服", "退出", "是的"])
 
     # Act
     next_state, _, _ = states.run_l4(
-        speak=lambda text: None,
+        speak=lambda text: speak_calls.append(text),
 
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
@@ -3007,7 +3195,10 @@ def test_l4_c_service_exit_keyword_exits_clears_cart() -> None:
         do_action=lambda *a, **k: None,
     )
 
-    # Assert
+    # Assert：cancel_confirm prompt + cart 清空 + 回 L1
+    assert CANCEL_CONFIRM_PROMPT in speak_calls, (
+        f"service mode 內退出 intent 應先進 cancel_confirm，實際：{speak_calls}"
+    )
     assert cart_module.is_empty(cart), f"退出交易後 cart 應清空，實際：{cart}"
     assert next_state == "L1_via_subroutine_a", (
         f"退出交易關鍵字應回 L1_via_subroutine_a，實際：{next_state!r}"
@@ -3024,15 +3215,17 @@ def test_l4_c_service_exit_keyword_exits_clears_cart() -> None:
 # ============================================================
 
 def test_l4_c_service_reject_keyword_treated_as_exit() -> None:
+    """service mode 內 reject fallback 經 cancel_confirm gate 後清 cart 退 L1（2026-05-29 cross-L cancel）。"""
     # Arrange
+    speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # 客服 → 進入客服模式，不要 → 拒絕 fallback 退出
-    customer_input = FakeCustomerInput(["客服", "不要"])
+    # 客服 → 進入客服模式，不要 → 拒絕 fallback；「是的」→ cancel_confirm YES → 清 cart 退 L1
+    customer_input = FakeCustomerInput(["客服", "不要", "是的"])
 
     # Act
     next_state, _, _ = states.run_l4(
-        speak=lambda text: None,
+        speak=lambda text: speak_calls.append(text),
 
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
@@ -3041,7 +3234,10 @@ def test_l4_c_service_reject_keyword_treated_as_exit() -> None:
         do_action=lambda *a, **k: None,
     )
 
-    # Assert
+    # Assert：cancel_confirm prompt + cart 清空 + 回 L1
+    assert CANCEL_CONFIRM_PROMPT in speak_calls, (
+        f"service mode 內 reject fallback 應先進 cancel_confirm，實際：{speak_calls}"
+    )
     assert cart_module.is_empty(cart), f"拒絕 fallback 後 cart 應清空，實際：{cart}"
     assert next_state == "L1_via_subroutine_a", (
         f"拒絕 fallback 應回 L1_via_subroutine_a，實際：{next_state!r}"
