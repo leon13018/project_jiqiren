@@ -53,7 +53,7 @@ L3_UNCLEAR_FINAL_PROMPT: str = "系統將取消這次購物，請選擇取消訂
 # L3 鏈路 C-1（顧客明確說結帳）進 L4 前的訂單確認語音模板（2026-05-25 加，B 方案）
 # {summary} 範例「6 瓶冰紅茶、1 張刮刮樂」（金額移至 L4 entry 詳細列印，此處不重複）
 # 為防多商品點單 + 重複 utterance 累加造成誤增，進結帳前再 confirm 一次給顧客機會修正
-L3_CHECKOUT_CONFIRM_TEMPLATE: str = "您即將結帳，總共 {summary}（已享九折優惠），正確嗎？（請說\"對\"或者\"不對\"）"
+L3_CHECKOUT_CONFIRM_TEMPLATE: str = "您即將結帳，總共 {summary}（已享九折優惠），正確嗎？"
 
 # L3 結帳前 confirm 顧客否認後的清 cart 通知（2026-05-26 加，spec 修訂）
 # 目前無改/刪商品功能 → 否認 = 清空重點；訊息含 L2_ENTRY_PROMPT 內容，後續主迴圈自動進 DnC

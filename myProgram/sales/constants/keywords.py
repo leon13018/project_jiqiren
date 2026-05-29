@@ -54,9 +54,17 @@ HAWK_SLOGANS: list = [
 
 # YES substring 集（長詞，substring match 安全；不含「好/是/對」單字 → 移到 strict-short）
 # 加入結帳同義詞（取代舊版 classify_intent==結帳 條件，讓 C-2 第二段「說結帳」仍可觸發 YES）
+#
+# YES 設計新增（2026-05-29 user 列表擴充）：
+#   substring：「沒有錯」— 既有「沒錯」substring 不 cover 三字版（"沒錯" not in "沒有錯"）
+# user 列表中下列項已被既有 substring / strict_short 覆蓋（不重複列入）：
+#   對/是/好 — strict_short 已有
+#   是的/對的/好的/沒錯/正確 — substring 已有
+#   沒錯哦/正確哦/非常正確/沒錯正確/正確答案/回答正確/對是的沒有錯 — 含既有 substring，會自動命中
+# 跳過「對我」— 疑似 IME 簡轉繁 typo，中文無此說法
 KEYWORDS_CONFIRM_YES: list = [
     # 繁體肯定詞
-    "對的", "是的", "好的", "好啦", "確認", "確定", "沒錯", "正確",
+    "對的", "是的", "好的", "好啦", "確認", "確定", "沒錯", "沒有錯", "正確",
     # 結帳同義詞（繁體）— 顧客在 C-2 說「結帳/買單/付款」= 明確想結帳 = YES
     "結帳", "買單", "買帳", "付款",
     # 簡體變體
@@ -77,13 +85,21 @@ KEYWORDS_CONFIRM_YES_STRICT_SHORT: list = ["好", "是", "對", "对", "嗯", "o
 #   「沒有」→ 歧義（"沒有問題" = 沒問題 = 同意）
 #   「沒了」→ 在 C-2「是否結帳」語意是「要結帳、沒別的了」而非取消（逆向錯誤）
 # 保留「不要/不用」— C-2 上下文顧客說「不要/不用結帳」是明確拒絕，非歧義詞
+#
+# NO 設計新增（2026-05-29 user 列表擴充）：
+#   substring：「怪怪的/錯誤/是錯的/都錯/全部錯/有錯的」(明確負面 phrase，無 false positive 風險)
+#   strict_short：「錯」單字 — 避免「沒錯/不錯/沒有錯」substring 誤命中，只完全等於「錯」才 hit NO
+#   strict_short：「不」單字 — 完全等於「不」才 hit NO，避免 substring 噪音
+# user 列表中下列項已被既有 substring 覆蓋（不重複列入）：
+#   不對哦/不是哦/數量不正確/數量不對/都不對 — 都被現有「不對/不正確/不是」substring 命中
 KEYWORDS_CONFIRM_NO: list = [
     "不對", "不正確", "不是", "不行", "不要", "不用", "重來", "重新", "wrong",
+    "怪怪的", "錯誤", "是錯的", "都錯", "全部錯", "有錯的",
     "不对", "不正确", "不是", "不行", "不要", "不用", "重来", "重新",  # 簡體變體
 ]
 
 # NO strict-short 集（短單字/短英文，只在完全等於時命中）
-KEYWORDS_CONFIRM_NO_STRICT_SHORT: list = ["no", "nope", "n", "否"]
+KEYWORDS_CONFIRM_NO_STRICT_SHORT: list = ["no", "nope", "n", "否", "錯", "不"]
 
 # ============================================================
 # L3 C-2 第二段三選一意圖（2026-05-28 加）
