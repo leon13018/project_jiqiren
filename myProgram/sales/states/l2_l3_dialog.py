@@ -75,7 +75,10 @@ from myProgram.sales.constants import (
 from myProgram.sales.nlu import classify_intent, contains_any, equals_strict_short
 from myProgram.sales.product_parser import parse_products
 from myProgram.sales import cart as cart_module
-from myProgram.sales.states._l2_l3_qty_followup import resolve_and_add_products
+from myProgram.sales.states._l2_l3_qty_followup import (
+    resolve_and_add_products,
+    format_cancel_prefix,
+)
 from myProgram.sales.states._cancel_confirm import cancel_confirm, is_cancel_intent
 
 
@@ -862,15 +865,20 @@ def _prepend_cancel_notices(cancel_notices: list[str], reask: str) -> str:
     什麼東西嗎？』」兩段 separate speak 的 UX 不連貫（S4 非阻塞 worker 兩段間 synth +
     ALSA drain 0.3s 停頓明顯）。改成一段合成 voice。
 
-    格式：用全形「，」分隔（繁中標點）— 中文語感比半形「,」自然。
+    2026-05-30 更新：prefix 文案邏輯抽到 format_cancel_prefix（N==0/1/>=2 三分支）—
+    N>=2 改 count 格式「有N項商品已幫您取消」取代逐項列名，避免多商品 cancel 過冗。
+
+    格式：prefix 與 reask 之間用全形「，」分隔（繁中標點 — 中文語感比半形自然）。
 
     Returns:
         cancel_notices 空 → 直接返 reask（無拼接，與既有行為一致）
-        cancel_notices 非空 → 「notice1，notice2，...，reask」單一字串
+        cancel_notices 長度 1 → 「商品X已幫您取消，{reask}」
+        cancel_notices 長度 >=2 → 「有N項商品已幫您取消，{reask}」
     """
-    if not cancel_notices:
+    prefix = format_cancel_prefix(cancel_notices)
+    if not prefix:
         return reask
-    return "，".join(cancel_notices) + "，" + reask
+    return prefix + "，" + reask
 
 
 def _build_order_summary(cart) -> str:

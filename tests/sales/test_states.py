@@ -1522,17 +1522,18 @@ def test_l2_c_qty_followup_timeout_skips_product_and_reprompts_l2() -> None:
 
 
 def test_l2_c_qty_followup_multi_product_all_cancel_combined_speak() -> None:
-    """2026-05-30 加：L2 多商品全 skip → 多個 cancel notice + reask 拼成單一 speak。
+    """2026-05-30 加：L2 多商品全 skip → count 格式 prefix + reask 拼成單一 speak。
 
     場景：顧客講「紅茶和刮刮樂」（兩商品皆無數量）→ 各自 sub_loop timeout →
-    speak_calls 應含一條合成字串：「商品冰紅茶已幫您取消，商品刮刮樂已幫您取消，{L2_B3_REASK}」
-    （兩個 notice 之間用全形「，」分隔；最後與 reask 也用全形「，」分隔）。
+    speak_calls 應含一條合成字串：「有2項商品已幫您取消，{L2_B3_REASK}」
+    （N>=2 改用 MULTI_PRODUCT_CANCELLED_NOTICE_TEMPLATE 取代逐項列名，避免冗長）。
     """
     speak_calls: list = []
     cart = cart_module.new_cart()
     # 「紅茶和刮刮樂」(兩商品無數量) → ask 紅茶 → None → ask 刮刮樂 → None
     # → resolve 跑完返 (False, [notice 冰紅茶, notice 刮刮樂])
-    # → caller 拼接 + speak 單一字串 → 主迴圈 continue → None → L2-A timeout 退 L1
+    # → caller 用 format_cancel_prefix 取得 count prefix + speak 單一字串
+    # → 主迴圈 continue → None → L2-A timeout 退 L1
     customer_input = FakeCustomerInput(["紅茶和刮刮樂", None, None, None])
 
     next_state, _ = states.run_dialog(
@@ -1547,24 +1548,64 @@ def test_l2_c_qty_followup_multi_product_all_cancel_combined_speak() -> None:
 
     # 兩商品皆 skip，cart 仍空
     assert cart_module.is_empty(cart), f"全 skip 後 cart 應為空，實際：{cart}"
-    # 兩個 cancel notice + L2_B3_REASK 應在同一個 speak 字串內，順序為 products 出現順序
-    notice_tea = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="冰紅茶")
-    notice_card = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="刮刮樂")
-    expected_combined = f"{notice_tea}，{notice_card}，{L2_B3_REASK}"
+    # N==2 count prefix + L2_B3_REASK 應在同一個 speak 字串內
+    expected_combined = f"有2項商品已幫您取消，{L2_B3_REASK}"
     assert expected_combined in speak_calls, (
         f"多商品全 skip 應 speak 合成「{expected_combined}」單一字串，實際：{speak_calls}"
     )
+    # 反向：個別商品名不應出現在 cancel prefix 內（已被 count 格式取代）
+    notice_tea = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="冰紅茶")
+    notice_card = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="刮刮樂")
+    for call in speak_calls:
+        assert notice_tea not in call, (
+            f"multi-product cancel 不應含單商品 wording「{notice_tea}」，實際：{speak_calls}"
+        )
+        assert notice_card not in call, (
+            f"multi-product cancel 不應含單商品 wording「{notice_card}」，實際：{speak_calls}"
+        )
     # 確認非「先 speak notice 再分別 speak reask」三段式（既有 separate speak 不該出現）
-    assert notice_tea not in speak_calls, (
-        f"cancel notice 不該獨立 speak（應合成），實際：{speak_calls}"
-    )
-    assert notice_card not in speak_calls, (
-        f"cancel notice 不該獨立 speak（應合成），實際：{speak_calls}"
-    )
     assert L2_B3_REASK not in speak_calls, (
         f"L2_B3_REASK 不該獨立 speak（應合成），實際：{speak_calls}"
     )
     assert next_state == "L1_via_subroutine_a"
+
+
+def test_format_cancel_prefix_count_format_for_n_3() -> None:
+    """2026-05-30 加：format_cancel_prefix N==3 用 count 格式（unit test，繞過 parse_products dedupe）。
+
+    parse_products 對相同商品名 dedupe（業務上合理：兩種商品最多兩項），dialog 整層路徑
+    無法直接 reach N>=3 場景。但 format_cancel_prefix 應對任意 N 都正確 — 為避免未來
+    新增商品 / 改 parser 後 regression，加 helper 層 unit test 直接驗證 N=3 case。
+    """
+    from myProgram.sales.states._l2_l3_qty_followup import format_cancel_prefix
+
+    notices = [
+        PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="冰紅茶"),
+        PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="刮刮樂"),
+        PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="冰紅茶"),
+    ]
+    result = format_cancel_prefix(notices)
+    assert result == "有3項商品已幫您取消", (
+        f"N==3 應回「有3項商品已幫您取消」,實際:{result!r}"
+    )
+
+
+def test_format_cancel_prefix_empty_returns_empty_string() -> None:
+    """2026-05-30 加：format_cancel_prefix N==0 回空字串（caller 用 `if prefix` 跳過拼接）。"""
+    from myProgram.sales.states._l2_l3_qty_followup import format_cancel_prefix
+
+    assert format_cancel_prefix([]) == ""
+
+
+def test_format_cancel_prefix_single_keeps_product_name() -> None:
+    """2026-05-30 加：format_cancel_prefix N==1 直接回單商品 wording（保留商品名）。
+
+    UX 設計：N==1 顧客需明確知道「哪個」商品被取消；N>=2 才改 count 格式避免冗長。
+    """
+    from myProgram.sales.states._l2_l3_qty_followup import format_cancel_prefix
+
+    single = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="冰紅茶")
+    assert format_cancel_prefix([single]) == single
 
 
 def test_l3_b3_qty_followup_timeout_skips_product_and_reprompts_l3() -> None:

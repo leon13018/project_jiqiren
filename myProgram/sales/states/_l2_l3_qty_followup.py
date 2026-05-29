@@ -34,9 +34,28 @@ from myProgram.sales.constants import (
     SERVICE_PHONE,
     WAIT_NO_RESPONSE,
     PRODUCT_CANCELLED_NOTICE_TEMPLATE,
+    MULTI_PRODUCT_CANCELLED_NOTICE_TEMPLATE,
 )
 from myProgram.sales.nlu import parse_quantity, has_quantity, classify_intent
 from myProgram.sales import cart as cart_module
+
+
+def format_cancel_prefix(cancel_notices: list[str]) -> str:
+    """根據 cancel notices 數量決定 prefix 文案。
+
+    N==0: "" （無 prefix，caller 直接 speak reask）
+    N==1: 直接用 cancel_notices[0]（單商品 wording「商品X已幫您取消」，
+          顧客需明確知道哪個被取消）
+    N>=2: 用 MULTI_PRODUCT_CANCELLED_NOTICE_TEMPLATE「有{N}項商品已幫您取消」
+          （Pi demo 反饋：逐項列名太冗長，改 count 格式）
+
+    2026-05-30 加：multi-product 從逐商品列名改成 count 格式，避免冗長。
+    """
+    if not cancel_notices:
+        return ""
+    if len(cancel_notices) == 1:
+        return cancel_notices[0]
+    return MULTI_PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(count=len(cancel_notices))
 
 
 def resolve_and_add_products(

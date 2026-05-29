@@ -16,6 +16,7 @@ __all__ = [
     "CANCEL_CONFIRMED_NOTICE",
     "CANCEL_DECLINED_NOTICE",
     "PRODUCT_CANCELLED_NOTICE_TEMPLATE",
+    "MULTI_PRODUCT_CANCELLED_NOTICE_TEMPLATE",
 ]
 
 # 客服電話（L1 客服模式 / L4 客服模式 / qty followup 客服 trigger 等）
@@ -41,3 +42,9 @@ CANCEL_DECLINED_NOTICE: str = "好的，繼續為您服務"
 # 對應 _qty_follow_up_sub_loop 內 timeout / 拒絕 / 結帳-as-skip / attempts cap 四路徑
 # UX：speak 該通知 + caller 端 L2/L3 reask 構成完整「商品已取消、對話繼續」訊息
 PRODUCT_CANCELLED_NOTICE_TEMPLATE: str = "商品{product}已幫您取消"
+
+# 多商品（N>=2）cancel notice 用 count 格式取代逐項列名（2026-05-30 加）
+# Pi demo 反饋：multi-product 逐項列「商品X，商品Y，...」太冗長 → 改 count
+# N==1 仍用 PRODUCT_CANCELLED_NOTICE_TEMPLATE 保留商品名（顧客需知哪個被取消）
+# 切換邏輯見 myProgram/sales/states/_l2_l3_qty_followup.py::format_cancel_prefix
+MULTI_PRODUCT_CANCELLED_NOTICE_TEMPLATE: str = "有{count}項商品已幫您取消"
