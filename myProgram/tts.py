@@ -239,7 +239,7 @@ class TtsWorker:
         # 不到這裡因 mpg123 沒真播完 = 無 buffer 殘留 = 不需 drain。
         time.sleep(ALSA_DRAIN_SEC)
 
-    def wait_idle(self, max_wait: float = 10.0) -> bool:
+    def wait_idle(self, max_wait: float = 30.0) -> bool:
         """阻塞至 _pending=0（worker FIFO 全跑完）或 max_wait 超時。
 
         2026-05-30 v2 加 — 給 wall-clock budget pattern caller 用：
@@ -247,7 +247,9 @@ class TtsWorker:
             deadline = monotonic + 6  # 從 TTS 播完起算，不被 synth/play 時間吃掉
 
         Args:
-            max_wait: 上限秒數（預設 10s — 正常 prompt ≤ 5-6s，10s 是異常偵測防線）
+            max_wait: 上限秒數（預設 30s — 2026-05-30 從 10s bump，Pi 實測 hawk
+                slogan + L2 entry back-to-back 兩條合計 ~12-15s 超過 10s。30s 容忍
+                正常 back-to-back queue 兩條 + synth round-trip，仍是異常偵測防線）
                 v1 reverted 設計用無 timeout `cv.wait()` 永久阻塞，當 edge_tts
                 synth 卡網路 / mpg123 hang 時整個 dialogue flow 卡死 — 毀 L4
                 wall-clock budget 訴求（P0 bug）。max_wait fallback 強制 return False
@@ -317,7 +319,7 @@ def speak(text: str) -> None:
     _worker.say(text)
 
 
-def speak_and_wait(text: str, max_wait: float = 10.0) -> bool:
+def speak_and_wait(text: str, max_wait: float = 30.0) -> bool:
     """同步阻塞 speak — say + wait_idle 連續 call。2026-05-30 v2 加。
 
     給 wall-clock budget pattern caller 用（_cancel_confirm / _dialog_c2_second_stage
@@ -326,7 +328,7 @@ def speak_and_wait(text: str, max_wait: float = 10.0) -> bool:
 
     Args:
         text: 要 speak 的文字
-        max_wait: wait_idle 上限秒數（預設 10s — 見 TtsWorker.wait_idle docstring）
+        max_wait: wait_idle 上限秒數（預設 30s — 見 TtsWorker.wait_idle docstring）
 
     Returns:
         True if TTS 完整播完；False if max_wait timeout（caller 仍 continue 不卡）
@@ -336,7 +338,7 @@ def speak_and_wait(text: str, max_wait: float = 10.0) -> bool:
     return _worker.wait_idle(max_wait=max_wait)
 
 
-def wait_idle(max_wait: float = 10.0) -> bool:
+def wait_idle(max_wait: float = 30.0) -> bool:
     """對外 API：阻塞至 TtsWorker 完全閒置（_pending=0）或 max_wait 超時。
 
     使用情境：caller 需要「上一段 speak 已播完」的保證 — e.g. 計算 wall-clock
