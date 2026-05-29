@@ -87,19 +87,20 @@ KEYWORDS_CONFIRM_YES_STRICT_SHORT: list = ["好", "是", "對", "对", "嗯", "o
 # 保留「不要/不用」— C-2 上下文顧客說「不要/不用結帳」是明確拒絕，非歧義詞
 #
 # NO 設計新增（2026-05-29 user 列表擴充）：
-#   substring：「怪怪的/錯誤/是錯的/都錯/全部錯/有錯的」(明確負面 phrase，無 false positive 風險)
-#   strict_short：「錯」單字 — 避免「沒錯/不錯/沒有錯」substring 誤命中，只完全等於「錯」才 hit NO
+#   substring：「怪怪的/是錯的/都錯/全部錯/有錯的」(明確負面 phrase，無 false positive 風險)
+#   strict_short：「錯」單字 — 避免「沒錯/不錯/沒有錯」substring 誤命中，只完全等於才 hit NO
+#   strict_short：「錯誤」— 同理避免「沒有錯誤/沒錯誤」substring 誤命中（FP 顧客錢包逆向）
 #   strict_short：「不」單字 — 完全等於「不」才 hit NO，避免 substring 噪音
 # user 列表中下列項已被既有 substring 覆蓋（不重複列入）：
 #   不對哦/不是哦/數量不正確/數量不對/都不對 — 都被現有「不對/不正確/不是」substring 命中
 KEYWORDS_CONFIRM_NO: list = [
     "不對", "不正確", "不是", "不行", "不要", "不用", "重來", "重新", "wrong",
-    "怪怪的", "錯誤", "是錯的", "都錯", "全部錯", "有錯的",
+    "怪怪的", "是錯的", "都錯", "全部錯", "有錯的",
     "不对", "不正确", "不是", "不行", "不要", "不用", "重来", "重新",  # 簡體變體
 ]
 
 # NO strict-short 集（短單字/短英文，只在完全等於時命中）
-KEYWORDS_CONFIRM_NO_STRICT_SHORT: list = ["no", "nope", "n", "否", "錯", "不"]
+KEYWORDS_CONFIRM_NO_STRICT_SHORT: list = ["no", "nope", "n", "否", "錯", "錯誤", "不"]
 
 # ============================================================
 # L3 C-2 第二段三選一意圖（2026-05-28 加）
