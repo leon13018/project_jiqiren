@@ -8,7 +8,7 @@
     - 亂輸入只印 L4_UNCLEAR_NOTICE（不重置 budget、不計次）
     - budget 耗盡 → forced exit（speak L4_D_FORCED_EXIT + clear cart + 退 L1）
     - 鏈路：A 掃碼成功 → L5；B 拒絕（cancel_confirm gated）→ 退 L1；C 客服→確認子狀態
-    - 客服模式獨立 L4_C_CONFIRM_TIMEOUT=12s 一次性決策（2026-05-30 二次重構）
+    - 客服模式獨立 L4_C_CONFIRM_TIMEOUT=24s 一次性決策（2026-05-30 二次重構）
 
 從舊版移除（user 反饋過度設計）：
     - loop_count（D 鏈路 4 階段語氣 6 次循環機制）
@@ -59,7 +59,7 @@ def run_l4(
     顧客從 L3 攜帶 cart 進入，等掃碼付款。
     鏈路 A（掃碼）→ L5；
     鏈路 B（拒絕，cancel_confirm gated）→ 清空 cart → L1（子例程 A）；
-    鏈路 C（客服）→ 一次性 12s 確認子狀態（2026-05-30 二次重構：移除 retry + cancel_confirm gate）；
+    鏈路 C（客服）→ 一次性 24s 確認子狀態（2026-05-30 二次重構：移除 retry + cancel_confirm gate）；
         客服 YES「繼續」回主迴圈時：重印金額明細 + 重 speak entry prompt + reset 30s budget
         （2026-05-31 fix；對齊舊版 0090786^ pattern，二次重構時漏 reset 導致顧客失上下文）。
     無回應 / 亂輸入 → 12s 重提示 / 不重置 budget；budget 耗盡 → forced exit。
@@ -209,7 +209,7 @@ def _l4_dispatch_response(
         1. 終端 s → 鏈路 A（掃碼成功）→ L5
         2. 等待安撫意圖 → speak 溫和回應，不重置 budget
         3. 拒絕意圖 → cancel_confirm gate → YES 退 L1；NO speak DECLINED 不重置 budget
-        4. 客服意圖 → 鏈路 C 一次性 12s 確認子狀態（2026-05-30 二次重構：獨立 budget）
+        4. 客服意圖 → 鏈路 C 一次性 24s 確認子狀態（2026-05-30 二次重構：獨立 budget）
         5. 其他（想一下 / 結帳 / 商品 / 無法判斷）→ speak L4_UNCLEAR_NOTICE 不重置 budget
 
     Returns:
@@ -237,7 +237,7 @@ def _l4_dispatch_response(
         speak(CANCEL_DECLINED_NOTICE)
         return "ack"
 
-    # 優先序 4：客服 → 鏈路 C 一次性 12s 確認子狀態（獨立 budget；2026-05-30 二次重構）
+    # 優先序 4：客服 → 鏈路 C 一次性 24s 確認子狀態（獨立 budget；2026-05-30 二次重構）
     if intent == "客服":
         result = _l4_service_mode(
             speak=speak,
@@ -270,10 +270,10 @@ def _l4_service_mode(
 
     使用共用 helper `service_confirm`（allow_scan=True 啟用終端 "s" fast path）；
     helper 內部行為：
-        - print SERVICE_PHONE + speak L4_C_CONFIRM_PROMPT_TEMPLATE「請問是否繼續交易？12秒...」
-        - 一次性 L4_C_CONFIRM_TIMEOUT=12s 獨立 budget
+        - print SERVICE_PHONE + speak L4_C_CONFIRM_PROMPT_TEMPLATE「請問是否繼續交易？24秒...」
+        - 一次性 L4_C_CONFIRM_TIMEOUT=24s 獨立 budget
         - YES keyword → "yes"（caller 回主迴圈）
-        - NO keyword / silent / 12s 耗盡 → "no"（caller 清 cart 退 L1）
+        - NO keyword / silent / 24s 耗盡 → "no"（caller 清 cart 退 L1）
         - 終端 "s" → "scan"（L4 caller 進 L5 鏈路 A）
         - 亂答 → speak L4_UNCLEAR_NOTICE + 不重置 budget
 
@@ -284,7 +284,7 @@ def _l4_service_mode(
         - "no" → 清 cart 退 L1
 
     Args:
-        deadline: 主 L4 budget deadline（**本函式不用** — helper 用獨立 12s budget；
+        deadline: 主 L4 budget deadline（**本函式不用** — helper 用獨立 24s budget；
             user 反饋客服需充裕思考時間，可能正在打電話。簽名保留 surgical 不破壞 caller，
             未來統一 budget 設計可移除）。
 

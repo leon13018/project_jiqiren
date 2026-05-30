@@ -3,7 +3,7 @@
 2026-05-31 加：跨層共用客服 confirm 子狀態 helper（抽 L4 既有 _l4_service_mode pattern）。
 
 設計（跟 _cancel_confirm.py 對稱；語意 inverse）：
-    - print SERVICE_PHONE + speak L4_C_CONFIRM_PROMPT_TEMPLATE「請問是否繼續交易？12秒後將自動取消交易。」
+    - print SERVICE_PHONE + speak L4_C_CONFIRM_PROMPT_TEMPLATE「請問是否繼續交易？24秒後將自動取消交易。」
     - 一次性 L4_C_CONFIRM_TIMEOUT=12s wall-clock budget
     - YES keyword 命中 → return "yes"
     - NO keyword 命中 → return "no"

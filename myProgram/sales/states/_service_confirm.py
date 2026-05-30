@@ -1,15 +1,15 @@
-"""跨 L2/L3/L4 通用「客服進入點」確認 12s 子狀態 helper（2026-05-31 加；對齊 _cancel_confirm.py 對稱）。
+"""跨 L2/L3/L4 通用「客服進入點」確認 24s 子狀態 helper（2026-05-31 加；對齊 _cancel_confirm.py 對稱）。
 
 User 要求 L4 客服 confirm pattern 推廣到 L2/L3 — 顧客講「客服」不再直接「印電話 + 重 speak entry」，
-改為一次性 12s 決策子狀態：
+改為一次性 24s 決策子狀態：
 
     - print SERVICE_PHONE（終端顯示客服電話）
     - speak L4_C_CONFIRM_PROMPT_TEMPLATE「請問是否繼續交易？{seconds}秒後將自動取消交易。」
-    - 一次性 L4_C_CONFIRM_TIMEOUT=12s wall-clock 決策
+    - 一次性 L4_C_CONFIRM_TIMEOUT=24s wall-clock 決策
     - YES keyword → return "yes"（caller 回主迴圈）
-    - NO keyword / silent / 12s 耗盡 → return "no"（caller 清 cart 退 L1）
+    - NO keyword / silent / 24s 耗盡 → return "no"（caller 清 cart 退 L1）
     - 終端 "s"（僅 L4 caller 開 allow_scan=True）→ return "scan"（caller 進 L5）
-    - 亂答 → speak L4_UNCLEAR_NOTICE + continue（不重置 12s budget，對齊主迴圈設計）
+    - 亂答 → speak L4_UNCLEAR_NOTICE + continue（不重置 24s budget，對齊主迴圈設計）
 
 設計沿革：上輪 L4 二次重構（commit 2141e7e）建立 _l4_service_mode pattern；本輪抽 helper 讓
 L2/L3 三個客服進入點（_dialog_main_loop / _dialog_dispatch_inner_l2 / _dialog_dispatch_inner_l3）
@@ -44,7 +44,7 @@ def service_confirm(
     *,
     allow_scan: bool = False,
 ) -> str:
-    """共用客服 confirm 12s 子狀態。
+    """共用客服 confirm 24s 子狀態。
 
     Args:
         speak: callback(text: str) — 語音播放（非阻塞）
@@ -56,10 +56,10 @@ def service_confirm(
 
     Returns:
         "yes" — 顧客 YES keyword，caller 回主迴圈
-        "no"  — 顧客 NO keyword / silent / 12s 耗盡，caller 清 cart 退 L1
+        "no"  — 顧客 NO keyword / silent / 24s 耗盡，caller 清 cart 退 L1
         "scan" — 顧客終端 "s"（僅 allow_scan=True 才返回），caller 進 L5 處理
     """
-    # print 電話 + speak_and_wait prompt 後算 deadline — 顧客拿到完整 12s budget
+    # print 電話 + speak_and_wait prompt 後算 deadline — 顧客拿到完整 24s budget
     # （不被 TTS 合成 / 播放時間吃掉）
     print_terminal(SERVICE_PHONE)
     _speak_blocking = speak_and_wait if speak_and_wait is not None else speak
@@ -92,5 +92,5 @@ def service_confirm(
         ):
             return "yes"
 
-        # 亂答 → speak unclear notice + continue（不重置 12s budget，對齊主迴圈設計）
+        # 亂答 → speak unclear notice + continue（不重置 24s budget，對齊主迴圈設計）
         speak(L4_UNCLEAR_NOTICE)

@@ -61,7 +61,7 @@ def test_l4_prompt_interval_strictly_less_than_total_budget() -> None:
 # ============================================================
 # L4 客服模式「請問是否繼續交易？」確認子狀態常數（2026-05-30 二次重構）
 # 取代舊版 retry loop + cancel_confirm 雙重 gate 設計：
-# 一次性 12s 決策，silent / NO 自動取消，跟 cancel_confirm pattern 對齊。
+# 一次性 24s 決策，silent / NO 自動取消，跟 cancel_confirm pattern 對齊。
 # ============================================================
 
 
@@ -77,7 +77,7 @@ def test_l4_c_confirm_timeout_is_24_seconds() -> None:
 
 
 def test_l4_c_confirm_prompt_template_includes_seconds_placeholder() -> None:
-    """L4_C_CONFIRM_PROMPT_TEMPLATE 含 {seconds} 模板，可 format 入 12 秒倒數值。"""
+    """L4_C_CONFIRM_PROMPT_TEMPLATE 含 {seconds} 模板，可 format 入 24 秒倒數值。"""
     assert "{seconds}" in const.L4_C_CONFIRM_PROMPT_TEMPLATE
     rendered = const.L4_C_CONFIRM_PROMPT_TEMPLATE.format(seconds=12)
     assert "12" in rendered

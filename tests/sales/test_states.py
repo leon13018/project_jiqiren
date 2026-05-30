@@ -3883,8 +3883,8 @@ def test_unclear_final_cancel_intent_no_continues() -> None:
 # Given L4 等待中，cart 含商品
 # When 顧客輸入命中客服意圖關鍵字（如「客服」）
 # Then 終端印商家客服電話（SERVICE_PHONE），
-#      語音 speak L4_C_CONFIRM_PROMPT_TEMPLATE「請問是否繼續交易？12秒後將自動取消交易。」
-#      進入一次性 12s 確認子狀態
+#      語音 speak L4_C_CONFIRM_PROMPT_TEMPLATE「請問是否繼續交易？24秒後將自動取消交易。」
+#      進入一次性 24s 確認子狀態
 # ============================================================
 
 def test_l4_c_service_keyword_enters_special_mode_with_options() -> None:
@@ -3922,9 +3922,9 @@ def test_l4_c_service_keyword_enters_special_mode_with_options() -> None:
 # ============================================================
 # L4-C-002（新增，2026-05-30 二次重構）
 # Scenario: 客服模式 silent timeout → 自動取消，清 cart 退 L1
-# Given L4 客服模式 confirm 子狀態等待中（一次性 12s budget）
+# Given L4 客服模式 confirm 子狀態等待中（一次性 24s budget）
 # When 顧客 silent，read_customer_input 連續回 None 直到 budget 耗盡
-# Then 跟 prompt 字面「12秒後將自動取消交易」對齊：清空 cart，回 L1
+# Then 跟 prompt 字面「24秒後將自動取消交易」對齊：清空 cart，回 L1
 # ============================================================
 
 def test_l4_c_service_silent_timeout_clears_cart_exits_l1() -> None:

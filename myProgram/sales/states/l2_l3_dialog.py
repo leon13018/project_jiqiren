@@ -254,7 +254,7 @@ def _dialog_dispatch_inner_l2(
         speak(L2_B1_CLARIFY)
         return None
     if intent == "客服":
-        # 2026-05-31 對齊 L4 service mode pattern：印電話 + 12s confirm gate
+        # 2026-05-31 對齊 L4 service mode pattern：印電話 + 24s confirm gate
         # YES → 回主迴圈當下層 entry prompt 重啟；NO/silent → _dialog_exit_a 退 L1
         result = service_confirm(
             speak=speak,
@@ -373,7 +373,7 @@ def _dialog_dispatch_inner_l3(
         _handle_checkout_confirm_result(result, cart, speak)
         return None
     if intent == "客服":
-        # 2026-05-31 對齊 L4 service mode pattern：印電話 + 12s confirm gate
+        # 2026-05-31 對齊 L4 service mode pattern：印電話 + 24s confirm gate
         # YES → 回主迴圈當下層 reask 重啟；NO/silent → _dialog_exit_a 退 L1
         result = service_confirm(
             speak=speak,
@@ -729,7 +729,7 @@ def _dialog_main_loop(
             _handle_checkout_confirm_result(result, cart, speak)
             continue
 
-        # 客服 → B-2（2026-05-31 對齊 L4 service mode pattern：12s confirm gate）
+        # 客服 → B-2（2026-05-31 對齊 L4 service mode pattern：24s confirm gate）
         if intent == "客服":
             unclear_count = 0
             result = service_confirm(

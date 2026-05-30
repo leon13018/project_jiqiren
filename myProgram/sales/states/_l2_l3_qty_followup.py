@@ -7,7 +7,7 @@
 追問 sub-loop 分流（6 個分支）：
     1. 顧客回應含數量 → 用該數量加 cart → 返 (True, None)
     2. 顧客 timeout（None）→ skip 該商品 → 返 (False, PRODUCT_CANCELLED_NOTICE)（2026-05-29 反轉，原本預設加 1）
-    3. 顧客講「客服」→ 進 _service_confirm helper 12s confirm gate（2026-05-31 對齊 L4 pattern）
+    3. 顧客講「客服」→ 進 _service_confirm helper 24s confirm gate（2026-05-31 對齊 L4 pattern）
        - YES → 重 speak QTY_PROMPT_TEMPLATE（鏈路初始提示）→ 繼續追問（不計入 attempts）
        - NO/silent → skip 該商品 → 返 (False, PRODUCT_CANCELLED_NOTICE)
     4. 顧客講「拒絕」（L2 用 mode='l2' / L3 用 mode='normal'）→ skip 該商品 → 返 (False, PRODUCT_CANCELLED_NOTICE)
@@ -175,7 +175,7 @@ def _qty_follow_up_sub_loop(
     6s read timeout 從 TTS 播完才起算。其他即時通知（cart cap skip 不再 read）保持 speak。
 
     2026-05-31 客服 path 重構：對齊 L2/L3/L4 dialog 客服統一 _service_confirm helper
-    （commit 92fedb6）— 12s confirm gate，YES → 重 speak QTY_PROMPT_TEMPLATE 繼續追問
+    （commit 92fedb6）— 24s confirm gate，YES → 重 speak QTY_PROMPT_TEMPLATE 繼續追問
     （不計 attempts）；NO/silent → skip 該商品（return cancel_notice，對齊既有 skip path）。
     解 Pi demo (2026-05-31) UX 怪：「客服」回「我聽不懂」誤導。
 
@@ -222,7 +222,7 @@ def _qty_follow_up_sub_loop(
 
         if follow_intent == "客服":
             # 2026-05-31 改：對齊 L2/L3/L4 客服統一 confirm pattern（commit 92fedb6）
-            # 進 _service_confirm helper：印電話 + 12s confirm「請問是否繼續交易？」
+            # 進 _service_confirm helper：印電話 + 24s confirm「請問是否繼續交易？」
             # YES → 回到 qty 追問鏈路 + speak QTY_PROMPT_TEMPLATE（鏈路初始提示，不計 attempts）
             # NO/silent → return (False, cancel_notice) skip 該商品
             #   （對齊既有 timeout / 拒絕 / 結帳-as-skip path）
