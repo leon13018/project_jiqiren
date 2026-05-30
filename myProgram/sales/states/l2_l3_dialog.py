@@ -32,7 +32,6 @@ from myProgram.sales.constants import (
     DYC_TIMEOUT,
     AUTO_CHECKOUT_NOTICE,
     C2_DECISION_TIMEOUT,
-    SERVICE_PHONE,
     UNCLEAR_MAX,
     L2_ENTRY_PROMPT,
     L2_CANCEL_DECLINED_RESUME,
@@ -55,6 +54,7 @@ from myProgram.sales.constants import (
     L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE,
     L3_C2_WARNING_TEMPLATE,
     L3_C2_CONTINUE_ACK,
+    L3_C2_GIBBERISH_HINT,
     L3_CANCEL_DECLINED_RESUME,
     CHECKOUT_CONFIRM_TIMEOUT,
     CHECKOUT_CONFIRM_UNCLEAR_MAX,
@@ -83,6 +83,7 @@ from myProgram.sales.states._l2_l3_qty_followup import (
     format_cancel_prefix,
 )
 from myProgram.sales.states._cancel_confirm import cancel_confirm, is_cancel_intent
+from myProgram.sales.states._service_confirm import service_confirm
 
 
 def run_dialog(
@@ -253,10 +254,20 @@ def _dialog_dispatch_inner_l2(
         speak(L2_B1_CLARIFY)
         return None
     if intent == "客服":
-        print_terminal(SERVICE_PHONE)
-        # 2026-05-27 加：印完電話後重 speak L2 prompt，否則顧客失去對話上下文
-        speak(L2_ENTRY_PROMPT)
-        return None
+        # 2026-05-31 對齊 L4 service mode pattern：印電話 + 12s confirm gate
+        # YES → 回主迴圈當下層 entry prompt 重啟；NO/silent → _dialog_exit_a 退 L1
+        result = service_confirm(
+            speak=speak,
+            print_terminal=print_terminal,
+            read_customer_input=read_customer_input,
+            speak_and_wait=speak_and_wait,
+            allow_scan=False,
+        )
+        if result == "yes":
+            speak(L2_ENTRY_PROMPT)
+            return None
+        # result == "no" → 清 cart（若有）+ 退 L1
+        return _dialog_exit_a(speak, cart)
     # 2026-05-26 加：L2 沉默期內「想買無商品」溫和引導（不 ++unclear / 不 ++think_count）
     if intent == "想買無商品":
         speak(DIALOG_VAGUE_BUY_REASK)
@@ -362,10 +373,20 @@ def _dialog_dispatch_inner_l3(
         _handle_checkout_confirm_result(result, cart, speak)
         return None
     if intent == "客服":
-        print_terminal(SERVICE_PHONE)
-        # 2026-05-27 加：印完電話後重 speak L3 reask，否則顧客失去對話上下文
-        speak(L3_REASK)
-        return None
+        # 2026-05-31 對齊 L4 service mode pattern：印電話 + 12s confirm gate
+        # YES → 回主迴圈當下層 reask 重啟；NO/silent → _dialog_exit_a 退 L1
+        result = service_confirm(
+            speak=speak,
+            print_terminal=print_terminal,
+            read_customer_input=read_customer_input,
+            speak_and_wait=speak_and_wait,
+            allow_scan=False,
+        )
+        if result == "yes":
+            speak(L3_REASK)
+            return None
+        # result == "no" → 清 cart + 退 L1
+        return _dialog_exit_a(speak, cart)
     # 2026-05-26 加：L3 沉默期內「想買無商品」溫和引導（不 ++unclear / 不 ++think_count）
     if intent == "想買無商品":
         speak(DIALOG_VAGUE_BUY_REASK)
@@ -503,7 +524,7 @@ def _dialog_c2_second_stage(
         # 其他（不在三組 keyword 內）— 視為亂答
         # 第一次亂答 speak 一次提示，後續 silent；不重置 deadline
         if not prompted_once:
-            speak("請說『繼續』、『結賬』或『取消』")
+            speak(L3_C2_GIBBERISH_HINT)
             prompted_once = True
         continue
 
@@ -708,17 +729,26 @@ def _dialog_main_loop(
             _handle_checkout_confirm_result(result, cart, speak)
             continue
 
-        # 客服 → B-2
+        # 客服 → B-2（2026-05-31 對齊 L4 service mode pattern：12s confirm gate）
         if intent == "客服":
             unclear_count = 0
-            print_terminal(SERVICE_PHONE)
-            # 2026-05-27 加：印完電話後 speak 對應 mode 的 re-entry prompt；
-            # 否則 continue → 下一輪 read_customer_input 顧客失去對話上下文
-            if cart_empty:
-                speak(L2_ENTRY_PROMPT)
-            else:
-                speak(L3_REASK)
-            continue
+            result = service_confirm(
+                speak=speak,
+                print_terminal=print_terminal,
+                read_customer_input=read_customer_input,
+                speak_and_wait=speak_and_wait,
+                allow_scan=False,
+            )
+            if result == "yes":
+                # 回主迴圈當下層 entry prompt 重啟（cart 空 L2 / cart 非空 L3 reask）
+                if cart_empty:
+                    speak(L2_ENTRY_PROMPT)
+                else:
+                    speak(L3_REASK)
+                continue
+            # result == "no" → _dialog_exit_a（cart 空 = L2 thanks 不清 cart；
+            # cart 非空 = L3 thanks 清 cart）
+            return _dialog_exit_a(speak, cart)
 
         # 商品 → C / B-3（多商品 parser + 各自缺數量追問）
         products = parse_products(response)

@@ -18,6 +18,7 @@ __all__ = [
     "L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE",
     "L3_C2_WARNING_TEMPLATE",
     "L3_C2_CONTINUE_ACK",
+    "L3_C2_GIBBERISH_HINT",
     "L3_CANCEL_DECLINED_RESUME",
 ]
 
@@ -82,6 +83,12 @@ L3_C2_WARNING_TEMPLATE: str = (
     "請問您想要繼續選購商品、結賬還是取消購買？"
     "{seconds}秒後將自動結賬。"
 )
+
+# L3 鏈路 C-2 第二段亂答提示（2026-05-31 抽常數；改 quote 風格）
+# 從 inline 「請說『繼續』、『結賬』或『取消』」改為 ASCII 雙引號版本
+# 對齊 user 字面 + 既有 L4_C_OPTIONS_PROMPT「請說"退出"或者"繼續"」風格
+# Python 用單引號包雙引號避 escape
+L3_C2_GIBBERISH_HINT: str = '請說"繼續"、"結賬"或"取消"'
 
 # L3 鏈路 C-2 第二段「繼續選購」分支 ack 語音（2026-05-30 加；Pi demo UX 修補）
 # 顧客在 C-2 三選一講「繼續」命中 KEYWORDS_C2_CONTINUE → 回 _dialog_main_loop。

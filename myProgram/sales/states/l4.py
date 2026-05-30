@@ -25,29 +25,23 @@ import time
 
 from myProgram.sales.constants import (
     PRODUCTS,
-    SERVICE_PHONE,
     L4_TOTAL_BUDGET,
     L4_PROMPT_INTERVAL,
-    L4_C_CONFIRM_TIMEOUT,
     L4_ENTRY_PROMPT_TEMPLATE,
     L4_QR_MOCK_HINT,
     L4_A_PAY_SUCCESS,
     L4_ACK_GENTLE,
     L4_B_CANCEL_THANKS,
-    L4_C_CONFIRM_PROMPT_TEMPLATE,
     L4_D_FORCED_EXIT,
     L4_REMIND_PROMPT,
     L4_UNCLEAR_NOTICE,
     ACTION_L4_PAY,
     CANCEL_DECLINED_NOTICE,
-    KEYWORDS_L4_C_CONFIRM_YES,
-    KEYWORDS_L4_C_CONFIRM_YES_STRICT_SHORT,
-    KEYWORDS_L4_C_CONFIRM_NO,
-    KEYWORDS_L4_C_CONFIRM_NO_STRICT_SHORT,
 )
-from myProgram.sales.nlu import classify_intent, contains_any, equals_strict_short
+from myProgram.sales.nlu import classify_intent
 from myProgram.sales import cart as cart_module
 from myProgram.sales.states._cancel_confirm import cancel_confirm
+from myProgram.sales.states._service_confirm import service_confirm
 
 
 def run_l4(
@@ -272,76 +266,45 @@ def _l4_service_mode(
     do_action,
     speak_and_wait=None,
 ) -> tuple | None:
-    """L4 鏈路 C 客服模式：一次性 12s 確認子狀態（2026-05-30 二次重構）。
+    """L4 鏈路 C 客服模式（2026-05-31 三次重構：抽 _service_confirm helper）。
 
-    取代舊版「12s × N 次 retry loop + cancel_confirm 雙重 gate」設計（user 反饋
-    冗餘 + 強迫顧客學「退出 / 繼續」術語 + 雙重確認多餘）。新設計：
-        - print SERVICE_PHONE（終端顯示客服電話）
-        - speak L4_C_CONFIRM_PROMPT_TEMPLATE「請問是否繼續交易？12秒後將自動取消交易。」
-        - 一次性 L4_C_CONFIRM_TIMEOUT=12s wall-clock budget（獨立於主 deadline，
-          user 反饋客服需充裕思考時間，可能正在打電話）
-        - silent / 倒數歸零 → 清 cart 退 L1（跟 prompt 字面「自動取消」對齊）
-        - YES keyword（含 substring + strict_short）→ return None（回主迴圈）
-        - NO keyword（含 substring + strict_short）→ 清 cart 退 L1
-          （user 字面：客服取消不再進入 cancel_confirm 雙重確認，直接退）
-        - 終端 "s" → 鏈路 A 進 L5（保留掃碼模擬，user 沒明示移除）
-        - 亂答 → speak L4_UNCLEAR_NOTICE + 不重置 12s budget（對齊主迴圈設計）
+    使用共用 helper `service_confirm`（allow_scan=True 啟用終端 "s" fast path）；
+    helper 內部行為：
+        - print SERVICE_PHONE + speak L4_C_CONFIRM_PROMPT_TEMPLATE「請問是否繼續交易？12秒...」
+        - 一次性 L4_C_CONFIRM_TIMEOUT=12s 獨立 budget
+        - YES keyword → "yes"（caller 回主迴圈）
+        - NO keyword / silent / 12s 耗盡 → "no"（caller 清 cart 退 L1）
+        - 終端 "s" → "scan"（L4 caller 進 L5 鏈路 A）
+        - 亂答 → speak L4_UNCLEAR_NOTICE + 不重置 budget
 
-    跟 cancel_confirm 對稱（語意 inverse）：
-        - cancel_confirm 問「是否取消」silent=取消（保守 default）
-        - 本函式問「是否繼續」silent=取消（保守 default）
-        - 兩者都「保守 default 取消」— UX 一致
+    本函式只負責解讀 helper 回傳值並執行 L4-specific exit actions：
+        - "yes" → return None（caller 重印明細 + 重 speak entry + reset budget；
+                              2026-05-31 修 Pi demo「繼續後失上下文」bug 已在主迴圈處理）
+        - "scan" → speak L4_A_PAY_SUCCESS + do_action(ACTION_L4_PAY) + 進 L5（鏈路 A）
+        - "no" → 清 cart 退 L1
 
     Args:
-        deadline: 主 L4 budget deadline（**本函式不用** — client mode 改用獨立
-            L4_C_CONFIRM_TIMEOUT 12s budget）。簽名保留 surgical 不破壞 caller，
-            未來統一 budget 設計可移除。
+        deadline: 主 L4 budget deadline（**本函式不用** — helper 用獨立 12s budget；
+            user 反饋客服需充裕思考時間，可能正在打電話。簽名保留 surgical 不破壞 caller，
+            未來統一 budget 設計可移除）。
 
     Returns:
         tuple → 已決定（退 L1 / 進 L5）
-        None  → 顧客選 YES「繼續」→ 回主迴圈（主迴圈繼續用既有 deadline，不重置）
+        None  → 顧客選 YES「繼續」→ 回主迴圈
     """
-    print_terminal(SERVICE_PHONE)
-    # speak_and_wait 模板 prompt 後算 deadline — 顧客拿到完整 12s budget
-    # （不被 TTS 合成 / 播放時間吃掉）
-    _speak_blocking = speak_and_wait if speak_and_wait is not None else speak
-    _speak_blocking(L4_C_CONFIRM_PROMPT_TEMPLATE.format(seconds=L4_C_CONFIRM_TIMEOUT))
-
-    confirm_deadline = time.monotonic() + L4_C_CONFIRM_TIMEOUT
-
-    while True:
-        remaining = confirm_deadline - time.monotonic()
-        if remaining <= 0:
-            # silent / 倒數歸零 → 自動取消（跟 prompt 字面「自動取消交易」對齊）
-            cart_module.clear_cart(cart)
-            return ("L1_via_subroutine_a", 0, 0)
-
-        response = read_customer_input(timeout=remaining)
-
-        if response is None:
-            # 顧客 silent 等到 read timeout → 自動取消
-            cart_module.clear_cart(cart)
-            return ("L1_via_subroutine_a", 0, 0)
-
-        # 終端 "s" → 鏈路 A 掃碼成功（保留模擬 wire-up；user 沒明示移除）
-        if response == "s":
-            speak(L4_A_PAY_SUCCESS)
-            do_action(ACTION_L4_PAY)
-            return ("L5", 0, 0)
-
-        # NO 先 check（防「不繼續交易」substring 含 YES strict_short「繼續」誤命中）
-        if (
-            contains_any(response, KEYWORDS_L4_C_CONFIRM_NO)
-            or equals_strict_short(response, KEYWORDS_L4_C_CONFIRM_NO_STRICT_SHORT)
-        ):
-            cart_module.clear_cart(cart)
-            return ("L1_via_subroutine_a", 0, 0)
-
-        if (
-            contains_any(response, KEYWORDS_L4_C_CONFIRM_YES)
-            or equals_strict_short(response, KEYWORDS_L4_C_CONFIRM_YES_STRICT_SHORT)
-        ):
-            return None
-
-        # 亂答 → speak unclear notice + continue（不重置 12s budget，對齊主迴圈設計）
-        speak(L4_UNCLEAR_NOTICE)
+    result = service_confirm(
+        speak=speak,
+        print_terminal=print_terminal,
+        read_customer_input=read_customer_input,
+        speak_and_wait=speak_and_wait,
+        allow_scan=True,
+    )
+    if result == "yes":
+        return None
+    if result == "scan":
+        speak(L4_A_PAY_SUCCESS)
+        do_action(ACTION_L4_PAY)
+        return ("L5", 0, 0)
+    # result == "no" → 清 cart 退 L1
+    cart_module.clear_cart(cart)
+    return ("L1_via_subroutine_a", 0, 0)
