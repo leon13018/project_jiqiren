@@ -7,13 +7,15 @@
 追問 sub-loop 分流（6 個分支）：
     1. 顧客回應含數量 → 用該數量加 cart → 返 (True, None)
     2. 顧客 timeout（None）→ skip 該商品 → 返 (False, PRODUCT_CANCELLED_NOTICE)（2026-05-29 反轉，原本預設加 1）
-    3. 顧客講「客服」→ print_terminal 印電話 → 重新 speak clarify → 繼續追問（不計入 attempts）
+    3. 顧客講「客服」→ 進 _service_confirm helper 12s confirm gate（2026-05-31 對齊 L4 pattern）
+       - YES → 重 speak QTY_PROMPT_TEMPLATE（鏈路初始提示）→ 繼續追問（不計入 attempts）
+       - NO/silent → skip 該商品 → 返 (False, PRODUCT_CANCELLED_NOTICE)
     4. 顧客講「拒絕」（L2 用 mode='l2' / L3 用 mode='normal'）→ skip 該商品 → 返 (False, PRODUCT_CANCELLED_NOTICE)
     5. 顧客講「結帳」（L3 normal mode 「不要 / 不用」→ 視為不追加此商品）→ skip 該商品 → 返 (False, PRODUCT_CANCELLED_NOTICE)
     6. 其他（想一下 / 商品 / 無法判斷）→ speak clarify → attempts++；達 3 次上限 → 返 (False, PRODUCT_CANCELLED_NOTICE)
 
 2026-05-29 UX 統一：4 個 skip 分支（2/4/5/6）全部用同一 PRODUCT_CANCELLED_NOTICE_TEMPLATE
-「商品{product}已幫您取消」。
+「商品{product}已幫您取消」。2026-05-31 客服 NO/silent 也走同一 notice path。
 
 2026-05-30 合成 speak：4 個 skip 分支不再即時 speak notice，改 return 給 caller；
 caller 將 notice 與後續 reask text 用全形「，」拼成單一 speak — 解 Pi demo「先聽到
@@ -31,13 +33,13 @@ from myProgram.sales.constants import (
     MAX_QTY_PER_ITEM,
     QTY_PROMPT_TEMPLATE,
     QTY_CLARIFY_TEMPLATE,
-    SERVICE_PHONE,
     QTY_FOLLOWUP_TIMEOUT,
     PRODUCT_CANCELLED_NOTICE_TEMPLATE,
     MULTI_PRODUCT_CANCELLED_NOTICE_TEMPLATE,
 )
 from myProgram.sales.nlu import parse_quantity, has_quantity, classify_intent
 from myProgram.sales import cart as cart_module
+from myProgram.sales.states._service_confirm import service_confirm
 
 
 def format_cancel_prefix(cancel_notices: list[str]) -> str:
@@ -166,15 +168,21 @@ def _qty_follow_up_sub_loop(
 
     2026-05-30 合成 speak：4 個 skip 分支（timeout / 拒絕 / 結帳-as-skip / attempts cap）
     不再即時 speak PRODUCT_CANCELLED_NOTICE，改 return 該字串給 caller 拼接到 reask；
-    其他即時通知（cart cap / qty 超量 / 客服）保持即時 speak（與 cancel UX 不同）。
+    其他即時通知（cart cap / qty 超量）保持即時 speak（與 cancel UX 不同）。
 
     2026-05-30 v3：speak_and_wait — 「speak prompt 後接 read」path（cart cap 超量
-    重提 / 客服 clarify / attempts clarify）走 speak_and_wait，讓 6s read timeout 從
-    TTS 播完才起算。其他即時通知（cart cap skip 不再 read）保持 speak。
+    重提 / attempts clarify / 客服 YES 後重 speak QTY_PROMPT）走 speak_and_wait，讓
+    6s read timeout 從 TTS 播完才起算。其他即時通知（cart cap skip 不再 read）保持 speak。
+
+    2026-05-31 客服 path 重構：對齊 L2/L3/L4 dialog 客服統一 _service_confirm helper
+    （commit 92fedb6）— 12s confirm gate，YES → 重 speak QTY_PROMPT_TEMPLATE 繼續追問
+    （不計 attempts）；NO/silent → skip 該商品（return cancel_notice，對齊既有 skip path）。
+    解 Pi demo (2026-05-31) UX 怪：「客服」回「我聽不懂」誤導。
 
     Returns:
         (True, None) — 已加入 cart
-        (False, cancel_notice_str) — 顧客在追問內 timeout / 拒絕 / 結帳-as-skip / attempts cap
+        (False, cancel_notice_str) — 顧客在追問內 timeout / 拒絕 / 結帳-as-skip /
+                                     attempts cap / 客服 NO/silent
                                      → skip 該商品；caller 用 notice 拼接 reask 後單一 speak
         (False, None) — cart cap 上限 skip（即時 speak 通知已發出，不需 caller 二次處理）
     """
@@ -213,11 +221,23 @@ def _qty_follow_up_sub_loop(
         follow_intent = classify_intent(follow_up, classify_intent_mode)
 
         if follow_intent == "客服":
-            # 客服不計入 attempts
-            # 2026-05-30 v3：speak_and_wait — 6s read timeout 從 TTS 播完才起算
-            print_terminal(SERVICE_PHONE)
-            _speak_blocking(QTY_CLARIFY_TEMPLATE.format(unit=unit))
-            continue
+            # 2026-05-31 改：對齊 L2/L3/L4 客服統一 confirm pattern（commit 92fedb6）
+            # 進 _service_confirm helper：印電話 + 12s confirm「請問是否繼續交易？」
+            # YES → 回到 qty 追問鏈路 + speak QTY_PROMPT_TEMPLATE（鏈路初始提示，不計 attempts）
+            # NO/silent → return (False, cancel_notice) skip 該商品
+            #   （對齊既有 timeout / 拒絕 / 結帳-as-skip path）
+            result = service_confirm(
+                speak=speak,
+                print_terminal=print_terminal,
+                read_customer_input=read_customer_input,
+                speak_and_wait=speak_and_wait,
+                allow_scan=False,
+            )
+            if result == "yes":
+                _speak_blocking(QTY_PROMPT_TEMPLATE.format(product=product, unit=unit))
+                continue
+            # result == "no" → skip 該商品（caller 用 cancel_notice 拼接 reask）
+            return False, cancel_notice
 
         if follow_intent == "拒絕":
             # 2026-05-30：notice 不即時 speak，return 給 caller 拼接到 reask

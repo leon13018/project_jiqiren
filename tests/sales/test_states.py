@@ -1502,15 +1502,20 @@ def test_l2_c_qty_followup_gibberish_speaks_clarify_then_uses_next_quantity() ->
     )
 
 
-def test_l2_c_qty_followup_service_intent_prints_phone_then_reclarifies() -> None:
-    """2026-05-25 加：qty 追問內顧客講「客服」→ print 電話 + speak clarify → 再追問。"""
+def test_l2_c_qty_followup_service_intent_enters_confirm_yes_respeaks_qty_prompt() -> None:
+    """2026-05-31 重寫：qty 追問內客服 → 12s confirm gate → YES → re-speak QTY_PROMPT → 繼續追問。
+
+    對齊 L4 / L2 / L3 main loop 客服 12s confirm pattern（commit 92fedb6）。
+    YES 後重 speak 的是 QTY_PROMPT_TEMPLATE（鏈路初始提示），不是 QTY_CLARIFY_TEMPLATE
+    （後者是「亂答 clarify」非「鏈路初始」）。
+    """
     speak_calls: list = []
     printed: list = []
     cart = cart_module.new_cart()
-    # 紅茶 → ask → "客服" → print phone + clarify → "兩瓶" → add 2；
+    # 紅茶 → qty ask → "客服" → service_confirm prompt → "繼續" (YES) →
+    # re-speak QTY_PROMPT → "兩瓶" → add 2；
     # 後續 None None → C-2 silent → confirm；「對」 → confirm yes → L4
-    # （2026-05-29 silent timeout 改經 confirm 合流路徑，需 confirm yes 才到 L4 + 保留 cart）
-    customer_input = FakeCustomerInput(["紅茶", "客服", "兩瓶", None, None, "對"])
+    customer_input = FakeCustomerInput(["紅茶", "客服", "繼續", "兩瓶", None, None, "對"])
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
@@ -1524,9 +1529,99 @@ def test_l2_c_qty_followup_service_intent_prints_phone_then_reclarifies() -> Non
     )
 
     assert next_state == "L4"
-    assert cart_module.get_quantity(cart, "冰紅茶") == 2
-    assert SERVICE_PHONE in printed, f"客服 intent 應 print SERVICE_PHONE，實際 printed：{printed}"
-    assert QTY_CLARIFY_TEMPLATE.format(unit="瓶") in speak_calls
+    assert cart_module.get_quantity(cart, "冰紅茶") == 2, (
+        f"客服 YES → 重 speak QTY_PROMPT → 「兩瓶」 → 加 2，實際 cart：{cart}"
+    )
+    # service_confirm helper 印電話
+    assert SERVICE_PHONE in printed, (
+        f"客服 intent 應 print SERVICE_PHONE，實際 printed：{printed}"
+    )
+    # service_confirm helper speak L4_C_CONFIRM_PROMPT_TEMPLATE
+    expected_prompt = L4_C_CONFIRM_PROMPT_TEMPLATE.format(seconds=L4_C_CONFIRM_TIMEOUT)
+    assert expected_prompt in speak_calls, (
+        f"客服應 speak L4_C_CONFIRM_PROMPT_TEMPLATE，實際：{speak_calls}"
+    )
+    # YES 後重 speak QTY_PROMPT_TEMPLATE（鏈路初始提示），不是 QTY_CLARIFY_TEMPLATE
+    qty_prompt = QTY_PROMPT_TEMPLATE.format(product="冰紅茶", unit="瓶")
+    qty_prompt_count = sum(1 for s in speak_calls if s == qty_prompt)
+    assert qty_prompt_count >= 2, (
+        f"客服 YES 後應重 speak QTY_PROMPT_TEMPLATE（鏈路初始提示，含 entry 1 次共 >=2 次），"
+        f"實際 speak_calls：{speak_calls}"
+    )
+
+
+def test_l2_c_qty_followup_service_intent_confirm_no_skips_product() -> None:
+    """2026-05-31 加：qty 追問內客服 → confirm NO → skip 該商品（不加 cart）+ 拼接 reask。
+
+    對齊 timeout / 拒絕 / 結帳-as-skip path：return (False, cancel_notice)
+    → caller 用 notice 拼接 L2_B3_REASK 合成單一 speak。
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 紅茶 → qty ask → "客服" → confirm prompt → "取消" (NO) → skip → L2_B3_REASK 合成 speak
+    # → 主迴圈 continue → None → L2-A timeout 退 L1
+    customer_input = FakeCustomerInput(["紅茶", "客服", "取消", None])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    assert next_state == "L1_via_subroutine_a"
+    assert cart_module.is_empty(cart), (
+        f"客服 confirm NO 應 skip 該商品，cart 應為空，實際：{cart}"
+    )
+    # service_confirm helper speak L4_C_CONFIRM_PROMPT_TEMPLATE
+    expected_prompt = L4_C_CONFIRM_PROMPT_TEMPLATE.format(seconds=L4_C_CONFIRM_TIMEOUT)
+    assert expected_prompt in speak_calls, (
+        f"客服應 speak L4_C_CONFIRM_PROMPT_TEMPLATE，實際：{speak_calls}"
+    )
+    # cancel notice + L2_B3_REASK 拼成單一 speak
+    notice = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="冰紅茶")
+    assert any(notice in s and L2_B3_REASK in s for s in speak_calls), (
+        f"客服 NO skip 應 speak 合成「{notice}，{L2_B3_REASK}」，實際：{speak_calls}"
+    )
+
+
+def test_l2_c_qty_followup_service_intent_confirm_silent_skips_product() -> None:
+    """2026-05-31 加：qty 追問內客服 → confirm silent → skip 該商品（不加 cart）+ 拼接 reask。
+
+    對齊 confirm 保守 default（silent = no = 取消）。
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 紅茶 → qty ask → "客服" → confirm prompt → None (silent) → skip → L2_B3_REASK 合成
+    # → 主迴圈 continue → None → L2-A timeout 退 L1
+    customer_input = FakeCustomerInput(["紅茶", "客服", None, None])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    assert next_state == "L1_via_subroutine_a"
+    assert cart_module.is_empty(cart), (
+        f"客服 confirm silent 應 skip 該商品，cart 應為空，實際：{cart}"
+    )
+    # service_confirm helper speak L4_C_CONFIRM_PROMPT_TEMPLATE
+    expected_prompt = L4_C_CONFIRM_PROMPT_TEMPLATE.format(seconds=L4_C_CONFIRM_TIMEOUT)
+    assert expected_prompt in speak_calls, (
+        f"客服應 speak L4_C_CONFIRM_PROMPT_TEMPLATE，實際：{speak_calls}"
+    )
+    notice = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="冰紅茶")
+    assert any(notice in s and L2_B3_REASK in s for s in speak_calls), (
+        f"客服 silent skip 應 speak 合成「{notice}，{L2_B3_REASK}」，實際：{speak_calls}"
+    )
 
 
 def test_l2_c_qty_followup_reject_cancels_addition_and_reprompts_l2() -> None:
