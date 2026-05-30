@@ -84,12 +84,12 @@ L3_C2_WARNING_TEMPLATE: str = (
 )
 
 # L3 鏈路 C-2 第二段「繼續選購」分支 ack 語音（2026-05-30 加；Pi demo UX 修補）
-# 顧客在 C-2 三選一講「繼續」命中 KEYWORDS_C2_CONTINUE → 回 _dialog_main_loop
-# 之前 speak 此 ack 讓顧客知道「繼續加單」狀態已生效、可以接著講商品名。
-# 不重播 L3_ENTRY_PROMPT 因為剛聽完 C-2 三選一警告，重新問「還有額外需要購買的嗎」
-# 略顯生硬;短 ack「好的，請繼續選購」是 loading-bar 等價過場 UX
-# （對齊 memory tts_prompt_as_ux_pacing 設計哲學）。
-L3_C2_CONTINUE_ACK: str = "好的，請繼續選購"
+# 顧客在 C-2 三選一講「繼續」命中 KEYWORDS_C2_CONTINUE → 回 _dialog_main_loop。
+# 主迴圈不重播 entry prompt → 若只 speak「好的，請繼續選購」顧客仍失去上下文
+# （不知道該講商品名 / 沉默 → 又被 DYC_TIMEOUT 抓回 C-2）。
+# 合成 voice 一次 speak 帶 ack + L3 reask 重啟，跟 L2_TO_L3_TRANSITION /
+# L3_CANCEL_DECLINED_RESUME 同設計哲學（單一 synth + UX pacing loading-bar 過場）。
+L3_C2_CONTINUE_ACK: str = "好的，請繼續選購，請問還要買什麼呢？"
 
 # L3 cancel_confirm NO path 合成 voice（2026-05-30 加；同 4776cb1 同類 root cause 延續）
 # 顧客在 L3 拒絕意圖 → cancel_confirm「不要取消 / 繼續」NO → 回 L3 主迴圈 wait。
