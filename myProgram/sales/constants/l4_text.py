@@ -8,7 +8,7 @@ __all__ = [
     "L4_QR_MOCK_HINT",
     "L4_A_PAY_SUCCESS",
     "L4_B_CANCEL_THANKS",
-    "L4_C_OPTIONS_PROMPT",
+    "L4_C_CONFIRM_PROMPT_TEMPLATE",
     "L4_D_FORCED_EXIT",
     "L4_ACK_GENTLE",
     "L4_REMIND_PROMPT",
@@ -33,8 +33,13 @@ L4_A_PAY_SUCCESS: str = "付款成功"
 # 2026-05-26 Wave 7a 文案速覽：更柔和口語版本
 L4_B_CANCEL_THANKS: str = "好的，這次先不交易，謝謝光臨"
 
-# L4 鏈路 C 客服模式選項提示語音（終端 + 語音皆印）
-L4_C_OPTIONS_PROMPT: str = "請選擇退出交易或繼續交易。（請說\"退出\"或者\"繼續\"）"
+# L4 鏈路 C 客服模式「請問是否繼續交易？」確認 prompt 模板（2026-05-30 二次重構）
+# 取代既有 L4_C_OPTIONS_PROMPT「請選擇退出交易或繼續交易（請說"退出"或者"繼續"）」
+# user 反饋舊版需要顧客學「退出 / 繼續」術語且 12s × N 次 retry 過於冗餘。
+# 新設計：一次性 {seconds} 秒決策；silent / NO 自動取消，跟 cancel_confirm pattern 對齊
+# （但語意 inverse — cancel_confirm「您是否取消」silent=取消；此處「是否繼續」silent=取消）。
+# 文案對齊 L3_C2_WARNING_TEMPLATE 風格（全形「？」+ 句末「。」+ {seconds} 模板）。
+L4_C_CONFIRM_PROMPT_TEMPLATE: str = "請問是否繼續交易？{seconds}秒後將自動取消交易。"
 
 # L4 鏈路 D 強制退語音
 L4_D_FORCED_EXIT: str = "已取消這次交易"

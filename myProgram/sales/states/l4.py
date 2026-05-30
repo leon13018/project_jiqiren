@@ -1,4 +1,4 @@
-"""L4：印金額 + 等掃碼（結帳層；2026-05-30 重構簡化版）。
+"""L4：印金額 + 等掃碼（結帳層；2026-05-30 重構簡化版 + 二次重構）。
 
 對應規格書：resources/plans/業務程式邏輯規劃/L4.md
 
@@ -7,14 +7,15 @@
     - 每 L4_PROMPT_INTERVAL = 12s 沒回應重新 speak L4_REMIND_PROMPT（不重置 budget）
     - 亂輸入只印 L4_UNCLEAR_NOTICE（不重置 budget、不計次）
     - budget 耗盡 → forced exit（speak L4_D_FORCED_EXIT + clear cart + 退 L1）
-    - 鏈路：A 掃碼成功 → L5；B 拒絕（cancel_confirm gated）→ 退 L1；C 客服→特殊模式
-    - 客服模式共用主 budget remaining（移除原獨立 L4_SERVICE_TIMEOUT=60）
+    - 鏈路：A 掃碼成功 → L5；B 拒絕（cancel_confirm gated）→ 退 L1；C 客服→確認子狀態
+    - 客服模式獨立 L4_C_CONFIRM_TIMEOUT=12s 一次性決策（2026-05-30 二次重構）
 
 從舊版移除（user 反饋過度設計）：
     - loop_count（D 鏈路 4 階段語氣 6 次循環機制）
     - unclear_count（E 鏈路達 3 自動進客服機制）
     - _l4_final_confirmation（達上限後「1=取消 / 2=繼續」18s 子狀態）
     - L4_SERVICE_TIMEOUT 獨立 60s（客服共用主 budget）
+    - 客服模式 retry loop + cancel_confirm 雙重 gate（2026-05-30 二次重構）
 
 Return shape 保持 (next_state, 0, 0) 3-tuple — 與 logic.py 既有 unpack 相容
 （兩個 0 占位，未來若改 2-tuple 需同步 logic.py），avoid breaking change。
@@ -27,19 +28,24 @@ from myProgram.sales.constants import (
     SERVICE_PHONE,
     L4_TOTAL_BUDGET,
     L4_PROMPT_INTERVAL,
+    L4_C_CONFIRM_TIMEOUT,
     L4_ENTRY_PROMPT_TEMPLATE,
     L4_QR_MOCK_HINT,
     L4_A_PAY_SUCCESS,
     L4_ACK_GENTLE,
     L4_B_CANCEL_THANKS,
-    L4_C_OPTIONS_PROMPT,
+    L4_C_CONFIRM_PROMPT_TEMPLATE,
     L4_D_FORCED_EXIT,
     L4_REMIND_PROMPT,
     L4_UNCLEAR_NOTICE,
     ACTION_L4_PAY,
     CANCEL_DECLINED_NOTICE,
+    KEYWORDS_L4_C_CONFIRM_YES,
+    KEYWORDS_L4_C_CONFIRM_YES_STRICT_SHORT,
+    KEYWORDS_L4_C_CONFIRM_NO,
+    KEYWORDS_L4_C_CONFIRM_NO_STRICT_SHORT,
 )
-from myProgram.sales.nlu import classify_intent
+from myProgram.sales.nlu import classify_intent, contains_any, equals_strict_short
 from myProgram.sales import cart as cart_module
 from myProgram.sales.states._cancel_confirm import cancel_confirm
 
@@ -59,7 +65,7 @@ def run_l4(
     顧客從 L3 攜帶 cart 進入，等掃碼付款。
     鏈路 A（掃碼）→ L5；
     鏈路 B（拒絕，cancel_confirm gated）→ 清空 cart → L1（子例程 A）；
-    鏈路 C（客服）→ 客服特殊模式（共用主 budget remaining，2026-05-30 重構）；
+    鏈路 C（客服）→ 一次性 12s 確認子狀態（2026-05-30 二次重構：移除 retry + cancel_confirm gate）；
     無回應 / 亂輸入 → 12s 重提示 / 不重置 budget；budget 耗盡 → forced exit。
 
     Args:
@@ -198,7 +204,7 @@ def _l4_dispatch_response(
         1. 終端 s → 鏈路 A（掃碼成功）→ L5
         2. 等待安撫意圖 → speak 溫和回應，不重置 budget
         3. 拒絕意圖 → cancel_confirm gate → YES 退 L1；NO speak DECLINED 不重置 budget
-        4. 客服意圖 → 鏈路 C 客服特殊模式（共用主 budget remaining）
+        4. 客服意圖 → 鏈路 C 一次性 12s 確認子狀態（2026-05-30 二次重構：獨立 budget）
         5. 其他（想一下 / 結帳 / 商品 / 無法判斷）→ speak L4_UNCLEAR_NOTICE 不重置 budget
 
     Returns:
@@ -226,7 +232,7 @@ def _l4_dispatch_response(
         speak(CANCEL_DECLINED_NOTICE)
         return "ack"
 
-    # 優先序 4：客服 → 鏈路 C 特殊模式（共用主 budget remaining）
+    # 優先序 4：客服 → 鏈路 C 一次性 12s 確認子狀態（獨立 budget；2026-05-30 二次重構）
     if intent == "客服":
         result = _l4_service_mode(
             speak=speak,
@@ -255,70 +261,76 @@ def _l4_service_mode(
     do_action,
     speak_and_wait=None,
 ) -> tuple | None:
-    """L4 鏈路 C 客服特殊模式（2026-05-30 重構：移除獨立 60s timeout，共用主 budget remaining）。
+    """L4 鏈路 C 客服模式：一次性 12s 確認子狀態（2026-05-30 二次重構）。
 
-    顯示電話 + 提示選項，等顧客明確選擇退出或繼續。
-    L4_PROMPT_INTERVAL 沒回應 → 重 speak L4_C_OPTIONS_PROMPT；
-    亂輸入 → 印 L4_UNCLEAR_NOTICE；都不重置主 budget。
-    budget 耗盡 → 清 cart 退 L1。
+    取代舊版「12s × N 次 retry loop + cancel_confirm 雙重 gate」設計（user 反饋
+    冗餘 + 強迫顧客學「退出 / 繼續」術語 + 雙重確認多餘）。新設計：
+        - print SERVICE_PHONE（終端顯示客服電話）
+        - speak L4_C_CONFIRM_PROMPT_TEMPLATE「請問是否繼續交易？12秒後將自動取消交易。」
+        - 一次性 L4_C_CONFIRM_TIMEOUT=12s wall-clock budget（獨立於主 deadline，
+          user 反饋客服需充裕思考時間，可能正在打電話）
+        - silent / 倒數歸零 → 清 cart 退 L1（跟 prompt 字面「自動取消」對齊）
+        - YES keyword（含 substring + strict_short）→ return None（回主迴圈）
+        - NO keyword（含 substring + strict_short）→ 清 cart 退 L1
+          （user 字面：客服取消不再進入 cancel_confirm 雙重確認，直接退）
+        - 終端 "s" → 鏈路 A 進 L5（保留掃碼模擬，user 沒明示移除）
+        - 亂答 → speak L4_UNCLEAR_NOTICE + 不重置 12s budget（對齊主迴圈設計）
+
+    跟 cancel_confirm 對稱（語意 inverse）：
+        - cancel_confirm 問「是否取消」silent=取消（保守 default）
+        - 本函式問「是否繼續」silent=取消（保守 default）
+        - 兩者都「保守 default 取消」— UX 一致
+
+    Args:
+        deadline: 主 L4 budget deadline（**本函式不用** — client mode 改用獨立
+            L4_C_CONFIRM_TIMEOUT 12s budget）。簽名保留 surgical 不破壞 caller，
+            未來統一 budget 設計可移除。
 
     Returns:
-        tuple → 已決定（退出 L1 或掃碼 L5）
-        None  → 顧客選「繼續」→ 回主迴圈
+        tuple → 已決定（退 L1 / 進 L5）
+        None  → 顧客選 YES「繼續」→ 回主迴圈（主迴圈繼續用既有 deadline，不重置）
     """
     print_terminal(SERVICE_PHONE)
-    speak(L4_C_OPTIONS_PROMPT)
+    # speak_and_wait 模板 prompt 後算 deadline — 顧客拿到完整 12s budget
+    # （不被 TTS 合成 / 播放時間吃掉）
+    _speak_blocking = speak_and_wait if speak_and_wait is not None else speak
+    _speak_blocking(L4_C_CONFIRM_PROMPT_TEMPLATE.format(seconds=L4_C_CONFIRM_TIMEOUT))
+
+    confirm_deadline = time.monotonic() + L4_C_CONFIRM_TIMEOUT
 
     while True:
-        remaining = deadline - time.monotonic()
+        remaining = confirm_deadline - time.monotonic()
         if remaining <= 0:
+            # silent / 倒數歸零 → 自動取消（跟 prompt 字面「自動取消交易」對齊）
             cart_module.clear_cart(cart)
             return ("L1_via_subroutine_a", 0, 0)
 
-        response = read_customer_input(timeout=min(L4_PROMPT_INTERVAL, remaining))
+        response = read_customer_input(timeout=remaining)
 
         if response is None:
-            speak(L4_C_OPTIONS_PROMPT)
-            continue
+            # 顧客 silent 等到 read timeout → 自動取消
+            cart_module.clear_cart(cart)
+            return ("L1_via_subroutine_a", 0, 0)
 
-        # 終端 s → 視為掃碼成功 → L5
+        # 終端 "s" → 鏈路 A 掃碼成功（保留模擬 wire-up；user 沒明示移除）
         if response == "s":
             speak(L4_A_PAY_SUCCESS)
             do_action(ACTION_L4_PAY)
             return ("L5", 0, 0)
 
-        # 終端 1 → 退出（清空 cart）
-        if response == "1":
+        # NO 先 check（防「不繼續交易」substring 含 YES strict_short「繼續」誤命中）
+        if (
+            contains_any(response, KEYWORDS_L4_C_CONFIRM_NO)
+            or equals_strict_short(response, KEYWORDS_L4_C_CONFIRM_NO_STRICT_SHORT)
+        ):
             cart_module.clear_cart(cart)
             return ("L1_via_subroutine_a", 0, 0)
 
-        # 終端 2 → 繼續
-        if response == "2":
+        if (
+            contains_any(response, KEYWORDS_L4_C_CONFIRM_YES)
+            or equals_strict_short(response, KEYWORDS_L4_C_CONFIRM_YES_STRICT_SHORT)
+        ):
             return None
 
-        intent = classify_intent(response, "l4_service")
-
-        if intent == "退出交易":
-            # 2026-05-29 cross-L cancel：service mode 內語音退出 intent → 先過 cancel_confirm gate
-            # （終端 "1" / silent timeout 仍直接退，不 gate — 那些是介面操作 / 預設安全退場）
-            if cancel_confirm(speak, read_customer_input, speak_and_wait=speak_and_wait):
-                cart_module.clear_cart(cart)
-                return ("L1_via_subroutine_a", 0, 0)
-            speak(CANCEL_DECLINED_NOTICE)
-            speak(L4_C_OPTIONS_PROMPT)
-            continue
-
-        if intent == "拒絕":
-            # fallback：不強制顧客學「退出」一詞
-            if cancel_confirm(speak, read_customer_input, speak_and_wait=speak_and_wait):
-                cart_module.clear_cart(cart)
-                return ("L1_via_subroutine_a", 0, 0)
-            speak(CANCEL_DECLINED_NOTICE)
-            speak(L4_C_OPTIONS_PROMPT)
-            continue
-
-        if intent == "繼續交易":
-            return None
-
-        # 不命中 → 印 unclear notice（service mode 同主迴圈設計）
+        # 亂答 → speak unclear notice + continue（不重置 12s budget，對齊主迴圈設計）
         speak(L4_UNCLEAR_NOTICE)

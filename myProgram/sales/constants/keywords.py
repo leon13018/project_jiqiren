@@ -35,6 +35,10 @@ __all__ = [
     "KEYWORDS_CANCEL_CONFIRM_YES_STRICT_SHORT",
     "KEYWORDS_CANCEL_CONFIRM_NO",
     "KEYWORDS_CANCEL_CONFIRM_NO_STRICT_SHORT",
+    "KEYWORDS_L4_C_CONFIRM_YES",
+    "KEYWORDS_L4_C_CONFIRM_YES_STRICT_SHORT",
+    "KEYWORDS_L4_C_CONFIRM_NO",
+    "KEYWORDS_L4_C_CONFIRM_NO_STRICT_SHORT",
 ]
 
 # ============================================================
@@ -295,3 +299,41 @@ KEYWORDS_CANCEL_CONFIRM_NO: list = [
 KEYWORDS_CANCEL_CONFIRM_NO_STRICT_SHORT: list = [
     "否", "不", "不要", "不想", "我不想", "別", "别", "繼續", "继续", "no",
 ]
+
+# ============================================================
+# L4 客服模式「請問是否繼續交易？」確認子狀態 YES / NO 關鍵字（2026-05-30 加）
+# 取代舊版 mode="l4_service" classify_intent 路徑 — user 反饋舊 _KEYWORDS_CONTINUE /
+# _KEYWORDS_EXIT 集太狹隘且 prompt 強迫顧客學「退出 / 繼續」術語。
+# 設計：跟 KEYWORDS_CONFIRM_YES/NO 風格一致（substring + strict_short 分離），
+# user 列出明確「是 / 否 / 不交易 / 取消」等。
+#
+# NO 必須先 check（caller 端固定順序）— 避免「不繼續交易」substring 含「繼續交易」
+# 誤命中 YES。
+# YES 含「繼續交易」substring + 「繼續」strict_short（防「繼續努力」substring 誤命中）。
+# NO 含「取消交易」/「不繼續」substring + 「取消」/「不要」/「不」strict_short
+# （防「沒錯/不錯」substring 誤命中）。
+# ============================================================
+
+# YES substring 集（長詞，substring match 安全）
+KEYWORDS_L4_C_CONFIRM_YES: list = [
+    "是的", "好的", "繼續交易",
+]
+
+# YES strict-short 集（短詞，完全相等才命中）
+# 「繼續」單字在 service mode confirm context 內明確 = 繼續交易（無「繼續努力」之類 FP）
+KEYWORDS_L4_C_CONFIRM_YES_STRICT_SHORT: list = ["是", "好", "繼續"]
+
+# NO substring 集（長詞，substring match 安全）
+# 必須先 check（防「不繼續」substring 含「繼續」strict_short 誤命中 YES）
+# user 列：不繼續 / 不交易 / 不要了 / 不交易了 / 不想了 / 不想要了 /
+#         取消交易 / 取消吧 / 幫我取消 / 幫我取消交易
+KEYWORDS_L4_C_CONFIRM_NO: list = [
+    "不繼續", "不交易", "不要了", "不交易了", "不想了", "不想要了",
+    "取消交易", "取消吧", "幫我取消", "幫我取消交易",
+]
+
+# NO strict-short 集（短詞，完全相等才命中）
+# 「不要」單字明確（cart 已有商品，「不要」= 不要這次交易）
+# 「不」單字 strict 防「不錯」「不過」substring 誤命中
+# 「取消」單字 strict 防「取消購物車」之類 substring noise（雖實際罕見）
+KEYWORDS_L4_C_CONFIRM_NO_STRICT_SHORT: list = ["否", "不要", "不", "取消"]

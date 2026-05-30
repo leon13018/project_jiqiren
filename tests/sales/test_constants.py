@@ -59,6 +59,68 @@ def test_l4_prompt_interval_strictly_less_than_total_budget() -> None:
 
 
 # ============================================================
+# L4 客服模式「請問是否繼續交易？」確認子狀態常數（2026-05-30 二次重構）
+# 取代舊版 retry loop + cancel_confirm 雙重 gate 設計：
+# 一次性 12s 決策，silent / NO 自動取消，跟 cancel_confirm pattern 對齊。
+# ============================================================
+
+
+def test_l4_c_confirm_timeout_is_12_seconds() -> None:
+    """L4_C_CONFIRM_TIMEOUT = 12s 一次性決策 budget（取代 L4_PROMPT_INTERVAL × N 次 retry）。
+
+    User 反饋客服需充裕思考時間；12s 比 CANCEL_CONFIRM_TIMEOUT=6s 更寬鬆，
+    但比舊版「12s × 多次循環」乾淨單純。
+    """
+    assert const.L4_C_CONFIRM_TIMEOUT == 12
+
+
+def test_l4_c_confirm_prompt_template_includes_seconds_placeholder() -> None:
+    """L4_C_CONFIRM_PROMPT_TEMPLATE 含 {seconds} 模板，可 format 入 12 秒倒數值。"""
+    assert "{seconds}" in const.L4_C_CONFIRM_PROMPT_TEMPLATE
+    rendered = const.L4_C_CONFIRM_PROMPT_TEMPLATE.format(seconds=12)
+    assert "12" in rendered
+    # 句末「。」對齊 L3_C2_WARNING_TEMPLATE 風格
+    assert rendered.endswith("。")
+
+
+def test_l4_c_confirm_prompt_template_asks_continue_and_auto_cancel() -> None:
+    """文案應問「是否繼續」+ 警告「自動取消」（user 字面）— 對齊新設計語意。"""
+    rendered = const.L4_C_CONFIRM_PROMPT_TEMPLATE.format(seconds=12)
+    assert "繼續" in rendered, f"prompt 應問是否繼續，實際：{rendered!r}"
+    assert "自動取消" in rendered, f"prompt 應警告自動取消，實際：{rendered!r}"
+
+
+def test_l4_c_options_prompt_removed() -> None:
+    """舊 L4_C_OPTIONS_PROMPT 已移除（被新 template 取代）。"""
+    assert not hasattr(const, "L4_C_OPTIONS_PROMPT"), (
+        "L4_C_OPTIONS_PROMPT 應被移除（被 L4_C_CONFIRM_PROMPT_TEMPLATE 取代）"
+    )
+
+
+def test_l4_c_confirm_yes_keywords_exist() -> None:
+    """KEYWORDS_L4_C_CONFIRM_YES + _STRICT_SHORT 存在且含明確繼續詞。"""
+    yes = const.KEYWORDS_L4_C_CONFIRM_YES
+    yes_short = const.KEYWORDS_L4_C_CONFIRM_YES_STRICT_SHORT
+    assert isinstance(yes, list) and isinstance(yes_short, list)
+    # 「繼續交易」應在 substring 集（user 列）
+    assert "繼續交易" in yes
+    # 「繼續」短詞在 strict_short（防「繼續努力」substring 誤命中）
+    assert "繼續" in yes_short
+
+
+def test_l4_c_confirm_no_keywords_exist() -> None:
+    """KEYWORDS_L4_C_CONFIRM_NO + _STRICT_SHORT 存在且含明確取消詞。"""
+    no = const.KEYWORDS_L4_C_CONFIRM_NO
+    no_short = const.KEYWORDS_L4_C_CONFIRM_NO_STRICT_SHORT
+    assert isinstance(no, list) and isinstance(no_short, list)
+    # 「取消交易」/「不繼續」在 substring 集（user 列）
+    assert "取消交易" in no
+    assert "不繼續" in no
+    # 「取消」/「不」短詞在 strict_short
+    assert "取消" in no_short
+
+
+# ============================================================
 # L0-PROD-001
 # ============================================================
 
