@@ -86,6 +86,43 @@ def test_nlu_l3_strict_expanded_rejects(reject_text: str) -> None:
 
 
 # ============================================================
+# L3-NLU-REJECT-001
+### Scenario: L3 主迴圈「請問還有額外需要購買的嗎？」常見不買回應
+### Given mode="normal"（L3 cart 非空模式）
+### When 顧客回應 user 列表 7 個常見「不需要加購」用語之一
+### Then classify_intent 應回「結帳」（不追加 → C-1 confirm path）
+### Note 2026-05-30 加：修 Pi demo「不需要」/「不需要了」/「我不需要」/
+###      「沒有額外需要購買的」走 unclear 的 UX bug
+# ============================================================
+
+@pytest.mark.parametrize(
+    "reject_text",
+    [
+        "不需要",
+        "不用",
+        "我不需要",
+        "不需要了",
+        "沒有",
+        "沒",
+        "沒有額外需要購買的",
+    ],
+)
+def test_l3_normal_mode_no_more_purchase_phrases_classified_as_checkout(reject_text: str) -> None:
+    """L3 mode="normal"：常見「不再加購」用語應視為「結帳」進 C-1 confirm。
+
+    user 列表 7 個用語覆蓋：
+    - substring「不需要」cover 不需要 / 我不需要 / 不需要了
+    - substring「不用」cover 不用
+    - substring「沒有額外」cover 沒有額外需要購買的
+    - strict_short「沒有」/「沒」cover 沒有 / 沒
+    """
+    assert nlu.classify_intent(reject_text, mode="normal") == "結帳", (
+        f"L3 mode「{reject_text}」應視為「結帳」（不追加進 C-1 confirm），"
+        f"實際：{nlu.classify_intent(reject_text, mode='normal')!r}"
+    )
+
+
+# ============================================================
 # L0-NLU-002
 # ============================================================
 

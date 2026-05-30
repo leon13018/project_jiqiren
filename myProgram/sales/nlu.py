@@ -43,7 +43,14 @@ from myProgram.sales.constants import (
 #   經 cancel_confirm gate 才真正退 L1
 _KEYWORDS_REJECT = [
     "不要", "不用", "不想", "不買", "不買了",
+    # 2026-05-30 加（Pi demo L3「請問還有額外需要購買的嗎？」NLU gap 修補）
+    # 「不需要」cover「不需要」/「我不需要」/「不需要了」3 個用語（繁簡同字）
+    # 「沒有額外」cover「沒有額外需要購買的」（「沒有」單字仍由 strict_short 處理，
+    #   避免「沒有問題」這類複合口語被 substring 誤命中）
+    # FP 驗證：L3 mode → 結帳 / L2 mode → 拒絕 cancel_confirm gate，三 mode 行為皆合理
+    "不需要", "沒有額外",
     "不买", "不想买", "不买了",  # 簡體變體
+    "没有额外",                    # 簡體變體（「不需要」繁簡同字不另列）
     # 2026-05-29 cross-L cancel 擴充
     "取消交易", "退出交易", "我想取消交易", "我要取消交易",
     "取消交易吧", "我想要取消交易",
