@@ -3306,15 +3306,16 @@ def test_l3_b4_silence_reject_then_cancel_confirm_no_continues() -> None:
 
 
 def test_checkout_confirm_cancel_intent_triggers_cancel_confirm_gate() -> None:
-    """checkout_confirm 內顧客講「取消交易」→ 經 cancel_confirm gate → 清 cart 退 L1。
+    """checkout_confirm 內顧客講「取消交易」→ 經 cancel_confirm gate → 直退 L1。
 
-    對應 _dialog_checkout_confirm 內新增的 is_cancel_intent gate（2026-05-29）。
-    顧客在「請確認以下訂單」階段突然要取消 → 不該被當亂答（unclear++）而忽略。
+    對應 _dialog_checkout_confirm 內 is_cancel_intent gate（2026-05-29 加 gate；
+    2026-05-30 強化：YES path 直退 L1 走 _dialog_exit_a，不走
+    _handle_checkout_confirm_result + L2 entry → 兩輪拒絕 bug path）。
     """
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # 「結帳」→ confirm prompt；「我想取消交易」→ cancel intent → cancel_confirm；「是」YES → no_explicit → 清 cart
+    # 「結帳」→ confirm prompt；「我想取消交易」→ cancel intent → cancel_confirm；「是」YES → 直退 L1
     customer_input = FakeCustomerInput(["結帳", "我想取消交易", "是"])
 
     next_state, _ = states.run_dialog(
@@ -3329,9 +3330,128 @@ def test_checkout_confirm_cancel_intent_triggers_cancel_confirm_gate() -> None:
 
     # Assert：cancel_confirm prompt 有 speak、退 L1、cart 清空
     assert CANCEL_CONFIRM_PROMPT in speak_calls
+    # 2026-05-30 強化：新 path 走 _dialog_exit_a → speak L3_REJECT_THANKS
+    assert L3_REJECT_THANKS in speak_calls, (
+        f"cancel YES 應走 _dialog_exit_a speak L3_REJECT_THANKS，實際：{speak_calls}"
+    )
+    # 不該走舊 bug path：_handle_checkout_confirm_result speak「請告訴我您想買什麼」(L2 entry 內容)
+    assert L3_CHECKOUT_REJECT_CLEAR_NOTICE not in speak_calls, (
+        f"cancel YES 不該走 clear-cart helper（舊 bug path），實際：{speak_calls}"
+    )
+    # 不該走舊 bug path：cart 空 → L2 mode → input 耗盡 → L2 timeout → L2 退場 voice
+    assert L2_TIMEOUT_TO_HAWK_VOICE not in speak_calls, (
+        f"cancel YES 不該走 L2 timeout 退場 path（舊 bug 兩輪拒絕的第二輪終點），實際：{speak_calls}"
+    )
     assert cart_module.is_empty(cart), (
         f"checkout_confirm 內 cancel YES 應清 cart，實際：{cart}"
     )
+    assert next_state == "L1_via_subroutine_a"
+
+
+# ============================================================
+# L3-CANCEL-CHECKOUT-001
+### Scenario: _dialog_main_loop 結帳分支 confirm 內 cancel_confirm YES → 直退 L1 不需第二輪拒絕
+### Given L3 主迴圈內顧客「結帳」進 C-1 confirm，cart 含商品
+### When 顧客在 confirm 講 cancel intent → cancel_confirm「是」YES
+### Then 直接退 L1（speak L3_REJECT_THANKS + clear cart），不再 speak「請告訴我您想買什麼」
+###      (2026-05-30 加：修 Pi demo 兩輪 YES 才退 L1 bug)
+# ============================================================
+
+def test_l3_main_checkout_confirm_cancel_yes_direct_exits_l1() -> None:
+    """L3 主迴圈結帳分支進 confirm 內 cancel YES → 直退 L1（不回 L2 entry）。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # 「結帳」→ L3 main loop 結帳分支進 confirm
+    # 「不買了」→ confirm 內 cancel intent → cancel_confirm prompt
+    # 「是」→ cancel_confirm YES → 應直退 L1（不再需要第 4 input）
+    customer_input = FakeCustomerInput(["結帳", "不買了", "是"])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    assert L3_REJECT_THANKS in speak_calls, (
+        f"cancel YES 應走 _dialog_exit_a speak L3_REJECT_THANKS，實際：{speak_calls}"
+    )
+    assert L3_CHECKOUT_REJECT_CLEAR_NOTICE not in speak_calls, (
+        f"cancel YES 不該走 clear-cart helper（舊 bug path），實際：{speak_calls}"
+    )
+    assert cart_module.is_empty(cart), f"cancel YES 應清 cart，實際：{cart}"
+    assert next_state == "L1_via_subroutine_a"
+
+
+# ============================================================
+# L3-CANCEL-CHECKOUT-002
+### Scenario: C-2 silent timeout → _c2_checkout_via_confirm 內 cancel YES → 直退 L1
+### Given L3 主迴圈 timeout → C-2 三選一 silent → _c2_checkout_via_confirm
+### When 顧客在 confirm 講 cancel intent → cancel_confirm YES
+### Then 直退 L1（不回 main loop）
+# ============================================================
+
+def test_l3_c2_checkout_via_confirm_cancel_yes_direct_exits_l1() -> None:
+    """C-2 silent timeout → _c2_checkout_via_confirm 內 cancel YES → 直退 L1。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # None → main loop timeout → cart 非空走 c2_second_stage
+    # None → c2 silent timeout → _c2_checkout_via_confirm → confirm prompt
+    # 「不買了」→ confirm 內 cancel intent
+    # 「是」→ cancel_confirm YES → 直退 L1
+    customer_input = FakeCustomerInput([None, None, "不買了", "是"])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    assert L3_REJECT_THANKS in speak_calls
+    assert L3_CHECKOUT_REJECT_CLEAR_NOTICE not in speak_calls
+    assert cart_module.is_empty(cart)
+    assert next_state == "L1_via_subroutine_a"
+
+
+# ============================================================
+# L3-CANCEL-CHECKOUT-003
+### Scenario: _dialog_dispatch_inner_l3 結帳分支進 confirm 內 cancel YES → 直退 L1
+### Given L3 B-4 沉默期內顧客講「結帳」進 _dialog_dispatch_inner_l3 結帳分支
+### When 顧客在 confirm 講 cancel intent → cancel_confirm YES
+### Then 直退 L1（不回 main loop）
+# ============================================================
+
+def test_l3_b4_silence_checkout_confirm_cancel_yes_direct_exits_l1() -> None:
+    """L3 沉默期 dispatch_inner_l3 結帳分支 confirm 內 cancel YES → 直退 L1。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # 「想一下」→ B-4 沉默期；「結帳」→ 沉默期內走 _dialog_dispatch_inner_l3 結帳分支
+    # 「不買了」→ confirm 內 cancel；「是」→ YES → 直退 L1
+    customer_input = FakeCustomerInput(["想一下", "結帳", "不買了", "是"])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    assert L3_REJECT_THANKS in speak_calls
+    assert L3_CHECKOUT_REJECT_CLEAR_NOTICE not in speak_calls
+    assert cart_module.is_empty(cart)
     assert next_state == "L1_via_subroutine_a"
 
 

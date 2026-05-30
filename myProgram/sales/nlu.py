@@ -67,6 +67,12 @@ _KEYWORDS_REJECT_L3_STRICT = [
     "全部取消", "全部不要", "都不要", "都取消", "整單取消", "取消",
     # 簡體變體（使用者 Windows IME 是簡體，實機踩過簡體輸入）
     "整单取消", "不想买了", "取消购买", "不买了",
+    # 2026-05-30 加（Pi demo 8-keyword sweep）：L3 mode 顧客講「不要買了」「不想買」
+    # 原本被通用 _KEYWORDS_REJECT substring「不要」「不想」命中 → mode="normal"
+    # 視為「結帳」→ 觸發 confirm「您即將結帳... 正確嗎？」UX 怪；
+    # 補入 L3_STRICT → 視為「拒絕」→ 進 cancel_confirm gate 由 user 確認意圖
+    "不要買了", "不想買",
+    "不要买了", "不想买",  # 簡體
     # 2026-05-29 cross-L cancel 擴充（user 列表）— 明確「取消交易 / 退出交易」phrase
     # 在 L3 strict reject 也應命中（雖然「取消」substring 已命中，明示 phrase 提升可讀性）
     "取消交易", "退出交易", "我想取消交易", "我要取消交易",

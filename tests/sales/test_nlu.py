@@ -7,6 +7,8 @@
 注意：parse_products 相關測試已於 2026-05-26 P7 移至 tests/sales/test_product_parser.py。
 """
 
+import pytest
+
 import myProgram.sales.nlu as nlu
 
 
@@ -59,6 +61,28 @@ def test_nlu_l3_lenient_no_more_classified_as_checkout() -> None:
     assert nlu.classify_intent("不用") == "結帳"
     assert nlu.classify_intent("不想") == "結帳"
     assert nlu.classify_intent("不買") == "結帳"
+
+
+@pytest.mark.parametrize(
+    "reject_text",
+    [
+        "不要買了",
+        "不想買",
+        "不要买了",   # 簡體
+        "不想买",
+    ],
+)
+def test_nlu_l3_strict_expanded_rejects(reject_text: str) -> None:
+    """2026-05-30 加：L3_STRICT 擴展「不要買了」「不想買」(+ 簡體) 應視為「拒絕」。
+
+    避免 mode="normal" 用通用 _KEYWORDS_REJECT substring 把這些 phrase 視為「結帳」
+    → 觸發 confirm「您即將結帳... 正確嗎？」UX 怪。
+    L4 mode 一直視為「拒絕」（通用集已 cover），這裡只補 L3 normal mode 缺漏。
+    """
+    assert nlu.classify_intent(reject_text, mode="normal") == "拒絕", (
+        f"L3 mode「{reject_text}」應視為「拒絕」，實際："
+        f"{nlu.classify_intent(reject_text, mode='normal')!r}"
+    )
 
 
 # ============================================================

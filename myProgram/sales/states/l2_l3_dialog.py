@@ -356,6 +356,9 @@ def _dialog_dispatch_inner_l3(
             # 先 speak 再動作 — 跟 L4_PAY / L5_FAREWELL 一致 pattern（聽到語音 → 注意力對齊 → 視線跟指向）
             do_action(ACTION_L3_CHECKOUT_GO)
             return ("L4", 0)
+        if result == "cancel_to_l1":
+            # 2026-05-30 加：cancel_confirm YES → 直退 L1（不回 main loop）
+            return _dialog_exit_a(speak, cart)
         _handle_checkout_confirm_result(result, cart, speak)
         return None
     if intent == "客服":
@@ -537,6 +540,9 @@ def _c2_checkout_via_confirm(
         speak(L3_C1_CHECKOUT_GO)
         do_action(ACTION_L3_CHECKOUT_GO)
         return ("L4", 0)
+    if result == "cancel_to_l1":
+        # 2026-05-30 加：cancel_confirm YES → 直退 L1（不重入 main loop）
+        return _dialog_exit_a(speak, cart)
     # 非 yes → 清 cart + speak 通知 + 重入 dialog 主迴圈
     _handle_checkout_confirm_result(result, cart, speak)
     return _dialog_main_loop(
@@ -694,7 +700,11 @@ def _dialog_main_loop(
                 # S3 L3→L4 transition 動作（2026-05-28 加）：指向螢幕引導顧客掃碼視線
                 do_action(ACTION_L3_CHECKOUT_GO)
                 return ("L4", 0)
-            # 否認 / timeout → 清空 cart + 對應通知；下一輪 cart 空 → l2 mode → DnC
+            if result == "cancel_to_l1":
+                # 2026-05-30 加：cancel_confirm YES → 直退 L1
+                # （_dialog_exit_a 處理 clear cart + speak L3_REJECT_THANKS）
+                return _dialog_exit_a(speak, cart)
+            # 否認 / timeout / 亂答上限 → 清空 cart + 對應通知；下一輪 cart 空 → l2 mode → DnC
             _handle_checkout_confirm_result(result, cart, speak)
             continue
 
@@ -809,6 +819,10 @@ def _dialog_checkout_confirm(
         "no_explicit" — 顧客明確否認（終端 2 / CONFIRM_NO 命中）
         "no_unclear_exhausted" — 顧客亂答 CHECKOUT_CONFIRM_UNCLEAR_MAX 次達上限
         "timeout" — 顧客 CHECKOUT_CONFIRM_TIMEOUT 秒無回應
+        "cancel_to_l1" — 顧客在 confirm 內講 cancel intent 且 cancel_confirm YES（2026-05-30 加）；
+                         caller 必須走 _dialog_exit_a 直退 L1，不可進 _handle_checkout_confirm_result
+                         （此路徑跳過 clear cart 通知 + L2 entry 重啟，由 _dialog_exit_a
+                          統一 speak L3_REJECT_THANKS。修 Pi demo 兩輪 YES 才退 L1 bug）
     """
     summary = _build_order_summary(cart)
     prompt = L3_CHECKOUT_CONFIRM_TEMPLATE.format(summary=summary)
@@ -824,11 +838,15 @@ def _dialog_checkout_confirm(
         if response == "2":
             return "no_explicit"
         # 2026-05-29 cross-L cancel：confirm 子狀態內偵測 cancel intent → 經 cancel_confirm gate
-        # YES → 直接 return "no_explicit"（讓 caller 走清 cart 退場路徑）
+        # YES → return "cancel_to_l1"（caller 走 _dialog_exit_a 直退 L1）
         # NO → speak DECLINED 後 continue（不計入 unclear_count，這是顧客明確意圖溝通）
+        # 2026-05-30 改：YES 從 "no_explicit" 改為新 sentinel "cancel_to_l1"。舊 path
+        # 經 _handle_checkout_confirm_result clear cart + speak L3_CHECKOUT_REJECT_CLEAR_NOTICE
+        # （含「請告訴我您想買什麼」L2 entry 內容）→ 回 main loop → cart 空 L2 mode →
+        # 顧客再拒絕又 cancel_confirm → 兩輪 YES 才退 L1（Pi demo 實機踩過）。
         if is_cancel_intent(response):
             if cancel_confirm(speak, read_customer_input, speak_and_wait=speak_and_wait):
-                return "no_explicit"
+                return "cancel_to_l1"
             speak(CANCEL_DECLINED_NOTICE)
             speak(prompt)
             continue
@@ -864,6 +882,14 @@ def _handle_checkout_confirm_result(result: str, cart, speak) -> None:
         speak(L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE)
     elif result == "no_explicit":
         speak(L3_CHECKOUT_REJECT_CLEAR_NOTICE)
+    elif result == "cancel_to_l1":
+        # 2026-05-30 加：防呆 assertion。caller 必須在傳入此 helper 前識別
+        # "cancel_to_l1" 並走 _dialog_exit_a 直退 L1，不該走到這裡（會誤
+        # speak clear-cart 通知 + L2 entry → 兩輪拒絕 bug 重現）。
+        raise AssertionError(
+            "cancel_to_l1 應由 caller 直接走 _dialog_exit_a，"
+            "不該傳入 _handle_checkout_confirm_result（會誤 speak clear-cart 通知）"
+        )
     else:
         raise AssertionError(f"未知 confirm result: {result!r}")
 
