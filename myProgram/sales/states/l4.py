@@ -66,6 +66,8 @@ def run_l4(
     鏈路 A（掃碼）→ L5；
     鏈路 B（拒絕，cancel_confirm gated）→ 清空 cart → L1（子例程 A）；
     鏈路 C（客服）→ 一次性 12s 確認子狀態（2026-05-30 二次重構：移除 retry + cancel_confirm gate）；
+        客服 YES「繼續」回主迴圈時：重印金額明細 + 重 speak entry prompt + reset 30s budget
+        （2026-05-31 fix；對齊舊版 0090786^ pattern，二次重構時漏 reset 導致顧客失上下文）。
     無回應 / 亂輸入 → 12s 重提示 / 不重置 budget；budget 耗盡 → forced exit。
 
     Args:
@@ -130,8 +132,17 @@ def run_l4(
         )
         if isinstance(result, tuple):
             return result
-        # "ack" / None → 回主迴圈繼續，不重置 budget
-        # ("ack" = 等待安撫 / cancel_confirm NO / 亂輸入；None = 客服繼續)
+        if result is None:
+            # 客服繼續 → 重印金額明細 + 重 speak entry prompt + reset 30s budget
+            # （2026-05-31 fix：對齊舊版 commit 0090786^ 客服繼續 pattern，
+            #  L4 二次重構時漏 reset；Pi demo 反饋「繼續後鏈路不知道跑去哪邊」—
+            #  顧客失上下文 + budget 沒給 fresh time 倒數）
+            _l4_print_entry_detail(cart, total, print_terminal)
+            speak(L4_ENTRY_PROMPT_TEMPLATE.format(total=total))
+            deadline = time.monotonic() + L4_TOTAL_BUDGET
+            continue
+        # "ack" → 不重置 budget，回主迴圈繼續
+        # （等待安撫 / cancel_confirm NO / 亂輸入）
         continue
 
 

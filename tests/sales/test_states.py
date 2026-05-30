@@ -45,6 +45,7 @@ from myProgram.sales.constants import (
     L3_REASK,
     L3_C1_CHECKOUT_GO,
     L4_ENTRY_PROMPT_TEMPLATE,
+    L4_QR_MOCK_HINT,
     L4_A_PAY_SUCCESS,
     L4_B_CANCEL_THANKS,
     L4_C_CONFIRM_PROMPT_TEMPLATE,
@@ -3945,6 +3946,61 @@ def test_l4_c_service_uses_independent_confirm_budget() -> None:
     # 關鍵驗證：客服階段沒被主 budget 立即耗盡（會走完 YES 路徑），最終由主迴圈耗盡退場
     assert next_state == "L1_via_subroutine_a", (
         f"客服 YES 後主迴圈 forced exit 應退 L1，實際:{next_state!r}"
+    )
+
+
+# ============================================================
+# L4-C-RESUME-001（新增，2026-05-31 Pi demo fix）
+# Scenario: 客服模式講「繼續」YES → 回 L4 主迴圈重印明細 + 重 speak entry prompt + reset budget
+# Given L4 等掃碼，顧客進客服模式
+# When 顧客在客服 12s confirm 內講 YES keyword（如「繼續」）
+# Then L4 主迴圈：重印金額明細 + 重 speak L4_ENTRY_PROMPT_TEMPLATE + budget reset 30s
+#      後續 30s 內顧客仍有 fresh time 完成掃碼，不會被 stale budget 卡住
+# Note 2026-05-31 加：修 Pi demo「繼續後鏈路不知道跑去哪邊」UX bug
+# ============================================================
+
+def test_l4_service_mode_continue_yes_reprints_entry_and_resets_budget() -> None:
+    """客服 YES 繼續後 main loop 應重印明細 + 重 speak entry + reset deadline。
+
+    驗證：
+    - speak_calls 含至少 2 次 L4_ENTRY_PROMPT_TEMPLATE.format(total=total)
+      （一次進 L4 entry，一次客服繼續後 re-entry）
+    - terminal_calls 含至少 2 次 L4_QR_MOCK_HINT（兩次 print_entry_detail 都會印）
+    - 後續可正常 "s" 掃碼進 L5（驗 budget reset，未被原 stale budget 卡死）
+    """
+    speak_calls: list = []
+    terminal_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    total = cart_module.calc_total(cart)
+    # 「客服」→ service mode → 「繼續」YES → 回主迴圈 → speak entry prompt + reset budget
+    # → "s" 掃碼成功 → L5
+    customer_input = FakeCustomerInput(["客服", "繼續", "s"])
+
+    next_state, _, _ = states.run_l4(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: terminal_calls.append(text),
+        read_customer_input=customer_input.read,
+        cart=cart,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # entry prompt 應 speak >= 2 次（一次初始進 L4，一次客服繼續後 re-entry）
+    entry_prompt = L4_ENTRY_PROMPT_TEMPLATE.format(total=total)
+    entry_speak_count = sum(1 for s in speak_calls if s == entry_prompt)
+    assert entry_speak_count >= 2, (
+        f"客服繼續後應重 speak L4_ENTRY_PROMPT_TEMPLATE，"
+        f"實際 entry prompt speak 次數：{entry_speak_count}, speak_calls: {speak_calls}"
+    )
+    # 金額明細也應重印 >= 2 次（_l4_print_entry_detail 用 L4_QR_MOCK_HINT 結尾，方便 grep）
+    qr_print_count = sum(1 for t in terminal_calls if L4_QR_MOCK_HINT in t)
+    assert qr_print_count >= 2, (
+        f"客服繼續後應重印金額明細，實際 QR hint print 次數：{qr_print_count}"
+    )
+    # 後續 "s" 掃碼成功 → L5（驗 budget reset，沒被 stale budget 卡死）
+    assert next_state == "L5", (
+        f"客服繼續 → 重 speak entry → 30s 內 s 應進 L5，實際：{next_state!r}"
     )
 
 
