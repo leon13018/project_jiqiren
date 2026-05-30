@@ -35,6 +35,7 @@ from myProgram.sales.constants import (
     SERVICE_PHONE,
     UNCLEAR_MAX,
     L2_ENTRY_PROMPT,
+    L2_CANCEL_DECLINED_RESUME,
     L2_REJECT_THANKS,
     L2_TIMEOUT_TO_HAWK_VOICE,
     L2_B1_CLARIFY,
@@ -54,6 +55,7 @@ from myProgram.sales.constants import (
     L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE,
     L3_C2_WARNING_TEMPLATE,
     L3_C2_CONTINUE_ACK,
+    L3_CANCEL_DECLINED_RESUME,
     CHECKOUT_CONFIRM_TIMEOUT,
     CHECKOUT_CONFIRM_UNCLEAR_MAX,
     PRODUCTS,
@@ -226,8 +228,10 @@ def _dialog_dispatch_inner_l2(
         # 2026-05-29 cross-L cancel：拒絕意圖 → 先過 cancel_confirm gate
         if cancel_confirm(speak, read_customer_input, speak_and_wait=speak_and_wait):
             return _dialog_exit_a(speak, cart)
-        # 顧客 NO「不要取消」→ speak 繼續服務通知，回主等待重 prompt
-        speak(CANCEL_DECLINED_NOTICE)
+        # 顧客 NO「不要取消」→ speak 合成 voice（DECLINED + L2 entry 重啟），
+        # 主迴圈進入不重播 entry → 一次 speak cover 兩件事，顧客不失去上下文
+        # （2026-05-30 改：從 CANCEL_DECLINED_NOTICE 替換為合成版）
+        speak(L2_CANCEL_DECLINED_RESUME)
         return None
     if intent == "想一下":
         # 沉默期內又說想一下 → 遞增 think_count + 再走 B-3
@@ -309,8 +313,10 @@ def _dialog_dispatch_inner_l3(
         # 2026-05-29 cross-L cancel：拒絕意圖 → 先過 cancel_confirm gate
         if cancel_confirm(speak, read_customer_input, speak_and_wait=speak_and_wait):
             return _dialog_exit_a(speak, cart)
-        # 顧客 NO「不要取消」→ speak 繼續服務通知，回主等待重 prompt
-        speak(CANCEL_DECLINED_NOTICE)
+        # 顧客 NO「不要取消」→ speak 合成 voice（DECLINED + L3 entry 重啟），
+        # 主迴圈進入不重播 entry → 一次 speak cover 兩件事，顧客不失去上下文
+        # （2026-05-30 改：從 CANCEL_DECLINED_NOTICE 替換為合成版）
+        speak(L3_CANCEL_DECLINED_RESUME)
         return None
     if intent == "想一下":
         think_count += 1
@@ -603,11 +609,14 @@ def _dialog_main_loop(
         intent = classify_intent(response, nlu_mode)
 
         # 拒絕意圖 → 先過 cancel_confirm gate（2026-05-29 cross-L cancel）
-        # True → 鏈路 A（依 cart 狀態決定是否清 cart）；False → speak 繼續通知後 continue 重 prompt
+        # True → 鏈路 A（依 cart 狀態決定是否清 cart）；False → speak 合成 voice 後 continue 重 prompt
         if intent == "拒絕":
             if cancel_confirm(speak, read_customer_input, speak_and_wait=speak_and_wait):
                 return _dialog_exit_a(speak, cart)
-            speak(CANCEL_DECLINED_NOTICE)
+            # cancel_confirm NO → speak 合成 voice（DECLINED + 對應 mode entry 重啟）
+            # cart_empty 已在迴圈頂端算過；mode 一致：cart 空 L2 / cart 非空 L3
+            # （2026-05-30 改：從 CANCEL_DECLINED_NOTICE 替換為 mode-aware 合成版）
+            speak(L2_CANCEL_DECLINED_RESUME if cart_empty else L3_CANCEL_DECLINED_RESUME)
             continue
 
         # 想一下意圖 → B-3/B-4（行為依 cart 狀態）

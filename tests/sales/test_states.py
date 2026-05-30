@@ -56,6 +56,8 @@ from myProgram.sales.constants import (
     L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE,
     L3_C2_WARNING_TEMPLATE,
     L3_C2_CONTINUE_ACK,
+    L2_CANCEL_DECLINED_RESUME,
+    L3_CANCEL_DECLINED_RESUME,
     UNCLEAR_MAX,
     L4_ACK_GENTLE,
     L4_E_CLARIFY,
@@ -3014,9 +3016,9 @@ def test_l4_b_reject_keyword_clears_cart_and_triggers_subroutine_a() -> None:
 # ============================================================
 
 def test_l2_reject_then_cancel_confirm_no_continues_dialog() -> None:
-    """L2 reject 後 cancel_confirm NO → speak CANCEL_DECLINED_NOTICE，繼續對話直到 timeout。
+    """L2 reject 後 cancel_confirm NO → speak L2_CANCEL_DECLINED_RESUME，繼續對話直到 timeout。
 
-    Flow：「不要」→ 拒絕 → cancel_confirm「不要取消」→ NO → speak DECLINED → 重 prompt
+    Flow：「不要」→ 拒絕 → cancel_confirm「不要取消」→ NO → speak 合成 RESUME voice
     → None timeout（cart 空 L2 模式）→ L2_TIMEOUT_TO_HAWK_VOICE → 退 L1
     """
     speak_calls: list = []
@@ -3034,10 +3036,11 @@ def test_l2_reject_then_cancel_confirm_no_continues_dialog() -> None:
         do_action=lambda *a, **k: None,
     )
 
-    # Assert：cancel_confirm prompt 有 speak、DECLINED notice 有 speak、不走 L2_REJECT_THANKS
+    # Assert：cancel_confirm prompt 有 speak、合成 RESUME voice 有 speak、不走 L2_REJECT_THANKS
+    # 2026-05-30 改：從 CANCEL_DECLINED_NOTICE assert 改為 L2_CANCEL_DECLINED_RESUME（合成 voice）
     assert CANCEL_CONFIRM_PROMPT in speak_calls
-    assert CANCEL_DECLINED_NOTICE in speak_calls, (
-        f"NO path 應 speak CANCEL_DECLINED_NOTICE，實際：{speak_calls}"
+    assert L2_CANCEL_DECLINED_RESUME in speak_calls, (
+        f"NO path 應 speak L2_CANCEL_DECLINED_RESUME，實際：{speak_calls}"
     )
     assert L2_REJECT_THANKS not in speak_calls, (
         f"NO path 不應 speak L2_REJECT_THANKS（沒確認取消），實際：{speak_calls}"
@@ -3065,8 +3068,9 @@ def test_l3_reject_then_cancel_confirm_no_keeps_cart() -> None:
     )
 
     # Assert：cart 保留 + 沒走 L3_REJECT_THANKS + 最終結帳進 L4
+    # 2026-05-30 改：從 CANCEL_DECLINED_NOTICE assert 改為 L3_CANCEL_DECLINED_RESUME（合成 voice）
     assert CANCEL_CONFIRM_PROMPT in speak_calls
-    assert CANCEL_DECLINED_NOTICE in speak_calls
+    assert L3_CANCEL_DECLINED_RESUME in speak_calls
     assert L3_REJECT_THANKS not in speak_calls, (
         f"NO path 不應 speak L3_REJECT_THANKS（cart 應保留），實際：{speak_calls}"
     )
@@ -3128,12 +3132,51 @@ def test_l2_b3_silence_reject_then_cancel_confirm_no_continues() -> None:
     )
 
     # Assert：cancel_confirm gate 起作用，NO path 不退 L2_REJECT_THANKS
+    # 2026-05-30 改：從 CANCEL_DECLINED_NOTICE assert 改為 L2_CANCEL_DECLINED_RESUME（合成 voice）
     assert CANCEL_CONFIRM_PROMPT in speak_calls
-    assert CANCEL_DECLINED_NOTICE in speak_calls
+    assert L2_CANCEL_DECLINED_RESUME in speak_calls
     assert L2_REJECT_THANKS not in speak_calls, (
         f"沉默期內 NO path 不應 speak L2_REJECT_THANKS，實際：{speak_calls}"
     )
     assert next_state == "L1_via_subroutine_a"
+
+
+def test_l3_b4_silence_reject_then_cancel_confirm_no_continues() -> None:
+    """L3 B-4 沉默期內顧客講拒絕 → cancel_confirm gate → NO → speak L3_CANCEL_DECLINED_RESUME 繼續對話。
+
+    對應 _dialog_dispatch_inner_l3 內的 reject path（非主迴圈 reject path）。
+    既有 L2 版（test_l2_b3_silence_reject_then_cancel_confirm_no_continues）已 cover L2 沉默期；
+    本 test 補 L3 對稱 path，避免 _dialog_dispatch_inner_l3 reject 分支無 regression 守護。
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # 「想一下」→ B-4 沉默；「我不要了」→ L3 strict reject 沉默期內；
+    # 「不要取消」NO；「結帳」→ C-1 confirm；「1」→ yes 進 L4
+    customer_input = FakeCustomerInput(["想一下", "我不要了", "不要取消", "結帳", "1"])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # Assert：cancel_confirm gate 起作用，NO path speak 合成 voice + cart 保留 + 最終 L4
+    assert CANCEL_CONFIRM_PROMPT in speak_calls
+    assert L3_CANCEL_DECLINED_RESUME in speak_calls, (
+        f"L3 沉默期 NO path 應 speak L3_CANCEL_DECLINED_RESUME，實際：{speak_calls}"
+    )
+    assert L3_REJECT_THANKS not in speak_calls, (
+        f"沉默期內 NO path 不應 speak L3_REJECT_THANKS（cart 應保留），實際：{speak_calls}"
+    )
+    assert not cart_module.is_empty(cart), (
+        f"NO path 後 cart 應保留，實際：{cart}"
+    )
+    assert next_state == "L4"
 
 
 def test_checkout_confirm_cancel_intent_triggers_cancel_confirm_gate() -> None:

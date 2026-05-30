@@ -18,6 +18,7 @@ __all__ = [
     "L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE",
     "L3_C2_WARNING_TEMPLATE",
     "L3_C2_CONTINUE_ACK",
+    "L3_CANCEL_DECLINED_RESUME",
 ]
 
 # ============================================================
@@ -89,6 +90,13 @@ L3_C2_WARNING_TEMPLATE: str = (
 # 略顯生硬;短 ack「好的，請繼續選購」是 loading-bar 等價過場 UX
 # （對齊 memory tts_prompt_as_ux_pacing 設計哲學）。
 L3_C2_CONTINUE_ACK: str = "好的，請繼續選購"
+
+# L3 cancel_confirm NO path 合成 voice（2026-05-30 加；同 4776cb1 同類 root cause 延續）
+# 顧客在 L3 拒絕意圖 → cancel_confirm「不要取消 / 繼續」NO → 回 L3 主迴圈 wait。
+# 主迴圈不重播 entry prompt → 若只 speak CANCEL_DECLINED_NOTICE 顧客失去上下文。
+# 合成 voice 一次 speak 帶 DECLINED + L3 entry 重啟，跟 L2_TO_L3_TRANSITION / L3_C2_CONTINUE_ACK
+# 同設計哲學（單一 synth + UX pacing loading-bar 等價過場）。
+L3_CANCEL_DECLINED_RESUME: str = "好的，繼續為您服務，請問還有額外需要購買的嗎？"
 
 # 注意：DIALOG_VAGUE_BUY_REASK 已於 2026-05-26 Wave 6 移至 constants/shared.py
 # （原因：L2 + L3 通用，跨層性質不應歸單一 L 層 text 檔）

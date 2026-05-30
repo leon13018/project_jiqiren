@@ -5,6 +5,7 @@
 
 __all__ = [
     "L2_ENTRY_PROMPT",
+    "L2_CANCEL_DECLINED_RESUME",
     "L2_REJECT_THANKS",
     "L2_TIMEOUT_TO_HAWK_VOICE",
     "L2_B1_CLARIFY",
@@ -20,6 +21,15 @@ __all__ = [
 
 # L2 進入時詢問語音
 L2_ENTRY_PROMPT: str = "您好，請問需要購買什麼東西嗎？"
+
+# L2 cancel_confirm NO path 合成 voice（2026-05-30 加；Pi demo UX 修補延續 4776cb1）
+# 顧客在 L2 拒絕意圖 → cancel_confirm「不要取消 / 繼續」NO → 回 L2 主迴圈 wait。
+# 主迴圈進入時不重播 entry prompt（_dialog_main_loop docstring 明寫「entry prompt
+# 由 caller 負責」）→ 若只 speak CANCEL_DECLINED_NOTICE 顧客失去上下文 → 沉默 →
+# 又被 timeout 抓走。合成 voice 一次 speak 帶 DECLINED + L2 entry 重啟，跟
+# L2_TO_L3_TRANSITION 同設計哲學（一次 synth 避免 ALSA drain 停頓）。
+# 不含「您好」開場 — 顧客已對話過，重啟用問句不該再叫一次好。
+L2_CANCEL_DECLINED_RESUME: str = "好的，繼續為您服務，請問需要購買什麼東西嗎？"
 
 # L2 鏈路 A 拒絕語音（顧客**明確**拒絕時用）
 # 2026-05-26 Wave 7a 文案速覽：原「謝謝光臨」過短，改更自然口語
