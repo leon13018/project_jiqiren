@@ -2,9 +2,9 @@
 
 包含所有與時間（秒）或循環次數相關的常數：
     WAIT_NO_RESPONSE / DNC_TIMEOUT / DYC_TIMEOUT / HAWK_INTERVAL / OPENCV_MUTE /
-    THANK_DELAY / AUTO_CHECKOUT_NOTICE / L4_MAX_LOOPS / UNCLEAR_MAX / OPENCV_DWELL /
-    CHECKOUT_CONFIRM_TIMEOUT / CHECKOUT_CONFIRM_UNCLEAR_MAX / L4_SERVICE_TIMEOUT /
-    L4_TOTAL_BUDGET
+    THANK_DELAY / AUTO_CHECKOUT_NOTICE / UNCLEAR_MAX / OPENCV_DWELL /
+    CHECKOUT_CONFIRM_TIMEOUT / CHECKOUT_CONFIRM_UNCLEAR_MAX /
+    L4_TOTAL_BUDGET / L4_PROMPT_INTERVAL / CANCEL_CONFIRM_TIMEOUT
 """
 
 __all__ = [
@@ -17,18 +17,17 @@ __all__ = [
     "THANK_DELAY",
     "AUTO_CHECKOUT_NOTICE",
     "C2_DECISION_TIMEOUT",
-    "L4_MAX_LOOPS",
     "UNCLEAR_MAX",
     "OPENCV_DWELL",
     "CHECKOUT_CONFIRM_TIMEOUT",
     "CHECKOUT_CONFIRM_UNCLEAR_MAX",
-    "L4_SERVICE_TIMEOUT",
     "L4_TOTAL_BUDGET",
+    "L4_PROMPT_INTERVAL",
     "CANCEL_CONFIRM_TIMEOUT",
 ]
 
 # ============================================================
-# 時間常數（單位：秒，L4_MAX_LOOPS / UNCLEAR_MAX 為次數）
+# 時間常數（單位：秒，UNCLEAR_MAX 為次數）
 # ============================================================
 
 # L2 / L3 / L4 顧客無回應 timeout
@@ -37,7 +36,7 @@ WAIT_NO_RESPONSE: int = 6
 # L2 / L3 qty followup 專屬 timeout（2026-05-30 加；user demo UX 反饋）
 # 通用 WAIT_NO_RESPONSE=6s 對「請問X要幾Y？」追問過於急促 — 顧客可能正在
 # 看商品 / 數錢 / 思考數量；改 12s 給更寬鬆回答時間。
-# 不影響其他 6s 子流程（B-3/B-4 沉默 / unclear_final / L4 main/final/service
+# 不影響其他 6s 子流程（B-3/B-4 沉默 / unclear_final / L4 子流程
 # 仍走 WAIT_NO_RESPONSE）— 只覆蓋 _qty_follow_up_sub_loop 內 read。
 QTY_FOLLOWUP_TIMEOUT: int = 12
 
@@ -72,13 +71,10 @@ AUTO_CHECKOUT_NOTICE: int = 12
 # 「如 6 秒內未答復將進行結賬」— silent customer 預期被結帳而非清 cart 退。
 C2_DECISION_TIMEOUT: int = 6
 
-# L4 印金額循環最多次數（達到強制退）；總長 42 秒
-L4_MAX_LOOPS: int = 6
-
-# L2 / L3 / L4 鏈路 B-1 / E「無法判斷」累積上限（2026-05-25 加，跟 L4 對齊）
+# L2 / L3 鏈路 B-1「無法判斷」累積上限（2026-05-25 加）
 # L2: 達上限 → 走鏈路 A 拒絕
 # L3: 達上限 → 進「最終確認」子狀態
-# L4: 達上限 → 自動進客服模式（既有 L4 E→C 邏輯，未引用此常數，沿用 hardcoded 3）
+# （L4 不再使用此常數；2026-05-30 重構移除 L4 unclear_count 機制 → 改用單一 budget）
 UNCLEAR_MAX: int = 3
 
 # OpenCV 偵測到人持續多久才視為有效觸發（防路人 / 光影誤觸）
@@ -90,13 +86,18 @@ OPENCV_DWELL: float = 1.5
 CHECKOUT_CONFIRM_TIMEOUT: int = 12
 CHECKOUT_CONFIRM_UNCLEAR_MAX: int = 5
 
-# L4 客服模式 timeout（60 秒）
-L4_SERVICE_TIMEOUT: int = 60
+# L4 結帳場景全程 wall-clock 預算（2026-05-30 重構簡化版：60 → 30）
+# 從進入 L4 entry prompt 播完起算，含所有路徑共用；達 0 → forced exit。
+# 取代原舊版「60s + loop_count 6 次循環 4 階段語氣 + unclear_count + final
+# confirmation 18s + L4_SERVICE_TIMEOUT 60s 獨立」複雜機制 — user 反饋過度設計，
+# 「就單純 budget 計時」。客服模式也共用此主 budget remaining。
+L4_TOTAL_BUDGET: int = 30
 
-# L4 結帳場景全程 wall-clock 預算（2026-05-26 方案 B；防 ack spam 無限拖延）
-# 從進入 L4 起算，含所有 ack/timeout/unclear 路徑共用；達 0 → 強制 exit
-# 60s 是合理上限：D 鏈路 6 次 × 6s = 36s + buffer ≈ 60s，與 L4_SERVICE_TIMEOUT 對稱
-L4_TOTAL_BUDGET: int = 60
+# L4 主迴圈「12s 沒回應重複提示」間隔（2026-05-30 加；重構簡化版）
+# 取代原本「D 鏈路 WAIT_NO_RESPONSE=6s 4 階段語氣」設計 — user 反饋過度設計，
+# 改成單一 budget + 12s 間隔重 prompt + 亂輸入不重置 budget。
+# Service mode 與主迴圈共用此間隔（user 字面「L4 其它所有鏈路和狀態也是使用這種設計方式」）。
+L4_PROMPT_INTERVAL: int = 12
 
 # Cross-L cancel confirm 子狀態 wall-clock 預算（2026-05-29 加）
 # 跨 L2/L3/L4 任何 read 點偵測到 cancel intent 後進此確認狀態。

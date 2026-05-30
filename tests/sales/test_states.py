@@ -49,7 +49,6 @@ from myProgram.sales.constants import (
     L4_B_CANCEL_THANKS,
     L4_C_OPTIONS_PROMPT,
     L4_D_FORCED_EXIT,
-    L4_D_FINAL_PROMPT,
     L2_UNCLEAR_REJECT_VOICE,
     L3_UNCLEAR_FINAL_PROMPT,
     L3_CHECKOUT_CONFIRM_TEMPLATE,
@@ -62,17 +61,13 @@ from myProgram.sales.constants import (
     L3_CANCEL_DECLINED_RESUME,
     UNCLEAR_MAX,
     L4_ACK_GENTLE,
-    L4_E_CLARIFY,
-    L4_E_AUTO_SERVICE,
+    L4_REMIND_PROMPT,
+    L4_UNCLEAR_NOTICE,
+    L4_TOTAL_BUDGET,
+    L4_PROMPT_INTERVAL,
     QTY_PROMPT_TEMPLATE,
     QTY_CLARIFY_TEMPLATE,
     PRODUCT_CANCELLED_NOTICE_TEMPLATE,
-    L4_D_VOICE_NEUTRAL,
-    L4_D_VOICE_GENTLE,
-    L4_D_VOICE_MODERATE,
-    L4_D_VOICE_WARNING,
-    L4_SERVICE_TIMEOUT,
-    L4_MAX_LOOPS,
     THANK_DELAY,
     L5_THANKS,
     DIALOG_VAGUE_BUY_REASK,
@@ -3022,7 +3017,8 @@ def test_l3_prio_l4_service_words_in_l3_falls_through_to_b1() -> None:
 ### Then 計算總額（依 PRODUCTS 實際價）= 234 元，
 ###      終端印金額明細（商品明細 + 總金額 + 掃碼提示），
 ###      系統 speak「您的總金額是 234 元，請您掃碼付款」，
-###      初始化 loop_count=0 + unclear_count=0，開始等待最多 WAIT_NO_RESPONSE 秒
+###      啟動 L4_TOTAL_BUDGET（30s）wall-clock budget
+###      （2026-05-30 重構：移除 loop_count/unclear_count 機制 → 單一 budget）
 # ============================================================
 
 def test_l4_entry_calculates_total_prints_detail_and_speaks() -> None:
@@ -3037,14 +3033,12 @@ def test_l4_entry_calculates_total_prints_detail_and_speaks() -> None:
     customer_input = FakeCustomerInput(["s"])
 
     # Act
-    next_state, next_loop_count, next_unclear_count = states.run_l4(
+    next_state, _, _ = states.run_l4(
         speak=lambda text: speak_calls.append(text),
 
         print_terminal=lambda text: terminal_calls.append(text),
         read_customer_input=customer_input.read,
         cart=cart,
-        loop_count=0,
-        unclear_count=0,
         opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
@@ -3511,9 +3505,10 @@ def test_cross_l_cancel_intent_phrase_triggers_confirm() -> None:
 
 # ============================================================
 # Cross-L cancel：inner state path gate 系列（2026-05-29 加）
-# _dialog_unclear_final_confirmation / _l4_final_confirmation / _l4_service_mode
-# 三個 inner state path 原本透過 _KEYWORDS_EXIT 直接退出，現在加 cancel_confirm gate
+# _dialog_unclear_final_confirmation / _l4_service_mode 兩個 inner state path
+# 原本透過 _KEYWORDS_EXIT 直接退出，現在加 cancel_confirm gate
 # 統一 UX：所有 cancel detection 都經 6s 確認子狀態
+# （2026-05-30 重構：移除 _l4_final_confirmation；L4 cancel gate 仍存於 _l4_service_mode + 主迴圈拒絕 dispatch）
 # ============================================================
 
 def test_unclear_final_cancel_intent_routes_via_cancel_confirm() -> None:
@@ -3578,67 +3573,6 @@ def test_unclear_final_cancel_intent_no_continues() -> None:
     )
     assert not cart_module.is_empty(cart), f"NO path 後 cart 應保留，實際：{cart}"
     assert next_state == "L4"
-
-
-def test_l4_final_confirmation_cancel_intent_routes_via_cancel_confirm() -> None:
-    """L4 final confirmation 子狀態內顧客講退出 keyword → cancel_confirm YES → 清 cart 退 L1。
-
-    對應 _l4_final_confirmation 內新增的 cancel_confirm gate（2026-05-29）。
-    顧客在 D 達上限後最終確認時講「退出」語音 keyword → 不該直接退、經 6s 確認後才退。
-    """
-    speak_calls: list = []
-    cart = cart_module.new_cart()
-    cart_module.add_item(cart, "冰紅茶", 1)
-    # loop_count=L4_MAX_LOOPS + None → 進 final → 「退出」keyword → cancel_confirm → 「是的」YES → 清 cart 退 L1
-    customer_input = FakeCustomerInput([None, "退出", "是的"])
-
-    next_state, _, _ = states.run_l4(
-        speak=lambda text: speak_calls.append(text),
-        print_terminal=lambda text: None,
-        read_customer_input=customer_input.read,
-        cart=cart,
-        loop_count=L4_MAX_LOOPS,
-        opencv_disable=lambda: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # Assert：final prompt + cancel_confirm prompt + 強制退語音 + cart 清空 + 退 L1
-    assert L4_D_FINAL_PROMPT in speak_calls
-    assert CANCEL_CONFIRM_PROMPT in speak_calls, (
-        f"L4 final 內 cancel intent 應先進 cancel_confirm，實際：{speak_calls}"
-    )
-    assert L4_D_FORCED_EXIT in speak_calls
-    assert cart_module.is_empty(cart)
-    assert next_state == "L1_via_subroutine_a"
-
-
-def test_l4_final_confirmation_cancel_intent_no_continues() -> None:
-    """L4 final 內 cancel intent → cancel_confirm NO → 繼續 final 等明確 1/2、cart 保留。"""
-    speak_calls: list = []
-    cart = cart_module.new_cart()
-    cart_module.add_item(cart, "冰紅茶", 1)
-    # loop_count=MAX + None → final → 「退出」→ cancel_confirm → 「不要取消」NO → 重 prompt
-    # → 「2」繼續 → 主迴圈 → 「s」掃碼 L5
-    customer_input = FakeCustomerInput([None, "退出", "不要取消", "2", "s"])
-
-    next_state, _, _ = states.run_l4(
-        speak=lambda text: speak_calls.append(text),
-        print_terminal=lambda text: None,
-        read_customer_input=customer_input.read,
-        cart=cart,
-        loop_count=L4_MAX_LOOPS,
-        opencv_disable=lambda: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # Assert：cancel_confirm prompt + DECLINED + cart 保留 + 最終 L5
-    assert CANCEL_CONFIRM_PROMPT in speak_calls
-    assert CANCEL_DECLINED_NOTICE in speak_calls
-    assert L4_D_FORCED_EXIT not in speak_calls, (
-        f"NO path 不應 speak L4_D_FORCED_EXIT（cart 應保留），實際：{speak_calls}"
-    )
-    assert not cart_module.is_empty(cart), f"NO path 後 cart 應保留，實際：{cart}"
-    assert next_state == "L5"
 
 
 def test_l4_service_mode_cancel_intent_routes_via_cancel_confirm() -> None:
@@ -3859,22 +3793,25 @@ def test_l4_c_service_reject_keyword_treated_as_exit() -> None:
 ### Then 回 L4 主循環狀態（cart 保留 / loop_count reset 0 / 繼續等掃碼）
 # ============================================================
 
-def test_l4_c_service_input_2_continues_resets_loop_count() -> None:
+def test_l4_c_service_input_2_continues_back_to_main_loop() -> None:
+    """L4 客服模式內顧客輸入 2 → 繼續交易 → 回主迴圈 → s 掃碼成功 → L5。
+
+    2026-05-30 重構：函數名從 ..._resets_loop_count → ..._back_to_main_loop，
+    loop_count 機制已廢除，僅驗證「繼續」→ 回主迴圈 + cart 保留 + 可繼續結帳。
+    """
     # Arrange
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # 客服（loop_count=3）→ 進入客服模式，2 → 繼續，s → 鏈路 A
+    # 客服 → 進入客服模式；「2」→ 繼續；「s」→ 鏈路 A → L5
     customer_input = FakeCustomerInput(["客服", "2", "s"])
 
     # Act
-    next_state, next_loop_count, next_unclear_count = states.run_l4(
+    next_state, _, _ = states.run_l4(
         speak=lambda text: None,
 
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        loop_count=3,
-        unclear_count=0,
         opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
@@ -3954,18 +3891,20 @@ def test_l4_c_service_input_s_treated_as_continue_then_scan() -> None:
 # ============================================================
 # L4-C-008
 ## L4-C-008
-### Scenario: 客服模式內輸入既不命中退出也不命中繼續時重複提示
+### Scenario: 客服模式內輸入既不命中退出也不命中繼續時印 unclear notice 並保持模式
 ### Given L4 客服模式等待選擇中
 ### When 顧客輸入「你好」（不命中退出 / 繼續 / 拒絕 / s 任一）
-### Then 重複提示選項，保持在客服模式繼續等待
+### Then speak L4_UNCLEAR_NOTICE，保持在客服模式繼續等待 + 後續可選 2 繼續 + s 進 L5
+###      （2026-05-30 重構：service mode 不命中改 speak L4_UNCLEAR_NOTICE，跟主迴圈一致；
+###       舊版會重 prompt L4_C_OPTIONS_PROMPT）
 # ============================================================
 
-def test_l4_c_service_unrecognized_input_reprompts_and_stays() -> None:
+def test_l4_c_service_unrecognized_input_speaks_unclear_notice_and_stays() -> None:
     # Arrange
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # 客服 → 進入客服模式，你好（不命中）→ 重複提示，2 → 繼續，s → L5
+    # 客服 → 進入客服模式；「你好」不命中 → speak L4_UNCLEAR_NOTICE；2 → 繼續；s → L5
     customer_input = FakeCustomerInput(["客服", "你好", "2", "s"])
 
     # Act
@@ -3979,418 +3918,29 @@ def test_l4_c_service_unrecognized_input_reprompts_and_stays() -> None:
         do_action=lambda *a, **k: None,
     )
 
-    # Assert：L4_C_OPTIONS_PROMPT 至少出現兩次（一次進入時，一次重複提示）
-    prompt_count = speak_calls.count(L4_C_OPTIONS_PROMPT)
-    assert prompt_count >= 2, (
-        f"不命中時應重複提示 L4_C_OPTIONS_PROMPT（至少 2 次），實際 speak：{speak_calls}"
+    # Assert：speak L4_UNCLEAR_NOTICE + 保持模式（後續 2/s 仍走完 → L5）
+    assert L4_UNCLEAR_NOTICE in speak_calls, (
+        f"service mode 內不命中應 speak L4_UNCLEAR_NOTICE，實際 speak：{speak_calls}"
     )
+    # 進入時 L4_C_OPTIONS_PROMPT 應印 1 次（不命中時不再重複此 prompt）
+    assert L4_C_OPTIONS_PROMPT in speak_calls
     assert next_state == "L5"
 
 
 # ============================================================
-# L4-C-009
-## L4-C-009
-### Scenario: 客服模式 60 秒完全靜默自動退出清空 cart
-### Given L4 客服模式等待選擇中
-### When 60 秒內無任何顧客回應（timeout）
-### Then 清空 cart，套用 L0 子例程 A 回 L1 叫賣
+# L4-C-009-REMOVED（2026-05-30 重構：service mode 共用主 budget，不再獨立 60s timeout）
+# 舊版「L4_SERVICE_TIMEOUT=60s 獨立」已廢除，service mode 共用主 budget remaining。
+# 新行為改由「L4 budget 耗盡 forced exit」test 覆蓋（見下方 wall-clock budget 段）。
 # ============================================================
-
-def test_l4_c_service_timeout_60s_exits_clears_cart() -> None:
-    # Arrange
-    cart = cart_module.new_cart()
-    cart_module.add_item(cart, "冰紅茶", 1)
-    # 客服 → 進入客服模式，None（60s timeout）→ 強制退
-    customer_input = FakeCustomerInput(["客服", None])
-
-    # Act
-    next_state, _, _ = states.run_l4(
-        speak=lambda text: None,
-
-        print_terminal=lambda text: None,
-        read_customer_input=customer_input.read,
-        cart=cart,
-        opencv_disable=lambda: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # Assert：cart 清空，回 L1
-    assert cart_module.is_empty(cart), f"客服 60s timeout 後 cart 應清空，實際：{cart}"
-    assert next_state == "L1_via_subroutine_a", (
-        f"客服 60s timeout 應回 L1_via_subroutine_a，實際：{next_state!r}"
-    )
 
 
 # ============================================================
-# L4-D-001
-## L4-D-001
-### Scenario: 第 1 次 6s 無回應 loop_count 增至 1 speak 中性催促語音
-### Given L4 進入時動作完成，等待顧客回應中（loop_count=0）
-### When 經過 WAIT_NO_RESPONSE（6）秒仍無任何顧客回應
-### Then loop_count 變為 1，speak 中性催促語音，回到等待掃碼狀態
+# L4 D / E 鏈路（2026-05-30 重構移除）
+# 舊版 D-001..D-005（4 階段語氣 6 次循環）+ E-001..E-005（unclear_count
+# 達 3 自動進客服）已隨 loop_count / unclear_count 機制廢除而刪除。
+# 新行為改由「L4 wall-clock budget + 12s remind prompt + unclear notice」
+# 三類 test 覆蓋（見下方 wall-clock budget regression tests 段）。
 # ============================================================
-
-def test_l4_d_first_timeout_increments_count_and_speaks_neutral() -> None:
-    # Arrange
-    speak_calls: list = []
-    cart = cart_module.new_cart()
-    cart_module.add_item(cart, "冰紅茶", 2)
-    # 總額 = 27*2 = 54 元
-    # None（第 1 次 D）→ s（鏈路 A）讓 run_l4 結束
-    customer_input = FakeCustomerInput([None, "s"])
-
-    # Act
-    next_state, _, _ = states.run_l4(
-        speak=lambda text: speak_calls.append(text),
-
-        print_terminal=lambda text: None,
-        read_customer_input=customer_input.read,
-        cart=cart,
-        loop_count=0,
-        opencv_disable=lambda: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # Assert：第 1 次 D 用中性語音（含「54 元」與「請掃碼，或聯繫客服」）
-    expected = L4_D_VOICE_NEUTRAL.format(total=54)
-    assert expected in speak_calls, (
-        f"第 1 次 D 應 speak 中性語音「{expected}」，實際：{speak_calls}"
-    )
-    assert next_state == "L5"
-
-
-# ============================================================
-# L4-D-002
-## L4-D-002
-### Scenario: 第 2 次 6s 無回應 loop_count 增至 2 speak 柔提醒語音
-### Given L4 已走過 1 次 D，loop_count=1，回到等待後
-### When 再經過 WAIT_NO_RESPONSE（6）秒仍無回應
-### Then loop_count 變為 2，speak 柔提醒語音
-# ============================================================
-
-def test_l4_d_second_timeout_speaks_gentle_reminder() -> None:
-    # Arrange
-    speak_calls: list = []
-    cart = cart_module.new_cart()
-    cart_module.add_item(cart, "冰紅茶", 2)
-    # 總額 = 54 元
-    # None（第 2 次 D，loop_count 從 1 開始）→ s（A）→ 結束
-    customer_input = FakeCustomerInput([None, "s"])
-
-    # Act
-    next_state, _, _ = states.run_l4(
-        speak=lambda text: speak_calls.append(text),
-
-        print_terminal=lambda text: None,
-        read_customer_input=customer_input.read,
-        cart=cart,
-        loop_count=1,  # 已走過第 1 次 D
-        opencv_disable=lambda: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # Assert：第 2 次 D（loop_count 從 1 → 2）用柔提醒語音
-    expected = L4_D_VOICE_GENTLE.format(total=54)
-    assert expected in speak_calls, (
-        f"第 2 次 D 應 speak 柔提醒語音「{expected}」，實際：{speak_calls}"
-    )
-
-
-# ============================================================
-# L4-D-003
-## L4-D-003
-### Scenario: 第 3 4 次 6s 無回應 speak 中度催促語音
-### Given L4 已走過 2 次 D，loop_count=2，回到等待後
-### When 再經過 WAIT_NO_RESPONSE（6）秒仍無回應（第 3 次）
-### Then loop_count 變為 3，speak 中度催促語音
-# ============================================================
-
-def test_l4_d_third_timeout_speaks_moderate_urgency() -> None:
-    # Arrange
-    speak_calls: list = []
-    cart = cart_module.new_cart()
-    cart_module.add_item(cart, "冰紅茶", 2)
-    # 總額 = 54 元
-    # None（第 3 次 D，loop_count 從 2 開始）→ s → 結束
-    customer_input = FakeCustomerInput([None, "s"])
-
-    # Act
-    next_state, _, _ = states.run_l4(
-        speak=lambda text: speak_calls.append(text),
-
-        print_terminal=lambda text: None,
-        read_customer_input=customer_input.read,
-        cart=cart,
-        loop_count=2,  # 已走過第 2 次 D
-        opencv_disable=lambda: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # Assert：第 3 次 D（loop_count 從 2 → 3）用中度催促語音
-    expected = L4_D_VOICE_MODERATE.format(total=54)
-    assert expected in speak_calls, (
-        f"第 3 次 D 應 speak 中度催促語音「{expected}」，實際：{speak_calls}"
-    )
-
-
-# ============================================================
-# L4-D-004
-## L4-D-004
-### Scenario: 第 5 6 次 6s 無回應 speak 明確警告語音（含「否則取消」）
-### Given L4 已走過 4 次 D，loop_count=4，回到等待後
-### When 再經過 WAIT_NO_RESPONSE（6）秒仍無回應（第 5 次）
-### Then loop_count 變為 5，speak 明確警告語音
-# ============================================================
-
-def test_l4_d_fifth_timeout_speaks_explicit_warning() -> None:
-    # Arrange
-    speak_calls: list = []
-    cart = cart_module.new_cart()
-    cart_module.add_item(cart, "冰紅茶", 2)
-    # 總額 = 54 元
-    # None（第 5 次 D，loop_count 從 4 開始）→ s → 結束
-    customer_input = FakeCustomerInput([None, "s"])
-
-    # Act
-    next_state, _, _ = states.run_l4(
-        speak=lambda text: speak_calls.append(text),
-
-        print_terminal=lambda text: None,
-        read_customer_input=customer_input.read,
-        cart=cart,
-        loop_count=4,  # 已走過第 4 次 D
-        opencv_disable=lambda: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # Assert：第 5 次 D（loop_count 從 4 → 5）用明確警告語音
-    expected = L4_D_VOICE_WARNING.format(total=54)
-    assert expected in speak_calls, (
-        f"第 5 次 D 應 speak 明確警告語音「{expected}」，實際：{speak_calls}"
-    )
-
-
-# ============================================================
-# L4-D-005
-## L4-D-005
-### Scenario: 第 6 次循環滿 6s 仍無回應強制退清空 cart 套子例程 A
-### Given L4 已走到 loop_count=6（第 6 次循環印金額後又等 6s）
-### When 等待 WAIT_NO_RESPONSE 秒仍無回應
-### Then 強制退：speak 取消語音，清空 cart，套用 L0 子例程 A 回 L1 叫賣
-# ============================================================
-
-def test_l4_d_sixth_timeout_forces_exit_clears_cart() -> None:
-    # Arrange
-    speak_calls: list = []
-    cart = cart_module.new_cart()
-    cart_module.add_item(cart, "冰紅茶", 1)
-    # 2026-05-25 改：loop_count=6 + 第 7 次 None → 進「最終確認」子狀態 →
-    # final 內 read 又 None（seq 空 → FakeCustomerInput 回 None）→ 強制取消（行為等同舊版）
-    customer_input = FakeCustomerInput([None])
-
-    # Act
-    next_state, _, _ = states.run_l4(
-        speak=lambda text: speak_calls.append(text),
-
-        print_terminal=lambda text: None,
-        read_customer_input=customer_input.read,
-        cart=cart,
-        loop_count=L4_MAX_LOOPS,  # loop_count == 6 → 強制退
-        opencv_disable=lambda: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # Assert：speak 強制退語音，清空 cart，回 L1
-    assert L4_D_FORCED_EXIT in speak_calls, (
-        f"第 6 次 D 後 timeout 應 speak L4_D_FORCED_EXIT，實際：{speak_calls}"
-    )
-    assert cart_module.is_empty(cart), f"強制退後 cart 應清空，實際：{cart}"
-    assert next_state == "L1_via_subroutine_a", (
-        f"強制退應回 L1_via_subroutine_a，實際：{next_state!r}"
-    )
-
-
-# ============================================================
-# L4-E-001
-## L4-E-001
-### Scenario: 顧客回應不命中任何白名單時 unclear_count 增至 1 speak 重問
-### Given L4 等待中，unclear_count=0
-### When 顧客輸入「你好」（不命中拒絕 / 客服 / s / 任何類別）
-### Then unclear_count 變為 1，speak 重問語音，保持在 L4 重新等待
-# ============================================================
-
-def test_l4_e_first_unknown_increments_count_and_reprompts() -> None:
-    # Arrange
-    speak_calls: list = []
-    cart = cart_module.new_cart()
-    cart_module.add_item(cart, "冰紅茶", 1)
-    # 你好（E，unclear_count 0→1）→ s（A）→ L5
-    customer_input = FakeCustomerInput(["你好", "s"])
-
-    # Act
-    next_state, _, _ = states.run_l4(
-        speak=lambda text: speak_calls.append(text),
-
-        print_terminal=lambda text: None,
-        read_customer_input=customer_input.read,
-        cart=cart,
-        unclear_count=0,
-        opencv_disable=lambda: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # Assert：speak 重問語音，最終 L5
-    assert L4_E_CLARIFY in speak_calls, (
-        f"E 鏈路應 speak L4_E_CLARIFY，實際：{speak_calls}"
-    )
-    assert next_state == "L5"
-
-
-# ============================================================
-# L4-E-002
-## L4-E-002
-### Scenario: 顧客回應命中想一下意圖時 L4 視為無法判斷走 E
-### Given L4 等待中
-### When 顧客輸入命中想一下意圖關鍵字（如「想想」— L4 不適用此類別）
-### Then 視為無法判斷 → 走鏈路 E（unclear_count++ + speak 重問）
-# ============================================================
-# 注意（HP-4 修正 2026-05-26）：「等等」已加入 KEYWORDS_L4_ACK_OR_WAIT，
-# 在 L4 返「等待安撫」不走 E 鏈路。此 test 改用「想想」驗證同語意。
-
-def test_l4_e_think_intent_treated_as_unknown() -> None:
-    # Arrange
-    speak_calls: list = []
-    cart = cart_module.new_cart()
-    cart_module.add_item(cart, "冰紅茶", 1)
-    # 想想（想一下 → L4 視為 E；「等等」已修為 ACK，改用「想想」）→ s → L5
-    customer_input = FakeCustomerInput(["想想", "s"])
-
-    # Act
-    next_state, _, _ = states.run_l4(
-        speak=lambda text: speak_calls.append(text),
-
-        print_terminal=lambda text: None,
-        read_customer_input=customer_input.read,
-        cart=cart,
-        opencv_disable=lambda: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # Assert：想一下在 L4 走 E，speak 重問
-    assert L4_E_CLARIFY in speak_calls, (
-        f"想一下在 L4 應走 E，speak L4_E_CLARIFY，實際：{speak_calls}"
-    )
-    assert next_state == "L5"
-
-
-# ============================================================
-# L4-E-003
-## L4-E-003
-### Scenario: 顧客回應命中結帳意圖時 L4 視為無法判斷走 E
-### Given L4 等待中（顧客已在結帳中，再說結帳無意義）
-### When 顧客輸入命中結帳意圖關鍵字（如「結帳」）
-### Then 視為無法判斷 → 走鏈路 E（unclear_count++ + speak 重問）
-# ============================================================
-
-def test_l4_e_checkout_intent_treated_as_unknown() -> None:
-    # Arrange
-    speak_calls: list = []
-    cart = cart_module.new_cart()
-    cart_module.add_item(cart, "冰紅茶", 1)
-    # 結帳（在 L4 視為 E）→ s → L5
-    customer_input = FakeCustomerInput(["結帳", "s"])
-
-    # Act
-    next_state, _, _ = states.run_l4(
-        speak=lambda text: speak_calls.append(text),
-
-        print_terminal=lambda text: None,
-        read_customer_input=customer_input.read,
-        cart=cart,
-        opencv_disable=lambda: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # Assert：結帳在 L4 走 E
-    assert L4_E_CLARIFY in speak_calls, (
-        f"結帳在 L4 應走 E，speak L4_E_CLARIFY，實際：{speak_calls}"
-    )
-    assert next_state == "L5"
-
-
-# ============================================================
-# L4-E-004
-## L4-E-004
-### Scenario: 顧客回應命中商品時 L4 視為無法判斷走 E
-### Given L4 等待中（總額已結算，再加商品在當前流程無意義）
-### When 顧客輸入命中商品關鍵字（如「冰紅茶」）
-### Then 視為無法判斷 → 走鏈路 E（unclear_count++ + speak 重問）
-# ============================================================
-
-def test_l4_e_product_intent_treated_as_unknown() -> None:
-    # Arrange
-    speak_calls: list = []
-    cart = cart_module.new_cart()
-    cart_module.add_item(cart, "冰紅茶", 1)
-    # 冰紅茶（商品 → L4 視為 E）→ s → L5
-    customer_input = FakeCustomerInput(["冰紅茶", "s"])
-
-    # Act
-    next_state, _, _ = states.run_l4(
-        speak=lambda text: speak_calls.append(text),
-
-        print_terminal=lambda text: None,
-        read_customer_input=customer_input.read,
-        cart=cart,
-        opencv_disable=lambda: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # Assert：商品在 L4 走 E
-    assert L4_E_CLARIFY in speak_calls, (
-        f"商品在 L4 應走 E，speak L4_E_CLARIFY，實際：{speak_calls}"
-    )
-    assert next_state == "L5"
-
-
-# ============================================================
-# L4-E-005
-## L4-E-005
-### Scenario: 第 3 次無法判斷 unclear_count 達 3 自動進客服模式
-### Given L4 已走過 2 次 E，unclear_count=2，等待中
-### When 顧客再次輸入不命中（任何上述 E trigger 之一）
-### Then unclear_count 變為 3，speak 自動進客服語音，自動進入鏈路 C 客服特殊模式
-# ============================================================
-
-def test_l4_e_third_unknown_auto_enters_service_mode() -> None:
-    # Arrange
-    speak_calls: list = []
-    terminal_calls: list = []
-    cart = cart_module.new_cart()
-    cart_module.add_item(cart, "冰紅茶", 1)
-    # unclear_count=2，你好（第 3 次 E → 自動進 C）→ 2（繼續）→ s（A）
-    customer_input = FakeCustomerInput(["你好", "2", "s"])
-
-    # Act
-    next_state, _, _ = states.run_l4(
-        speak=lambda text: speak_calls.append(text),
-
-        print_terminal=lambda text: terminal_calls.append(text),
-        read_customer_input=customer_input.read,
-        cart=cart,
-        unclear_count=2,  # 已走過 2 次 E
-        opencv_disable=lambda: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # Assert：speak 自動進客服語音 + 進入客服模式（印電話 + 選項提示）
-    assert L4_E_AUTO_SERVICE in speak_calls, (
-        f"第 3 次 E 應 speak L4_E_AUTO_SERVICE，實際：{speak_calls}"
-    )
-    assert SERVICE_PHONE in " ".join(terminal_calls), (
-        f"自動進客服後應印電話，終端：{terminal_calls}"
-    )
-    assert next_state == "L5"
 
 
 # ============================================================
@@ -4491,104 +4041,10 @@ def test_l5_a_returns_to_l1_via_subroutine_a_after_thank_delay() -> None:
 
 
 # ============================================================
-# L4-D-FINAL-001 ~ 004（2026-05-25 加：D 達上限後最終確認子狀態）
+# L4-D-FINAL-001~004-REMOVED（2026-05-30 重構移除）
+# 舊版 D 達上限後 _l4_final_confirmation 18s 子狀態 (1=取消 / 2=繼續) 已廢除，
+# 新設計單一 budget 耗盡直接 forced exit，不再有 final confirmation 子狀態。
 # ============================================================
-
-def test_l4_d_final_confirmation_terminal_1_cancels() -> None:
-    """D MAX 後 timeout → 進 final → 終端輸入 1 → 取消 + 清 cart + 回 L1。"""
-    speak_calls: list = []
-    cart = cart_module.new_cart()
-    cart_module.add_item(cart, "冰紅茶", 1)
-    # loop_count=6 + 1 None → 進 final → "1" → 取消
-    customer_input = FakeCustomerInput([None, "1"])
-
-    next_state, _, _ = states.run_l4(
-        speak=lambda text: speak_calls.append(text),
-
-        print_terminal=lambda text: None,
-        read_customer_input=customer_input.read,
-        cart=cart,
-        loop_count=L4_MAX_LOOPS,
-        opencv_disable=lambda: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    assert next_state == "L1_via_subroutine_a"
-    assert cart_module.is_empty(cart)
-    assert L4_D_FINAL_PROMPT in speak_calls, "應 speak final 提示"
-    assert L4_D_FORCED_EXIT in speak_calls, "1 → 取消 → speak 強制退語音"
-
-
-def test_l4_d_final_confirmation_terminal_2_continues_then_scans() -> None:
-    """D MAX 後 timeout → 進 final → 終端輸入 2 → 繼續 → reset counter → 再 s → L5 + cart 保留。"""
-    speak_calls: list = []
-    cart = cart_module.new_cart()
-    cart_module.add_item(cart, "冰紅茶", 1)
-    # loop_count=6 + None → final → "2" 繼續 → reset → 主迴圈 → "s" → 掃碼 L5
-    customer_input = FakeCustomerInput([None, "2", "s"])
-
-    next_state, next_loop, next_unclear = states.run_l4(
-        speak=lambda text: speak_calls.append(text),
-
-        print_terminal=lambda text: None,
-        read_customer_input=customer_input.read,
-        cart=cart,
-        loop_count=L4_MAX_LOOPS,
-        opencv_disable=lambda: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    assert next_state == "L5", "繼續後 s 掃碼應到 L5"
-    assert not cart_module.is_empty(cart), "繼續後 cart 應保留"
-
-
-def test_l4_d_final_confirmation_keyword_continue_then_scans() -> None:
-    """D MAX 後 final → 語音「繼續」keyword → 繼續 → s → L5。"""
-    cart = cart_module.new_cart()
-    cart_module.add_item(cart, "冰紅茶", 1)
-    customer_input = FakeCustomerInput([None, "繼續", "s"])
-
-    next_state, _, _ = states.run_l4(
-        speak=lambda text: None,
-
-        print_terminal=lambda text: None,
-        read_customer_input=customer_input.read,
-        cart=cart,
-        loop_count=L4_MAX_LOOPS,
-        opencv_disable=lambda: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    assert next_state == "L5"
-    assert not cart_module.is_empty(cart)
-
-
-def test_l4_d_final_confirmation_gibberish_then_timeout_cancels() -> None:
-    """D MAX 後 final → 顧客亂講話 → 重印 prompt → 下次 read 又 None → 取消。"""
-    speak_calls: list = []
-    cart = cart_module.new_cart()
-    cart_module.add_item(cart, "冰紅茶", 1)
-    # loop_count=6 + None → final → "亂講" 不命中 → 重印 → None → 取消
-    customer_input = FakeCustomerInput([None, "亂講", None])
-
-    next_state, _, _ = states.run_l4(
-        speak=lambda text: speak_calls.append(text),
-
-        print_terminal=lambda text: None,
-        read_customer_input=customer_input.read,
-        cart=cart,
-        loop_count=L4_MAX_LOOPS,
-        opencv_disable=lambda: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    assert next_state == "L1_via_subroutine_a"
-    assert cart_module.is_empty(cart)
-    # final prompt 應被 speak ≥ 2 次（第一次入 final + 亂講後重印）
-    final_prompt_count = speak_calls.count(L4_D_FINAL_PROMPT)
-    assert final_prompt_count >= 2, (
-        f"亂講後應重印 final prompt（總共至少 2 次），實際：{final_prompt_count}"
-    )
 
 
 # ============================================================
@@ -5224,8 +4680,6 @@ def test_l4_entry_calls_opencv_disable() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        loop_count=0,
-        unclear_count=0,
         opencv_disable=lambda: disable_calls.append(True),
         do_action=lambda *a, **k: None,
     )
@@ -5345,12 +4799,12 @@ def test_c2_meiyou_should_not_be_no() -> None:
 # L4 等待安撫 regression tests（2026-05-26 加；使用者實機 UX 修補）
 # ============================================================
 
-def test_l4_ack_word_speaks_gentle_and_does_not_count_unclear() -> None:
-    """L4 顧客講「好的」應 speak L4_ACK_GENTLE，不進 E 鏈路 unclear 路徑。
+def test_l4_ack_word_speaks_gentle_and_does_not_print_unclear_notice() -> None:
+    """L4 顧客講「好的」應 speak L4_ACK_GENTLE，不走 unclear notice 路徑。
 
-    後續「s」掃碼仍應成功到 L5 — 證明 ack 沒累積 unclear_count 也沒走 forced exit。
-    顧客先回 5 次「好的」（若 ack 走 unclear 累積，第 3 次達上限會被踢進客服或 forced exit），
-    然後「s」掃碼 → 應仍可正常到 L5。
+    2026-05-30 重構：unclear_count 機制廢除（取代為單一 budget + L4_UNCLEAR_NOTICE 不計次）。
+    本 test 仍 cover「ack 詞走 ACK 路徑 ≠ unclear notice 路徑」分流正確。
+    顧客先回 5 次「好的」（ack）+ 「s」掃碼 → 應正常到 L5 + 5 次 ack 都沒打到 unclear notice。
     """
     # Arrange
     speak_calls: list = []
@@ -5375,8 +4829,8 @@ def test_l4_ack_word_speaks_gentle_and_does_not_count_unclear() -> None:
     assert L4_ACK_GENTLE in speak_calls, (
         f"應 speak 溫和回應，實際 speak：{speak_calls}"
     )
-    assert L4_E_CLARIFY not in speak_calls, (
-        f"ack 詞不應走 E unclear 路徑，但 speak 含 L4_E_CLARIFY：{speak_calls}"
+    assert L4_UNCLEAR_NOTICE not in speak_calls, (
+        f"ack 詞不應走 unclear notice 路徑，但 speak 含 L4_UNCLEAR_NOTICE：{speak_calls}"
     )
 
 
@@ -5385,14 +4839,14 @@ def test_l4_ack_word_speaks_gentle_and_does_not_count_unclear() -> None:
 # ============================================================
 
 def test_l4_wallclock_budget_ack_spam_eventually_forced_exit() -> None:
-    """L4 顧客 spam ack 詞超過 L4_TOTAL_BUDGET 預算後應強制 exit（方案 B 防 spam）。
+    """L4 顧客 spam ack 詞超過 L4_TOTAL_BUDGET 預算後應強制 exit（單一 budget 防 spam）。
 
-    方案 B 核心：ack 路徑 continue 不重設 deadline；預算耗盡（remaining <= 0）
+    核心：ack 路徑 continue 不重設 deadline；預算耗盡（remaining <= 0）
     → _l4_exit_d_forced（speak L4_D_FORCED_EXIT + clear cart + return L1）。
 
     fake time 機制：patch time.monotonic 讓每次呼叫回傳的值快速推進。
-    第 1 次呼叫：0.0（設定 deadline = 0 + 60 = 60）
-    第 2 次呼叫後：61.0（remaining = 60 - 61 = -1 <= 0 → forced exit）
+    第 1 次呼叫：0.0（設定 deadline = 0 + L4_TOTAL_BUDGET）
+    第 2 次呼叫後：L4_TOTAL_BUDGET + 1（預算耗盡 → forced exit）
     顧客輸入 "好的" 無限重複也逃不過預算上限。
     """
     from unittest.mock import patch
@@ -5401,13 +4855,13 @@ def test_l4_wallclock_budget_ack_spam_eventually_forced_exit() -> None:
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
 
-    # fake_monotonic：第 1 次回 0.0（建立 deadline），之後回 61.0（預算立刻耗盡）
+    # fake_monotonic：第 1 次回 0.0（建立 deadline），之後回 budget + 1（預算立刻耗盡）
     call_count = [0]
     def fake_monotonic() -> float:
         call_count[0] += 1
         if call_count[0] == 1:
-            return 0.0   # deadline = 0 + 60 = 60
-        return 61.0      # remaining = 60 - 61 = -1 → 強制 exit
+            return 0.0                       # deadline = 0 + L4_TOTAL_BUDGET
+        return float(L4_TOTAL_BUDGET + 1)    # remaining = -1 → 強制 exit
 
     # 顧客無限 ack spam（預算耗盡前只會被呼叫一次 read，因為第 2 次 monotonic 就觸發 forced exit）
     customer_input = FakeCustomerInput(["好的"] * 20)
@@ -5458,6 +4912,164 @@ def test_l4_normal_scan_within_budget_succeeds() -> None:
     )
     assert L4_A_PAY_SUCCESS in speak_calls, (
         f"掃碼成功應 speak L4_A_PAY_SUCCESS，實際 speak：{speak_calls}"
+    )
+
+
+# ============================================================
+# L4 重構簡化版新行為 regression tests（2026-05-30 加）
+# - 30s budget 耗盡 forced exit
+# - 12s 沒回應重 speak L4_REMIND_PROMPT（不重置 budget）
+# - 亂輸入印 L4_UNCLEAR_NOTICE 不重置 budget
+# - 客服模式共用主 budget remaining（移除獨立 60s timeout）
+# ============================================================
+
+
+def test_l4_silence_full_budget_forces_exit_clears_cart() -> None:
+    """L4 全程沒回應 → budget 耗盡 → forced exit + clear cart + 退 L1。
+
+    新設計：每 12s 重 prompt → 達到 30s budget → _l4_exit_d_forced。
+    對應規格：「budget 耗盡 → forced exit（speak L4_D_FORCED_EXIT + clear cart）」。
+
+    用 fake_monotonic 跳過真實等待（避免測試跑 30 秒）：第 1 次回 0.0 設定 deadline，
+    第 2 次回 budget+1 → 預算耗盡 → forced exit。
+    """
+    from unittest.mock import patch
+
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+
+    call_count = [0]
+    def fake_monotonic() -> float:
+        call_count[0] += 1
+        if call_count[0] == 1:
+            return 0.0
+        return float(L4_TOTAL_BUDGET + 1)
+
+    # FakeCustomerInput 序列空時持續回 None；但 fake_monotonic 在第二次 check 就觸發退場
+    customer_input = FakeCustomerInput([None])
+
+    with patch("myProgram.sales.states.l4.time.monotonic", side_effect=fake_monotonic):
+        next_state, _, _ = states.run_l4(
+            speak=lambda text: speak_calls.append(text),
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    assert next_state == "L1_via_subroutine_a", (
+        f"全程沒回應 → budget 耗盡應退 L1，實際：{next_state!r}"
+    )
+    assert L4_D_FORCED_EXIT in speak_calls, (
+        f"budget 耗盡應 speak L4_D_FORCED_EXIT，實際 speak：{speak_calls}"
+    )
+    assert cart_module.is_empty(cart), (
+        f"budget 耗盡應清空 cart，實際：{cart}"
+    )
+
+
+def test_l4_no_response_speaks_remind_prompt() -> None:
+    """L4 沒回應（read 回 None）→ speak L4_REMIND_PROMPT「請您掃碼付款」。
+
+    本 test 用 FakeCustomerInput([None, "s"])：第一次 None → speak L4_REMIND_PROMPT；
+    第二次 "s" → 鏈路 A → L5。驗證重 prompt 文案正確 + 不打斷掃碼流程。
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    customer_input = FakeCustomerInput([None, "s"])
+
+    next_state, _, _ = states.run_l4(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    assert L4_REMIND_PROMPT in speak_calls, (
+        f"沒回應應 speak L4_REMIND_PROMPT，實際 speak：{speak_calls}"
+    )
+    assert next_state == "L5", (
+        f"後續 s 仍應掃碼成功 L5，實際：{next_state!r}"
+    )
+
+
+def test_l4_unclear_input_speaks_unclear_notice_not_reset_budget() -> None:
+    """L4 亂輸入（想一下 / 結帳 / 商品 / 無法判斷）→ speak L4_UNCLEAR_NOTICE 不計次不重置 budget。
+
+    顧客連說 5 次亂輸入（舊 unclear_count 機制會在第 3 次自動進客服 / 強制退）+ s 掃碼
+    → 新設計應仍可正常進 L5（不計次）+ 5 次 unclear notice 都印（不轉客服）。
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # 「想一下」/「結帳」/「冰紅茶」/「你好」/「想想」都應 fall through 到 unclear notice
+    customer_input = FakeCustomerInput(["想一下", "結帳", "冰紅茶", "你好", "想想", "s"])
+
+    next_state, _, _ = states.run_l4(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    assert next_state == "L5", (
+        f"5 次亂輸入後 s 應掃碼成功進 L5（不計次不踢客服），實際：{next_state!r}"
+    )
+    # unclear notice 應被 speak 多次（每個亂輸入一次）
+    notice_count = speak_calls.count(L4_UNCLEAR_NOTICE)
+    assert notice_count >= 3, (
+        f"5 次亂輸入應至少 3 次 speak L4_UNCLEAR_NOTICE（不計次），實際次數：{notice_count}；speak：{speak_calls}"
+    )
+    # 不應走舊 unclear_count 達 3 自動進客服路徑（沒有印電話）
+    # （也驗證 cart 仍非空 — 鏈路 A 不清 cart，L5 才清）
+    assert not cart_module.is_empty(cart), (
+        f"L4 鏈路 A 進 L5 前 cart 應仍非空（L5 負責清），實際：{cart}"
+    )
+
+
+def test_l4_service_mode_shares_main_budget_no_independent_timeout() -> None:
+    """L4 客服模式共用主 budget remaining，沒有獨立 L4_SERVICE_TIMEOUT=60s。
+
+    新設計：顧客進客服模式後若 budget 耗盡 → 清 cart 退 L1（同主迴圈 forced exit 邏輯）。
+    fake_monotonic 控制：第 1 次回 0.0（deadline = 30），後續回 budget + 1（耗盡）。
+    顧客「客服」→ 進 service mode → 第二次 monotonic check → 耗盡 → 清 cart 退 L1。
+    """
+    from unittest.mock import patch
+
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+
+    call_count = [0]
+    def fake_monotonic() -> float:
+        call_count[0] += 1
+        if call_count[0] == 1:
+            return 0.0                       # deadline = 0 + L4_TOTAL_BUDGET
+        return float(L4_TOTAL_BUDGET + 1)    # 耗盡 → service mode 也應退
+
+    customer_input = FakeCustomerInput(["客服"])
+
+    with patch("myProgram.sales.states.l4.time.monotonic", side_effect=fake_monotonic):
+        next_state, _, _ = states.run_l4(
+            speak=lambda text: None,
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    assert next_state == "L1_via_subroutine_a", (
+        f"客服模式 budget 耗盡應退 L1，實際：{next_state!r}"
+    )
+    assert cart_module.is_empty(cart), (
+        f"客服 budget 耗盡應清 cart（同主迴圈 forced exit），實際：{cart}"
     )
 
 
@@ -6030,8 +5642,6 @@ def test_l4_pay_success_main_dispatcher_calls_do_action() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        loop_count=0,
-        unclear_count=0,
         opencv_disable=lambda: None,
         do_action=lambda name: do_action_calls.append(name),
     )
@@ -6063,8 +5673,6 @@ def test_l4_pay_success_service_mode_calls_do_action() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        loop_count=0,
-        unclear_count=0,
         opencv_disable=lambda: None,
         do_action=lambda name: do_action_calls.append(name),
     )

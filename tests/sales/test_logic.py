@@ -194,8 +194,8 @@ def test_logic_l4_non_scan_exit_with_empty_cart(monkeypatch):
         cart["冰紅茶"] = 2
         return ("L4", 0)
 
-    def stub_run_l4(*, speak, print_terminal, read_customer_input, cart, loop_count,
-                    unclear_count, opencv_disable, do_action, speak_and_wait=None):
+    def stub_run_l4(*, speak, print_terminal, read_customer_input, cart,
+                    opencv_disable, do_action, speak_and_wait=None):
         # L4 取消路徑：清 cart 後返 L1_via_subroutine_a
         cart.clear()
         return ("L1_via_subroutine_a", 0, 0)
@@ -245,8 +245,8 @@ def test_logic_l5_exit_with_empty_cart_triggers_subroutine_a(monkeypatch):
         cart["刮刮樂"] = 1
         return ("L4", 0)
 
-    def stub_run_l4(*, speak, print_terminal, read_customer_input, cart, loop_count,
-                    unclear_count, opencv_disable, do_action, speak_and_wait=None):
+    def stub_run_l4(*, speak, print_terminal, read_customer_input, cart,
+                    opencv_disable, do_action, speak_and_wait=None):
         # L4-A：掃碼成功，不清 cart（L5 負責清）
         return ("L5", 0, 0)
 
@@ -324,8 +324,8 @@ def test_logic_enter_hawk_immediately_consumed_after_l1(monkeypatch):
             cart["冰紅茶"] = 1
             return ("L4", 0)
 
-    def stub_run_l4(*, speak, print_terminal, read_customer_input, cart, loop_count,
-                    unclear_count, opencv_disable, do_action, speak_and_wait=None):
+    def stub_run_l4(*, speak, print_terminal, read_customer_input, cart,
+                    opencv_disable, do_action, speak_and_wait=None):
         # L4 取消路徑：清 cart + 退出 subroutine_a → flag=True
         cart.clear()
         return ("L1_via_subroutine_a", 0, 0)

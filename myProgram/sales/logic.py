@@ -19,7 +19,7 @@
 各 run_? return shape：
     - run_l1 → str | None ("L2" / None — 字串保留沿用，但語義 = "進 dialog"）
     - run_dialog → tuple[str, int]（next_state ∈ {"L4", "L1_via_subroutine_a"}, next_think_count）
-    - run_l4 / run_l5 → tuple[str, int, int]（next_state, next_loop_count, next_unclear_count）
+    - run_l4 / run_l5 → tuple[str, int, int]（next_state, 0, 0 — 兩個 0 占位，保留 3-tuple shape）
 """
 
 from myProgram.sales import states
@@ -96,13 +96,11 @@ def run(
 
         # === L4 ===
         _assert_cart_nonempty(cart, "進 L4")
-        next_state, _loop, _unclear = states.run_l4(
+        next_state, _, _ = states.run_l4(
             speak=speak,
             print_terminal=print_terminal,
             read_customer_input=read_customer_input,
             cart=cart,
-            loop_count=0,
-            unclear_count=0,
             opencv_disable=opencv_disable,
             do_action=do_action,
             speak_and_wait=speak_and_wait,

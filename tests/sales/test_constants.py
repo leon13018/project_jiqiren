@@ -20,17 +20,42 @@ import myProgram.sales.constants as const
 ### Given 載入 sales 模組的常數
 ### When 讀取所有時間常數
 ### Then WAIT_NO_RESPONSE=6 / HAWK_INTERVAL=12 / OPENCV_MUTE=6 /
-###      THANK_DELAY=3 / AUTO_CHECKOUT_NOTICE=12 / L4_MAX_LOOPS=6 / OPENCV_DWELL=1.5
+###      THANK_DELAY=3 / AUTO_CHECKOUT_NOTICE=12 / OPENCV_DWELL=1.5
 ###      （AUTO_CHECKOUT_NOTICE 2026-05-26 從 10 → 12；OPENCV_MUTE 同日從 12 → 6，
 ###       12s 對展演節奏太久，6s 已足夠擋掉「同一顧客剛走又走回」）
+###      （2026-05-30 L4 重構簡化：移除 L4_MAX_LOOPS — loop_count 機制廢除）
 def test_time_constants_match_spec() -> None:
     assert const.WAIT_NO_RESPONSE == 6
     assert const.HAWK_INTERVAL == 12
     assert const.OPENCV_MUTE == 6
     assert const.THANK_DELAY == 3
     assert const.AUTO_CHECKOUT_NOTICE == 12
-    assert const.L4_MAX_LOOPS == 6
     assert const.OPENCV_DWELL == 1.5
+
+
+# ============================================================
+# L4 重構簡化版常數（2026-05-30）
+# 取代 L4_TOTAL_BUDGET=60 + WAIT_NO_RESPONSE 子流程 + L4_SERVICE_TIMEOUT 獨立 + L4_MAX_LOOPS
+# ============================================================
+
+
+def test_l4_total_budget_is_30_seconds() -> None:
+    """L4_TOTAL_BUDGET 重構簡化版改為 30s（從舊版 60s 砍半）。
+
+    User 反饋舊 60s + loop_count 6 次循環 + final confirmation 18s + service 獨立
+    60s 過度複雜；新設計單一 30s budget 涵蓋整個 L4 場景（含客服模式）。
+    """
+    assert const.L4_TOTAL_BUDGET == 30
+
+
+def test_l4_prompt_interval_is_12_seconds() -> None:
+    """L4_PROMPT_INTERVAL = 12s 沒回應重 prompt 的間隔（取代舊 WAIT_NO_RESPONSE=6s + 4 階段語氣）。"""
+    assert const.L4_PROMPT_INTERVAL == 12
+
+
+def test_l4_prompt_interval_strictly_less_than_total_budget() -> None:
+    """L4_PROMPT_INTERVAL 必須嚴格小於 L4_TOTAL_BUDGET，否則整個 budget 內只能讀一次 input。"""
+    assert const.L4_PROMPT_INTERVAL < const.L4_TOTAL_BUDGET
 
 
 # ============================================================
