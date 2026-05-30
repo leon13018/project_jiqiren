@@ -4,12 +4,12 @@
 
 設計（跟 _cancel_confirm.py 對稱；語意 inverse）：
     - print SERVICE_PHONE + speak L4_C_CONFIRM_PROMPT_TEMPLATE「請問是否繼續交易？24秒後將自動取消交易。」
-    - 一次性 L4_C_CONFIRM_TIMEOUT=12s wall-clock budget
+    - 一次性 L4_C_CONFIRM_TIMEOUT=24s wall-clock budget
     - YES keyword 命中 → return "yes"
     - NO keyword 命中 → return "no"
     - silent / 倒數歸零 → return "no"（跟 prompt 字面「自動取消」對齊）
     - 終端 "s"（僅 allow_scan=True）→ return "scan"
-    - 亂答 → speak L4_UNCLEAR_NOTICE + continue（不重置 12s budget）
+    - 亂答 → speak L4_UNCLEAR_NOTICE + continue（不重置 24s budget）
 
 NO 必須先 check 避免「不繼續」substring 含「繼續」strict_short 誤命中 YES。
 """
