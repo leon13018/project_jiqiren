@@ -9,6 +9,7 @@
 
 __all__ = [
     "WAIT_NO_RESPONSE",
+    "QTY_FOLLOWUP_TIMEOUT",
     "DNC_TIMEOUT",
     "DYC_TIMEOUT",
     "HAWK_INTERVAL",
@@ -32,6 +33,13 @@ __all__ = [
 
 # L2 / L3 / L4 顧客無回應 timeout
 WAIT_NO_RESPONSE: int = 6
+
+# L2 / L3 qty followup 專屬 timeout（2026-05-30 加；user demo UX 反饋）
+# 通用 WAIT_NO_RESPONSE=6s 對「請問X要幾Y？」追問過於急促 — 顧客可能正在
+# 看商品 / 數錢 / 思考數量；改 12s 給更寬鬆回答時間。
+# 不影響其他 6s 子流程（B-3/B-4 沉默 / unclear_final / L4 main/final/service
+# 仍走 WAIT_NO_RESPONSE）— 只覆蓋 _qty_follow_up_sub_loop 內 read。
+QTY_FOLLOWUP_TIMEOUT: int = 12
 
 # DnC（L2 cart-empty 詢問需求）專用 timeout（2026-05-26 加，比通用值寬鬆）
 # 顧客被 OpenCV 偵測到後可能還在挑商品 / 看招牌；給 12s 比 6s 更實際。

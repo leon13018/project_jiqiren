@@ -106,3 +106,23 @@ def test_hawk_slogan_rotates_by_mod_6() -> None:
         assert actual == expected, (
             f"第 {n} 輪應為索引 {expected_idx}，但 HAWK_SLOGANS[{n} % 6] 不等於 HAWK_SLOGANS[{expected_idx}]"
         )
+
+
+# ============================================================
+# 2026-05-30：qty followup 專屬 timeout（L2/L3「請問X要幾Y？」追問）
+#
+# User demo 反饋：通用 WAIT_NO_RESPONSE=6s 對 qty 追問過急 — 顧客可能正在
+# 看商品 / 數錢 / 思考數量。新增 QTY_FOLLOWUP_TIMEOUT=12s 專覆蓋此路徑。
+# 其他 7 處 6s caller（B-3/B-4 沉默 / unclear_final / L4 main/final/service）
+# 仍走 WAIT_NO_RESPONSE，不受影響。
+# ============================================================
+
+
+def test_qty_followup_timeout_is_12_seconds() -> None:
+    """QTY_FOLLOWUP_TIMEOUT 常數值應為 12 秒（比通用 6s 寬鬆）。"""
+    assert const.QTY_FOLLOWUP_TIMEOUT == 12
+
+
+def test_qty_followup_timeout_strictly_longer_than_generic() -> None:
+    """QTY_FOLLOWUP_TIMEOUT 必須嚴格大於 WAIT_NO_RESPONSE — 否則拆出新常數無意義。"""
+    assert const.QTY_FOLLOWUP_TIMEOUT > const.WAIT_NO_RESPONSE

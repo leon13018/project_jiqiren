@@ -6342,3 +6342,48 @@ def test_qty_followup_clarify_after_unclear_uses_speak_and_wait() -> None:
         f"預期 speak_and_wait 收到 clarify 風格 prompt，"
         f"實際 speak_and_wait_calls={speak_and_wait_calls}"
     )
+
+
+# ============================================================
+# 2026-05-30：qty followup timeout 6s → 12s（QTY_FOLLOWUP_TIMEOUT 專屬常數）
+#
+# User demo 反饋：「請問X要幾Y？」追問 6s 過急。改 12s 給顧客更寬鬆回答時間。
+# 不影響其他 7 處 6s caller（B-3/B-4 沉默 / unclear_final / L4 main/final/service）。
+# ============================================================
+
+
+def test_qty_followup_read_uses_qty_followup_timeout_constant() -> None:
+    """qty followup sub-loop 內 read_customer_input 必須以 timeout=12 呼叫（QTY_FOLLOWUP_TIMEOUT）。
+
+    用 recording stub 取代 FakeCustomerInput，捕獲每次 read 的 timeout 參數。
+    場景：紅茶（無數量）→ qty_followup ask → 顧客回 "2" → 加 cart →
+    None None C-2 silent → confirm；「對」→ L4。
+    只驗證「追問 read」這一次 timeout（首次 read 觸發 qty followup）。
+    """
+    from myProgram.sales.constants import QTY_FOLLOWUP_TIMEOUT
+
+    timeout_log: list[float] = []
+    seq = iter(["紅茶", "2", None, None, "對"])
+
+    def recording_read(timeout: float) -> str | None:
+        timeout_log.append(timeout)
+        return next(seq, None)
+
+    cart = cart_module.new_cart()
+    next_state, _ = states.run_dialog(
+        speak=lambda text: None,
+        print_terminal=lambda text: None,
+        read_customer_input=recording_read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # 驗：QTY_FOLLOWUP_TIMEOUT (12s) 至少出現一次 — 對應追問 read（顧客回 "2" 那次）
+    assert QTY_FOLLOWUP_TIMEOUT in timeout_log, (
+        f"qty followup read 應以 timeout={QTY_FOLLOWUP_TIMEOUT} 呼叫，實際 timeouts={timeout_log}"
+    )
+    # 反向：追問 path 不再用 WAIT_NO_RESPONSE (6s)。其他 caller（L2 entry / C-2 silent /
+    # confirm）可能仍用 6s 或其他值，故只驗「12 有出現」+ 「至少 12 有出現」即可。
+    assert next_state == "L4"

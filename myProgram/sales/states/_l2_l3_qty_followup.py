@@ -32,7 +32,7 @@ from myProgram.sales.constants import (
     QTY_PROMPT_TEMPLATE,
     QTY_CLARIFY_TEMPLATE,
     SERVICE_PHONE,
-    WAIT_NO_RESPONSE,
+    QTY_FOLLOWUP_TIMEOUT,
     PRODUCT_CANCELLED_NOTICE_TEMPLATE,
     MULTI_PRODUCT_CANCELLED_NOTICE_TEMPLATE,
 )
@@ -84,7 +84,8 @@ def resolve_and_add_products(
             fallback 到 speak（向後兼容既有測試）；production wire-up 必須傳真實
             callback，讓「speak qty prompt 後接 read」path（QTY_PROMPT_TEMPLATE /
             QTY_CLARIFY_TEMPLATE / cart cap mid-loop reprompt）從 TTS 播完才開始
-            算 WAIT_NO_RESPONSE=6s — 否則 2-3s 語音吃掉一半預算。
+            算 QTY_FOLLOWUP_TIMEOUT=12s — 否則 2-3s 語音吃掉一半預算。
+            （2026-05-30 從 WAIT_NO_RESPONSE=6s 改成專屬 12s，給顧客回答數量更寬鬆時間）
 
     Returns:
         (True, []) — 至少一個商品加入 cart，且全部 sub_loop 未 skip
@@ -181,7 +182,7 @@ def _qty_follow_up_sub_loop(
     cancel_notice = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product=product)
     attempts = 0
     while True:
-        follow_up = read_customer_input(timeout=WAIT_NO_RESPONSE)
+        follow_up = read_customer_input(timeout=QTY_FOLLOWUP_TIMEOUT)
 
         if follow_up is None:
             # Timeout → skip 該商品（2026-05-29 反轉：原本自動加 1 改成視為顧客不買此商品）
