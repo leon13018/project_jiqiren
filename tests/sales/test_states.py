@@ -4373,6 +4373,64 @@ def test_l3_checkout_confirm_unclear_exhausted_speaks_distinct_message() -> None
     )
 
 
+# ============================================================
+# L3-CONFIRM-YES-001
+### Scenario: L3 結帳 confirm「您即將結帳... 正確嗎？」常見肯定回應
+### Given L3 「結帳」進 C-1 confirm，cart 含商品
+### When 顧客回應 user 列表 9 個常見「YES」用語之一
+### Then confirm → result "yes" → speak L3_C1_CHECKOUT_GO + return ("L4", 0)
+### Note 2026-05-31 加：Pi demo「對哦」/「對呢」miss 修補 + 同類「對 X」family sweep
+# ============================================================
+
+@pytest.mark.parametrize(
+    "yes_text",
+    [
+        "對哦",
+        "沒錯",
+        "非常正確",
+        "是的沒錯",
+        "是的",
+        "對的",
+        "對的呢",
+        "對呢",
+        "沒錯呢",
+    ],
+)
+def test_l3_checkout_confirm_yes_phrases_progress_to_l4(yes_text: str) -> None:
+    """L3 結帳 confirm：user 列出的 9 個常見肯定用語應視為 YES 進 L4。
+
+    user 列表（Pi demo 反饋）：
+    - 「對 X」family：對哦 / 對呢（substring 加入；「對的」/「對的呢」既有 cover）
+    - 「沒錯 X」family：既有 substring「沒錯」cover「沒錯」/「沒錯呢」/「是的沒錯」
+    - 「正確 X」family：既有 substring「正確」cover「非常正確」
+    - 「是的」family：既有 substring「是的」cover
+    """
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # 「結帳」→ L3 main loop 結帳分支進 confirm prompt
+    # yes_text → confirm YES → speak L3_C1_CHECKOUT_GO + return L4
+    customer_input = FakeCustomerInput(["結帳", yes_text])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    assert next_state == "L4", (
+        f"L3 confirm「{yes_text}」應視為 YES 進 L4，實際：{next_state!r}, speak_calls: {speak_calls}"
+    )
+    # cart 保留（YES 進 L4 不清 cart）
+    assert not cart_module.is_empty(cart), (
+        f"YES 進 L4 不該清 cart，實際：{cart}"
+    )
+
+
 def test_l3_c2_yes_keyword_好_proceeds_directly_to_l4() -> None:
     """C-2 第二段「好」不在 C-2 三組 keyword（CONTINUE/CHECKOUT/CANCEL）內 → 視為亂答 silent
     → 倒數歸零 → 進 confirm（2026-05-29 反轉合流）→ confirm「對」 → L4。
