@@ -73,12 +73,17 @@ def test_read_customer_input_calls_wait_idle_before_input_read(monkeypatch):
     驗證 wait_idle 必須在 input_reader.read 之前被 call（順序對；
     對 wall-clock budget caller speak_and_wait 後 pending=0 是 immediate
     no-op，對非 budget caller 自動 cover TTS 等待）。
+
+    2026-05-30 加：read_customer_input 進入 polling loop（每秒印 `timeout = N`），
+    為避免測試陷入無限迴圈（mock 的 input_reader.read 不真實 sleep，monotonic
+    不前進），讓 mock 第一次 read 即回傳 "x"（非 None）讓 loop break，再驗
+    wait_idle → read 順序。
     """
     call_order = []
     _install_fake_tts(monkeypatch, _make_fake_tts_module(call_order))
     monkeypatch.setattr(
         "myProgram.input_reader.read",
-        lambda timeout: call_order.append("read") or None,
+        lambda timeout: call_order.append("read") or "x",
     )
 
     callbacks = _build_callbacks(_S1State())
