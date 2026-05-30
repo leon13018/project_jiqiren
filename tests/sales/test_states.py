@@ -17,6 +17,8 @@ FakeScheduler：
     - tick(seconds)：推進時間，觸發到期的 callback（含連鎖觸發）
 """
 
+import pytest
+
 import myProgram.sales.states as states
 from myProgram.sales.constants import (
     HAWK_SLOGANS,
@@ -2844,6 +2846,130 @@ def test_l3_c2_second_stage_continue_speaks_ack_and_returns_to_main_loop() -> No
     # 後續可進 L4
     assert next_state == "L4", (
         f"CONTINUE → main loop → 加單 → C-1 confirm yes 應進 L4，實際：{next_state!r}"
+    )
+
+
+# ============================================================
+# L3-C-2-007
+### Scenario: C-2 第二段擴展 CONTINUE keyword 命中 → speak ack + 回 main loop
+### Given L3 C-2 第二段等待中（已 speak warning），cart 含商品
+### When 顧客輸入新加 CONTINUE keyword family 內任一詞（如「繼續購買」/「再買」）
+### Then 命中 KEYWORDS_C2_CONTINUE → speak L3_C2_CONTINUE_ACK + 回 main loop
+### Note 2026-05-30 加：修 Pi demo bug —「繼續購買」這類常見口語原本 fall through 到亂答
+# ============================================================
+
+@pytest.mark.parametrize(
+    "continue_keyword",
+    [
+        "繼續購買",   # user demo 場景直接觸發
+        "繼續買",
+        "繼續加買",
+        "繼續加購",
+        "繼續挑",
+        "繼續逛",
+        "繼續看",
+        "再買",
+        "再加",
+        "再選",
+        "再來",
+        "再來一個",
+        "再來一張",
+        "還想買",
+        "想再買",
+        "我想再買",
+        "继续选购",   # 簡體變體
+        "继续购买",
+        "继续买",
+        "再买",
+        "再加",
+    ],
+)
+def test_l3_c2_second_stage_expanded_continue_keywords_hit_and_resume_dialog(
+    continue_keyword: str,
+) -> None:
+    """C-2 第二段新擴 CONTINUE keyword 命中 → speak ack + 回 main loop 可繼續加單。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # None → C-2 第一段；continue_keyword → CONTINUE 命中 → ack → 回 main loop
+    # 「冰紅茶 2」→ 加單；「結帳」→ C-1 confirm；「1」→ yes 進 L4
+    customer_input = FakeCustomerInput(
+        [None, continue_keyword, "冰紅茶 2", "結帳", "1"]
+    )
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # CONTINUE 必 speak ack
+    assert L3_C2_CONTINUE_ACK in speak_calls, (
+        f"擴 CONTINUE keyword「{continue_keyword}」應命中並 speak ack，實際：{speak_calls}"
+    )
+    # cart 保留 + 後續加單共 3 瓶
+    assert cart_module.get_quantity(cart, "冰紅茶") == 3, (
+        f"CONTINUE 不該清 cart + 後續加 2 瓶 → 共 3 瓶，實際：{cart}"
+    )
+    assert next_state == "L4", (
+        f"CONTINUE → main loop → 加單 → confirm yes 應進 L4，實際：{next_state!r}"
+    )
+
+
+# ============================================================
+# L3-C-2-008
+### Scenario: C-2 第二段擴展 CANCEL keyword 命中 → 清 cart 退 L1
+### Given L3 C-2 第二段等待中（已 speak warning），cart 含商品
+### When 顧客輸入新加 CANCEL keyword family 內任一詞（如「取消購買」/「我想取消」）
+### Then 命中 KEYWORDS_C2_CANCEL → _dialog_exit_a → clear cart + 退 L1
+### Note 2026-05-30 加：同類 sweep —「取消購買」等口語原本被 strict_short ["取消"] equals 漏掉
+# ============================================================
+
+@pytest.mark.parametrize(
+    "cancel_keyword",
+    [
+        "取消購買",
+        "我要取消",
+        "想取消",
+        "我想取消",
+        "不想要了",
+        "取消购买",   # 簡體變體
+    ],
+)
+def test_l3_c2_second_stage_expanded_cancel_keywords_hit_and_exit_l1(
+    cancel_keyword: str,
+) -> None:
+    """C-2 第二段新擴 CANCEL keyword 命中 → 清 cart 退 L1."""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # None → C-2 第一段；cancel_keyword → CANCEL 命中 → _dialog_exit_a：
+    # speak L3_REJECT_THANKS + clear cart + 退 L1
+    customer_input = FakeCustomerInput([None, cancel_keyword])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # _dialog_exit_a：speak L3_REJECT_THANKS + clear cart + 退 L1
+    assert L3_REJECT_THANKS in speak_calls, (
+        f"擴 CANCEL keyword「{cancel_keyword}」應命中並 speak L3_REJECT_THANKS，實際：{speak_calls}"
+    )
+    assert cart_module.is_empty(cart), (
+        f"CANCEL 應清 cart，實際：{cart}"
+    )
+    assert next_state == "L1_via_subroutine_a", (
+        f"CANCEL → 退 L1，實際：{next_state!r}"
     )
 
 
