@@ -131,17 +131,32 @@ def test_sleep_calls_wait_idle_before_actual_sleep(monkeypatch):
 
     只等 TTS（不等 do_action）— L5 揮手動作可跟 3s 禮貌間隔並行（regular UX
     — 顧客看到動作 + 聽完語音 + 有 3s 走人）。
+
+    2026-05-30 加：sleep 進入 polling loop（每秒印 `wait = N`）對齊 read_customer_input
+    countdown pattern；為避免測試陷入無限迴圈（mock 的 time.sleep 不真實前進
+    monotonic clock），用虛擬時鐘 advance — 每次 time.sleep(s) 把 monotonic 推 s 秒，
+    讓 loop 自然耗盡 deadline。順序仍驗 wait_idle → 第一次 sleep。
     """
     call_order = []
     _install_fake_tts(monkeypatch, _make_fake_tts_module(call_order))
-    monkeypatch.setattr(
-        "time.sleep",
-        lambda seconds: call_order.append(f"sleep({seconds})"),
-    )
+    # 虛擬時鐘：time.sleep(s) 推進 monotonic s 秒（避免 polling loop 無限迴圈）
+    clock = [0.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+
+    def fake_sleep(seconds):
+        call_order.append(f"sleep({seconds})")
+        clock[0] += seconds
+
+    monkeypatch.setattr("time.sleep", fake_sleep)
 
     callbacks = _build_callbacks(_S1State())
     callbacks["sleep"](3)
 
-    assert call_order == ["wait_idle", "sleep(3)"], (
-        f"順序應 wait_idle → sleep，實際：{call_order}"
+    # wait_idle 必須先於任何 sleep；後續 3 次 sleep(1.0) 是 polling loop
+    # 對齊整秒邊界（remaining=3.0 → 1.0；2.0 → 1.0；1.0 → 1.0）
+    assert call_order[0] == "wait_idle", (
+        f"wait_idle 應排第一，實際：{call_order}"
+    )
+    assert call_order[1].startswith("sleep("), (
+        f"wait_idle 後應接 sleep（polling loop），實際：{call_order}"
     )

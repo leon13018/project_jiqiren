@@ -271,13 +271,35 @@ def _build_callbacks(state: _S1State) -> dict:
         解 L5 latent bug：S4 後 speak 非阻塞 + S5 後 do_action 非阻塞 →
         sleep(3) 立即倒數 → 顧客 effective 離開時間 ~1s 而非規格 3s。
         只等 TTS，不等 do_action — 揮手動作可跟 3s 禮貌間隔並行（regular UX）。
+
+        2026-05-30 後續：取代一次性 `print("[等待] {seconds}s")` 為 polling loop 每秒
+        印 `wait = N`，user debug 視覺時間感對齊 read_customer_input countdown。
+        格式用 `wait = N` 而非 `timeout = N` — 區分語意（sleep 不可被打斷，
+        read_customer_input 可被輸入打斷）。每秒對齊整秒邊界 time.sleep 不浮點漂移。
         """
         # 2026-05-30 v3：等 TTS 播完才開始倒數（規格 3s「禮貌間隔」生效）
         # Lazy import 對齊既有 speak / read_customer_input callback pattern
         from myProgram import tts
         tts.wait_idle()
-        print(f"[等待] {seconds}s")
-        time.sleep(seconds)
+        # 2026-05-30 加：每秒打印 wait 倒數（user 要求 debug 視覺時間感）
+        # 取代原本一次性 `[等待] {seconds}s`；對齊 read_customer_input countdown pattern
+        # 但格式用 `wait = N` 區分語意：sleep 不可被打斷（規格 L5 致謝期間不接受
+        # 顧客輸入），用 wait 暗示「純阻塞等待」；read_customer_input 用 timeout
+        # 暗示「可被輸入打斷的等待」。
+        #
+        # seconds is None / <= 0 fallback：no-op（向後相容；理論上 sleep caller 不會傳）
+        if seconds is None or seconds <= 0:
+            return
+        deadline = time.monotonic() + seconds
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            ticks = math.ceil(remaining)
+            print(f"wait = {ticks}")
+            # 等到下一個整秒邊界（seconds=3.0 → 1.0s；seconds=2.7 → 0.7s 對齊整秒）
+            wait_to_next = remaining - (ticks - 1)
+            time.sleep(wait_to_next)
 
     def schedule(seconds, fn):
         """S1 schedule：不真排程，僅印警告（單線程不能背景跑）。"""
