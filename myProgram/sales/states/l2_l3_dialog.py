@@ -53,6 +53,7 @@ from myProgram.sales.constants import (
     L3_CHECKOUT_TIMEOUT_CLEAR_NOTICE,
     L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE,
     L3_C2_WARNING_TEMPLATE,
+    L3_C2_CONTINUE_ACK,
     CHECKOUT_CONFIRM_TIMEOUT,
     CHECKOUT_CONFIRM_UNCLEAR_MAX,
     PRODUCTS,
@@ -395,8 +396,9 @@ def _dialog_c2_second_stage(
     - Three-way dispatcher（CANCEL 優先：顧客錢包 conservative）：
         - CANCEL（KEYWORDS_C2_CANCEL + strict-short ["取消"]）→ _dialog_exit_a：
           清 cart + speak L3_REJECT_THANKS + return ("L1_via_subroutine_a", 0)
-        - CONTINUE（KEYWORDS_C2_CONTINUE + strict-short ["繼續"]）→ _dialog_main_loop：
-          不清 cart，重入 dialog 主迴圈讓顧客繼續加單
+        - CONTINUE（KEYWORDS_C2_CONTINUE + strict-short ["繼續"]）→ speak L3_C2_CONTINUE_ACK + _dialog_main_loop：
+          不清 cart，重入 dialog 主迴圈讓顧客繼續加單（ack 維持對話上下文，
+          2026-05-30 加：main loop 不重播 entry prompt，無 ack 顧客失去語音回饋 → 沉默 → 又被 DYC_TIMEOUT 抓回 C-2）
         - CHECKOUT（KEYWORDS_C2_CHECKOUT + strict-short ["結"]）→ _c2_checkout_via_confirm：
           經 _dialog_checkout_confirm 確認明細 → "yes" 進 L4；非 yes 清 cart + 重入
     - 亂答（不在三組 keyword）→ silent 倒數（第一次提示「請說『繼續』、『結賬』或『取消』」，後續 silent）
@@ -455,11 +457,14 @@ def _dialog_c2_second_stage(
         ):
             return _dialog_exit_a(speak, cart)
 
-        # CONTINUE：不清 cart，重入 dialog 主迴圈（顧客繼續加單）
+        # CONTINUE：speak ack 後不清 cart，重入 dialog 主迴圈（顧客繼續加單）
+        # 2026-05-30 加 ack speak：main loop 不重播 entry prompt，若直接 return
+        # 顧客失去對話上下文 → 沉默 → 又被 DYC_TIMEOUT 抓回 C-2（Pi demo 實測 bug）
         if (
             contains_any(response, KEYWORDS_C2_CONTINUE)
             or equals_strict_short(response, KEYWORDS_C2_CONTINUE_STRICT_SHORT)
         ):
+            speak(L3_C2_CONTINUE_ACK)
             return _dialog_main_loop(
                 speak=speak,
                 print_terminal=print_terminal,

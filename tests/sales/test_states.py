@@ -55,6 +55,7 @@ from myProgram.sales.constants import (
     L3_CHECKOUT_TIMEOUT_CLEAR_NOTICE,
     L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE,
     L3_C2_WARNING_TEMPLATE,
+    L3_C2_CONTINUE_ACK,
     UNCLEAR_MAX,
     L4_ACK_GENTLE,
     L4_E_CLARIFY,
@@ -2786,6 +2787,61 @@ def test_l3_c2_second_stage_checkout_goes_directly_to_l4() -> None:
     # 應 speak 過「正確嗎」prompt（silent timeout 改經 confirm 合流路徑）
     assert any("正確嗎" in s for s in speak_calls), (
         f"silent timeout 應經 confirm（2026-05-29 反轉合流），實際：{speak_calls}"
+    )
+
+
+# ============================================================
+# L3-C-2-006
+### Scenario: C-2 第二段「繼續」命中 → speak ack + 回 main loop 可繼續加單
+### Given L3 C-2 第二段等待中（已 speak warning），cart 含商品
+### When 顧客輸入「繼續」（命中 KEYWORDS_C2_CONTINUE_STRICT_SHORT）
+### Then speak L3_C2_CONTINUE_ACK 通知顧客繼續加單 + 回 main loop
+###      後續可加單 + 結帳進 L4，cart 保留（不清空）
+### Note 2026-05-30 加：修 Pi demo bug — main loop 無 entry prompt，
+###      若 CONTINUE 不 speak ack 顧客失去對話上下文又被 DYC_TIMEOUT 抓回 C-2
+# ============================================================
+
+def test_l3_c2_second_stage_continue_speaks_ack_and_returns_to_main_loop() -> None:
+    """C-2 「繼續」命中 → speak L3_C2_CONTINUE_ACK + 回 main loop。
+
+    驗證：
+    - speak_calls 含 L3_C2_CONTINUE_ACK（ack 必 speak）
+    - cart 不清空（CONTINUE 不該動 cart）
+    - 後續可加單 + 「結帳」+「1」confirm yes → L4
+    """
+    # Arrange
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # None → main loop DYC timeout → 進 C-2 第二段
+    # 「繼續」→ CONTINUE 命中 → speak ack → 回 main loop
+    # 「冰紅茶 2」→ main loop 加單成功
+    # 「結帳」→ C-1 進 confirm
+    # 「1」→ confirm yes → L4
+    customer_input = FakeCustomerInput([None, "繼續", "冰紅茶 2", "結帳", "1"])
+
+    # Act
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # Assert：CONTINUE 必 speak ack
+    assert L3_C2_CONTINUE_ACK in speak_calls, (
+        f"C-2 CONTINUE 命中應 speak L3_C2_CONTINUE_ACK，實際：{speak_calls}"
+    )
+    # CONTINUE 不該清 cart（後續加單 1+2=3 瓶）
+    assert cart_module.get_quantity(cart, "冰紅茶") == 3, (
+        f"CONTINUE 不該清 cart + 後續加 2 瓶 → 共 3 瓶，實際：{cart}"
+    )
+    # 後續可進 L4
+    assert next_state == "L4", (
+        f"CONTINUE → main loop → 加單 → C-1 confirm yes 應進 L4，實際：{next_state!r}"
     )
 
 

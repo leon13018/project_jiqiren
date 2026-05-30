@@ -17,6 +17,7 @@ __all__ = [
     "L3_CHECKOUT_TIMEOUT_CLEAR_NOTICE",
     "L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE",
     "L3_C2_WARNING_TEMPLATE",
+    "L3_C2_CONTINUE_ACK",
 ]
 
 # ============================================================
@@ -80,6 +81,14 @@ L3_C2_WARNING_TEMPLATE: str = (
     "請問您想要繼續選購商品、結賬還是取消購買？"
     "{seconds}秒後將自動結賬。"
 )
+
+# L3 鏈路 C-2 第二段「繼續選購」分支 ack 語音（2026-05-30 加；Pi demo UX 修補）
+# 顧客在 C-2 三選一講「繼續」命中 KEYWORDS_C2_CONTINUE → 回 _dialog_main_loop
+# 之前 speak 此 ack 讓顧客知道「繼續加單」狀態已生效、可以接著講商品名。
+# 不重播 L3_ENTRY_PROMPT 因為剛聽完 C-2 三選一警告，重新問「還有額外需要購買的嗎」
+# 略顯生硬;短 ack「好的，請繼續選購」是 loading-bar 等價過場 UX
+# （對齊 memory tts_prompt_as_ux_pacing 設計哲學）。
+L3_C2_CONTINUE_ACK: str = "好的，請繼續選購"
 
 # 注意：DIALOG_VAGUE_BUY_REASK 已於 2026-05-26 Wave 6 移至 constants/shared.py
 # （原因：L2 + L3 通用，跨層性質不應歸單一 L 層 text 檔）
