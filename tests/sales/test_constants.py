@@ -65,13 +65,15 @@ def test_l4_prompt_interval_strictly_less_than_total_budget() -> None:
 # ============================================================
 
 
-def test_l4_c_confirm_timeout_is_12_seconds() -> None:
-    """L4_C_CONFIRM_TIMEOUT = 12s 一次性決策 budget（取代 L4_PROMPT_INTERVAL × N 次 retry）。
+def test_l4_c_confirm_timeout_is_24_seconds() -> None:
+    """L4_C_CONFIRM_TIMEOUT = 24s 一次性決策 budget（2026-05-31 從 12s 提升 — user 反饋打電話聯絡客服需充裕時間）。
 
-    User 反饋客服需充裕思考時間；12s 比 CANCEL_CONFIRM_TIMEOUT=6s 更寬鬆，
+    User 反饋客服需充裕思考時間；24s 比 CANCEL_CONFIRM_TIMEOUT=6s 更寬鬆，
     但比舊版「12s × 多次循環」乾淨單純。
     """
-    assert const.L4_C_CONFIRM_TIMEOUT == 12
+    assert const.L4_C_CONFIRM_TIMEOUT == 24, (
+        f"L4_C_CONFIRM_TIMEOUT 應為 24 秒，實際：{const.L4_C_CONFIRM_TIMEOUT}"
+    )
 
 
 def test_l4_c_confirm_prompt_template_includes_seconds_placeholder() -> None:

@@ -101,13 +101,14 @@ L4_TOTAL_BUDGET: int = 30
 # Service mode 與主迴圈共用此間隔（user 字面「L4 其它所有鏈路和狀態也是使用這種設計方式」）。
 L4_PROMPT_INTERVAL: int = 12
 
-# L4 客服模式「請問是否繼續交易？」確認子狀態 wall-clock 預算（2026-05-30 加；二次重構）
+# L4 / L2 / L3 三層 + qty followup 客服模式「請問是否繼續交易？」確認子狀態 wall-clock 預算
+# （2026-05-30 加；2026-05-31 從 12s 提升至 24s — user 反饋打電話聯絡客服需更充裕時間）
 # 取代舊版「L4_PROMPT_INTERVAL=12s × N 次 retry loop + cancel_confirm 雙重 gate」設計。
-# 一次性 12s 決策：silent / NO 視為取消（直接清 cart 退 L1，不雙重確認）；YES 回 L4 主迴圈。
+# 一次性 24s 決策：silent / NO 視為取消（直接清 cart 退 L1，不雙重確認）；YES 回原鏈路。
 # 對齊 CANCEL_CONFIRM_TIMEOUT=6s pattern 但語意 inverse（cancel_confirm 問「是否取消」
 # silent=取消；此處問「是否繼續」silent=取消）— 兩者都是「保守 default 取消」。
-# 12s 比 6s 寬鬆，user 反饋客服需充裕思考時間（顧客可能正在打電話）。
-L4_C_CONFIRM_TIMEOUT: int = 12
+# 24s 比 6s 寬鬆，user 反饋客服需充裕思考時間（顧客可能正在打電話聯絡客服）。
+L4_C_CONFIRM_TIMEOUT: int = 24
 
 # Cross-L cancel confirm 子狀態 wall-clock 預算（2026-05-29 加）
 # 跨 L2/L3/L4 任何 read 點偵測到 cancel intent 後進此確認狀態。
