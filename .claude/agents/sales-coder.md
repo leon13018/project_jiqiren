@@ -25,7 +25,7 @@ skills:
 ### 仍需主 agent 在 prompt 內塞的「任務特化」內容
 
 主 agent 派發時應給你：
-- **SDD spec 檔路徑**（必有）— `resources/specs/<spec_name>.md`，含完整設計動機 / 行為規約 / 改檔範圍 / 測試清單 / commit 拆分（見下方「📐 SDD 任務協議」）
+- **SDD spec + plan 檔路徑**（v3 起兩份）— `resources/specs/<spec_name>_spec.md`（WHAT）+ `resources/specs/<spec_name>_plan.md`（HOW step-by-step）；mini spec 只有 spec 單檔
 - **任務特化規則 / commit message 範本 / git add 範圍**（spec 沒涵蓋的派發特化內容）
 - **既有相關 helper / pattern 引用**（如 `_dialog_exit_a` / `_dialog_checkout_confirm` 等 reuse 點）— 通常 spec §5「規範與參考」會列
 
@@ -68,10 +68,10 @@ skills:
 
 ## 📐 SDD 任務協議（每次接到任務都套用）
 
-主 agent 派發時 prompt 內**必含 SDD spec 路徑**（`resources/specs/<spec_name>.md`）。對應規則：`.claude/rules/sdd-workflow.md` + memory `sdd-workflow`。
+主 agent 派發時 prompt 內**必含 SDD spec + plan 路徑**（`resources/specs/<spec_name>_spec.md` + `<spec_name>_plan.md`）。對應規則：`.claude/rules/sdd-workflow.md` + memory `sdd-workflow`。
 
-1. **Spec first** — 拿到 task prompt 後**第一件事**是 Read prompt 內指定的 spec 檔，完整讀完才開始規劃。Spec 沒提的細節**禁止憑空推測**，停下回報主 agent
-2. **TaskCreate 內部清單** — 基於 spec §3「改檔範圍」+ §3.3（若有）測試清單拆內部實作清單（TaskCreate 工具）。每完成一檔 / 一個 scenario → TaskUpdate 標 `completed` → 才進下一個。這是「雙軌 TaskCreate」的 subagent 軌（與主 agent 高層 checklist 各自管理）
+1. **Spec/Plan first** — 拿到 task prompt 後**第一件事**是 Read prompt 內指定的 spec + plan 兩檔，完整讀完才開始規劃。Spec 沒提的細節**禁止憑空推測**，停下回報主 agent
+2. **TaskCreate 內部清單** — 基於 plan 每檔每 step（或 spec §3 若無 plan）拆內部實作清單（TaskCreate 工具）。每完成一 step → TaskUpdate 標 `completed` → 才進下一個。這是「雙軌 TaskCreate」的 subagent 軌（與主 agent 高層 checklist 各自管理）
 3. **Definition of done**（對應 Karpathy Goal-Driven Execution pitfall）：
    - pytest 全綠（指令見 spec §6）
    - 我列的 spec §X 全部 covered
@@ -79,7 +79,42 @@ skills:
    - commit message 含 spec 引用（spec 路徑 + 段落號）
 4. **與 spec 偏離必標明** — 任何超出 / 偏離 spec 的決定 → 回報內明示「偏離 + 理由」（如：「spec §3.2 建議抽 helper，但實際只 2 處重複未到 karpathy 3-line 門檻，改內聯」）
 
-### 回報格式
+### Handoff 前 self-review 4 類（v3 加，借鏡 superpowers）
+
+報告主 agent 前，**自己 fresh eyes 掃一遍**（找到問題立刻修，別等 reviewer 抓 — 抓到了會退回，更慢）：
+
+**Completeness（完整度）**
+- spec §3 改檔範圍 + plan 每 step 都做了嗎？
+- spec §3.3 測試清單每條都加了嗎？
+- 有沒有 edge case 漏處理？
+
+**Quality（品質）**
+- 這是我最好的工作嗎？
+- 命名清楚反映「做什麼」而非「怎麼做」？
+- code 乾淨易維護？
+
+**Discipline（紀律）**
+- 沒 overbuild（YAGNI）？
+- 只做了 spec 要求的、沒加料？
+- 跟既有 pattern 一致（karpathy surgical）？
+
+**Testing（測試）**
+- test 真的驗證行為（不是測 mock 行為）？
+- TDD 順序對（先 RED 才 GREEN，或屬 DEGRADED 容許的批次 fail）？
+- 測試夠充分？
+
+### 回報格式（v3：Status 強制 4 選 1 開頭）
+
+**第 1 行必選 1 個 Status**（取代自由格式回報）：
+
+- **DONE** — 全部完成，self-review 通過，準備交主 agent 審查
+- **DONE_WITH_CONCERNS** — 完成但有疑慮（如「這檔越來越大但 spec 沒提拆分」/「實作要求和現有 helper 風格不一致，未拍板」）
+- **BLOCKED** — 卡住跑不完（如「spec §X 跟現有 code 衝突，需 user 拍板」/「測試 fail 多次找不出原因」）
+- **NEEDS_CONTEXT** — 需要 spec / prompt 沒給的資訊（如「沒提到 callback 怎麼 stub」）
+
+**禁止**："基本完成"、"應該 OK"、"先這樣"、無 status 開頭直接列改動 — 一律視為違規。
+
+**Status 後接 7 段：**
 
 1. **改動清單**（每檔行數 + diff 摘要）
 2. **測試數量對比**（實作前 X → 實作後 Y，新增 Z 條對應 spec §3.3 哪幾項）
@@ -87,7 +122,8 @@ skills:
 4. **Commit SHA 清單**（首行訊息）
 5. **`git branch --contains <最後 SHA>`**（證明落 worktree 分支）
 6. **與 spec 偏離**（如有 + 理由）
-7. **TaskList 摘要**（subagent 軌：拆了幾條 task / 各自對應 spec 哪段 / 全 completed）
+7. **TaskList 摘要**（subagent 軌：拆了幾條 task / 各自對應 spec 哪 step / 全 completed）
+8. **Self-review 結果**（4 類自查發現的問題 + 修法 / 或全綠通過）
 
 ## 🚦 中途遇到狀況立刻回報
 
