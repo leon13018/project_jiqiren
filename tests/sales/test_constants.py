@@ -34,28 +34,41 @@ def test_time_constants_match_spec() -> None:
 
 
 # ============================================================
-# L4 重構簡化版常數（2026-05-30）
-# 取代 L4_TOTAL_BUDGET=60 + WAIT_NO_RESPONSE 子流程 + L4_SERVICE_TIMEOUT 獨立 + L4_MAX_LOOPS
+# L4 v3 雙計時器常數（2026-05-31）
+# 取代 v2「30s 單一 budget + L4_PROMPT_INTERVAL=12s 沒回應重提示」
+# 詳見 resources/plans/業務程式邏輯規劃/L4_v3_dual_timer_spec.md
 # ============================================================
 
 
-def test_l4_total_budget_is_30_seconds() -> None:
-    """L4_TOTAL_BUDGET 重構簡化版改為 30s（從舊版 60s 砍半）。
+def test_l4_total_budget_is_36_seconds() -> None:
+    """L4_TOTAL_BUDGET v3 雙計時器設計 = 36s（v2 30s → v3 36s = 12 × 3 循環）。
 
-    User 反饋舊 60s + loop_count 6 次循環 + final confirmation 18s + service 獨立
-    60s 過度複雜；新設計單一 30s budget 涵蓋整個 L4 場景（含客服模式）。
+    2026-05-31 v3 雙計時器設計：總 budget 拆成 3 個 QR 刷新循環整數倍，
+    倒數視覺對齊循環邊界。耗盡 → forced exit。
     """
-    assert const.L4_TOTAL_BUDGET == 30
+    assert const.L4_TOTAL_BUDGET == 36
 
 
-def test_l4_prompt_interval_is_12_seconds() -> None:
-    """L4_PROMPT_INTERVAL = 12s 沒回應重 prompt 的間隔（取代舊 WAIT_NO_RESPONSE=6s + 4 階段語氣）。"""
-    assert const.L4_PROMPT_INTERVAL == 12
+def test_l4_qr_refresh_interval_is_12_seconds() -> None:
+    """L4_QR_REFRESH_INTERVAL = 12s 無條件循環刷新間隔（v3；改名自 L4_PROMPT_INTERVAL）。
+
+    每循環開頭：重印結帳區塊 + 重 speak L4_REMIND_PROMPT（不論顧客是否回應）。
+    語意從 v2「沒回應才重提示」改為 v3「無條件循環刷新」。
+    """
+    assert const.L4_QR_REFRESH_INTERVAL == 12
 
 
-def test_l4_prompt_interval_strictly_less_than_total_budget() -> None:
-    """L4_PROMPT_INTERVAL 必須嚴格小於 L4_TOTAL_BUDGET，否則整個 budget 內只能讀一次 input。"""
-    assert const.L4_PROMPT_INTERVAL < const.L4_TOTAL_BUDGET
+def test_l4_total_budget_is_integer_multiple_of_qr_refresh_interval() -> None:
+    """L4_TOTAL_BUDGET 必須是 L4_QR_REFRESH_INTERVAL 整數倍，倒數視覺對齊循環邊界。
+
+    v3 設計：36 = 12 × 3 → 整個 budget 期間共 3 個 QR 刷新循環，最後一輪
+    視覺上 12 → 0 結束於 forced exit（非 v2 30s 最後 6s 不齊感）。
+    """
+    assert const.L4_TOTAL_BUDGET % const.L4_QR_REFRESH_INTERVAL == 0, (
+        f"L4_TOTAL_BUDGET={const.L4_TOTAL_BUDGET} 必須整除 "
+        f"L4_QR_REFRESH_INTERVAL={const.L4_QR_REFRESH_INTERVAL}"
+    )
+    assert const.L4_QR_REFRESH_INTERVAL < const.L4_TOTAL_BUDGET
 
 
 # ============================================================

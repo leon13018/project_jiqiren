@@ -4,7 +4,7 @@
     WAIT_NO_RESPONSE / DNC_TIMEOUT / DYC_TIMEOUT / HAWK_INTERVAL / OPENCV_MUTE /
     THANK_DELAY / AUTO_CHECKOUT_NOTICE / UNCLEAR_MAX / OPENCV_DWELL /
     CHECKOUT_CONFIRM_TIMEOUT / CHECKOUT_CONFIRM_UNCLEAR_MAX /
-    L4_TOTAL_BUDGET / L4_PROMPT_INTERVAL / L4_C_CONFIRM_TIMEOUT /
+    L4_TOTAL_BUDGET / L4_QR_REFRESH_INTERVAL / L4_C_CONFIRM_TIMEOUT /
     CANCEL_CONFIRM_TIMEOUT
 """
 
@@ -23,7 +23,7 @@ __all__ = [
     "CHECKOUT_CONFIRM_TIMEOUT",
     "CHECKOUT_CONFIRM_UNCLEAR_MAX",
     "L4_TOTAL_BUDGET",
-    "L4_PROMPT_INTERVAL",
+    "L4_QR_REFRESH_INTERVAL",
     "L4_C_CONFIRM_TIMEOUT",
     "CANCEL_CONFIRM_TIMEOUT",
 ]
@@ -88,18 +88,22 @@ OPENCV_DWELL: float = 1.5
 CHECKOUT_CONFIRM_TIMEOUT: int = 12
 CHECKOUT_CONFIRM_UNCLEAR_MAX: int = 5
 
-# L4 結帳場景全程 wall-clock 預算（2026-05-30 重構簡化版：60 → 30）
-# 從進入 L4 entry prompt 播完起算，含所有路徑共用；達 0 → forced exit。
-# 取代原舊版「60s + loop_count 6 次循環 4 階段語氣 + unclear_count + final
-# confirmation 18s + L4_SERVICE_TIMEOUT 60s 獨立」複雜機制 — user 反饋過度設計，
-# 「就單純 budget 計時」。客服模式也共用此主 budget remaining。
-L4_TOTAL_BUDGET: int = 30
+# L4 結帳場景全程 wall-clock 預算（2026-05-31 v3 雙計時器設計：30 → 36）
+# 36 = L4_QR_REFRESH_INTERVAL × 3，總 budget 期間共 3 個 QR 刷新循環。
+# 從進入 L4 entry prompt 播完起算；達 0 → forced exit（speak L4_D_FORCED_EXIT
+# + clear cart + 退 L1）。
+# 客服 yes「繼續」返回會 reset；cancel_confirm / 客服子狀態期間暫停 + 補償。
+# 取代原 v2「30s 單一 budget + 12s 重提示」（v2 supersedes 舊「60s + loop_count
+# 6 次循環 4 階段語氣 + unclear_count + final confirmation 18s + 獨立 60s 客服」）。
+# 詳見 resources/plans/業務程式邏輯規劃/L4_v3_dual_timer_spec.md
+L4_TOTAL_BUDGET: int = 36
 
-# L4 主迴圈「12s 沒回應重複提示」間隔（2026-05-30 加；重構簡化版）
-# 取代原本「D 鏈路 WAIT_NO_RESPONSE=6s 4 階段語氣」設計 — user 反饋過度設計，
-# 改成單一 budget + 12s 間隔重 prompt + 亂輸入不重置 budget。
-# Service mode 與主迴圈共用此間隔（user 字面「L4 其它所有鏈路和狀態也是使用這種設計方式」）。
-L4_PROMPT_INTERVAL: int = 12
+# L4 QR 視覺刷新循環間隔（2026-05-31 v3 加；取代 L4_PROMPT_INTERVAL）
+# 每循環開頭：重印結帳區塊 + 重 speak L4_REMIND_PROMPT（無條件，不論顧客是否回應）。
+# 模擬「QR code 每 12s 重新生成」的 UX。子鏈路 ack 不影響此循環。
+# 與 L4_TOTAL_BUDGET=36s 關係：36 = 12 × 3，總 budget 內共 3 個循環。
+# 詳見 resources/plans/業務程式邏輯規劃/L4_v3_dual_timer_spec.md
+L4_QR_REFRESH_INTERVAL: int = 12
 
 # L4 / L2 / L3 三層 + qty followup 客服模式「請問是否繼續交易？」確認子狀態 wall-clock 預算
 # （2026-05-30 加；2026-05-31 從 12s 提升至 24s — user 反饋打電話聯絡客服需更充裕時間）

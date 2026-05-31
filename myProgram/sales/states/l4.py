@@ -4,7 +4,7 @@
 
 設計（重構版）：
     - 單一 wall-clock budget L4_TOTAL_BUDGET = 30s（從進場 prompt 播完起算）
-    - 每 L4_PROMPT_INTERVAL = 12s 沒回應重新 speak L4_REMIND_PROMPT（不重置 budget）
+    - 每 L4_QR_REFRESH_INTERVAL = 12s 沒回應重新 speak L4_REMIND_PROMPT（不重置 budget）
     - 亂輸入只印 L4_UNCLEAR_NOTICE（不重置 budget、不計次）
     - budget 耗盡 → forced exit（speak L4_D_FORCED_EXIT + clear cart + 退 L1）
     - 鏈路：A 掃碼成功 → L5；B 拒絕（cancel_confirm gated）→ 退 L1；C 客服→確認子狀態
@@ -26,7 +26,7 @@ import time
 from myProgram.sales.constants import (
     PRODUCTS,
     L4_TOTAL_BUDGET,
-    L4_PROMPT_INTERVAL,
+    L4_QR_REFRESH_INTERVAL,
     L4_ENTRY_PROMPT_TEMPLATE,
     L4_QR_MOCK_HINT,
     L4_A_PAY_SUCCESS,
@@ -106,8 +106,8 @@ def run_l4(
         if remaining <= 0:
             return _l4_exit_d_forced(speak, cart)
 
-        # 每 L4_PROMPT_INTERVAL 沒回應 → 重 speak L4_REMIND_PROMPT（不重置 budget）
-        response = read_customer_input(timeout=min(L4_PROMPT_INTERVAL, remaining))
+        # 每 L4_QR_REFRESH_INTERVAL 沒回應 → 重 speak L4_REMIND_PROMPT（不重置 budget）
+        response = read_customer_input(timeout=min(L4_QR_REFRESH_INTERVAL, remaining))
 
         if response is None:
             speak(L4_REMIND_PROMPT)
