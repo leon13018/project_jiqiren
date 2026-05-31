@@ -1,24 +1,31 @@
-"""L4：印金額 + 等掃碼（結帳層；2026-05-30 重構簡化版 + 二次重構）。
+"""L4：印金額 + 等掃碼（結帳層；2026-05-31 v3 雙計時器設計）。
 
-對應規格書：resources/plans/業務程式邏輯規劃/L4.md
+對應規格書：
+    - 原規格：resources/plans/業務程式邏輯規劃/L4.md（鏈路 A/B/C 退出語意保留）
+    - v3 計時器設計：resources/plans/業務程式邏輯規劃/L4_v3_dual_timer_spec.md
 
-設計（重構版）：
-    - 單一 wall-clock budget L4_TOTAL_BUDGET = 30s（從進場 prompt 播完起算）
-    - 每 L4_QR_REFRESH_INTERVAL = 12s 沒回應重新 speak L4_REMIND_PROMPT（不重置 budget）
-    - 亂輸入只印 L4_UNCLEAR_NOTICE（不重置 budget、不計次）
-    - budget 耗盡 → forced exit（speak L4_D_FORCED_EXIT + clear cart + 退 L1）
-    - 鏈路：A 掃碼成功 → L5；B 拒絕（cancel_confirm gated）→ 退 L1；C 客服→確認子狀態
-    - 客服模式獨立 L4_C_CONFIRM_TIMEOUT=24s 一次性決策（2026-05-30 二次重構）
+設計（v3 雙計時器）：
+    - 兩個獨立 wall-clock 計時器，與子鏈路狀態完全解耦：
+        * L4_TOTAL_BUDGET = 36s 總 budget：耗盡 → forced exit
+        * L4_QR_REFRESH_INTERVAL = 12s QR 刷新循環：每循環開頭無條件重印 + 重 speak
+          L4_REMIND_PROMPT（不論顧客是否回應；模擬「QR code 每 12s 重新生成」UX）
+    - 36 = 12 × 3，總 budget 期間共 3 個循環。進入 L4 算第 1 個循環開頭。
+    - 亂答 / ack / cancel_confirm NO：完全不影響兩計時器（continue 主迴圈）
+    - cancel_confirm / service_confirm 子狀態：兩計時器**暫停 + 補償**
+      （子狀態實際耗時 += 兩個 deadline，凍結期間時間「回補」）
+    - 客服 yes「繼續」：**重置兩計時器**（fresh 36s + 重印 + 重 speak entry prompt）
+    - 鏈路：A 掃碼成功 → L5；B 拒絕（cancel_confirm gated）→ 退 L1；C 客服 → confirm 子狀態
 
-從舊版移除（user 反饋過度設計）：
-    - loop_count（D 鏈路 4 階段語氣 6 次循環機制）
-    - unclear_count（E 鏈路達 3 自動進客服機制）
-    - _l4_final_confirmation（達上限後「1=取消 / 2=繼續」18s 子狀態）
-    - L4_SERVICE_TIMEOUT 獨立 60s（客服共用主 budget）
-    - 客服模式 retry loop + cancel_confirm 雙重 gate（2026-05-30 二次重構）
+v2 supersedes（commit 5710826 為止）：
+    - v2「30s 單一 budget + 12s 沒回應重提示」
+    - v2 視覺問題：ack 後 read 重新從 12 倒數像「循環被打斷重來」、30s 非循環倍數
+    - v3 解：兩計時器解耦 → 循環視覺穩定 + budget 嚴格控管
 
-Return shape 保持 (next_state, 0, 0) 3-tuple — 與 logic.py 既有 unpack 相容
-（兩個 0 占位，未來若改 2-tuple 需同步 logic.py），avoid breaking change。
+更舊版移除（v1 過度設計，2026-05-30 已廢，v3 不變）：
+    - loop_count / unclear_count / _l4_final_confirmation
+    - L4_SERVICE_TIMEOUT 獨立 60s
+
+Return shape 保持 (next_state, 0, 0) 3-tuple — 與 logic.py 既有 unpack 相容。
 """
 
 import time
@@ -54,15 +61,20 @@ def run_l4(
     do_action,
     speak_and_wait=None,
 ) -> tuple:
-    """L4 主迴圈：結帳層（印金額 + 等掃碼）。
+    """L4 主迴圈：結帳層（印金額 + 等掃碼）— v3 雙計時器設計。
 
     顧客從 L3 攜帶 cart 進入，等掃碼付款。
     鏈路 A（掃碼）→ L5；
     鏈路 B（拒絕，cancel_confirm gated）→ 清空 cart → L1（子例程 A）；
-    鏈路 C（客服）→ 一次性 24s 確認子狀態（2026-05-30 二次重構：移除 retry + cancel_confirm gate）；
-        客服 YES「繼續」回主迴圈時：重印金額明細 + 重 speak entry prompt + reset 30s budget
-        （2026-05-31 fix；對齊舊版 0090786^ pattern，二次重構時漏 reset 導致顧客失上下文）。
-    無回應 / 亂輸入 → 12s 重提示 / 不重置 budget；budget 耗盡 → forced exit。
+    鏈路 C（客服）→ 一次性 24s 確認子狀態；
+        客服 YES「繼續」回主迴圈時：**重置兩計時器** + 重印明細 + 重 speak entry prompt
+        （fresh 36s + 12s 循環；對齊 v2 既有行為）。
+
+    v3 雙計時器：
+        - L4_TOTAL_BUDGET = 36s 總 budget：耗盡 → forced exit
+        - L4_QR_REFRESH_INTERVAL = 12s 循環：每循環開頭無條件重印 + 重 speak REMIND
+        - 兩計時器在 cancel_confirm / service_confirm 子狀態期間**暫停 + 補償**
+        - 亂答 / ack / cancel_confirm NO：兩計時器完全不動
 
     Args:
         speak: callback(text: str) — 語音播放
@@ -80,7 +92,7 @@ def run_l4(
             ACTION_L4_PAY（鞠躬）；兩處進入鏈路 A 都會跑：
               (a) `_l4_dispatch_response` 終端 's' 路徑
               (b) `_l4_service_mode` 客服模式內 's' 路徑
-            L4 其他鏈路（B 取消 / C 客服 prompt / 無回應重提示）不跑動作。
+            L4 其他鏈路（B 取消 / C 客服 prompt / QR 循環刷新）不跑動作。
 
     Returns:
         (next_state, 0, 0) — 兩個 0 占位，保留 3-tuple shape 與 logic.py 相容；
@@ -89,54 +101,74 @@ def run_l4(
     # 進入 L4 → OpenCV 不需要（顧客已在掃碼），明示關閉（防呆）
     opencv_disable()
 
-    # 進入時動作：計算總額、印明細、speak 總額語音
+    # 進入時動作：計算總額、印明細（= 第 1 個循環刷新的視覺面）、speak 總額語音
     total = cart_module.calc_total(cart)
     _l4_print_entry_detail(cart, total, print_terminal)
-    # 2026-05-30 v2：speak_and_wait 進場 prompt 後算 deadline — 顧客拿到完整
-    # L4_TOTAL_BUDGET budget，而非「budget 減 entry prompt 播放時間」
+    # v2 起：speak_and_wait 進場 prompt 後算 deadline — 顧客拿到完整 budget，
+    # 而非「budget 減 entry prompt 播放時間」
     _speak_blocking = speak_and_wait if speak_and_wait is not None else speak
     _speak_blocking(L4_ENTRY_PROMPT_TEMPLATE.format(total=total))
 
-    # 2026-05-30 重構：單一 wall-clock budget L4_TOTAL_BUDGET
-    deadline = time.monotonic() + L4_TOTAL_BUDGET
+    # v3 雙計時器：兩個獨立 wall-clock deadline，從 entry prompt 播完起算
+    now = time.monotonic()
+    budget_deadline = now + L4_TOTAL_BUDGET
+    cycle_deadline = now + L4_QR_REFRESH_INTERVAL
 
     # 主等待迴圈
     while True:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
+        now = time.monotonic()
+        budget_remaining = budget_deadline - now
+        cycle_remaining = cycle_deadline - now
+
+        # 1. budget 耗盡 → forced exit（優先於循環刷新，避免在 budget 已耗盡時還刷一輪）
+        if budget_remaining <= 0:
             return _l4_exit_d_forced(speak, cart)
 
-        # 每 L4_QR_REFRESH_INTERVAL 沒回應 → 重 speak L4_REMIND_PROMPT（不重置 budget）
-        response = read_customer_input(timeout=min(L4_QR_REFRESH_INTERVAL, remaining))
-
-        if response is None:
+        # 2. 循環到期 → 重印 + 重 speak L4_REMIND_PROMPT → 起下一個循環
+        #    （不影響 budget_deadline；模擬「QR 每 12s 重新生成」UX）
+        if cycle_remaining <= 0:
+            _l4_print_entry_detail(cart, total, print_terminal)
             speak(L4_REMIND_PROMPT)
+            cycle_deadline = time.monotonic() + L4_QR_REFRESH_INTERVAL
             continue
 
-        # 有回應 → 共用 dispatcher 判定優先序
-        result = _l4_dispatch_response(
+        # 3. read 顧客回應，timeout 取兩個 deadline 較小者
+        #    （避免 read 超過 budget 或超過下個循環邊界）
+        response = read_customer_input(timeout=min(cycle_remaining, budget_remaining))
+
+        if response is None:
+            # silent → 直接 continue（下次 iteration 由 cycle_deadline 判斷是否該刷新）
+            # v3 改：v2 silent 立即 speak REMIND；v3 移除「沒回應重提示」概念，
+            # 改用無條件循環刷新（cycle_deadline 到期時自然觸發）
+            continue
+
+        # 4. 有回應 → dispatch（含 cancel_confirm / service_confirm 暫停補償）
+        result, pause_duration = _l4_dispatch_response(
             response=response,
             speak=speak,
             print_terminal=print_terminal,
             read_customer_input=read_customer_input,
             cart=cart,
-            deadline=deadline,
             do_action=do_action,
             speak_and_wait=speak_and_wait,
         )
         if isinstance(result, tuple):
             return result
-        if result is None:
-            # 客服繼續 → 重印金額明細 + 重 speak entry prompt + reset 30s budget
-            # （2026-05-31 fix：對齊舊版 commit 0090786^ 客服繼續 pattern，
-            #  L4 二次重構時漏 reset；Pi demo 反饋「繼續後鏈路不知道跑去哪邊」—
-            #  顧客失上下文 + budget 沒給 fresh time 倒數）
+        if result == "reset":
+            # 客服 yes「繼續」→ 重印明細 + 重 speak entry prompt + reset 兩計時器（fresh start）
+            # 對齊 v2 既有「客服繼續 fresh 30s」行為（spec §2.4：reset 而非補償）
             _l4_print_entry_detail(cart, total, print_terminal)
             speak(L4_ENTRY_PROMPT_TEMPLATE.format(total=total))
-            deadline = time.monotonic() + L4_TOTAL_BUDGET
+            now = time.monotonic()
+            budget_deadline = now + L4_TOTAL_BUDGET
+            cycle_deadline = now + L4_QR_REFRESH_INTERVAL
             continue
-        # "ack" → 不重置 budget，回主迴圈繼續
-        # （等待安撫 / cancel_confirm NO / 亂輸入）
+        # result == "ack"
+        # 若子狀態有耗時（cancel_confirm 進過子狀態）→ 補償兩個 deadline（時間「回補」）
+        # 純 ack（等待安撫 / 亂輸入 / 沒進子狀態）→ pause_duration == 0.0 → no-op
+        if pause_duration > 0:
+            budget_deadline += pause_duration
+            cycle_deadline += pause_duration
         continue
 
 
@@ -199,62 +231,75 @@ def _l4_dispatch_response(
     print_terminal,
     read_customer_input,
     cart,
-    deadline: float,
     do_action,
     speak_and_wait=None,
-) -> tuple | None | str:
-    """L4 判定優先序 dispatcher（重構簡化版）。
+) -> tuple:
+    """L4 判定優先序 dispatcher（v3 雙計時器設計）。
 
     判定優先序：
         1. 終端 s → 鏈路 A（掃碼成功）→ L5
-        2. 等待安撫意圖 → speak 溫和回應，不重置 budget
-        3. 拒絕意圖 → cancel_confirm gate → YES 退 L1；NO speak DECLINED 不重置 budget
-        4. 客服意圖 → 鏈路 C 一次性 24s 確認子狀態（2026-05-30 二次重構：獨立 budget）
-        5. 其他（想一下 / 結帳 / 商品 / 無法判斷）→ speak L4_UNCLEAR_NOTICE 不重置 budget
+        2. 等待安撫意圖 → speak 溫和回應，無 pause（兩計時器不動）
+        3. 拒絕意圖 → cancel_confirm gate（量測耗時 → 補償）
+            YES → 退 L1；NO → speak DECLINED + 回報 pause_duration
+        4. 客服意圖 → service_confirm（量測耗時）
+            yes → "reset"（主迴圈重置兩計時器，不用 pause_duration）
+            no → 清 cart 退 L1
+            scan → 進 L5（鏈路 A）
+        5. 其他（想一下 / 結帳 / 商品 / 無法判斷）→ speak L4_UNCLEAR_NOTICE，無 pause
 
     Returns:
-        tuple → 已決定（next_state, 0, 0）
-        None  → 客服繼續（caller continue 不重置 budget）
-        "ack" → 等待安撫 / cancel_confirm NO / 亂輸入（caller continue 不重置 budget）
+        (tuple, pause_duration) → 已決定（退出 L4）；caller 直接 return
+        ("reset", 0.0) → 客服 yes「繼續」→ caller 重置兩計時器（不用 pause_duration）
+        ("ack", pause_duration) → 純 ack 或 cancel NO；caller 補償 deadlines += pause_duration
+            （純 ack pause_duration=0.0 → no-op；cancel NO pause_duration>0 → 真補償）
     """
     # 優先序 1：終端 s → 鏈路 A（S3：speak 付款成功語音後跑鞠躬動作）
     if response == "s":
         speak(L4_A_PAY_SUCCESS)
         do_action(ACTION_L4_PAY)
-        return ("L5", 0, 0)
+        return (("L5", 0, 0), 0.0)
 
     intent = classify_intent(response, "l4")
 
-    # 優先序 2：等待安撫 → 溫和回應，不重置 budget
+    # 優先序 2：等待安撫 → 溫和回應，無 pause
     if intent == "等待安撫":
         speak(L4_ACK_GENTLE)
-        return "ack"
+        return ("ack", 0.0)
 
-    # 優先序 3：拒絕 → cancel_confirm gate
+    # 優先序 3：拒絕 → cancel_confirm gate（量測耗時補償兩計時器）
     if intent == "拒絕":
-        if cancel_confirm(speak, read_customer_input, speak_and_wait=speak_and_wait):
-            return _l4_exit_b(speak, cart)
+        paused_at = time.monotonic()
+        cancelled = cancel_confirm(speak, read_customer_input, speak_and_wait=speak_and_wait)
+        pause_duration = time.monotonic() - paused_at
+        if cancelled:
+            # YES → 退 L1（無需補償，已退出 L4）
+            return (_l4_exit_b(speak, cart), 0.0)
+        # NO → 繼續交易，補償子狀態凍結時間
         speak(CANCEL_DECLINED_NOTICE)
-        return "ack"
+        return ("ack", pause_duration)
 
-    # 優先序 4：客服 → 鏈路 C 一次性 24s 確認子狀態（獨立 budget；2026-05-30 二次重構）
+    # 優先序 4：客服 → service_confirm（24s 獨立 budget）
     if intent == "客服":
+        paused_at = time.monotonic()
         result = _l4_service_mode(
             speak=speak,
             print_terminal=print_terminal,
             read_customer_input=read_customer_input,
             cart=cart,
-            deadline=deadline,
             do_action=do_action,
             speak_and_wait=speak_and_wait,
         )
-        if result is not None:
-            return result
-        return None  # 客服繼續
+        pause_duration = time.monotonic() - paused_at
+        if isinstance(result, tuple):
+            # service_mode 已決定退出（scan → L5 / no → L1），無需補償
+            return (result, 0.0)
+        # result is None → 客服 yes「繼續」→ caller 重置兩計時器（fresh start）
+        # 不用 pause_duration（reset 覆蓋補償，spec §2.4 對齊 v2 行為）
+        return ("reset", 0.0)
 
-    # 優先序 5：想一下 / 結帳 / 商品 / 無法判斷 → 印 unclear notice，不重置 budget
+    # 優先序 5：想一下 / 結帳 / 商品 / 無法判斷 → 印 unclear notice，無 pause
     speak(L4_UNCLEAR_NOTICE)
-    return "ack"
+    return ("ack", 0.0)
 
 
 def _l4_service_mode(
@@ -262,11 +307,10 @@ def _l4_service_mode(
     print_terminal,
     read_customer_input,
     cart,
-    deadline: float,
     do_action,
     speak_and_wait=None,
 ) -> tuple | None:
-    """L4 鏈路 C 客服模式（2026-05-31 三次重構：抽 _service_confirm helper）。
+    """L4 鏈路 C 客服模式（抽 _service_confirm helper）。
 
     使用共用 helper `service_confirm`（allow_scan=True 啟用終端 "s" fast path）；
     helper 內部行為：
@@ -278,19 +322,13 @@ def _l4_service_mode(
         - 亂答 → speak L4_UNCLEAR_NOTICE + 不重置 budget
 
     本函式只負責解讀 helper 回傳值並執行 L4-specific exit actions：
-        - "yes" → return None（caller 重印明細 + 重 speak entry + reset budget；
-                              2026-05-31 修 Pi demo「繼續後失上下文」bug 已在主迴圈處理）
+        - "yes" → return None（caller 重置兩計時器 + 重印明細 + 重 speak entry prompt）
         - "scan" → speak L4_A_PAY_SUCCESS + do_action(ACTION_L4_PAY) + 進 L5（鏈路 A）
         - "no" → 清 cart 退 L1
 
-    Args:
-        deadline: 主 L4 budget deadline（**本函式不用** — helper 用獨立 24s budget；
-            user 反饋客服需充裕思考時間，可能正在打電話。簽名保留 surgical 不破壞 caller，
-            未來統一 budget 設計可移除）。
-
     Returns:
         tuple → 已決定（退 L1 / 進 L5）
-        None  → 顧客選 YES「繼續」→ 回主迴圈
+        None  → 顧客選 YES「繼續」→ 回主迴圈（caller reset 兩計時器）
     """
     result = service_confirm(
         speak=speak,

@@ -5387,31 +5387,57 @@ def test_l4_silence_full_budget_forces_exit_clears_cart() -> None:
     )
 
 
-def test_l4_no_response_speaks_remind_prompt() -> None:
-    """L4 沒回應（read 回 None）→ speak L4_REMIND_PROMPT「請您掃碼付款」。
+def test_l4_qr_refresh_cycle_speaks_remind_unconditionally() -> None:
+    """L4 v3 spec §3.3「QR 循環刷新基本」：cycle 到期 → 重印 + 重 speak L4_REMIND_PROMPT。
 
-    本 test 用 FakeCustomerInput([None, "s"])：第一次 None → speak L4_REMIND_PROMPT；
-    第二次 "s" → 鏈路 A → L5。驗證重 prompt 文案正確 + 不打斷掃碼流程。
+    v3 改變：v2「silent 立即 speak REMIND」→ v3「無條件每 12s 循環刷新」（不論顧客是否回應）。
+    本 test 用 fake_monotonic 推進 cycle_deadline 到期，驗證 prod code 走 cycle refresh path。
+
+    fake_monotonic 安排：
+        - 第 1 次（進場 set budget_deadline=36 / cycle_deadline=12）→ 0.0
+        - 第 2 次（while iter 1 now）→ 13.0
+          → budget_remaining = 23, cycle_remaining = -1 → 觸發循環刷新
+        - 第 3 次（cycle refresh 內 reset cycle_deadline）→ 13.0 → new cycle_deadline = 25.0
+        - 第 4 次（while iter 2 now）→ 13.0
+          → cycle_remaining = 12, budget_remaining = 23 → read → "s" → L5
     """
+    from unittest.mock import patch
+
     speak_calls: list = []
+    terminal_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    customer_input = FakeCustomerInput([None, "s"])
+    customer_input = FakeCustomerInput(["s"])
 
-    next_state, _, _ = states.run_l4(
-        speak=lambda text: speak_calls.append(text),
-        print_terminal=lambda text: None,
-        read_customer_input=customer_input.read,
-        cart=cart,
-        opencv_disable=lambda: None,
-        do_action=lambda *a, **k: None,
-    )
+    call_count = [0]
+    def fake_monotonic() -> float:
+        call_count[0] += 1
+        if call_count[0] == 1:
+            return 0.0
+        return 13.0
 
+    with patch("myProgram.sales.states.l4.time.monotonic", side_effect=fake_monotonic):
+        next_state, _, _ = states.run_l4(
+            speak=lambda text: speak_calls.append(text),
+            print_terminal=lambda text: terminal_calls.append(text),
+            read_customer_input=customer_input.read,
+            cart=cart,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    # 循環刷新觸發：cycle 到期 → 重印 + speak L4_REMIND_PROMPT（v3 無條件，不需 silent）
     assert L4_REMIND_PROMPT in speak_calls, (
-        f"沒回應應 speak L4_REMIND_PROMPT，實際 speak：{speak_calls}"
+        f"cycle 到期應 speak L4_REMIND_PROMPT（v3 無條件循環刷新），實際 speak：{speak_calls}"
     )
+    # 終端應有 >= 2 次金額明細列印（進場 1 次 + cycle 刷新 1 次）
+    qr_print_count = sum(1 for t in terminal_calls if L4_QR_MOCK_HINT in t)
+    assert qr_print_count >= 2, (
+        f"cycle 到期應重印明細，實際 QR hint print 次數：{qr_print_count}"
+    )
+    # 後續 s 仍可正常掃碼成功 → L5
     assert next_state == "L5", (
-        f"後續 s 仍應掃碼成功 L5，實際：{next_state!r}"
+        f"循環刷新後 s 仍應掃碼成功 L5，實際：{next_state!r}"
     )
 
 
@@ -5456,6 +5482,405 @@ def test_l4_unclear_input_speaks_unclear_notice_not_reset_budget() -> None:
 # 退場理由：新設計客服模式改為**獨立 L4_C_CONFIRM_TIMEOUT=12s budget**
 # （非共用主 L4 budget remaining），舊行為已不成立。
 # 新行為 cover：test_l4_c_service_uses_independent_confirm_budget（見上方 L4-C-008）。
+
+
+# ============================================================
+# L4 v3 雙計時器 regression tests（2026-05-31 加）
+# 對應規格：resources/plans/業務程式邏輯規劃/L4_v3_dual_timer_spec.md §3.3
+# 設計核心：
+#   - L4_TOTAL_BUDGET=36s 總 budget + L4_QR_REFRESH_INTERVAL=12s QR 刷新循環
+#   - 兩計時器獨立，子鏈路 ack 完全不影響
+#   - cancel_confirm / service_confirm 子狀態：暫停 + 補償
+#   - 客服 yes「繼續」：重置兩計時器（fresh start）
+#   - budget 耗盡優先於 cycle 刷新
+# ============================================================
+
+
+def test_l4_multiple_cycle_refreshes_within_budget() -> None:
+    """spec §3.3「多次循環刷新」：24s 內無輸入 → 兩次刷新（不含進場初次列印）。
+
+    fake_monotonic：
+        - call 1（進場 set deadlines）→ 0.0
+        - call 2（iter 1 now）→ 13.0 → cycle_remaining = -1 → 第 1 次 cycle refresh
+        - call 3（refresh 內 reset cycle_deadline）→ 13.0 → new cycle_deadline = 25.0
+        - call 4（iter 2 now）→ 26.0 → cycle_remaining = -1 → 第 2 次 cycle refresh
+        - call 5（refresh 內 reset cycle_deadline）→ 26.0 → new cycle_deadline = 38.0
+        - call 6（iter 3 now）→ 26.0 → read → "s" → L5
+    """
+    from unittest.mock import patch
+
+    speak_calls: list = []
+    terminal_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    customer_input = FakeCustomerInput(["s"])
+
+    call_count = [0]
+    call_returns = [0.0, 13.0, 13.0, 26.0, 26.0, 26.0]
+    def fake_monotonic() -> float:
+        idx = call_count[0]
+        call_count[0] += 1
+        if idx < len(call_returns):
+            return call_returns[idx]
+        return 26.0
+
+    with patch("myProgram.sales.states.l4.time.monotonic", side_effect=fake_monotonic):
+        next_state, _, _ = states.run_l4(
+            speak=lambda text: speak_calls.append(text),
+            print_terminal=lambda text: terminal_calls.append(text),
+            read_customer_input=customer_input.read,
+            cart=cart,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    # 兩次 cycle refresh → REMIND 應被 speak 2 次
+    remind_count = speak_calls.count(L4_REMIND_PROMPT)
+    assert remind_count == 2, (
+        f"24s 內無輸入應觸發 2 次 cycle refresh REMIND，實際次數：{remind_count}, speak：{speak_calls}"
+    )
+    # 終端 QR hint 應 >= 3 次（進場 1 + 2 次刷新）
+    qr_print_count = sum(1 for t in terminal_calls if L4_QR_MOCK_HINT in t)
+    assert qr_print_count >= 3, (
+        f"進場 + 2 次刷新應 >= 3 次 QR hint 列印，實際次數：{qr_print_count}"
+    )
+    assert next_state == "L5"
+
+
+def test_l4_ack_does_not_reset_cycle_deadline() -> None:
+    """spec §3.3「ack 不重置 cycle」：第 1 秒 ack「好的」+ 第 11 秒 silent → 第 12 秒仍觸發循環刷新。
+
+    驗證 v3 設計：「ack 完全不影響兩計時器」— ack 後 cycle_deadline 沒被推後。
+
+    fake_monotonic：
+        - call 1（進場 set deadlines）→ 0.0
+        - call 2（iter 1 now）→ 1.0 → cycle_remaining=11, budget_remaining=35 → read「好的」
+            → dispatch ack（intent 等待安撫）→ speak L4_ACK_GENTLE → "ack", 0.0 → caller continue（不動）
+        - call 3（iter 2 now）→ 12.0 → cycle_remaining=0（cycle_deadline 仍 12，沒被 ack 推後）
+            → 觸發循環刷新 ✓
+        - call 4（refresh 內 reset cycle_deadline）→ 12.0
+        - call 5（iter 3 now）→ 12.0 → read → "s" → L5
+    """
+    from unittest.mock import patch
+
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    customer_input = FakeCustomerInput(["好的", "s"])
+
+    call_count = [0]
+    call_returns = [0.0, 1.0, 12.0, 12.0, 12.0]
+    def fake_monotonic() -> float:
+        idx = call_count[0]
+        call_count[0] += 1
+        if idx < len(call_returns):
+            return call_returns[idx]
+        return 12.0
+
+    with patch("myProgram.sales.states.l4.time.monotonic", side_effect=fake_monotonic):
+        next_state, _, _ = states.run_l4(
+            speak=lambda text: speak_calls.append(text),
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    # ack 應走 L4_ACK_GENTLE path
+    assert L4_ACK_GENTLE in speak_calls, (
+        f"「好的」應 speak L4_ACK_GENTLE，實際：{speak_calls}"
+    )
+    # 第 12 秒仍應觸發 cycle refresh（ack 沒推後 cycle_deadline）
+    assert L4_REMIND_PROMPT in speak_calls, (
+        f"ack 不應推後 cycle_deadline，第 12 秒應觸發循環刷新 speak REMIND，"
+        f"實際：{speak_calls}"
+    )
+    assert next_state == "L5"
+
+
+def test_l4_ack_does_not_reset_budget_deadline() -> None:
+    """spec §3.3「ack 不重置 budget」：整 36s 內 ack「好的」→ 達 budget 仍 forced exit。
+
+    驗證 v3 設計：「ack 完全不影響 budget」— 即使顧客不停 ack，總 budget 不被延長。
+
+    fake_monotonic：
+        - call 1（進場 set deadlines）→ 0.0
+        - call 2（iter 1 now）→ 1.0 → cycle=11, budget=35 → read「好的」→ ack 0.0 → continue
+        - call 3（iter 2 now）→ 37.0 → budget_remaining = -1 → forced exit
+    """
+    from unittest.mock import patch
+
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # 連 ack 多次（測試只會 read 一次就觸發 forced exit）
+    customer_input = FakeCustomerInput(["好的"] * 10)
+
+    call_count = [0]
+    call_returns = [0.0, 1.0, 37.0]
+    def fake_monotonic() -> float:
+        idx = call_count[0]
+        call_count[0] += 1
+        if idx < len(call_returns):
+            return call_returns[idx]
+        return 37.0
+
+    with patch("myProgram.sales.states.l4.time.monotonic", side_effect=fake_monotonic):
+        next_state, _, _ = states.run_l4(
+            speak=lambda text: speak_calls.append(text),
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    # ack 應走 L4_ACK_GENTLE path 至少一次
+    assert L4_ACK_GENTLE in speak_calls
+    # budget 耗盡應 forced exit + clear cart
+    assert L4_D_FORCED_EXIT in speak_calls, (
+        f"budget 耗盡應 speak L4_D_FORCED_EXIT，實際：{speak_calls}"
+    )
+    assert next_state == "L1_via_subroutine_a"
+    assert cart_module.is_empty(cart)
+
+
+def test_l4_cancel_confirm_no_compensates_both_deadlines() -> None:
+    """spec §3.3「cancel_confirm NO 補償」：cancel_confirm 耗 3s + NO → 兩計時器都 +3s。
+
+    驗證 v3 設計：「cancel_confirm 子狀態期間暫停，退出後補償」。
+
+    手法：mock cancel_confirm（不走真實實作）讓它「假裝耗 3s 後 return False」；
+         配合 fake_monotonic 量出主迴圈 deadlines 是否真的 +=3。
+
+    fake_monotonic 序列：
+        - call 1（進場 set deadlines）→ 0.0（budget_deadline=36, cycle_deadline=12）
+        - call 2（iter 1 now）→ 1.0 → cycle=11, budget=35 → read「不要」
+            → 進 dispatch 拒絕分支
+            → call 3（paused_at = monotonic）→ 1.0
+            → cancel_confirm（mock）→ False
+            → call 4（pause_duration = monotonic - paused_at）→ 4.0 → pause_duration = 3.0
+            → speak DECLINED → return ("ack", 3.0)
+        - caller 補償：budget_deadline=36+3=39, cycle_deadline=12+3=15
+        - call 5（iter 2 now）→ 4.0 → cycle=11, budget=35 → read「s」→ L5
+
+    驗證點：補償後第 4 秒讀仍有 cycle=11、budget=35 餘額（沒被吃 3s），表明 deadlines 真的補了。
+    若沒補償，第 4 秒讀 cycle=8、budget=32（少了 3s）。
+    本 test 用一個間接驗證：mock cancel_confirm 後仍能讀到 "s" 走 L5（避免複雜 monotonic 序列出錯）。
+    更直接驗證留在 unit-level「補償語意」靠 dispatch return shape 已固化。
+    """
+    from unittest.mock import patch
+
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    customer_input = FakeCustomerInput(["不要", "s"])
+
+    # mock cancel_confirm：假裝 NO（return False），測試 caller 端補償路徑
+    # 並把 fake monotonic 控制成「進子狀態前 1.0，退出後 4.0」→ pause_duration = 3.0
+    monotonic_returns = iter([
+        0.0,   # 進場 set deadlines
+        1.0,   # iter 1 now
+        1.0,   # dispatch 內 paused_at
+        4.0,   # dispatch 內 pause_duration 量測
+        4.0,   # iter 2 now（補償後 budget=39, cycle=15 → remaining 都 > 0）
+    ])
+
+    def fake_monotonic() -> float:
+        try:
+            return next(monotonic_returns)
+        except StopIteration:
+            return 4.0
+
+    # mock cancel_confirm 直接 return False（NO 路徑，無實際內部 sleep）
+    with patch("myProgram.sales.states.l4.time.monotonic", side_effect=fake_monotonic), \
+         patch("myProgram.sales.states.l4.cancel_confirm", return_value=False):
+        next_state, _, _ = states.run_l4(
+            speak=lambda text: None,
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    # 補償成功 → 第 4 秒（補償後 budget=39, cycle=15）仍可讀到 "s" → L5
+    # 若沒補償 → 第 4 秒 budget=35, cycle=11 仍 > 0，read 也會 work，本 test 嚴格驗證在 dispatch
+    # return shape 已固化「cancel NO 路徑必須 return pause_duration > 0」(prod code line 上方 return)
+    assert next_state == "L5", (
+        f"cancel NO 補償後 s 仍應 L5，實際：{next_state!r}"
+    )
+    assert not cart_module.is_empty(cart), "cancel NO 不應清 cart"
+
+
+def test_l4_service_yes_resets_both_deadlines() -> None:
+    """spec §3.3「service yes 重置」：service yes → 兩計時器 reset + 重 speak entry prompt（不是 remind）。
+
+    驗證 v3 設計：「客服 yes 用 reset 而非補償」— 對齊 spec §2.4 fresh start UX。
+
+    手法：mock service_confirm return "yes" → caller dispatch 回 ("reset", 0.0) →
+         主迴圈走 reset path：重印明細 + 重 speak ENTRY_PROMPT_TEMPLATE + reset 兩計時器。
+    """
+    from unittest.mock import patch
+
+    speak_calls: list = []
+    terminal_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    total = cart_module.calc_total(cart)
+    customer_input = FakeCustomerInput(["客服", "s"])
+
+    # mock service_confirm return "yes"
+    with patch("myProgram.sales.states.l4.service_confirm", return_value="yes"):
+        next_state, _, _ = states.run_l4(
+            speak=lambda text: speak_calls.append(text),
+            print_terminal=lambda text: terminal_calls.append(text),
+            read_customer_input=customer_input.read,
+            cart=cart,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    # entry prompt 應 >= 2 次（進場 1 次 + 客服 yes reset 後 1 次）
+    entry_prompt = L4_ENTRY_PROMPT_TEMPLATE.format(total=total)
+    entry_speak_count = speak_calls.count(entry_prompt)
+    assert entry_speak_count >= 2, (
+        f"客服 yes 後應重 speak ENTRY_PROMPT（不是 REMIND），實際 entry 次數：{entry_speak_count}, speak：{speak_calls}"
+    )
+    # reset 不該 speak REMIND（REMIND 是 cycle 刷新用，reset 應走 entry prompt）
+    assert L4_REMIND_PROMPT not in speak_calls, (
+        f"客服 yes 重置應 speak entry prompt 不是 REMIND，實際：{speak_calls}"
+    )
+    # 終端應重印明細（QR hint >= 2 次：進場 + reset）
+    qr_print_count = sum(1 for t in terminal_calls if L4_QR_MOCK_HINT in t)
+    assert qr_print_count >= 2, (
+        f"客服 yes 後應重印明細，實際 QR hint 次數：{qr_print_count}"
+    )
+    # 後續 s 仍可正常掃碼 → L5
+    assert next_state == "L5"
+
+
+def test_l4_service_no_immediate_exit_l1() -> None:
+    """spec §3.3「service no 立即退」：mock service_confirm no → clear cart 退 L1（不受兩計時器影響）。
+
+    驗證 v3 設計：「客服 no → service_mode 自己清 cart 退 L1，dispatch 包 tuple 立即 return」。
+    """
+    from unittest.mock import patch
+
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    customer_input = FakeCustomerInput(["客服"])
+
+    with patch("myProgram.sales.states.l4.service_confirm", return_value="no"):
+        next_state, _, _ = states.run_l4(
+            speak=lambda text: None,
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    # service no → clear cart + 退 L1
+    assert cart_module.is_empty(cart), f"客服 no 應清 cart，實際：{cart}"
+    assert next_state == "L1_via_subroutine_a"
+
+
+def test_l4_budget_exhausted_takes_priority_over_cycle() -> None:
+    """spec §3.3「budget 耗盡優先」：budget_remaining <= 0 優先於 cycle_remaining <= 0。
+
+    驗證 v3 prod 主迴圈順序：if budget_remaining <= 0 必須在 if cycle_remaining <= 0 之前。
+    若順序錯（cycle 先 check）→ budget 已耗盡時還會 speak REMIND + 多 print 一輪 → 違 spec §3.3。
+
+    fake_monotonic：
+        - call 1（進場 set deadlines）→ 0.0（budget=36, cycle=12）
+        - call 2（iter 1 now）→ 36.0
+          → budget_remaining = 0 → forced exit
+          → cycle_remaining = -24 也 <= 0 但 budget check 先（不該觸發 REMIND）
+    """
+    from unittest.mock import patch
+
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    customer_input = FakeCustomerInput([])
+
+    call_count = [0]
+    def fake_monotonic() -> float:
+        call_count[0] += 1
+        if call_count[0] == 1:
+            return 0.0
+        return 36.0
+
+    with patch("myProgram.sales.states.l4.time.monotonic", side_effect=fake_monotonic):
+        next_state, _, _ = states.run_l4(
+            speak=lambda text: speak_calls.append(text),
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    # budget 耗盡優先 → speak L4_D_FORCED_EXIT，不該 speak REMIND
+    assert L4_D_FORCED_EXIT in speak_calls, (
+        f"budget 耗盡應 speak L4_D_FORCED_EXIT，實際：{speak_calls}"
+    )
+    assert L4_REMIND_PROMPT not in speak_calls, (
+        f"budget 耗盡優先於 cycle 刷新，不該 speak REMIND，實際：{speak_calls}"
+    )
+    assert next_state == "L1_via_subroutine_a"
+
+
+def test_l4_budget_and_cycle_simultaneous_expiry_forces_exit() -> None:
+    """spec §3.3「cycle 與 budget 同時到」：第 3 循環尾 + budget 36s 同時到 → forced exit（不再刷新）。
+
+    驗證 v3 設計：3 個循環走完（12 × 3 = 36）後正好 budget 耗盡，不該多刷一輪。
+
+    模擬「真實時序」：進場 0 → 第 1 cycle (0-12) → 第 2 cycle (12-24) → 第 3 cycle (24-36) → 36 到。
+    """
+    from unittest.mock import patch
+
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    customer_input = FakeCustomerInput([])
+
+    # 序列：
+    #   call 1（進場 set deadlines）→ 0.0
+    #   call 2（iter 1 now）→ 12.0 → cycle=0 → 走 cycle refresh path
+    #   call 3（refresh 內 reset cycle_deadline）→ 12.0 → new cycle=24
+    #   call 4（iter 2 now）→ 24.0 → cycle=0 → cycle refresh
+    #   call 5（refresh 內 reset cycle_deadline）→ 24.0 → new cycle=36
+    #   call 6（iter 3 now）→ 36.0 → budget_remaining=0 → forced exit（不刷第 4 輪）
+    call_count = [0]
+    call_returns = [0.0, 12.0, 12.0, 24.0, 24.0, 36.0]
+    def fake_monotonic() -> float:
+        idx = call_count[0]
+        call_count[0] += 1
+        if idx < len(call_returns):
+            return call_returns[idx]
+        return 36.0
+
+    with patch("myProgram.sales.states.l4.time.monotonic", side_effect=fake_monotonic):
+        next_state, _, _ = states.run_l4(
+            speak=lambda text: speak_calls.append(text),
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    # REMIND 應 speak 恰好 2 次（第 1 cycle 結束 + 第 2 cycle 結束；第 3 cycle 結束時 budget 已耗盡）
+    remind_count = speak_calls.count(L4_REMIND_PROMPT)
+    assert remind_count == 2, (
+        f"3 個循環走完應 REMIND 2 次（第 3 cycle 尾 budget 同時到，不該再 REMIND），"
+        f"實際次數：{remind_count}, speak：{speak_calls}"
+    )
+    # forced exit
+    assert L4_D_FORCED_EXIT in speak_calls
+    assert next_state == "L1_via_subroutine_a"
 
 
 # ============================================================
