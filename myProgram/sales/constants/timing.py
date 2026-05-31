@@ -95,14 +95,14 @@ CHECKOUT_CONFIRM_UNCLEAR_MAX: int = 5
 # 客服 yes「繼續」返回會 reset；cancel_confirm / 客服子狀態期間暫停 + 補償。
 # 取代原 v2「30s 單一 budget + 12s 重提示」（v2 supersedes 舊「60s + loop_count
 # 6 次循環 4 階段語氣 + unclear_count + final confirmation 18s + 獨立 60s 客服」）。
-# 詳見 resources/plans/業務程式邏輯規劃/L4_v3_dual_timer_spec.md
+# 詳見 resources/specs/L4_v3_dual_timer_spec.md
 L4_TOTAL_BUDGET: int = 36
 
 # L4 QR 視覺刷新循環間隔（2026-05-31 v3 加；取代 L4_PROMPT_INTERVAL）
 # 每循環開頭：重印結帳區塊 + 重 speak L4_REMIND_PROMPT（無條件，不論顧客是否回應）。
 # 模擬「QR code 每 12s 重新生成」的 UX。子鏈路 ack 不影響此循環。
 # 與 L4_TOTAL_BUDGET=36s 關係：36 = 12 × 3，總 budget 內共 3 個循環。
-# 詳見 resources/plans/業務程式邏輯規劃/L4_v3_dual_timer_spec.md
+# 詳見 resources/specs/L4_v3_dual_timer_spec.md
 L4_QR_REFRESH_INTERVAL: int = 12
 
 # L4 / L2 / L3 三層 + qty followup 客服模式「請問是否繼續交易？」確認子狀態 wall-clock 預算

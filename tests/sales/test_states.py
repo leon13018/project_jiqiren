@@ -5486,7 +5486,7 @@ def test_l4_unclear_input_speaks_unclear_notice_not_reset_budget() -> None:
 
 # ============================================================
 # L4 v3 雙計時器 regression tests（2026-05-31 加）
-# 對應規格：resources/plans/業務程式邏輯規劃/L4_v3_dual_timer_spec.md §3.3
+# 對應規格：resources/specs/L4_v3_dual_timer_spec.md §3.3
 # 設計核心：
 #   - L4_TOTAL_BUDGET=36s 總 budget + L4_QR_REFRESH_INTERVAL=12s QR 刷新循環
 #   - 兩計時器獨立，子鏈路 ack 完全不影響

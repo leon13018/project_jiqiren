@@ -36,7 +36,7 @@ def test_time_constants_match_spec() -> None:
 # ============================================================
 # L4 v3 雙計時器常數（2026-05-31）
 # 取代 v2「30s 單一 budget + L4_PROMPT_INTERVAL=12s 沒回應重提示」
-# 詳見 resources/plans/業務程式邏輯規劃/L4_v3_dual_timer_spec.md
+# 詳見 resources/specs/L4_v3_dual_timer_spec.md
 # ============================================================
 
 

@@ -2,7 +2,7 @@
 
 對應規格書：
     - 原規格：resources/plans/業務程式邏輯規劃/L4.md（鏈路 A/B/C 退出語意保留）
-    - v3 計時器設計：resources/plans/業務程式邏輯規劃/L4_v3_dual_timer_spec.md
+    - v3 計時器設計：resources/specs/L4_v3_dual_timer_spec.md
 
 設計（v3 雙計時器）：
     - 兩個獨立 wall-clock 計時器，與子鏈路狀態完全解耦：

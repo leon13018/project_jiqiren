@@ -163,7 +163,7 @@ cycle_deadline  += pause_duration
 # 36 = L4_QR_REFRESH_INTERVAL × 3，總 budget 期間共 3 個 QR 刷新循環。
 # 從進入 L4 entry prompt 播完起算；達 0 → forced exit。
 # 客服繼續返回會 reset；cancel_confirm / 客服子狀態期間暫停 + 補償。
-# 詳見 resources/plans/業務程式邏輯規劃/L4_v3_dual_timer_spec.md
+# 詳見 resources/specs/L4_v3_dual_timer_spec.md
 L4_TOTAL_BUDGET: int = 36
 
 # L4 QR 視覺刷新循環間隔（2026-05-31 v3 加；取代 L4_PROMPT_INTERVAL）
@@ -270,7 +270,7 @@ refactor(L4 constants): rename L4_PROMPT_INTERVAL -> L4_QR_REFRESH_INTERVAL
 
 - L4_TOTAL_BUDGET 30 -> 36 (= 12 × 3 cycles)
 - Semantic change: 無條件循環刷新間隔（v3 雙計時器設計）
-- See resources/plans/業務程式邏輯規劃/L4_v3_dual_timer_spec.md
+- See resources/specs/L4_v3_dual_timer_spec.md
 ```
 
 Commit 2（states + tests）：
@@ -282,7 +282,7 @@ refactor(L4 main loop): dual-timer design (v3)
 - Sub-routine acks (好的 / 亂答 / cancel NO) no longer touch any timer
 - QR refresh now unconditional per 12s (was: only on no-response)
 - Service yes still resets both timers (fresh start)
-- Spec: resources/plans/業務程式邏輯規劃/L4_v3_dual_timer_spec.md
+- Spec: resources/specs/L4_v3_dual_timer_spec.md
 ```
 
 或單 commit 包全部（sales-coder 自決，commit message 可參考 commit 2 + 補 constants 改動）。

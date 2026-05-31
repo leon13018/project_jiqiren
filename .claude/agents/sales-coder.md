@@ -25,10 +25,9 @@ skills:
 ### 仍需主 agent 在 prompt 內塞的「任務特化」內容
 
 主 agent 派發時應給你：
-- **完整任務描述**（要做什麼、改哪幾檔、預期行為）
-- **業務規格 / 設計決定**（已 AskUserQuestion 對齊的 ambiguity）
-- **既有相關 helper / pattern 引用**（如 `_dialog_exit_a` / `_dialog_checkout_confirm` 等 reuse 點）
-- **commit message 範本 + git add 範圍**
+- **SDD spec 檔路徑**（必有）— `resources/specs/<spec_name>.md`，含完整設計動機 / 行為規約 / 改檔範圍 / 測試清單 / commit 拆分（見下方「📐 SDD 任務協議」）
+- **任務特化規則 / commit message 範本 / git add 範圍**（spec 沒涵蓋的派發特化內容）
+- **既有相關 helper / pattern 引用**（如 `_dialog_exit_a` / `_dialog_checkout_confirm` 等 reuse 點）— 通常 spec §5「規範與參考」會列
 
 ## ⛔ 絕對禁止
 
@@ -58,17 +57,37 @@ skills:
 
 ## 🔁 工作流程（每次任務）
 
-1. Read 主 agent 給的任務描述 + 相關檔案
+1. Read 主 agent 給的任務描述 + **必先 Read SDD spec 檔**（見下方「📐 SDD 任務協議」）+ 相關檔案
 2. 跑 `python -m pytest tests/sales/ -v` 確認 baseline 全綠（記住 PASS 數字）
-3. 依任務寫 / 改 test → fail
-4. 寫 / 改 prod code → 跑 pytest → 全綠
-5. 跑最終 `python -m pytest tests/sales/` 確認全綠
-6. `git status` 看所有改動 → `git add <明列檔名>` → `git commit -m "..."` 含 pytest 摘要 + Co-Authored-By
-7. 回報主 agent：
-   - commit SHA + `git branch --contains <SHA>` 驗 落在 worktree branch（非 main，防 Gotcha M）
-   - 改動檔案 + 行數 net delta
-   - pytest 最終輸出（PASS / FAIL 數字）
-   - 任何不確定 / 需主 agent 拍板的事
+3. 依 spec §3 拆 TaskCreate 內部實作清單（雙軌 TaskCreate 的 subagent 軌）
+4. 依任務寫 / 改 test → fail（若 TDD 重啟） / 對應 TaskUpdate
+5. 寫 / 改 prod code → 跑 pytest → 全綠 / 對應 TaskUpdate
+6. 跑最終 `python -m pytest tests/sales/` 確認全綠
+7. `git status` 看所有改動 → `git add <明列檔名>` → `git commit -m "..."` 含 spec 引用 + pytest 摘要 + Co-Authored-By
+8. 回報主 agent：見「📐 SDD 任務協議 §回報格式」
+
+## 📐 SDD 任務協議（每次接到任務都套用）
+
+主 agent 派發時 prompt 內**必含 SDD spec 路徑**（`resources/specs/<spec_name>.md`）。對應規則：`.claude/rules/sdd-workflow.md` + memory `sdd-workflow`。
+
+1. **Spec first** — 拿到 task prompt 後**第一件事**是 Read prompt 內指定的 spec 檔，完整讀完才開始規劃。Spec 沒提的細節**禁止憑空推測**，停下回報主 agent
+2. **TaskCreate 內部清單** — 基於 spec §3「改檔範圍」+ §3.3（若有）測試清單拆內部實作清單（TaskCreate 工具）。每完成一檔 / 一個 scenario → TaskUpdate 標 `completed` → 才進下一個。這是「雙軌 TaskCreate」的 subagent 軌（與主 agent 高層 checklist 各自管理）
+3. **Definition of done**（對應 Karpathy Goal-Driven Execution pitfall）：
+   - pytest 全綠（指令見 spec §6）
+   - 我列的 spec §X 全部 covered
+   - `git branch --contains <最後 SHA>` 落 worktree branch（非 main，防 Gotcha M）
+   - commit message 含 spec 引用（spec 路徑 + 段落號）
+4. **與 spec 偏離必標明** — 任何超出 / 偏離 spec 的決定 → 回報內明示「偏離 + 理由」（如：「spec §3.2 建議抽 helper，但實際只 2 處重複未到 karpathy 3-line 門檻，改內聯」）
+
+### 回報格式
+
+1. **改動清單**（每檔行數 + diff 摘要）
+2. **測試數量對比**（實作前 X → 實作後 Y，新增 Z 條對應 spec §3.3 哪幾項）
+3. **pytest 最終輸出**（尾端 5-10 行）
+4. **Commit SHA 清單**（首行訊息）
+5. **`git branch --contains <最後 SHA>`**（證明落 worktree 分支）
+6. **與 spec 偏離**（如有 + 理由）
+7. **TaskList 摘要**（subagent 軌：拆了幾條 task / 各自對應 spec 哪段 / 全 completed）
 
 ## 🚦 中途遇到狀況立刻回報
 
