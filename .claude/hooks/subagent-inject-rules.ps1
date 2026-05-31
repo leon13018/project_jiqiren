@@ -52,7 +52,7 @@ Write-Output @"
 ### 🌏 強制規範
 
 - **繁體中文**：所有產出物（程式碼註解、字串輸出、文件、commit message、markdown 中文）一律繁體中文（成果在台灣展示）。
-- **Commit message**：結尾附 ``Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>``。
+- **Commit message**：結尾附 ``Co-Authored-By: Claude Opus <noreply@anthropic.com>``。
 - **karpathy-guidelines**：寫程式時遵守 surgical / verifiable / no over-engineering / no premature abstraction / 看到不對立刻修。
 
 ### 📚 path-scoped 自動載入（編到對應檔，主 agent 體系自動載 rule）

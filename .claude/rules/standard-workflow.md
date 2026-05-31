@@ -16,7 +16,7 @@
 1a. **（條件性）撰寫 Pi 端操作說明書**：若本輪變更涉及 Pi 端動作（見 `.claude/rules/pi-side-trigger.md`），主 agent **新增一個檔**到 `resources/pineedtodo/<檔名>.md`（**append-only：既有檔不動**），納入下一步的 `git add`。不觸發直接跳過。
 1b. **（條件性）更新 projectStructure.md**：若本輪變更改動到專案資料結構（見 `.claude/rules/projectstructure-trigger.md`），主 agent 編輯 `resources/projectStructure/projectStructure.md`（目錄樹 + 職責表 + 更新紀錄），納入下一步的 `git add`。不觸發直接跳過。
 2. `git add <具體檔名>`（不用 `-A` / `.` — PreToolUse hook 會擋）
-3. `git commit -m "..."` 英文簡短訊息，附 `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>`
+3. `git commit -m "..."` 英文簡短訊息，附 `Co-Authored-By: Claude Opus <noreply@anthropic.com>`
 4. `git push origin main` — PostToolUse hook 會自動跑 `auto-sync-pi.ps1`（async + 120s timeout），但 **background session 內非 deterministic**。
 5. **永遠手動跑** `& sync_pi.ps1`（PowerShell tool）— **統一規則，不分 session 類型**。hook 自動跑時手動跑是 idempotent no-op（git pull → Already up to date），~3s SSH 成本可接受；省得判斷 session 類型 / 記憶 hook 觸發行為。
 

@@ -79,7 +79,7 @@ HEAD: <last sales-coder commit SHA>
 
 ### 6. Git 操作規範
 
-- commit message 結尾有 `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>`？
+- commit message 結尾有 `Co-Authored-By: Claude Opus <noreply@anthropic.com>`？
 - 沒用 `git add -A` / `git add .`（hook 會擋但 review 仍確認）？
 
 ### 7. 測試品質（若改動含 test）
