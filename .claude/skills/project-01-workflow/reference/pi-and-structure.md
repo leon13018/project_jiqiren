@@ -102,7 +102,7 @@
 ### 輸出位置與主 agent 動作
 
 - **結構變動 → 更新 `.claude/code_map.md`**（當前資料夾 / 檔案結構的單一事實來源：新增加一行、刪除撤行、改名改路徑）。
-- skill 內部檔案（reference / examples / scripts）增刪 → 改 `skill_code_map.md`。
+- skill 內部檔案（reference / examples / scripts）增刪 → 更新 `SKILL.md` 路由表。
 
 ### 場景 B：使用者手動改結構 → 回報 → 主 agent 更新
 

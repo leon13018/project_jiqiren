@@ -15,8 +15,8 @@ skills:
 ## 啟動時已注入 → 直接用，不在此重述
 
 - **karpathy-guidelines** + **test-driven-development** + **project-01-workflow** 三個 SKILL 完整內容已由 frontmatter 預載；SubagentStart hook 另注入 ⛔ 安全紅線（禁改 vendor / 不裝依賴 / 不 import vendor SDK / 不用 `git add -A`）+ 繁中產出 + commit 結尾 `Co-Authored-By`。**遵循注入的原文即可，本檔不重複。**
-- 編 code 走 **progressive disclosure**：查 `project-01-workflow` 的 `SKILL.md` router / `skill_code_map.md` 決定**該讀哪個 reference**，用到才 Read（vendor / threading-paths / sales-dialog-design / sales-tts-ux / sdd / bdd-tdd…），**別一次全讀**。
-- **找檔案位置 / 結構 → 查 `.claude/code_map.md`**；skill 內部檔 → `skill_code_map.md`。**不要憑記憶猜路徑。**
+- 編 code 走 **progressive disclosure**：查 `project-01-workflow` 的 `SKILL.md` 路由表決定**該讀哪個 reference**，用到才 Read（vendor / threading-paths / sales-dialog-design / sales-tts-ux / sdd / bdd-tdd…），**別一次全讀**。
+- **找檔案位置 / 結構 → 查 `.claude/code_map.md`**；skill 內部檔 → `SKILL.md` 路由表。**不要憑記憶猜路徑。**
 
 ## 主 agent 派發時必給我（spec 沒涵蓋的任務特化）
 

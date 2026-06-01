@@ -33,9 +33,9 @@
 
 寫完後**提醒使用者回報安裝狀況**（使用者明確回報成功的項目，主 agent 會更新 `resources/requirements/raspberry_pi_setup.md` Pi 已安裝清單；失敗 / 未回報項目絕不寫入）。不觸發直接跳過。
 
-### 1b.（條件性）結構變動 → 更新 code_map / skill_code_map
+### 1b.（條件性）結構變動 → 更新 code_map / SKILL.md 路由表
 
-若本輪變更改動到專案資料結構（檔案 / 資料夾增刪移 / 改名，包括 gitignored；或修改 `.gitignore`；觸發清單見 [`pi-and-structure.md`](pi-and-structure.md) §結構變動維護）：**結構 → 更新 `.claude/code_map.md`**（skill 內部檔案則更 `skill_code_map.md`）。納入下一步的 `git add`。不觸發直接跳過。
+若本輪變更改動到專案資料結構（檔案 / 資料夾增刪移 / 改名，包括 gitignored；或修改 `.gitignore`；觸發清單見 [`pi-and-structure.md`](pi-and-structure.md) §結構變動維護）：**結構 → 更新 `.claude/code_map.md`**（skill 內部檔案則更 `SKILL.md` 路由表）。納入下一步的 `git add`。不觸發直接跳過。
 
 ### 2. `git add <具體檔名>`
 
