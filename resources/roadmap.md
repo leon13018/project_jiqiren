@@ -476,6 +476,20 @@ User 安裝 `superpowers@claude-plugins-official` 後要求 reverse-engineer →
 - **新基礎建設**：`resources/specs/`（3 spec docs）/ `resources/research/`（1 調研報告）/ `.claude/rules/sdd-prompts/`（2 reviewer templates）
 - **下個 session user 規劃**：(1) CLAUDE.md 流程繼續優化（user 明示）(2) 之後修改主程式代碼
 
+### 2026-06-01 — CLAUDE.md / rules / memory → 單一 skill 遷移 + hook BOM 修復
+
+把專案規範體系從「CLAUDE.md（大）+ 13 rules + 41 memory」重整為「CLAUDE.md 極簡核心 + 單一 progressive-disclosure skill」，依官方 skill 架構（`resources/research/CC-skills.md`）+ brainstorm 設計 spec（`resources/specs/claude_md_to_skill_migration_2026-06-01_spec.md`）。
+
+**Phase 1 — 建 skill**（commits `7f6ef9f` / `9c7f59c`）：brainstorm 對齊 4 決策（單 skill router 顆粒度 / CLAUDE.md 留極簡核心 + 新 hook 補強 / memory 只留 2 / myProgram 知識當 router-Read reference）→ 用 skill-creator 建骨架 → 派 8 個 opus subagent 平行把 13 rules + 36 memory **忠實搬運重組**成 `.claude/skills/project-01-workflow/`（router `SKILL.md` + 12 reference + 2 examples + 1 script；繁中、保留全細節、現況校正過期內容如 sync 規則 / Opus 版本 / L4 budget）。
+
+**Phase 2 — 瘦身收尾**（commits `dfd9666` / `7c603df` / `704177a`）：CLAUDE.md ~230 → ~64 行極簡核心（⛔安全 + 🌏繁中 + 📐skill 觸發表）；新增 2 hook（`block-windows-install` PreToolUse 執法 ⛔#2 + `check-traditional-chinese` PostToolUse 純警示）+ 更新 `subagent-inject-rules` 指向 skill + `sales-coder` frontmatter 預載 `project-01-workflow`；刪 `.claude/rules/` 13 檔；`roadmap` + `architecture_vision` 遷入 `resources/`；38 memory 刪除只剩 `user_profile` + `user_step_by_step_pace`；`references/` → `reference/` 單數改名。
+
+**後續修復**：`CC-skills.md` 納入 git（`98520bf`）；**hook BOM bug 修復**（`a1c3753`）— PS 5.1（`powershell.exe`）讀無 BOM .ps1 用系統 cp936 解碼 → 中文字串 parse error（`block-windows-install` 一執行就 crash；起因：Write 工具寫無 BOM + 我用 pwsh `Set-Content -Encoding UTF8` 誤洗掉 `subagent-inject` 的 BOM）；4 個 .ps1 補回 UTF-8 BOM，全 11 hook 實測 PS 5.1 解析+執行正常；教訓寫進 `NOTES.md` Gotcha A（`e0b9102`）。本機 `.pytest_cache` / `__pycache__` 一併清理（gitignored，無影響）。
+
+**狀態**：sales/ pytest 不受影響（純 meta 重構，未動 `myProgram/` code）；main HEAD `e0b9102` / Pi HEAD `e0b9102` 對齊。
+
+**下一步（user 明示）**：先繼續優化 `project-01-workflow` skill + CLAUDE.md（流程級 meta 優化），之後才修改主程式 code。
+
 ### 下一步候選（待使用者選方向）
 
 | 選項 | 範圍 | 收益 / 成本 |
