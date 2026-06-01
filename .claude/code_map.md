@@ -1,7 +1,7 @@
 # Project_01 — Code Map（檔案導航索引）
 
 > Claude / 開發者**快速定位檔案**用：只放結構 + 一行描述。
-> 歷史 / 變更日誌見 `resources/projectStructure/projectStructure.md`（已降級為日誌，勿當 code map）。
+> 歷史 / 變更日誌見 `resources/changelog.md`（已降級為日誌，勿當 code map）。
 
 ## Top-level
 - `myProgram/` — 機器人主程式（Pi 上執行）：點餐 / 收款規則匹配狀態機（見下）
@@ -22,4 +22,4 @@
 - `specs/` SDD 規格　`plans/` SDD 計畫　`reviews/` 審查報告　`research/` 研究筆記
 - `requirements/` 需求(Pi setup)　`architecture/` 架構願景+前後端契約　`pineedtodo/` Pi 待辦
 - `examples/` 範例 code　`presentation/` 報告　`userPrompt/` prompt 存檔
-- `projectStructure/projectStructure.md` 專案日誌（大、歷史）
+- `roadmap.md` 開發路線圖　`changelog.md` 專案開發日誌（里程碑歷史，勿當 code map）

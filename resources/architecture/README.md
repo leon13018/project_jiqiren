@@ -22,4 +22,4 @@
 
 - 架構決策變動時 → 更新對應檔案 + 補一行「決策日期 + 變動原因」
 - 與 `.claude/CLAUDE.md` / memory 同步：高階方向寫進 memory `project-architecture-vision`，細節留在本資料夾
-- 與 `resources/projectStructure/projectStructure.md` 區別：那邊是「實際結構快照」，這邊是「決策與方向」
+- 與 `resources/changelog.md` 區別：那邊是「開發里程碑日誌」，這邊是「決策與方向」

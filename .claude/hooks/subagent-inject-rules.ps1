@@ -65,7 +65,7 @@ Write-Output @"
 - ``.claude/CLAUDE.md`` — 專案主規範入口（極簡核心：安全 + 繁中 + skill 觸發表）
 - ``project-01-workflow`` skill — 完整 workflow 協議 + myProgram 領域知識（取代舊 ``.claude/rules/``）
 - ``.claude/hooks/NOTES.md`` — hooks 自動化系統研究筆記
-- ``resources/projectStructure/projectStructure.md`` — 專案目錄結構
+- ``.claude/code_map.md`` — repo 檔案結構 / 路徑導航索引（單一事實來源）
 
 ### 主 agent 派發時可能塞的「任務特化」規則
 
