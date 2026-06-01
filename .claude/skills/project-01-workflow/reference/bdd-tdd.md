@@ -297,25 +297,7 @@ git add tests/spec/L?_*_scenarios.py \             # 本輪新增 BDD spec（若
 
 ## tests/ 目錄結構
 
-```
-tests/                              # 專案根目錄
-├── __init__.py                     # docstring + 組織說明
-├── conftest.py                     # 共用 fixtures（callback stub 工廠等）
-├── spec/                           # BDD 階段產出（按 L 層組織）
-│   ├── __init__.py
-│   ├── L0_common_scenarios.py
-│   ├── L1_mode_select_scenarios.py
-│   ├── L2_first_order_scenarios.py
-│   ├── L3_add_loop_scenarios.py
-│   ├── L4_checkout_scenarios.py
-│   └── L5_thanks_scenarios.py
-└── sales/                          # TDD 階段最終測試（按模組組織）
-    ├── __init__.py
-    ├── test_nlu.py
-    ├── test_cart.py
-    ├── test_logic.py
-    └── test_states.py
-```
+> 實際檔案清單見 `.claude/code_map.md`（`tests/` 段）。本節只說明 BDD 的組織原則：`tests/spec/` 按 L 層組織（BDD 階段產出），`tests/sales/` 按 prod 模組組織（TDD 階段最終測試）。
 
 **spec/ vs sales/ 對應關係：**
 

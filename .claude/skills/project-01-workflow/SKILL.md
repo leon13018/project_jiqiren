@@ -16,6 +16,8 @@ disclosure，省常駐 context）。
 > 安全紅線（⛔ 不改 vendor / Windows 不裝依賴 / 不 import vendor SDK / 不用 `git add -A`）與繁體中文產出規範，
 > 由 CLAUDE.md 常駐 + hook 確定性強制；本 skill 不重複，但執行任何步驟時都假設它們生效。
 
+> **檔案位置先查 map（本 skill 不重複路徑清單）**：repo 檔案（myProgram / tests / resources / .claude）→ `.claude/code_map.md`；skill 內部檔案（reference / examples / scripts）→ `skill_code_map.md`。
+
 ---
 
 ## 路由表：當我要做 X → Read 哪個 reference
@@ -58,3 +60,4 @@ disclosure，省常駐 context）。
 - 路由型摘要留 SKILL.md，**具體協議內容寫進對應 `reference/<topic>.md`**。
 - 可執行代碼放 `scripts/`，用 `${CLAUDE_SKILL_DIR}/scripts/...` 引用。
 - reference 之間用相對路徑連結（如 `[worktree](worktree.md)`），不要用舊的 `[[memory-slug]]` 語法。
+- **新增 / 移動 reference / scripts / examples → 同步更新 `skill_code_map.md`**；repo 結構變動則更新 `.claude/code_map.md`。

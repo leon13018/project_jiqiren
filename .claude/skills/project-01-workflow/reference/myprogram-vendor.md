@@ -2,8 +2,6 @@
 
 `myProgram/vendor/ActionGroupControl.py` 與 `myProgram/vendor/Board.py` 是 Hiwonder TonyPi 廠商提供的 SDK 檔案。本 reference 整合：禁改背景、可直接 import 的關鍵 API 清單、`runAction` 兩種 silent fail 模式與 Pi demo 沒動作的排查 checklist。
 
-> 來源整合自 `.claude/rules/vendor-sdk-api.md`、memory `vendor-files`、memory `vendor-runaction-silent-fail`。
-
 ---
 
 ## ⛔ 絕對禁止修改（hook 強制執法）

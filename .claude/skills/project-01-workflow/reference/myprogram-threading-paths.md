@@ -2,8 +2,6 @@
 
 編 `myProgram/*.py` 時必遵守的多線程約束、Linux 路徑規範，以及 S6 非阻塞 input reader thread 的最終設計與五輪修補教訓。
 
-> 來源整合自 `.claude/rules/threading-conventions.md`、`.claude/rules/path-conventions.md`、memory `s6-non-blocking-input`。
-
 ---
 
 # Part A — 多線程規範（編 `myProgram/*.py` 時必遵守）
