@@ -51,6 +51,7 @@
 
 ## ⚙️ 操作習慣
 
+- **快速定位檔案 / 理解專案結構 → 先看 `.claude/code_map.md`**（輕量導航索引；詳細歷史看 `resources/projectStructure/projectStructure.md`）。
 - 優先 `Read` / `Edit` / `Write` / `Glob` / `Grep` — Windows shell 只給 git 用。
 - 規劃階段（還沒確定要做什麼）→ 暫停確認，不要先 commit。
 - 任務完成回報：(1) 改了什麼 (2) 是否寫了 pineedtodo (3) Pi 是否同步成功 (4) 是否需使用者後續行動（Pi 端操作 + 回報安裝狀況）。
