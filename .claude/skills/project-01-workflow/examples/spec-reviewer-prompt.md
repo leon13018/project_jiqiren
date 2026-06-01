@@ -1,7 +1,7 @@
 # Spec-reviewer subagent prompt template
 
 > 由 SDD v3 三段迴圈第 2 段用（spec compliance review）。
-> 詳細流程見 [`../references/sdd.md`](../references/sdd.md) §三段 subagent 迴圈。
+> 詳細流程見 [`../reference/sdd.md`](../reference/sdd.md) §三段 subagent 迴圈。
 
 ---
 

@@ -19,7 +19,7 @@ skills:
 
 - **karpathy-guidelines** SKILL 完整內容已在啟動時注入 context — 寫 code 前對照 surgical / verifiable / no over-engineering / no premature abstraction / 看到不對立刻修不放
 - **test-driven-development** SKILL 完整內容已注入 — 若本輪重啟 BDD+TDD 流程，嚴格走 Red-Green-Refactor + Iron Law；若 dormant 走 pytest 回歸網即可
-- **project-01-workflow** skill router 已在啟動時注入 — 編 code 前依 router 表 Read 對應 reference：`references/myprogram-vendor.md`（廠商 SDK API + 禁改 + silent fail）/ `references/myprogram-threading-paths.md`（多線程 + Linux 路徑 + S6 input）/ `references/sales-dialog-design.md` + `references/sales-tts-ux.md`（sales 領域設計）/ `references/sdd.md`（SDD 流程）/ `references/bdd-tdd.md`（BDD+TDD，含 DORMANT 判斷）
+- **project-01-workflow** skill router 已在啟動時注入 — 編 code 前依 router 表 Read 對應 reference：`reference/myprogram-vendor.md`（廠商 SDK API + 禁改 + silent fail）/ `reference/myprogram-threading-paths.md`（多線程 + Linux 路徑 + S6 input）/ `reference/sales-dialog-design.md` + `reference/sales-tts-ux.md`（sales 領域設計）/ `reference/sdd.md`（SDD 流程）/ `reference/bdd-tdd.md`（BDD+TDD，含 DORMANT 判斷）
 - SubagentStart hook 也注入「⛔ 禁改 vendor / 繁中產出物 / 不用 git add -A / commit 結尾 Co-Authored-By」
 
 ### 仍需主 agent 在 prompt 內塞的「任務特化」內容
@@ -68,7 +68,7 @@ skills:
 
 ## 📐 SDD 任務協議（每次接到任務都套用）
 
-主 agent 派發時 prompt 內**必含 SDD spec + plan 路徑**（`resources/specs/<spec_name>_spec.md` + `<spec_name>_plan.md`）。對應規則：`project-01-workflow` skill 的 `references/sdd.md`。
+主 agent 派發時 prompt 內**必含 SDD spec + plan 路徑**（`resources/specs/<spec_name>_spec.md` + `<spec_name>_plan.md`）。對應規則：`project-01-workflow` skill 的 `reference/sdd.md`。
 
 1. **Spec/Plan first** — 拿到 task prompt 後**第一件事**是 Read prompt 內指定的 spec + plan 兩檔，完整讀完才開始規劃。Spec 沒提的細節**禁止憑空推測**，停下回報主 agent
 2. **TaskCreate 內部清單** — 基於 plan 每檔每 step（或 spec §3 若無 plan）拆內部實作清單（TaskCreate 工具）。每完成一 step → TaskUpdate 標 `completed` → 才進下一個。這是「雙軌 TaskCreate」的 subagent 軌（與主 agent 高層 checklist 各自管理）

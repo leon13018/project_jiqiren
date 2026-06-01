@@ -2,7 +2,7 @@
 
 > 由 SDD v3 三段迴圈第 3 段用（code quality review）。
 > **前提**：必先通過第 2 段 spec-reviewer ✅ 才派此 reviewer。
-> 詳細流程見 [`../references/sdd.md`](../references/sdd.md) §三段 subagent 迴圈。
+> 詳細流程見 [`../reference/sdd.md`](../reference/sdd.md) §三段 subagent 迴圈。
 
 ---
 

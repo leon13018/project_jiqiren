@@ -26,13 +26,13 @@
 
 ## 🌏 輸出語言規範
 
-所有 **程式碼註解、字串輸出、文件、commit message、markdown 內的中文** 一律使用 **繁體中文**。即使使用者用簡體中文溝通也不影響此規則 — 最終成果在 **中國台灣** 展示。（對話回覆本身可簡繁混合，這條只規範**產出物**。簡繁對照細節見 skill `references/conventions.md`。）
+所有 **程式碼註解、字串輸出、文件、commit message、markdown 內的中文** 一律使用 **繁體中文**。即使使用者用簡體中文溝通也不影響此規則 — 最終成果在 **中國台灣** 展示。（對話回覆本身可簡繁混合，這條只規範**產出物**。簡繁對照細節見 skill `reference/conventions.md`。）
 
 ---
 
 ## 📐 工作流程與領域知識 → 載入 `project-01-workflow` skill
 
-本專案所有協議與知識都在該 skill。**做下列任一類工作前務必先載入 skill**，再依其 `SKILL.md` router 表 Read 對應 `references/<topic>.md`（即使任務看似簡單也載入——規則會演進，重讀 reference 比憑記憶可靠）：
+本專案所有協議與知識都在該 skill。**做下列任一類工作前務必先載入 skill**，再依其 `SKILL.md` router 表 Read 對應 `reference/<topic>.md`（即使任務看似簡單也載入——規則會演進，重讀 reference 比憑記憶可靠）：
 
 | 情境 | 載入後讀 |
 |---|---|
@@ -59,6 +59,6 @@
 
 ## 📋 維護原則
 
-- **兩層架構**：CLAUDE.md（極簡核心 + skill 觸發表）→ `project-01-workflow` skill（SKILL.md router + `references/` 細節，progressive disclosure）。
+- **兩層架構**：CLAUDE.md（極簡核心 + skill 觸發表）→ `project-01-workflow` skill（SKILL.md router + `reference/` 細節，progressive disclosure）。
 - memory 只剩 `user_profile` + `user_step_by_step_pace`（使用者背景 / 工作節奏）；其餘協議 / 領域 / 歷史都在 skill + `resources/`。
-- 新增 / 改協議內容：寫進 skill 對應 `references/<topic>.md`，CLAUDE.md 只在觸發表加一行。
+- 新增 / 改協議內容：寫進 skill 對應 `reference/<topic>.md`，CLAUDE.md 只在觸發表加一行。

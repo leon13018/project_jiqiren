@@ -1,4 +1,4 @@
-﻿# SubagentStart hook：自動注入標準規範到所有 subagent
+# SubagentStart hook：自動注入標準規範到所有 subagent
 #
 # 取代原 subagent-dispatch-protocol 步驟 2-3 的「手動塞規則 + karpathy」boilerplate。
 # 主 agent 派發 prompt 改成只寫 task description + 任務特化規則（threading / path / etc）。
@@ -58,7 +58,7 @@ Write-Output @"
 ### 📚 完整協議與領域知識（載入 project-01-workflow skill）
 
 - 本專案所有 workflow（SDD / worktree / dispatch / 標準收尾 / Pi 端 / incremental-rebuild）+ myProgram 領域知識（廠商 SDK API / 線程 / 路徑 / sales 對話與 TTS 設計）都在 ``project-01-workflow`` skill。
-- 編 ``myProgram/**/*.py`` 前：載入該 skill → Read 對應 reference（``references/myprogram-vendor.md`` / ``myprogram-threading-paths.md`` / ``sales-dialog-design.md`` / ``sdd.md`` 等）。
+- 編 ``myProgram/**/*.py`` 前：載入該 skill → Read 對應 reference（``reference/myprogram-vendor.md`` / ``myprogram-threading-paths.md`` / ``sales-dialog-design.md`` / ``sdd.md`` 等）。
 
 ### 🔗 完整文檔
 

@@ -36,7 +36,7 @@ Project_01/
 │       │   └── testing-anti-patterns.md  # 測試反模式（禁測 mock 行為 / 禁為測試在產品碼加方法）
 │       └── project-01-workflow/          # 🆕 2026-06-01：專案所有 workflow 協議 + myProgram 領域知識（取代 .claude/rules/ + 大部分 memory；progressive disclosure）
 │           ├── SKILL.md                  # 精簡 router（觸發表 + 8 條鐵則一行摘要）
-│           ├── references/               # 12 檔細節，用到才 Read：sdd / worktree / dispatch / standard-workflow / pi-and-structure / incremental-rebuild / bdd-tdd / myprogram-vendor / myprogram-threading-paths / sales-dialog-design / sales-tts-ux / conventions
+│           ├── reference/               # 12 檔細節，用到才 Read：sdd / worktree / dispatch / standard-workflow / pi-and-structure / incremental-rebuild / bdd-tdd / myprogram-vendor / myprogram-threading-paths / sales-dialog-design / sales-tts-ux / conventions
 │           ├── examples/                 # spec-reviewer-prompt.md + code-quality-reviewer-prompt.md（原 rules/sdd-prompts/）
 │           └── scripts/                  # clean-pi-pycache.ps1（Pi pycache 手動補清）
 │
@@ -261,7 +261,7 @@ __pycache__/
 | `tests/sales/test_tts_worker.py` | 2026-05-30（`speak_and_wait` v2，commit `c418004`）| **6 個測試**：`myProgram/tts.py` `TtsWorker` Condition + `_pending` counter 設計 — R1 race regression（say 後 wait_idle 不應在 worker 結束前返回） / wait_idle 立即 idle（pending=0）/ wait_idle 超 max_wait 返 False / synth 失敗 finally decrement pending / Condition.notify_all unblock 等待者 / 20 thread 並發 stress 無死鎖。注入 fake synth/play 避免真 edge_tts / subprocess。 |
 | `pytest.ini` | 2026-05-24（L0 第一輪 TDD）| pytest 設定：`testpaths = tests/sales`；確保 `python -m pytest tests/sales/ -v` 正確找到測試 |
 
-> **測試環境（選項 C）：** Windows 全域 Python 3.14.4 + pytest（使用者 2026-05-24 手動裝）；`myProgram/sales/` 內任何檔禁 import 廠商 SDK，所有對外動作（speak / do_action / show）以 callback 注入。跑指令 `python -m pytest tests/sales/ -v`。完整流程：`project-01-workflow` skill `references/bdd-tdd.md`。
+> **測試環境（選項 C）：** Windows 全域 Python 3.14.4 + pytest（使用者 2026-05-24 手動裝）；`myProgram/sales/` 內任何檔禁 import 廠商 SDK，所有對外動作（speak / do_action / show）以 callback 注入。跑指令 `python -m pytest tests/sales/ -v`。完整流程：`project-01-workflow` skill `reference/bdd-tdd.md`。
 
 ### 部署 / 設定
 
