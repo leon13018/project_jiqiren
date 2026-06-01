@@ -1,5 +1,7 @@
 # Sales TTS / 計時倒數 / UX 過場設計
 
+> **🎯 何時讀本檔**：要改 sales 的 TTS 等待 / wall-clock 計時倒數 / timeout / speak 文案 sweep / UX 過場。
+
 myProgram sales TTS pipeline（`tts.py` TtsWorker）、wall-clock 計時倒數打印、與 UX 過場 / 心理學掩蓋的領域設計哲學。日後改 sales code（尤其 TTS 等待、timeout 計時、speak 文案 sweep）須對照本檔。
 
 > 每個 section 對應一份原始 memory，忠實搬運其全部設計細節 + Why + 歷史演進。

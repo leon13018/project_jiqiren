@@ -1,5 +1,7 @@
 # 多線程規範 + 路徑規範 + S6 reader thread 教訓
 
+> **🎯 何時讀本檔**：要在 `myProgram/*.py` 寫多線程 / queue / thread，用到檔案路徑（須 Linux 絕對路徑），或碰 stdin 鍵盤輸入。
+
 編 `myProgram/*.py` 時必遵守的多線程約束、Linux 路徑規範，以及 S6 非阻塞 input reader thread 的最終設計與五輪修補教訓。
 
 ---

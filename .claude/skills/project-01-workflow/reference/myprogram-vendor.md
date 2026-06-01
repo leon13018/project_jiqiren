@@ -1,5 +1,7 @@
 # 廠商 SDK（vendor）— 禁改紅線 + 關鍵 API + silent fail 排查
 
+> **🎯 何時讀本檔**：要 `import` / 呼叫廠商 SDK（`ActionGroupControl` / `Board` / `runAction` 等），或 Pi demo 動作沒出來要排查 silent fail。
+
 `myProgram/vendor/ActionGroupControl.py` 與 `myProgram/vendor/Board.py` 是 Hiwonder TonyPi 廠商提供的 SDK 檔案。本 reference 整合：禁改背景、可直接 import 的關鍵 API 清單、`runAction` 兩種 silent fail 模式與 Pi demo 沒動作的排查 checklist。
 
 ---

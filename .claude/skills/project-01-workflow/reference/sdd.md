@@ -1,5 +1,7 @@
 # SDD (Spec-Driven Development) 工作流程 — v3
 
+> **🎯 何時讀本檔**：要寫 / 改 `myProgram/` 下**任何 `.py` code**（sales / main / tts / action / input_reader，不分規模）——動手前先走 SDD 寫 spec。
+
 編寫或修改 `myProgram/` 內任何 `.py` code 之前 **強制** 先寫 spec 檔到 `resources/specs/`，主 agent 與使用者對齊後才實作，**不分規模**。Spec 一律存 `resources/specs/`；完整版拆 `<name>_<date>_spec.md`（WHAT）+ `<name>_<date>_plan.md`（HOW step-by-step），mini 版 5 行單檔。
 
 **v3 演進**（2026-05-31）：在 v2 基礎上借鏡 superpowers v5.1.0 plugin 9 大優化（reverse-engineered）—

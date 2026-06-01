@@ -1,5 +1,7 @@
 # 標準任務收尾循環（滿足條件才做）
 
+> **🎯 何時讀本檔**：本輪有 tracked 檔改動要收尾（git status → add → commit → push → sync），或要處理 Pi sync / pycache。
+
 每次任務若本輪有 **git 會追蹤的檔案**改動，主 agent 必須跑這套 git 收尾循環。本 reference 定義 git 收尾的**內核步驟**（status → add → commit → push → sync），會內嵌在 [`worktree.md`](worktree.md) 階段 2 / 3a-3b（commit）與階段 4（push / sync）內。差別只在「誰寫」——派 subagent 寫 vs 主 agent 自己寫。
 
 > **背景 session 限制**：所有 tracked 檔的編輯都要走 [`worktree.md`](worktree.md) 5 階段（不論派 subagent 或主 agent 自己改純文件 / memory bootstrap）。改 gitignored 檔則不需進 worktree（worktree 看不到該檔）。

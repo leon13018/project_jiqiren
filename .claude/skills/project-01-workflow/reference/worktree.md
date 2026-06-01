@@ -1,5 +1,7 @@
 # Worktree 工作流程（編寫 tracked 檔時必用）
 
+> **🎯 何時讀本檔**：本輪要編寫 / 修改**任何 tracked 檔**（動手前先 EnterWorktree），或要做收尾 ff-merge / cleanup。
+
 每次編寫或修改 tracked 檔（不論派 subagent / agent teams 寫，或主 agent 自己改純文件），**主 agent 必須先
 EnterWorktree**，提供隔離工作環境。Subagent / 主 agent 在 worktree 內改檔 + commit，避免污染主 checkout 與其他平行任務。
 

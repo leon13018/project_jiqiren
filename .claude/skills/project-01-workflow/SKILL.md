@@ -16,6 +16,8 @@ Raspberry Pi 上的規則匹配點餐 / 收款機器人。本 skill 是專案所
 
 ## 路由表：要做 X → Read 哪個 reference（用到才載）
 
+> **兩層觸發**：下表給**粗條件**命中候選 → 打開該 reference，其開頭 **🎯 何時讀本檔** 標頭給精確條件確認 / 細化是否深入（精確觸發條件留在各 reference，本表保持廣而短）。
+
 | 要做… | Read `reference/` |
 |---|---|
 | 改 `myProgram/` 任何 .py code（走 SDD） | `sdd.md` + `examples/` reviewer 範本 |
@@ -44,4 +46,4 @@ Raspberry Pi 上的規則匹配點餐 / 收款機器人。本 skill 是專案所
 
 - 取代舊 `.claude/rules/` + 大部分 memory（2026-06-01 遷移）。路由摘要留本檔，**協議細節寫進 `reference/<topic>.md`**，可執行碼放 `scripts/`。
 - reference 間用相對路徑連結（`[worktree](worktree.md)`）。
-- 新增 / 移動 reference / scripts / examples → **同步更新本檔路由表**；repo 結構變動 → 更新 `.claude/code_map.md`。
+- 新增 / 移動 reference / scripts / examples → **同步更新本檔路由表**，且新 reference 開頭加 **🎯 何時讀本檔** 自描述標頭；repo 結構變動 → 更新 `.claude/code_map.md`。

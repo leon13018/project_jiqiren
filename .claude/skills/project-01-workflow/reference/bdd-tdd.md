@@ -1,5 +1,7 @@
 # BDD + TDD 開發流程（編寫 `myProgram/sales/` 業務邏輯時必走）
 
+> **🎯 何時讀本檔**：要**新增** `myProgram/sales/` 業務邏輯（新商品 / 新對話分支 / 新 L 層）。⚠️ 目前 DORMANT（見下）。
+
 > ## ⚠️ 狀態：DORMANT（2026-05-25 起）
 >
 > sales/ L0-L5 全層 + wire-up 完成後**休眠**。本檔由 path-scoped 機制在編到 sales/ 相關檔時載入，Claude 看到

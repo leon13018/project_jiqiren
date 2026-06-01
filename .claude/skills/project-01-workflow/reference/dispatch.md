@@ -1,5 +1,7 @@
 # Subagent / Agent Teams 派發協議
 
+> **🎯 何時讀本檔**：要派 subagent / agent teams，或判斷某改動該不該派（規模門檻），或設定 / 派發 sales-coder。
+
 我（主對話 agent）是工程部「總負責人」，subagent / agent teams 是底下執行任務的工程師團隊。我負責**有效管理 + 監督**，必須完整執行派發前準備 + 派發後審查兩個階段，不可省略。
 
 > **Why**：subagent / agent team 是全新 context window，預設讀不到 [CLAUDE.md](../../../CLAUDE.md) 也讀不到本對話的歷史。如果不主動把規範餵給他們，他們會做出不合規範的產出（典型錯誤：寫簡體中文、改到廠商檔、用相對路徑、用 `~` 路徑、用 Windows `\` 路徑等等）。最後我還是得要求他們修或自己修，造成大量往返浪費。**預先準備好可以一次到位，是效率關鍵。**

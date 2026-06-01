@@ -1,5 +1,7 @@
 # Sales 對話狀態機 / 跨層流程設計
 
+> **🎯 何時讀本檔**：要改 sales 對話狀態機 / 跨層流程（L2 / L3 / L4、qty followup、cancel / service confirm、C-2、錢包保守邏輯）。
+
 myProgram sales 對話層（L2/L3/L4 + qty followup + 各 confirm 子狀態）的領域設計決策。日後改 sales code 須對照本檔，避免推翻已對齊的 UX / 錢包保守 / 跨層 confirm 等決定。
 
 > 每個 section 對應一份原始 memory，忠實搬運其全部設計細節 + Why + 歷史演進。**矛盾以該 section 內最新註記為準**（例：L4 budget 現況為 30s，非舊版 60s）。
