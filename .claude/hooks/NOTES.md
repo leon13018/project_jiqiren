@@ -3,7 +3,7 @@
 > 本檔記錄 hooks 系統的所有調研發現、設計決策、踩坑歷史、未實作但有用的功能。
 > 後續討論 / 維護 / 擴展 hooks 都應該先看這檔。
 >
-> **最後更新：2026-05-25**（Stop + SessionStart hooks 上線）
+> **最後更新：2026-06-02**（§10.6 官方陷阱稽核；前次 2026-05-25 Stop + SessionStart hooks 上線）
 
 ---
 
@@ -485,6 +485,52 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 1. 看 stderr — Claude transcript 會顯示 hook error notice
 2. 看 hook script 內手動 log 到檔案（無官方 hook log view）
 3. 確認 settings.json 路徑（`.claude/settings.json` 是 project，不要寫到 user global）
+
+---
+
+## 10.6 官方陷阱稽核（2026-06-02）
+
+派 claude-code-guide subagent 重抓官方文檔（`code.claude.com/docs/en/hooks`）整理出 17 條 hooks 陷阱，
+對照本專案全部 9 個 hook 腳本逐一比對。**結論：一條都沒踩到，且多條為主動防禦。** 無需修改。
+
+### 逐條對照
+
+| # | 官方陷阱 | 本專案狀態 | 判定 |
+|---|---|---|---|
+| 1 | `exit 1` 擋不住動作 | 3 個 block hook 都用 JSON `permissionDecision:deny` + `exit 0`（官方兩種合法擋法之一），不依賴 exit 1 | ✅ |
+| 2 | JSON 與 `exit 2` 混用（JSON 被忽略） | 從未混用；要嘛 JSON+exit 0，要嘛純 exit 0 | ✅ |
+| 3 | shell profile 的 echo 污染 JSON stdout | **每個 hook 都帶 `-NoProfile`** | ✅ 主動防禦 |
+| 4 | 超時阻塞 session | `auto-sync-pi` 有 `timeout:120`+`async`；其餘皆快指令（默認 600s 充足） | ✅ |
+| 5 | 輸出超 10,000 字元被改存檔 | 最大的 `subagent-inject-rules` 也遠低於 1 萬字 | ✅ |
+| 6 | matcher 精確 vs 正則混淆 | `Bash` / `Bash\|PowerShell` / `Edit\|Write` 皆合法「字母+`\|`」精確 alternation，無需正則 | ✅ |
+| 7 | Windows exec form 跑 `.cmd`（如 npm）失敗 | 用 `command:"powershell"`（真 .exe，非 .cmd），exec form 正確 | ✅ |
+| 8 | PreToolUse vs PermissionRequest 決策格式不同 | 只用 PreToolUse，格式 `permissionDecision:deny` 正確 | ✅ |
+| 9 | `async:true` 靜默失敗、模型不被通知 | `auto-sync-pi` 刻意 fire-and-forget（CLAUDE.md 明定手動 `& sync_pi.ps1` 為準） | ✅ 已知取捨 |
+| 10 | HTTP hook 默認不阻止操作 | 未使用 HTTP hook | — N/A |
+| 11 | SessionStart 非冪等（`$(date)` resume 後過期） | 每次重算 git 狀態、無寫死時間戳進輸出；另有 `agent_id` guard 防污染 subagent | ✅ 主動防禦 |
+| 12 | MCP tool hook 連線檢查報未連接 | 未使用 MCP hook | — N/A |
+| 13 | 不支援 matcher 的事件寫了會被靜默忽略 | Stop / SessionStart / SubagentStart **正確地未寫 matcher** | ✅ |
+| 14 | 無法存取 `/dev/tty` / 互動輸入 | 無互動輸入 | ✅ |
+| 15 | `allowManagedHooksOnly` 擋掉非 managed hooks | 個人專案，N/A | — |
+| 16 | `additionalContext` 用命令句觸發注入防禦 | 注入的是專案規則（禁止…/繁中…），屬正當用途，非「忽略先前指令」型 | ✅ |
+| 17 | matcher/if/disableAll 等導致 hook 不觸發 | 無異常 | ✅ |
+
+### 超出文檔要求的主動防禦（本專案特有）
+
+- **UTF-8 OutputEncoding 修正**：每個輸出繁中的 hook 都修了 PowerShell 5.1 預設 cp936/GBK（本機 code page = 簡中），
+  否則繁中 deny reason / 注入內容會 mojibake。此為文檔未提、但本機環境必須做的步驟。
+- **Stop hook `pending → reminded` 一次性提醒**：避開「Stop hook 無限 block 造成 deadlock」鄰近陷阱。
+- **block hook 解析失敗 fail-open**（`catch { exit 0 }`）：寧可放過不誤殺，符合 PreToolUse 最佳實踐。
+
+### 兩個無害小觀察（非問題、刻意不改）
+
+1. `state-mark-sales-dirty` / `state-clear-on-pytest` 未設 UTF-8 OutputEncoding —— 但兩者只寫 flag 檔、不對 stdout 印任何東西，
+   無 mojibake 風險，純風格不一致。
+2. `state-clear-on-pytest` 用 `\b(pytest|py\.test)\b` 比對指令字串 —— 理論上某指令僅「提到」pytest 卻沒真跑（如 `echo pytest`）
+   會誤清 flag；屬刻意的寬鬆設計（docstring 有註明），實務幾乎不觸發。
+
+> **觸發來源**：使用者讀 `resources/research/CC_large_codebases_best_practices_2026-06-01.md`（官方大型程式庫最佳實踐筆記）
+> 提到「常見誤用」後，要求對照官方 hooks 文檔做防禦性稽核。
 
 ---
 
