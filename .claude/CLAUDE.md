@@ -5,7 +5,6 @@
 > 本檔只放**不能延遲載入的核心**（安全紅線 + 繁中 + skill 觸發表）。所有 workflow 協議與 myProgram 領域知識
 > 都在 **`project-01-workflow` skill**（progressive disclosure，用到才載）。
 > **檔案路徑 / 專案結構不在本檔重複——一律以 `.claude/code_map.md` 為單一事實來源。**
-> （遷移設計見 `resources/specs/claude_md_to_skill_migration_2026-06-01_spec.md`。）
 
 ---
 
