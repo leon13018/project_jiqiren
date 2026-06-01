@@ -381,7 +381,7 @@ Built-in subagent（`Explore` / `Plan` / `general-purpose` / `claude-code-guide`
 
 ## 自動化補充
 
-- 📦 **`sales-coder` 自訂 subagent**（2026-05-28 起）`.claude/agents/sales-coder.md` 透過 frontmatter `skills:` 預載 karpathy-guidelines + test-driven-development **SKILL 完整內容**（非 reference summary）。新增 / 改 subagent 檔需重啟 session 才生效（除非用 `/agents` interface 立即生效）；built-in subagent（Explore / Plan / general-purpose / claude-code-guide / statusline-setup）不支援 frontmatter 預載。
+- 📦 **`sales-coder` 自訂 subagent**（2026-05-28 起）`.claude/agents/sales-coder.md` 透過 frontmatter `skills:` 預載 karpathy-guidelines + test-driven-development **SKILL 完整內容**（非 reference summary）。**外部直接編輯 / 新增** subagent 檔需**重啟 session** 才生效；只有**在 `/agents` 互動介面內建立 / 編輯**的 agent 才立即生效（官方文檔：「edit a subagent file directly on disk → restart your session to load it」；`/agents` 的即時生效**不涵蓋**外部改檔——別誤以為開 `/agents` 就能 reload 已外部改的檔）。built-in subagent（Explore / Plan / general-purpose / claude-code-guide / statusline-setup）不支援 frontmatter 預載。
 - 🪝 **SubagentStart hook**（2026-05-25 起）自動注入標準規範。Subagent 看到的 context window 開頭會有「SubagentStart 標準規範注入」段，包含 ⛔ 禁止項 / 強制規範 / 文檔指標。
 - 🪝 **agent_type 分流**：研究類（claude-code-guide / Explore / Plan）注入精簡版（只含繁中 + 文檔指標）；編碼類（general-purpose / sales-coder / 其他自訂 agent）注入完整規範。
 - 🔗 **完整 hook 文檔**：`.claude/hooks/NOTES.md`
