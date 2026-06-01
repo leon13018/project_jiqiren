@@ -88,7 +88,7 @@ push 後 PostToolUse hook 會嘗試自動跑 `auto-sync-pi.ps1`（async + 120s t
 - [`worktree.md`](worktree.md) 階段 4 末註
 - `.claude/hooks/NOTES.md` Section 6 Gotcha N
 
-**相關：** [git-sync-verify-before-debug]（debug 前先對 Pi HEAD，2026-05-27 此 finding 又踩一次驗證）/ 下方 §Pi 端 pycache stale（手動 sync 同時要清 pycache）。
+**相關：** [pi-and-structure.md](pi-and-structure.md) §git-sync-verify（debug 前先對 Pi HEAD，2026-05-27 此 finding 又踩一次驗證）/ 下方 §Pi 端 pycache stale（手動 sync 同時要清 pycache）。
 
 ---
 

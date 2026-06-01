@@ -91,8 +91,8 @@ else:
 
 依序確認 4 件事：
 
-1. **Pi git HEAD 同步**：`cd /home/pi/Desktop/project_jiqiren && git log -1 --oneline` 是否為最新 commit（見 memory `git-sync-verify-before-debug` / `background-session-hook-skip`）
-2. **Pi pycache 清乾淨**：`ssh pi find /home/pi/Desktop/project_jiqiren -name '__pycache__' -type d -exec rm -rf {} +`（見 memory `python-pycache-stale-on-pull`）
+1. **Pi git HEAD 同步**：`cd /home/pi/Desktop/project_jiqiren && git log -1 --oneline` 是否為最新 commit（見 [pi-and-structure.md](pi-and-structure.md) §Pi 環境陷阱 + [standard-workflow.md](standard-workflow.md) §background session 雙保險）
+2. **Pi pycache 清乾淨**：`ssh pi find /home/pi/Desktop/project_jiqiren -name '__pycache__' -type d -exec rm -rf {} +`（見 [standard-workflow.md](standard-workflow.md) §Pi 端 pycache stale；或跑 `scripts/clean-pi-pycache.ps1`）
 3. **廠商 baseline**：`cd /home/pi/TonyPi/HiwonderSDK && python3.11 -c "import ActionGroupControl as Act; Act.runAction('wave_hand')"` 跑得動嗎？跑不動 = 廠商 SDK 環境問題（pigpiod / 舵機接線 / GPIO 權限）
 4. **我們 import path**：`cd /home/pi/Desktop/project_jiqiren && python3.11 -c "from myProgram.vendor import ActionGroupControl as Act; Act.runAction('wave_hand')"` 跑得動嗎？跑不動 = 我們 wire-up 問題
 
@@ -104,10 +104,10 @@ else:
 
 ## 廠商 sticky 旗號注意事項
 
-S3 嚴格不呼叫 `Act.stopAction()`（見 memory `vendor-stop-action-sticky`），所以 sticky flag 不會被本專案污染；但若手動 / 其他程式呼叫過 `stopAction`，下次 `runAction` 一進入就被打斷。
+S3 嚴格不呼叫 `Act.stopAction()`（見 [incremental-rebuild.md](incremental-rebuild.md) §sticky 旗號），所以 sticky flag 不會被本專案污染；但若手動 / 其他程式呼叫過 `stopAction`，下次 `runAction` 一進入就被打斷。
 
 `Act.stopAction()` 設的 `stop_action=True` 是 sticky 旗號，**只在 `runAction` 內部迴圈才被消耗**。若空轉時呼叫 → 污染下次 `runAction` 一進入就被打斷。必須 `if Act.runningAction: stopAction()` 守衛（見 [myprogram-threading-paths.md](myprogram-threading-paths.md) worker shutdown 對比表）。
 
 ---
 
-**相關 reference / memory：** [myprogram-threading-paths.md](myprogram-threading-paths.md)（線程規範 + worker shutdown）/ memory `vendor-stop-action-sticky` / [CLAUDE.md](../../../CLAUDE.md) ⛔ #1
+**相關 reference：** [myprogram-threading-paths.md](myprogram-threading-paths.md)（線程規範 + worker shutdown）/ [incremental-rebuild.md](incremental-rebuild.md)（sticky 旗號詳解）/ [CLAUDE.md](../../../CLAUDE.md) ⛔ #1

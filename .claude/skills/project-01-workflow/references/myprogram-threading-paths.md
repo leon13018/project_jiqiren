@@ -226,13 +226,13 @@ possibly due to daemon threads
 | Worker | shutdown 行為 | 為何 |
 |---|---|---|
 | `tts.py` | terminate mpg123 subprocess + 清 queue | mpg123 是子程序，需顯式 SIGTERM |
-| `action.py` | 守衛 `if Act.runningAction: Act.stopAction()` + 清 queue | vendor sticky 旗號處理（見 [myprogram-vendor.md](myprogram-vendor.md) / memory `vendor-stop-action-sticky`）|
+| `action.py` | 守衛 `if Act.runningAction: Act.stopAction()` + 清 queue | vendor sticky 旗號處理（見 [myprogram-vendor.md](myprogram-vendor.md) / [incremental-rebuild.md](incremental-rebuild.md) §sticky 旗號）|
 | `input_reader.py` | **只**清 queue | 不 close stdin（教訓 4）；daemon 隨 process die |
 
 `os._exit(0)` 在 `main()` finally 最末 — 三個 worker shutdown 跑完才強退。
 
-## 相關 memory
+## 相關 reference
 
-- memory `single-queue-preference` — 單 queue 順序消費，避免旗號分流 race
-- memory `python-pycache-stale-on-pull` — Pi 端 sync 後要清 pycache
+- [incremental-rebuild.md](incremental-rebuild.md) — 單 queue 順序消費避免旗號分流 race + vendor sticky 旗號詳解
+- [standard-workflow.md](standard-workflow.md) — Pi 端 sync 後要清 pycache
 - [myprogram-vendor.md](myprogram-vendor.md) — 廠商 SDK API + sticky 旗號守衛
