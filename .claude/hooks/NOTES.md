@@ -279,6 +279,11 @@ $utf8Bom = New-Object System.Text.UTF8Encoding $true
 [System.IO.File]::WriteAllText($path, (Get-Content $path -Raw -Encoding UTF8), $utf8Bom)
 ```
 
+**⚠️ 2026-06-01 補充 — 兩個會「產生無 BOM .ps1」的常見來源（都會重新觸發本 gotcha）：**
+1. **Claude Code 的 Write 工具寫 .ps1 = 無 BOM**。用 Write 新建任何含中文的 hook / script 後，**必須**接著用上面的「自動加 BOM 一行指令」補 BOM，否則 PS 5.1 hook 一執行就 parse error（症狀同上：`block-windows-install.ps1:35 字符:40` 之類，且錯誤訊息本身亂碼）。
+2. **pwsh 7 `Set-Content -Encoding UTF8` = 無 BOM（會洗掉既有 BOM！）**。pwsh 7 的 `UTF8` 是 no-BOM，`Set-Content`/`Out-File -Encoding UTF8` 重寫一個原本有 BOM 的 .ps1 會把 BOM 拿掉 → 原本好好的 hook 壞掉。要保留 BOM 改用 `-Encoding utf8BOM`，或統一用上面的 `WriteAllText` + `UTF8Encoding $true`。**歷史**：2026-06-01 references→reference 改名時用 `Set-Content -Encoding UTF8` 洗掉 `subagent-inject-rules.ps1` 的 BOM（回歸），同批新建的 `block-windows-install` / `check-traditional-chinese` / `clean-pi-pycache` 本來就無 BOM，一併補回（commit `a1c3753`）。
+**經驗法則**：動完任何 .ps1（新建或重寫）後，跑 `head -c 3 file.ps1 | od -An -tx1` 確認頭 3 byte 是 `ef bb bf`；不是就補。
+
 ### B. `$ErrorActionPreference = 'Stop'` + native command stderr 互動 ⚠️ 已修
 **症狀：** auto-sync-pi.ps1 log 寫「sync_pi.ps1 ERROR: ...」並中斷 try block。實測踩到兩種 stderr 雜訊：
 1. `git pull` 印 "From https://github.com/..." 進度訊息進 stderr（原有 finding）
