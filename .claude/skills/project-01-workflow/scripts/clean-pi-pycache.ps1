@@ -1,4 +1,4 @@
-# clean-pi-pycache.ps1
+﻿# clean-pi-pycache.ps1
 #
 # 手動清除 Pi 端專案樹下所有 __pycache__ 目錄。
 #

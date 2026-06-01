@@ -1,4 +1,4 @@
-# PostToolUse(Edit|Write) hook：掃剛寫入的檔有無常見簡體字（CLAUDE.md 🌏 繁中規範 — 純警示）
+﻿# PostToolUse(Edit|Write) hook：掃剛寫入的檔有無常見簡體字（CLAUDE.md 🌏 繁中規範 — 純警示）
 #
 # 設計：**純警示，絕不 block / 絕不擋任何流程**（exit 0 always，不輸出 decision deny）。
 # 只在偵測到常見簡體字時印一段提醒（含檔名 + 命中字），讓主 agent / subagent 自行改繁體。

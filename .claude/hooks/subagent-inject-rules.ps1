@@ -1,4 +1,4 @@
-# SubagentStart hook：自動注入標準規範到所有 subagent
+﻿# SubagentStart hook：自動注入標準規範到所有 subagent
 #
 # 取代原 subagent-dispatch-protocol 步驟 2-3 的「手動塞規則 + karpathy」boilerplate。
 # 主 agent 派發 prompt 改成只寫 task description + 任務特化規則（threading / path / etc）。

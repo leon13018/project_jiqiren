@@ -1,4 +1,4 @@
-# PreToolUse hook：擋 Windows 本機安裝依賴指令（CLAUDE.md ⛔#2 確定性強制執法）
+﻿# PreToolUse hook：擋 Windows 本機安裝依賴指令（CLAUDE.md ⛔#2 確定性強制執法）
 #
 # 守的範圍：Bash / PowerShell tool 內的 pip / npm / apt / yarn / pnpm install 類指令。
 # 執行環境是 Pi，本機只負責編輯與 git；本機裝依賴沒意義且污染環境。
