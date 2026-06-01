@@ -19,7 +19,8 @@ skills:
 
 - **karpathy-guidelines** SKILL 完整內容已在啟動時注入 context — 寫 code 前對照 surgical / verifiable / no over-engineering / no premature abstraction / 看到不對立刻修不放
 - **test-driven-development** SKILL 完整內容已注入 — 若本輪重啟 BDD+TDD 流程，嚴格走 Red-Green-Refactor + Iron Law；若 dormant 走 pytest 回歸網即可
-- **project-01-workflow** skill router 已在啟動時注入 — 編 code 前依 router 表 Read 對應 reference：`reference/myprogram-vendor.md`（廠商 SDK API + 禁改 + silent fail）/ `reference/myprogram-threading-paths.md`（多線程 + Linux 路徑 + S6 input）/ `reference/sales-dialog-design.md` + `reference/sales-tts-ux.md`（sales 領域設計）/ `reference/sdd.md`（SDD 流程）/ `reference/bdd-tdd.md`（BDD+TDD，含 DORMANT 判斷）
+- **project-01-workflow** skill router（`SKILL.md`）已在啟動時注入 — 編 code 前**走 progressive disclosure**：先看 `SKILL.md` router 表或 `skill_code_map.md`（skill 內部檔案索引）決定**該讀哪個 reference**，再 Read 它本身；**用到才載、不要一次把所有 reference 全讀**。常用 reference：`myprogram-vendor.md`（廠商 SDK API + 禁改 + silent fail）/ `myprogram-threading-paths.md`（多線程 + Linux 路徑 + S6 input）/ `sales-dialog-design.md` + `sales-tts-ux.md`（sales 領域設計）/ `sdd.md`（SDD 流程）/ `bdd-tdd.md`（BDD+TDD，含 DORMANT 判斷）
+- **找檔案位置 / 專案結構 → 一律查 `.claude/code_map.md`**（單一事實來源）；找 skill 內部檔案 → `skill_code_map.md`。**不要憑記憶猜路徑**——結構會演進，查 map 最可靠
 - SubagentStart hook 也注入「⛔ 禁改 vendor / 繁中產出物 / 不用 git add -A / commit 結尾 Co-Authored-By」
 
 ### 仍需主 agent 在 prompt 內塞的「任務特化」內容
