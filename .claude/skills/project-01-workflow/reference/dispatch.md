@@ -39,7 +39,7 @@
 
 **沒有 `effort` / `thinking` / context-window 參數可以傳。** xhigh effort 必須在 prompt 內明確寫：「請以 extended thinking + xhigh effort 仔細思考、嚴格依規範執行、寧可慢、不要錯」。
 
-**為何模型預設 opus xhigh**：[wave 6 招防護](#wave-6-招防護跨檔-refactor)實測 sonnet v1 Wave 7-10 連續踩 4 坑（Gotcha M / 雙寫 main / pytest 失準 / 漏更新 test）vs opus xhigh v2 零坑，既然 opus xhigh 是「跨檔 refactor 安全選項」乾脆預設化，省得每次判斷任務複雜度。**`sales-coder` frontmatter 已內建 `model: opus` + `effort: xhigh`，主 agent 派發不必再傳。** **例外**：純研究 / Explore 類 subagent 仍可手動指定 sonnet（成本考量）。
+**為何模型預設 opus xhigh**：[wave 6 招防護](#wave-6-招防護跨檔-refactor)實測 sonnet v1 Wave 7-10 連續踩 4 坑（Gotcha M / 雙寫 main / pytest 失準 / 漏更新 test）vs opus xhigh v2 零坑，既然 opus xhigh 是「跨檔 refactor 安全選項」乾脆預設化，省得每次判斷任務複雜度。**`sales-coder` frontmatter 已內建 `model: opus`（不寫 `effort` 欄位 → 繼承 session 預設，opus 4.8 = `high`），主 agent 派發不必再傳。** **例外**：純研究 / Explore 類 subagent 仍可手動指定 sonnet（成本考量）。
 
 **Co-Authored-By trailer**：subagent commit 訊息用實際模型署名，預設 Opus → `Co-Authored-By: Claude Opus <noreply@anthropic.com>`，跟主 agent 的 Co-Authored-By 一致；研究類例外用 sonnet 時則為 `Claude Sonnet 4.6`。
 
@@ -142,13 +142,13 @@
 
 ```python
 Agent({
-  subagent_type: "sales-coder",  # frontmatter 預設 model: opus, effort: xhigh, skills: [karpathy, TDD]
+  subagent_type: "sales-coder",  # frontmatter: model opus（無 effort → 繼承 session 預設 high）, skills: [karpathy, TDD, project-01-workflow]
   description: "...",
   prompt: "...任務描述 + 業務規格 + 既有 helper reuse 點 + git add 範圍 + commit message 範本..."
 })
 ```
 
-不必再傳 `model: "opus"`、不必再 prompt 內寫「extended thinking + xhigh effort」字串、不必再 paste karpathy SKILL 內容。
+不必再傳 `model: "opus"`（frontmatter 已設）、不必再 paste karpathy SKILL 內容（已預載）；effort 用 session 預設（opus 4.8 = high），毋需 prompt 內塞 xhigh（要更高 effort 才手動要求）。
 
 **舊做法（仍適用 fallback）**：built-in subagent（`general-purpose` / `Explore` / `Plan` / `claude-code-guide`）**不能改 frontmatter** — 派發時仍要 prompt 內塞一句 karpathy reference + manual 傳 `model: "opus"`。SubagentStart hook 自動注入 summary 補足。
 
@@ -329,10 +329,10 @@ opus xhigh 也別讓單個 subagent 一次做 ≥8 條改動的跨檔重構。**
 name: sales-coder
 description: 派發給 sales-coder 來實作或修改 myProgram/sales/ 業務邏輯 + 對應 tests/sales/ 測試。亦適用 myProgram/main.py callback wire-up / myProgram/{tts,action,input_reader}.py worker 級程式碼。Karpathy guidelines + TDD skill 會在 subagent 啟動時自動預載完整內容，主 agent 不必再在 prompt 內塞 reference。
 model: opus
-effort: xhigh
 skills:
   - andrej-karpathy-skills:karpathy-guidelines
   - test-driven-development
+  - project-01-workflow
 ---
 ```
 
@@ -346,7 +346,7 @@ Agent({
 })
 ```
 
-不必再塞 `model: "opus"`、不必再 prompt 內寫「extended thinking + xhigh effort」字串、不必再 paste karpathy SKILL 內容 — frontmatter 已預設。
+不必再塞 `model: "opus"`、不必再 paste karpathy SKILL 內容 — frontmatter 已預設；effort 用 session 預設（opus 4.8 = high），毋需 prompt 塞 xhigh。
 
 ### ⚠️ Session restart 必要性
 

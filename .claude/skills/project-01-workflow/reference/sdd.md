@@ -272,7 +272,7 @@ Sales-coder 回報可能不完整 / 不準確 / 過度樂觀（"finished suspici
 
 | 角色 | 模型 | 理由 |
 |---|---|---|
-| Implementer (sales-coder) | opus xhigh | sales-coder frontmatter 預設，不變 |
+| Implementer (sales-coder) | opus（session 預設 effort，4.8 = high）| frontmatter `model: opus`、無 effort 欄位 |
 | Spec-reviewer (general-purpose) | sonnet | 任務簡單：對照 spec vs code，cost-effective |
 | Code-quality-reviewer (general-purpose) | opus xhigh | 架構判斷，prompt 內塞 extended thinking |
 
