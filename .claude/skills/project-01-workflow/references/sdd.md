@@ -427,7 +427,7 @@ Sales-coder handoff 前自查找問題立刻修：**Completeness / Quality / Dis
 - ❌ **Stale specs** — 實作後不回頭 sync spec；living document 原則 + 階段 3c 提醒 review
 - ❌ **Subagent in isolation → globally inconsistent** — spec 必須含跨檔 invariant 明示
 - ❌ **Agent adherence / laziness** — 三段 subagent 迴圈 + 主 agent Iron Law 是必要安全網
-- ❌ **雙寫**（既有 rules + 新 SDD framework）— Project_01 SDD 基於既有 `.claude/rules/` + memory + worktree，**不引入** spec-kit / BMAD / Kiro
+- ❌ **雙寫**（既有規範 + 新 SDD framework）— Project_01 SDD 基於既有 `project-01-workflow` skill references + worktree，**不引入** spec-kit / BMAD / Kiro
 
 ---
 

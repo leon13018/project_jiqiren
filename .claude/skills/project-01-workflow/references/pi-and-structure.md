@@ -121,7 +121,7 @@
 | 使用者 | `pi` |
 | 主機 | `raspberrypi.local` |
 | Pi SSH | `pi@raspberrypi.local` |
-| 遠端路徑 | `/home/pi/Desktop/project_jiqiren`（絕對路徑，符合 `.claude/rules/path-conventions.md` 禁用 `~` 條） |
+| 遠端路徑 | `/home/pi/Desktop/project_jiqiren`（絕對路徑，符合 [myprogram-threading-paths.md](myprogram-threading-paths.md) Linux 路徑規範禁用 `~` 條） |
 | GitHub Repo | `https://github.com/leon13018/project_jiqiren.git` |
 
 ### 同步流程
