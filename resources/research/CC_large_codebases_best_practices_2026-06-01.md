@@ -289,24 +289,6 @@
 
 ---
 
-## 8. 對 Project_01 的潛在啟發（筆者加值分析）
-
-> 對應本專案現況：Raspberry Pi 上的 Python 銷售機器人，已有 SDD / worktree / subagent dispatch / sales-coder 等流程。
-
-1. **CLAUDE.md 分層 vs. 本專案「三層架構」高度吻合**：文章主張「root 只放 pointers + critical gotchas，細節下放」，正是本專案 CLAUDE.md（大標題 + pointer）→ `.claude/rules/<topic>.md` → memory 的設計。可繼續審視 root CLAUDE.md 是否還殘留「該下放到 rules/memory」的細節，降低每 session 的 context 負擔。
-
-2. **「主動維護 CLAUDE.md 隨模型演進」直接適用**：本專案多條規則是為補償特定模型行為而生（如 sonnet v1 踩坑 → 改 opus xhigh、dispatch threshold、Gotcha M 防護）。建議建立每 3-6 個月（或重大模型升級後）的「規則退役審查」習慣 —— 檢查哪些 hook / rule 已因模型變強而變成 overhead（呼應文章的 Perforce hook 例子）。
-
-3. **path-scoped skills / rules 即 progressive disclosure**：本專案已有 `paths:` frontmatter 的 path-scoped rules（vendor-sdk-api / path-conventions / threading-conventions / bdd-tdd-workflow）。文章正名了這個做法，可考慮把更多「只在特定檔才需要」的知識改成 path-scoped，進一步省 context。
-
-4. **subagent 分離「探索 / 編輯」可強化 SDD 三段迴圈**：文章的「唯讀 subagent 先測繪、主 agent 帶全貌再編輯」與本專案 SDD v3 的 implementer → spec-reviewer → code-quality-reviewer 同源。可考慮在 spec 撰寫前，增派一個唯讀「探索 subagent」先測繪受影響子系統，餵給 spec —— 尤其是動到 main.py wire-up 這類跨檔任務。
-
-5. **LSP 在本專案 ROI 偏低但非零**：本專案是單一 Python 程式庫、規模不大，文章的 LSP 建議主要針對多語言巨型 monorepo。但未來若導入 HTML+TS 前端（架構願景三層），跨語言 symbol 導航的價值會浮現，屆時可評估 LSP plugin。
-
-6. **「指派 DRI / 避免碎片化」對個人專案的縮影版**：本專案是單人開發，DRI 即使用者本人。文章的啟發是「設定要集中、要有人維護保新」—— 對應本專案應持續維護 `projectStructure.md`、memory 索引、`.claude/hooks/NOTES.md`，避免規則散落失同步（這正是本專案 hook 強制執法 + 三層維護原則在做的事）。
-
----
-
 ## 抓取完整性說明（誠實聲明）
 
 - 主體章節（前言、導航/agentic search、harness 五擴充點、元件總覽表、三大配置模式、套用到組織、術語）皆完整抓取並轉述，無遺漏。
