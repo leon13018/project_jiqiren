@@ -1,8 +1,8 @@
-# Pi 端操作 / pineedtodo / projectStructure / 部署資訊 / Pi 環境陷阱
+# Pi 端操作 / pineedtodo / 結構變動維護 / 部署資訊 / Pi 環境陷阱
 
 本 reference 合併 5 個主題：判斷本輪變更是否需要使用者到 Pi 上手動做事（§Pi 端操作觸發條件）、
 寫 Pi 端操作說明書的命名 / 結構規範（§pineedtodo 規範）、判斷本輪是否動到專案目錄結構
-（§projectStructure 維護觸發）、部署目標與同步流程（§部署資訊）、以及 Pi 執行環境的兩個已知陷阱
+（§結構變動維護）、部署目標與同步流程（§部署資訊）、以及 Pi 執行環境的兩個已知陷阱
 （§Pi 環境陷阱）。
 
 主 agent 在 [`worktree.md`](worktree.md) 階段 3a / 3b（或 [`standard-workflow.md`](standard-workflow.md)
@@ -83,7 +83,7 @@
 
 ---
 
-## §projectStructure 維護觸發
+## §結構變動維護
 
 主 agent 在審查後須判斷本輪變更是否會**動到專案目錄結構**（不論 tracked 或 gitignored）。
 
@@ -92,7 +92,7 @@
 - 新增 / 刪除 / 移動 / 改名 **檔案**
 - 新增 / 刪除 / 移動 / 改名 **資料夾**
 - **包括 gitignored 路徑下的變動**（例如 `resources/userPrompt/` 內新增檔案）
-- 修改 `.gitignore`（會改變 projectStructure.md 內 tracked vs ignored 標註）
+- 修改 `.gitignore`
 
 ### 不觸發 ❌
 
@@ -101,8 +101,8 @@
 
 ### 輸出位置與主 agent 動作
 
-- 編輯 `resources/projectStructure/projectStructure.md`
-- 同步更新：(1) 完整結構目錄樹、(2) 對應職責表（新檔加職責；刪掉的撤行）、(3)「更新紀錄」加一行 `<YYYY-MM-DD>` 簡述變更
+- **結構變動 → 更新 `.claude/code_map.md`**（當前資料夾 / 檔案結構的單一事實來源：新增加一行、刪除撤行、改名改路徑）。
+- skill 內部檔案（reference / examples / scripts）增刪 → 改 `skill_code_map.md`。
 
 ### 場景 B：使用者手動改結構 → 回報 → 主 agent 更新
 

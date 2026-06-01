@@ -17,7 +17,7 @@
 | `myprogram-threading-paths.md` | 多線程 / Linux 路徑 / S6 非阻塞 input |
 | `sales-dialog-design.md` | sales 對話狀態機 / 跨層流程 |
 | `sales-tts-ux.md` | TTS / 計時倒數 / UX 過場 |
-| `pi-and-structure.md` | Pi 端操作判斷 / pineedtodo / projectStructure |
+| `pi-and-structure.md` | Pi 端操作判斷 / pineedtodo / 結構變動維護（code_map） |
 | `incremental-rebuild.md` | 多線程+queue+旗號難收斂的漸進重建 |
 | `bdd-tdd.md` | 新增 sales 業務邏輯（BDD+TDD，dormant） |
 | `conventions.md` | 繁簡對照 / 環境 quirk / 跨任務原則 |

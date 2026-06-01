@@ -161,11 +161,10 @@ Iron Law 驗證明文化 / Red Flags 表 / adversarial 審查 pose / 4 狀態 di
   3. ⚠️ Minor concerns → 主 agent 判決：接受 / 自己 fix / 派 sales-coder fix
   4. ❌ Critical/Important → 派 sales-coder fix → 回階段 3b 重審
 
-[階段 3c — 條件性] projectStructure 更新（新 spec / 新 folder / 新 test 檔）
+[階段 3c — 條件性] 結構變動 → 更新 code_map / skill_code_map
   ↓
-  1. Read resources/projectStructure/projectStructure.md
-  2. 加新檔 / 改職責表 / append 更新紀錄
-  3. 主 agent commit projectStructure 變動
+  1. 結構變動（新 spec / 新 folder / 新 test 檔）→ 更新 .claude/code_map.md
+  2. 主 agent commit 上述變動
 
 [階段 4 + 5] worktree 收尾
   ↓
@@ -319,7 +318,7 @@ session-scoped 不可共享：主 agent 維護高層（含三段 reviewer 步驟
 | 8 | 主 agent Iron Law 自驗（pytest + branch verify） |
 | 9 | 派 spec-reviewer subagent → ✅ / ❌ 處理 |
 | 10 | 派 code-quality-reviewer subagent → ✅ / ⚠️ / ❌ 處理 |
-| 11 | 階段 3c：projectStructure 更新 + commit |
+| 11 | 階段 3c：code_map 更新 + commit |
 | 12 | 階段 4+5：ExitWorktree + ff-merge + push + sync + cleanup |
 
 ### Subagent 軌（sales-coder 內部實作清單）

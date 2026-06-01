@@ -134,6 +134,6 @@ HEAD: <last sales-coder commit SHA>
 
 | Reviewer 回報 | 主 agent 動作 |
 |---|---|
-| ✅ Approved | 進階段 3b（projectStructure 更新）+ 收尾 |
+| ✅ Approved | 進階段 3b（code_map 更新）+ 收尾 |
 | ⚠️ Approved with Minor concerns | 主 agent 判決：(a) 接受 Minor + 進階段 3b / (b) 自己 fix Minor / (c) 派 sales-coder fix Minor → re-review |
 | ❌ Needs fixes | 派 sales-coder 帶 reviewer 的 Critical/Important 清單 fix → re-dispatch code-quality-reviewer 重審 |

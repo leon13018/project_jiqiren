@@ -52,14 +52,13 @@ EnterWorktree(name="<task-name>")
 
 **不觸發**：直接進階段 4。
 
-### 階段 3b（條件性）：更新 projectStructure.md
+### 階段 3b（條件性）：結構變動 → 更新 code_map / skill_code_map
 
 **觸發**：階段 3 審查通過後，主 agent 判斷本輪變更是否**改動到專案資料結構**（觸發清單見
-[`pi-and-structure.md`](pi-and-structure.md) §projectStructure）。
+[`pi-and-structure.md`](pi-and-structure.md) §結構變動維護）。
 
-**動作**：主 agent 在 worktree 內編輯 `resources/projectStructure/projectStructure.md` — 同步更新 (1) 完整結構目錄樹
-(2) 對應職責表 (3)「更新紀錄」加一行 `<YYYY-MM-DD>` 簡述 — 然後 `git add` + `git commit`（可跟 3a 的 pineedtodo
-commit 合併為單一 commit）。
+**動作**：主 agent 在 worktree 內 **結構變動 → 更新 `.claude/code_map.md`**（skill 內部檔案則更 `skill_code_map.md`） — 然後
+`git add` + `git commit`（可跟 3a 的 pineedtodo commit 合併為單一 commit）。
 
 **不觸發**：直接進階段 4。
 
@@ -158,7 +157,7 @@ Gotcha M 是 worktree workflow 已知**偶發 bug**：subagent 在 worktree 內 
 | 2. 主 agent 審查產出 | 必須 `ExitWorktree(remove)` 切回主 checkout 才能看到新檔（worktree branch 還停在舊 HEAD） | worktree branch 沒新 commit，可安全 `remove` |
 | 3. 主 agent 跑驗證 | 在主 checkout 跑 pytest / lint / 任何驗證 | 主 checkout HEAD 已是 subagent commit，檔在 |
 | 4a. 純測試 / 不需後續編輯 | 直接 `git push origin main` + 手動 sync | 一次到位 |
-| 4b. **需要主 agent 後續編輯**（projectStructure / pineedtodo / 其他文件） | **進新 worktree** + 編輯 + commit + ExitWorktree(keep) + **cherry-pick** + push | 不能 ff-merge — 必失敗 |
+| 4b. **需要主 agent 後續編輯**（code_map / pineedtodo / 其他文件） | **進新 worktree** + 編輯 + commit + ExitWorktree(keep) + **cherry-pick** + push | 不能 ff-merge — 必失敗 |
 
 **第二輪 worktree 必踩的 diverge 陷阱（4b 路徑核心）**：新 worktree 從 Gotcha M 之前的 base ref 分出（不是當前 main
 HEAD）→ worktree branch 歷史比 main 短一個 commit → `git merge worktree-* --ff-only` **必失敗**

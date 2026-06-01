@@ -129,7 +129,7 @@
 | 任務類型 | 至少要塞的規則 |
 |---|---|
 | 寫 / 改 Python 程式碼 | 路徑規範（Linux 絕對路徑）、檔案禁改清單（廠商兩檔）、廠商 SDK API、繁中規範（註解 / 字串）、git 收尾 |
-| 寫文件 / markdown | 繁中規範、檔案結構查 `projectStructure.md` |
+| 寫文件 / markdown | 繁中規範、檔案結構查 `code_map` |
 | 改設定 / 部署 | 部署資訊、git 收尾循環、`.gitignore` 規則 |
 | 程式碼審查 / 重構 | 全套規範（禁令、路徑、繁中、廠商檔）|
 | Pi 端設定 / 依賴 | Pi 端操作觸發條件（見 [pi-and-structure.md](pi-and-structure.md)）；**subagent 不寫操作說明書**，只在回報中列出 Pi 端需求；主 agent 在 worktree 階段 3a 統整寫成 `resources/pineedtodo/<YYYY-MM-DD>_<short_name>.md`（append-only）並提醒使用者回報安裝狀況 → 收到回報後主 agent 更新 `resources/requirements/raspberry_pi_setup.md`（Pi 已安裝清單） |
@@ -209,7 +209,7 @@ subagent 回報 commit SHA 後跑 `git branch --contains <SHA>` 確認落在 `wo
 | 1 | `ExitWorktree(action="remove")` — 切回主 checkout（worktree branch 無新 commit，安全 remove） |
 | 2 | 在主 checkout 跑 pytest / 審查新檔（main HEAD 已是 subagent commit） |
 | 3a | **不需後續編輯** → 直接 `git push origin main` + hook 自動 sync，結束 |
-| 3b | **需要主 agent 後續編輯**（projectStructure / pineedtodo 等）→ 進新 worktree + 編輯 + commit + ExitWorktree(keep) → **`git cherry-pick <SHA>`**（不能 ff-merge — 必失敗 diverging，因新 worktree 從舊 base 分出）→ push → `git worktree remove` + `git branch -D worktree-*`（用 `-D` 大寫因 branch 未被 ff-merged） |
+| 3b | **需要主 agent 後續編輯**（code_map / pineedtodo 等）→ 進新 worktree + 編輯 + commit + ExitWorktree(keep) → **`git cherry-pick <SHA>`**（不能 ff-merge — 必失敗 diverging，因新 worktree 從舊 base 分出）→ push → `git worktree remove` + `git branch -D worktree-*`（用 `-D` 大寫因 branch 未被 ff-merged） |
 
 **歷史案例**：2026-05-26 Wave 0：subagent commit `d60798e` 落 main → projectStructure 更新 commit `2976566` 在新 worktree branch → ff-merge fail diverging → cherry-pick 成 main `bd77ded`。**完整文檔**：[worktree.md](worktree.md) §Gotcha M（含 diverge 陷阱徵兆速查 + 完整解法）。
 

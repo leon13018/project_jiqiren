@@ -32,7 +32,7 @@ disclosure，省常駐 context）。
 | 派 subagent / 判斷派發規模門檻 / sales-coder | [`reference/dispatch.md`](reference/dispatch.md) |
 | 進 worktree / 編輯 tracked 檔 / 收尾 merge | [`reference/worktree.md`](reference/worktree.md) |
 | git 收尾 5 步 / push / sync Pi | [`reference/standard-workflow.md`](reference/standard-workflow.md) |
-| 判斷 Pi 端操作 → 寫 pineedtodo / 更新 projectStructure / 部署細節 | [`reference/pi-and-structure.md`](reference/pi-and-structure.md) |
+| 判斷 Pi 端操作 → 寫 pineedtodo / 結構變動更新 code_map / 部署細節 | [`reference/pi-and-structure.md`](reference/pi-and-structure.md) |
 | 架構多線程 + queue + 旗號交互難收斂 | [`reference/incremental-rebuild.md`](reference/incremental-rebuild.md) |
 | 新增 sales 業務邏輯（BDD+TDD，目前 dormant） | [`reference/bdd-tdd.md`](reference/bdd-tdd.md) |
 | 繁簡對照 / 環境 quirk / 跨任務工作原則 | [`reference/conventions.md`](reference/conventions.md) |

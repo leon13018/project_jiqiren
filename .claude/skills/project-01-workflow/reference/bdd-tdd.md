@@ -252,7 +252,7 @@ git add tests/spec/L?_*_scenarios.py \             # 本輪新增 BDD spec（若
 3. 若失敗或紅 → 退回 subagent 或自己修
 4. **必跑：條件性步驟 3a / 3b**
    - 3a（pineedtodo）：通常本流程不觸發（Windows 跑測試，無 Pi 操作）
-   - 3b（projectStructure）：若本輪建了新 `tests/spec/` 或 `tests/sales/` 檔，必須觸發
+   - 3b（code_map）：若本輪建了新 `tests/spec/` 或 `tests/sales/` 檔，更新 `.claude/code_map.md`
 5. ExitWorktree keep → ff-merge → push（hook 自動 sync）→ cleanup
 
 ---

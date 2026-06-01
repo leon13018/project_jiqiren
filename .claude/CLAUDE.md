@@ -40,7 +40,7 @@
 | 編 myProgram 前理解廠商 SDK / 線程 / 路徑 / sales 設計 | `myprogram-vendor.md` / `myprogram-threading-paths.md` / `sales-dialog-design.md` / `sales-tts-ux.md` |
 | 派 subagent / agent teams、判斷派發規模門檻 | `dispatch.md` |
 | 編輯任何 tracked 檔 / worktree 隔離 / git 收尾 / sync Pi | `worktree.md` + `standard-workflow.md` |
-| 判斷是否需 Pi 端操作 → 寫 pineedtodo / 維護 projectStructure / 部署資訊 | `pi-and-structure.md` |
+| 判斷是否需 Pi 端操作 → 寫 pineedtodo / 結構變動更新 code_map / 部署資訊 | `pi-and-structure.md` |
 | 架構多線程 + queue + 旗號難收斂 | `incremental-rebuild.md` |
 | 新增 sales 業務邏輯（BDD+TDD，dormant） | `bdd-tdd.md` |
 | 繁簡對照 / 環境 quirk / 跨任務工作原則 | `conventions.md` |
@@ -51,7 +51,7 @@
 
 ## ⚙️ 操作習慣
 
-- **任何「檔案在哪 / 專案結構」問題 → 先查 `.claude/code_map.md`**（單一事實來源；詳細歷史看 `projectStructure.md`）。
+- **任何「檔案在哪 / 專案結構」問題 → 先查 `.claude/code_map.md`**（單一事實來源）。
 - 優先 `Read` / `Edit` / `Write` / `Glob` / `Grep` — Windows shell 只給 git 用。
 - 規劃階段（還沒確定要做什麼）→ 暫停確認，不要先 commit。
 - 任務完成回報：(1) 改了什麼 (2) 是否寫了 pineedtodo (3) Pi 是否同步成功 (4) 是否需使用者後續行動。
