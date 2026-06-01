@@ -1,7 +1,7 @@
 # 專案目錄結構
 
 > 本檔案記錄整個專案的資料夾與檔案結構，方便日後快速查閱。
-> 最後更新：2026-05-31（SDD v3 升級借鏡 superpowers — 新 `.claude/rules/sdd-prompts/` folder + 3-stage subagent loop + Iron Law + Red Flags + Status 4 選 1 + self-review 4 類；HEAD 待 commit，386 tests）
+> 最後更新：2026-06-01（CLAUDE.md / rules / memory → 單一 `project-01-workflow` skill 遷移 — CLAUDE.md 瘦身極簡核心、`.claude/rules/` 13 檔遷入 skill references、memory 縮到 2 個、新增 block-windows-install + check-traditional-chinese 2 hook；sales/ 測試數見 SessionStart hook 快照）
 
 ---
 
@@ -19,31 +19,26 @@ Project_01/
 │   │   ├── state/                        # flag file 暫存目錄（gitignored；三方協作 state）
 │   │   ├── block-git-add-bulk.ps1        # PreToolUse Bash：擋 `git add -A` / `git add .`（執法 ⛔#4）
 │   │   ├── block-vendor-edit.ps1         # PreToolUse Edit/Write：擋廠商 SDK 檔（執法 ⛔#1）
+│   │   ├── block-windows-install.ps1     # PreToolUse Bash/PowerShell：擋 pip/npm/apt install（執法 ⛔#2；2026-06-01 加）
 │   │   ├── auto-sync-pi.ps1              # PostToolUse Bash：`git push origin main` 後自動跑 sync_pi.ps1
 │   │   ├── state-mark-sales-dirty.ps1    # PostToolUse Edit/Write：編 sales/* 時寫 flag
+│   │   ├── check-traditional-chinese.ps1 # PostToolUse Edit/Write：掃寫入檔簡體字純警示（🌏 規範；2026-06-01 加）
 │   │   ├── state-clear-on-pytest.ps1     # PostToolUse Bash：pytest 跑過清 flag
 │   │   ├── stop-check-sales-pytest.ps1   # Stop：結束 turn 前若 flag 存在 → block 一次提醒
 │   │   ├── session-start-context.ps1     # SessionStart：注入 branch/status/test count 摘要
 │   │   └── subagent-inject-rules.ps1     # SubagentStart：自動注入標準規範到 subagent context（依 agent_type 分流）
-│   ├── rules/                            # 規則檔（2026-05-23 加入）— tracked
-│   │   ├── vendor-sdk-api.md             # 廠商 SDK API；path-scoped, paths: myProgram/**/*.py
-│   │   ├── path-conventions.md           # Linux 路徑規範；path-scoped, paths: code / scripts / Pi docs
-│   │   ├── subagent-dispatch-protocol.md # Subagent 派發協議完整版（無 paths，啟動載入）
-│   │   ├── worktree-workflow.md          # Worktree 5 階段流程完整版（無 paths）
-│   │   ├── standard-workflow.md          # 標準收尾循環 5 步完整版（無 paths）
-│   │   ├── pi-side-trigger.md            # 🚦 Pi 端操作觸發條件完整版（無 paths）
-│   │   ├── projectstructure-trigger.md   # 📂 結構維護觸發條件完整版（無 paths）
-│   │   ├── threading-conventions.md      # 多線程規範；path-scoped, paths: myProgram/**/*.py
-│   │   ├── incremental-rebuild.md        # 🔁 Incremental rebuild 流程 + S1-S7 模板（無 paths）
-│   │   ├── bdd-tdd-workflow.md           # 📝 BDD+TDD 開發流程（2026-05-25 path-scoped）— paths: myProgram/sales / tests/sales / tests/spec / 業務程式邏輯規劃
-│   │   ├── sdd-workflow.md               # 📐 SDD 流程完整版 v3（2026-05-31 加；v3 借鏡 superpowers 同日升級）— spec/plan 兩檔 / 4 階段 / 三段 subagent 迴圈 / Iron Law / Red Flags / Status 4 選 1 / self-review 4 類（無 paths，啟動載入）
-│   │   └── sdd-prompts/                  # 📐 SDD v3 reviewer prompt templates（2026-05-31 加）— tracked
-│   │       ├── spec-reviewer.md          # 三段迴圈第 2 段 — spec compliance review（fresh-context general-purpose sonnet）
-│   │       └── code-quality-reviewer.md  # 三段迴圈第 3 段 — code quality review（fresh-context general-purpose opus xhigh）
+│   │   （2026-06-01：原 rules/ 13 檔全部遷入 .claude/skills/project-01-workflow/，rules/ 目錄移除）
+│   ├── agents/                           # 自訂 subagent 定義（2026-05-28 加入）— tracked
+│   │   └── sales-coder.md                # sales-coder subagent；frontmatter model:opus / effort:xhigh / 預載 karpathy + TDD + project-01-workflow skill
 │   └── skills/                           # 使用者自訂 skill（2026-05-24 加入）— tracked
-│       └── test-driven-development/      # TDD 實踐 skill（S1 v2 實作前載入用）
-│           ├── SKILL.md                  # Red-Green-Refactor 流程 + Iron Law（無失敗測試前不寫產品碼）
-│           └── testing-anti-patterns.md  # 測試反模式（禁測 mock 行為 / 禁為測試在產品碼加方法）
+│       ├── test-driven-development/      # TDD 實踐 skill（S1 v2 實作前載入用）
+│       │   ├── SKILL.md                  # Red-Green-Refactor 流程 + Iron Law（無失敗測試前不寫產品碼）
+│       │   └── testing-anti-patterns.md  # 測試反模式（禁測 mock 行為 / 禁為測試在產品碼加方法）
+│       └── project-01-workflow/          # 🆕 2026-06-01：專案所有 workflow 協議 + myProgram 領域知識（取代 .claude/rules/ + 大部分 memory；progressive disclosure）
+│           ├── SKILL.md                  # 精簡 router（觸發表 + 8 條鐵則一行摘要）
+│           ├── references/               # 12 檔細節，用到才 Read：sdd / worktree / dispatch / standard-workflow / pi-and-structure / incremental-rebuild / bdd-tdd / myprogram-vendor / myprogram-threading-paths / sales-dialog-design / sales-tts-ux / conventions
+│           ├── examples/                 # spec-reviewer-prompt.md + code-quality-reviewer-prompt.md（原 rules/sdd-prompts/）
+│           └── scripts/                  # clean-pi-pycache.ps1（Pi pycache 手動補清）
 │
 ├── .gitignore                            # Git 忽略清單（2026-05-22 重構為精準排除）
 │
@@ -167,7 +162,10 @@ Project_01/
     ├── architecture/                     # tracked — 跨檔 / 跨層架構決策（2026-05-24 加入）
     │   ├── README.md                     # 資料夾說明 + 與 plans/ 的區別
     │   ├── backend-module-structure.md   # myProgram/sales/ 模組拆分方案 + 每檔職責 + 擴展觸發條件
-    │   └── frontend-backend-contract.md  # 三層願景 + 推薦框架（FastAPI + Pydantic + Repository）+ 接口框架延後決策
+    │   ├── frontend-backend-contract.md  # 三層願景 + 推薦框架（FastAPI + Pydantic + Repository）+ 接口框架延後決策
+    │   └── architecture_vision.md        # 🆕 2026-06-01 從 memory 遷入：三層架構願景 + 後端模組決議 + sales 結構演進史
+    │
+    ├── roadmap.md                        # 🆕 2026-06-01 從 memory 遷入：專案進度里程碑 + 未來計畫候選（HTML UI / STT / S7 等）
     │
     └── examples/                         # tracked — 廠商已驗證範例代碼（2026-05-23 加入）
         ├── 機器人動作結合opencv的多線程使用范例.py  # 廠商多線程範例：cv2 主線程 + 動作背景線程
@@ -263,7 +261,7 @@ __pycache__/
 | `tests/sales/test_tts_worker.py` | 2026-05-30（`speak_and_wait` v2，commit `c418004`）| **6 個測試**：`myProgram/tts.py` `TtsWorker` Condition + `_pending` counter 設計 — R1 race regression（say 後 wait_idle 不應在 worker 結束前返回） / wait_idle 立即 idle（pending=0）/ wait_idle 超 max_wait 返 False / synth 失敗 finally decrement pending / Condition.notify_all unblock 等待者 / 20 thread 並發 stress 無死鎖。注入 fake synth/play 避免真 edge_tts / subprocess。 |
 | `pytest.ini` | 2026-05-24（L0 第一輪 TDD）| pytest 設定：`testpaths = tests/sales`；確保 `python -m pytest tests/sales/ -v` 正確找到測試 |
 
-> **測試環境（選項 C）：** Windows 全域 Python 3.14.4 + pytest（使用者 2026-05-24 手動裝）；`myProgram/sales/` 內任何檔禁 import 廠商 SDK，所有對外動作（speak / do_action / show）以 callback 注入。跑指令 `python -m pytest tests/sales/ -v`。完整流程：`.claude/rules/bdd-tdd-workflow.md`。
+> **測試環境（選項 C）：** Windows 全域 Python 3.14.4 + pytest（使用者 2026-05-24 手動裝）；`myProgram/sales/` 內任何檔禁 import 廠商 SDK，所有對外動作（speak / do_action / show）以 callback 注入。跑指令 `python -m pytest tests/sales/ -v`。完整流程：`project-01-workflow` skill `references/bdd-tdd.md`。
 
 ### 部署 / 設定
 
@@ -271,23 +269,11 @@ __pycache__/
 |---|---|
 | `sync_pi.ps1` | SSH 到 `pi@raspberrypi.local`，自動 `git pull` / clone 到 `/home/pi/Desktop/project_jiqiren` |
 | `.gitignore` | 排除清單（見上方） |
-| `.claude/CLAUDE.md` | 每輪載入的專案上下文（大標題 + pointer 指向 rules / memory） |
-| `.claude/rules/` | 規則檔目錄 — path-scoped 規則動到符合檔案才載入；無 paths 的跟 CLAUDE.md 同等啟動載入 |
-| `.claude/rules/vendor-sdk-api.md` | 廠商 SDK 關鍵 API；path-scoped, paths: `myProgram/**/*.py` |
-| `.claude/rules/path-conventions.md` | Linux 路徑規範；path-scoped, paths: 程式碼 / `.ps1` / `.gitignore` / Pi setup & 操作 markdown |
-| `.claude/rules/subagent-dispatch-protocol.md` | Subagent 派發協議完整版（無 paths，啟動載入） |
-| `.claude/rules/worktree-workflow.md` | Worktree 5 階段流程完整版（無 paths） |
-| `.claude/rules/standard-workflow.md` | 標準收尾循環 5 步完整版（無 paths） |
-| `.claude/rules/pi-side-trigger.md` | 🚦 Pi 端操作觸發條件完整版（無 paths） |
-| `.claude/rules/projectstructure-trigger.md` | 📂 結構維護觸發條件完整版（無 paths） |
-| `.claude/rules/threading-conventions.md` | 多線程規範（cv2 / tkinter 主線程、動作 / TTS 背景線程、asyncio / subprocess 地雷區）；path-scoped, paths: `myProgram/**/*.py` |
-| `.claude/rules/incremental-rebuild.md` | 🔁 架構難收斂時的 S1-S7 重做模板 + 核心原則（無 paths，啟動載入）|
-| `.claude/rules/bdd-tdd-workflow.md` | 📝 編寫 `myProgram/sales/` 業務邏輯必走 4 階段：主 agent BDD spec → AskUserQuestion → 單一 subagent TDD+Impl（Red-Green-Refactor）→ 主 agent 跑 pytest 審查 + 收尾。含 subagent prompt 規範 + tests/ 目錄結構 + fallback（無 paths）|
-| `.claude/skills/` | 使用者自訂 skill 目錄（2026-05-24 加入）— Claude Code 偵測到匹配條件時自動載入 |
-| `.claude/skills/test-driven-development/SKILL.md` | TDD 實踐 skill：Red-Green-Refactor 流程 + Iron Law（無失敗測試前不寫產品碼）；S1 v2 寫 `sales_logic.py` 前載入 |
-| `.claude/skills/test-driven-development/testing-anti-patterns.md` | 測試反模式（禁測 mock 行為 / 禁為測試在產品碼加方法 / mock 不是被測物件）；寫測試或加 mock 時參考 |
-| `.claude/agents/` | 自訂 subagent 定義目錄（2026-05-28 加入）— Markdown 檔含 YAML frontmatter（name / description / model / effort / skills / tools 等），啟動時官方機制注入 SKILL 完整內容到 subagent context |
-| `.claude/agents/sales-coder.md` | sales-coder 自訂 subagent：寫 `myProgram/sales/` 業務邏輯 + `tests/sales/` 測試 + wire-up 用；frontmatter 預設 `model: opus` / `effort: xhigh` / 預載 `andrej-karpathy-skills:karpathy-guidelines` + `test-driven-development` 兩個 SKILL 完整內容 |
+| `.claude/CLAUDE.md` | 每輪載入的專案**極簡核心**（安全紅線 + 繁中 + skill 觸發表）；協議與領域細節全在 `project-01-workflow` skill（2026-06-01 瘦身） |
+| `.claude/skills/project-01-workflow/` | 🆕 **專案所有 workflow 協議 + myProgram 領域知識**（router SKILL.md + 12 references + examples + scripts，progressive disclosure）；取代舊 `.claude/rules/` 13 檔 + 大部分 memory（2026-06-01 遷移；設計見 `resources/specs/claude_md_to_skill_migration_2026-06-01_spec.md`）|
+| `.claude/skills/test-driven-development/SKILL.md` | TDD 實踐 skill：Red-Green-Refactor 流程 + Iron Law（無失敗測試前不寫產品碼）|
+| `.claude/skills/test-driven-development/testing-anti-patterns.md` | 測試反模式（禁測 mock 行為 / 禁為測試在產品碼加方法 / mock 不是被測物件）|
+| `.claude/agents/sales-coder.md` | sales-coder 自訂 subagent：寫 `myProgram/sales/` + `tests/sales/` + wire-up；frontmatter `model: opus` / `effort: xhigh` / 預載 `karpathy-guidelines` + `test-driven-development` + **`project-01-workflow`** 三 skill |
 | `.claude/settings.local.json` | Claude Code 本機設定（gitignored）|
 | `.claude/worktrees/` | EnterWorktree 建立的暫存工作目錄（gitignored；任務完成後 cleanup） |
 
@@ -301,12 +287,14 @@ __pycache__/
 | `pineedtodo/` | **per-task Pi 端操作說明書** — append-only，每輪有 Pi 動作時新增一檔（檔名 `<YYYY-MM-DD>_<short_name>.md`）|
 | `reviews/` | **multi-agent 程式碼審查整合報告**（2026-05-26 加入）— 主 agent 派多個 opus subagent 不同視角審查 myProgram/ 或其他模組，產出統整 markdown 含跨視角共識點 / 必修建議修可不改清單 / 階段 roadmap。append-only，每輪新增一檔（檔名 `<YYYY-MM-DD>_<scope>_<short_name>.md`）|
 | `projectStructure/projectStructure.md` | 本檔案 — 專案目錄結構 |
+| `roadmap.md` | 🆕 2026-06-01 從 memory `roadmap` 遷入：專案進度里程碑（S1-S6 / Wave / SDD v3 等）+ 未來計畫候選（HTML UI / STT / S7）|
 | `plans/` | plan 草稿（plan mode 討論結果 / 任務藍圖）|
 | `plans/bdd規範.txt` | **BDD 規範**（2026-05-24 加入）— 規定寫測試前必先用 Gherkin schema 寫 Given-When-Then 空骨架 + AskUserQuestion 確認後再實作；引用 `examples/bdd-寫法範例.txt` |
 | `architecture/` | **整體架構決策**（2026-05-24 加入）— 跨檔 / 跨層方向；與 `plans/`（單一任務執行計劃）區別在時效（長期 vs 短中期）|
 | `architecture/README.md` | 資料夾說明 + 與 `plans/` 的區別 + 維護原則 |
 | `architecture/backend-module-structure.md` | `myProgram/sales/` 模組拆分方案 + 每檔職責 + 擴展觸發條件（>300 行拆 states/ / HTML 上線加 api.py+schemas.py / DB 上線加 repository.py）|
 | `architecture/frontend-backend-contract.md` | 三層願景（前端 HTML+TS / 後端 Python / 未來 DB）+ 推薦框架（FastAPI + Pydantic + REST + Repository Pattern）+ 接口框架延後決策紀錄 |
+| `architecture/architecture_vision.md` | 🆕 2026-06-01 從 memory `project-architecture-vision` 遷入：三層架構願景 + 後端模組化決議 + sales/ 結構演進史（P0-P8 / B 方案重構 / A 類決策） |
 | `examples/` | **廠商已驗證範例代碼 + 歸檔舊版** — 廠商寫好且在機器人上測試成功的示範碼；可參考做 pattern、可仿、可改（與 `myProgram/` 的廠商 SDK 本體不同，那些禁改）|
 | `examples/bdd-寫法範例.txt` | **BDD/Gherkin 寫法範例**（2026-05-24 加入）— 毒蛇技能 demo 5 個 scenario：`## ID` + `### Scenario` + `### Given/When/Then` + 空 func。供 BDD 規範引用作模板 |
 | `examples/legacy_threading_v1/` | 2026-05-23 第一輪多線程重構成果歸檔（4 個 .py + README）；incremental rebuild 前的舊版設計，留作參考。內含 README 說明踩到的坑（vendor stop_action sticky / has_customer 分流 race）|
@@ -377,3 +365,4 @@ __pycache__/
 | 2026-05-31 | **📐 SDD v3 升級借鏡 superpowers v5.1.0（reverse-engineering 9 大優化點整合）**：使用者安裝 `superpowers@claude-plugins-official` 後要求逆向工程；主 agent 讀 11 個 core skill / prompt template 檔分析差距 → 對齊 3 題後寫 meta-spec `resources/specs/sdd_optimization_from_superpowers_2026-05-31_spec.md`（587 行）→ 走現行 SDD 流程實作。**借鏡 9 點**：A1 Iron Law 主 agent 完成宣告驗證（"NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE"）/ A2 Red Flags 12 條反模式表 / A3 Adversarial 審查 pose（不信 sales-coder 回報，獨立 verify）/ A4 Status 強制 4 選 1（DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT）/ A5 Implementer self-review 4 類（Completeness / Quality / Discipline / Testing）/ B1 Spec self-review 4 點 sweep / B2 Step-by-step plan template（2-5min/step） / B3 spec/plan 兩份 doc 分離 / C1 三段 subagent 迴圈（implementer → spec-reviewer → code-quality-reviewer）。**scale adaptation vs superpowers**：每 spec 派 3 agents（非每 task），mini spec 不拆 plan。**改動**：(1) `.claude/rules/sdd-workflow.md` 全面 v3 改寫；(2) 新 `.claude/rules/sdd-prompts/{spec-reviewer.md, code-quality-reviewer.md}` 兩 prompt templates；(3) `.claude/agents/sales-coder.md` 加 4 狀態 + self-review 4 類；(4) CLAUDE.md 📐 SDD 段補 v3 + 查閱表 1 新行；(5) memory `sdd-workflow` 完整重寫 v3。**不引入**：spec-kit / BMAD / Kiro / 2-3 approaches / 嚴格 1 問訊息 / 模型分層 / Finishing 4-way menu / Visual companion（Phase C 5 項與我們規模不匹配）。Commits `b33435c`（meta-spec）+ `707c1fe`（feat SDD v3）+ 本 commit。Tests 386 仍綠（無回歸；純流程改動）。|
 | 2026-06-01 | **🗂️ 新增 CC 動態工作流程調研檔 + 文檔規範模型版本廣義化**：(1) `resources/research/CC-Dynamic workflows.md` 從 untracked 納入 git（之後流程優化參考用）；(2) 使用者升級 Claude Code 模型 Opus 4.7 → 4.8，將前瞻性 commit 署名模板 / 派發規則內寫死的「Opus 4.7」改成廣義「Opus」避免再次過期 — `.claude/rules/standard-workflow.md` / `.claude/rules/sdd-prompts/code-quality-reviewer.md` / `.claude/hooks/subagent-inject-rules.ps1` 三檔 + 3 個 memory（`standard_workflow` / `subagent_dispatch` / `worktree_workflow`）。**歷史報告刻意不改**（projectStructure log / reviews / plans 內「當時派了 Opus 4.7 subagent」屬史實紀錄，改了會失真）。純文件 / 規範改動不觸發 SDD。|
 | 2026-06-01 | **📝 新增 CC 大型程式庫最佳實踐筆記（派 opus high subagent 抓 Anthropic blog）**：使用者要求記錄 Anthropic 官方文「How Claude Code works in large codebases」。**版權處理**：拒絕逐字全文複製，改派 general-purpose opus high subagent 用 WebFetch 產出**轉述式結構化筆記**（全程改寫 + 僅零星單句短引用 + 文末出處與版權聲明）。新增 `resources/research/CC_large_codebases_best_practices_2026-06-01.md`（約 325 行繁中）— 涵蓋 harness 五擴充點（CLAUDE.md/Hooks/Skills/Plugins/LSP）+ MCP/Subagents + 元件總覽表 + 三大配置模式（可導航 / 隨模型維護 CLAUDE.md / 指派 ownership）+ 起步清單 + 對 Project_01 6 條啟發。主 agent 審查確認合規（無大段逐字）+ 完整 + 繁中。純文件不觸發 SDD。|
+| 2026-06-01 | **🗂️ CLAUDE.md / rules / memory → 單一 skill 遷移（Phase 1+2 完成）**：把專案所有 workflow 協議 + myProgram 領域知識整理進 `.claude/skills/project-01-workflow/`（router SKILL.md + 12 references + 2 examples + 1 script），利用 skill 的 progressive disclosure 省常駐 context（依官方 `resources/research/CC-skills.md` 架構 + brainstorm 設計 spec `resources/specs/claude_md_to_skill_migration_2026-06-01_spec.md`）。**Phase 1**：用 skill-creator 建 skill 骨架 + 派 8 個 opus subagent 平行把 13 rules + 36 memory 忠實搬運重組（繁中、保留全細節、現況校正過期內容）。**Phase 2**：(1) CLAUDE.md 從 ~230 行瘦身到極簡核心（⛔安全 + 🌏繁中 + 📐skill 觸發表）；(2) 新增 2 hook（`block-windows-install` PreToolUse 攔 pip/npm/apt 執法 ⛔#2 + `check-traditional-chinese` PostToolUse 純警示）+ 更新 `subagent-inject-rules` 指向 skill + settings.json 註冊；(3) `sales-coder.md` frontmatter 加 `project-01-workflow` 預載 + 路徑改指 skill；(4) 刪 `.claude/rules/` 13 檔；(5) memory roadmap / architecture_vision 遷入 `resources/`，其餘 36 memory 刪除，memory 只剩 `user_profile` + `user_step_by_step_pace`。pytest sales/ 不受影響（純 meta 重構）。|

@@ -12,6 +12,16 @@
         ]
       },
       {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell",
+            "args": ["-NoProfile", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/block-windows-install.ps1"]
+          }
+        ]
+      },
+      {
         "matcher": "Edit|Write",
         "hooks": [
           {
@@ -47,6 +57,11 @@
             "type": "command",
             "command": "powershell",
             "args": ["-NoProfile", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/state-mark-sales-dirty.ps1"]
+          },
+          {
+            "type": "command",
+            "command": "powershell",
+            "args": ["-NoProfile", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/check-traditional-chinese.ps1"]
           }
         ]
       }

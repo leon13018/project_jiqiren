@@ -32,7 +32,7 @@ if ($agentType -in $lightAgents) {
 ## SubagentStart 注入（agent_type=$agentType）
 
 - 輸出語言：產出物（文件 / 引用 / commit message）一律繁體中文
-- 完整 project context：``.claude/CLAUDE.md`` + ``.claude/hooks/NOTES.md``
+- 完整 project context：``.claude/CLAUDE.md`` + ``project-01-workflow`` skill + ``.claude/hooks/NOTES.md``
 ---
 "@
     exit 0
@@ -55,15 +55,15 @@ Write-Output @"
 - **Commit message**：結尾附 ``Co-Authored-By: Claude Opus <noreply@anthropic.com>``。
 - **karpathy-guidelines**：寫程式時遵守 surgical / verifiable / no over-engineering / no premature abstraction / 看到不對立刻修。
 
-### 📚 path-scoped 自動載入（編到對應檔，主 agent 體系自動載 rule）
+### 📚 完整協議與領域知識（載入 project-01-workflow skill）
 
-- 編 ``myProgram/**/*.py`` → vendor-sdk-api / threading-conventions / path-conventions 自動載入
-- 寫 Pi-side 設定 / 部署檔 → path-conventions 自動載入
+- 本專案所有 workflow（SDD / worktree / dispatch / 標準收尾 / Pi 端 / incremental-rebuild）+ myProgram 領域知識（廠商 SDK API / 線程 / 路徑 / sales 對話與 TTS 設計）都在 ``project-01-workflow`` skill。
+- 編 ``myProgram/**/*.py`` 前：載入該 skill → Read 對應 reference（``references/myprogram-vendor.md`` / ``myprogram-threading-paths.md`` / ``sales-dialog-design.md`` / ``sdd.md`` 等）。
 
 ### 🔗 完整文檔
 
-- ``.claude/CLAUDE.md`` — 專案主規範入口
-- ``.claude/rules/`` — 完整協議文檔
+- ``.claude/CLAUDE.md`` — 專案主規範入口（極簡核心：安全 + 繁中 + skill 觸發表）
+- ``project-01-workflow`` skill — 完整 workflow 協議 + myProgram 領域知識（取代舊 ``.claude/rules/``）
 - ``.claude/hooks/NOTES.md`` — hooks 自動化系統研究筆記
 - ``resources/projectStructure/projectStructure.md`` — 專案目錄結構
 

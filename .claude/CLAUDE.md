@@ -2,173 +2,63 @@
 
 人形機器人課程期末專題。Raspberry Pi 4 上的規則匹配點餐 / 收款模擬系統。
 
+> 本檔只放**不能延遲載入的核心**（安全紅線 + 繁中 + skill 觸發表）。所有 workflow 協議與 myProgram 領域知識
+> 都在 **`project-01-workflow` skill**（progressive disclosure，用到才載），取代舊的 `.claude/rules/` + 大部分 memory。
+> 遷移設計見 `resources/specs/claude_md_to_skill_migration_2026-06-01_spec.md`。
+
 ---
 
 ## ⛔ 絕對禁止（違反就壞東西）
 
-1. **不要修改 `myProgram/vendor/ActionGroupControl.py` 和 `myProgram/vendor/Board.py`** 🔒 hook 強制執法
-   廠商 Hiwonder TonyPi SDK，內含 Pi-only 路徑（`/home/pi/TonyPi/...`）與底層庫 import（`pigpio` / `RPi.GPIO` / `BusServoCmd` / `PWMServo` / `smbus2`）。改了直接破壞硬體通訊。只能 `Read` 引用、`import` 使用。
-2. **不要在 Windows 本機安裝任何依賴**（`pip` / `npm` / `apt`）
-   本機只負責編輯與 git，執行環境是 Pi。
+1. **不要修改 `myProgram/vendor/ActionGroupControl.py` 和 `myProgram/vendor/Board.py`** 🔒 — 廠商 Hiwonder TonyPi SDK，含 Pi-only 路徑與底層庫 import（`pigpio` / `RPi.GPIO` / `BusServoCmd` / `PWMServo` / `smbus2`），改了破壞硬體通訊。只能 `Read` 引用、`import` 使用。
+2. **不要在 Windows 本機安裝任何依賴**（`pip` / `npm` / `apt`）🔒 — 執行環境是 Pi，本機只負責編輯與 git。（pytest 已全域裝為例外）
 3. **不要嘗試在 Windows import / 執行任何依賴廠商 SDK 的程式碼** — 必 ImportError。
-4. **不要用 `git add -A` / `git add .`** 🔒 hook 強制執法 — 明確列出檔名，避免誤加。
+4. **不要用 `git add -A` / `git add .`** 🔒 — 明確列出檔名，避免誤加。
 
 > 🔒 = `.claude/hooks/` 內 PreToolUse hook 自動 block，不依賴主 agent 自律。
-> `git push origin main` 後 PostToolUse hook 會自動跑 `sync_pi.ps1`；但 background session 內 hook 觸發**非 deterministic** — **統一規則：push 後永遠手動跑 `& sync_pi.ps1`**（hook 自動跑時手動跑是 idempotent no-op，~3s 成本可接受；省得記憶 session 類型）。詳見 memory `background-session-hook-skip`。
-> 編 `myProgram/sales/*.py` 或 `tests/sales/*.py` 後若沒跑 pytest，Stop hook 會 block 一次提醒（避免漏跑 regression）。
-> 每次新 session 自動注入 `git branch / status / 測試數` 摘要（SessionStart hook，省手動跑指令）。
-> 派 subagent 時自動注入標準規範（SubagentStart hook，取代 subagent-dispatch-protocol 步驟 2-3）。
+> **push 後永遠手動跑 `& sync_pi.ps1`**（PostToolUse hook 會嘗試自動跑，但 background session 內非 deterministic、不可依賴；手動跑為 idempotent no-op）。
+> 編 `myProgram/sales/*.py` 或 `tests/sales/*.py` 後沒跑 pytest → Stop hook block 一次提醒。
+> 每次新 session 注入 `git branch / status / 測試數` 快照（SessionStart hook）；派 subagent 注入標準規範（SubagentStart hook）。
+> 寫檔含簡體字 → PostToolUse hook 純警示（不擋流程）。
 > **hooks 完整文檔：`.claude/hooks/NOTES.md`**
 
 ---
 
 ## 🌏 輸出語言規範
 
-所有 **程式碼註解、字串輸出、文件、commit message、markdown 內的中文** 一律使用 **繁體中文**。即使使用者用簡體中文跟我溝通也不影響此規則 — 最終成果在 **中國台灣** 展示。
-（對話回覆本身可繼續簡繁混合，這條只規範**產出物**。）
+所有 **程式碼註解、字串輸出、文件、commit message、markdown 內的中文** 一律使用 **繁體中文**。即使使用者用簡體中文溝通也不影響此規則 — 最終成果在 **中國台灣** 展示。（對話回覆本身可簡繁混合，這條只規範**產出物**。簡繁對照細節見 skill `references/conventions.md`。）
 
 ---
 
-## 👥 Subagent / Agent Teams 派發協議
+## 📐 工作流程與領域知識 → 載入 `project-01-workflow` skill
 
-派發 subagent / team 寫程式時的協議：subagent_type 對應任務類型、派發前 4 步、派發後審查。
-**預設**：寫 sales/ code 任務派 **`sales-coder` 自訂 subagent**（`.claude/agents/sales-coder.md` frontmatter 預載 karpathy + TDD SKILL 完整內容 + 預設 `model: opus` / `effort: xhigh`，2026-05-28 加）；fallback `general-purpose` + prompt 內塞 effort 字串。
-**規模門檻**（2026-05-30 加）：中小 / 中 / 中大 / 大改動一律派 sales-coder；只有「超級小」（≤3 行單檔純值替換 / typo / 單一 const tweak）才主 agent 直接 patch，且**必先** invoke `andrej-karpathy-skills:karpathy-guidelines` SKILL。worker / wire-up 結構性改動（`myProgram/{tts,action,input_reader,main}.py`）一律派發。詳見 memory [[dispatch-threshold-by-change-size]] / [[worker-level-changes-dispatch-sales-coder]]。
-→ **詳細：`.claude/rules/subagent-dispatch-protocol.md`**
+本專案所有協議與知識都在該 skill。**做下列任一類工作前務必先載入 skill**，再依其 `SKILL.md` router 表 Read 對應 `references/<topic>.md`（即使任務看似簡單也載入——規則會演進，重讀 reference 比憑記憶可靠）：
 
----
-
-## ✍️ 編寫程式碼準則（主 agent + subagent 共同遵守）
-
-無論主 agent 直接寫，或派 subagent / agent teams 寫，**編寫 / 修改程式碼前都必須遵守 `karpathy-guidelines`** — surgical / verifiable / no over-engineering / no premature abstraction / 看到不對立刻修不放，提升代碼品質、避免過度工程。
-→ **載入：**
-  - **主 agent 自寫前**：用 Skill 工具 invoke `andrej-karpathy-skills:karpathy-guidelines` 載入規範
-  - **派 sales-coder subagent**：frontmatter `skills:` 啟動自動預載 SKILL 完整內容（官方機制，無需 prompt 內塞）
-  - **派 general-purpose / 其他 built-in subagent**：SubagentStart hook 只注入 reference summary；若需完整 SKILL 需主 agent paste 全文到 prompt，或改用 `sales-coder`
-
----
-
-## 📐 SDD (Spec-Driven Development) 流程
-
-編寫或修改 `myProgram/` 下任何 `.py` code **必走** — 主 agent 對齊需求 → 寫 spec/plan 到 `resources/specs/<name>_<date>_{spec,plan}.md` → spec self-review 4 點 sweep → user approval → 派 sales-coder 帶 spec+plan 執行（回 4 狀態 1 選）→ 三段 subagent 迴圈（implementer → spec-reviewer → code-quality-reviewer）→ 主 agent Iron Law 完成宣告驗證 → 收尾。Spec 兩種規模：完整版 spec+plan 兩檔（≥3 行改動）/ Mini 5 行單檔（≤3 行 typo / const tweak）。雙軌 TaskCreate。**v3（2026-05-31）借鏡 superpowers 9 大優化**。
-**觸發**：所有 `myProgram/{sales,main,tts,action,input_reader}.py` 改動；vendor / .claude/ / resources/ / docstring sweep / 工具設定不觸發。
-→ **詳細：`.claude/rules/sdd-workflow.md`**
-
----
-
-## 🌳 Worktree 工作流程
-
-編寫 tracked 檔時必走的 5 階段（EnterWorktree → 編輯 + commit → 審查 → ff-merge + push + sync → cleanup），含條件性子步驟 3a / 3b。SDD 流程階段 1 / 3b / 4+5 內嵌此 workflow。
-→ **詳細：`.claude/rules/worktree-workflow.md`**
-
----
-
-## ✅ 標準任務收尾循環
-
-git 內核 5 步（status → add → commit → push → sync），內嵌在 Worktree 階段 2 / 3a-b / 4 內。觸發條件 = `git status` 非空。
-→ **詳細：`.claude/rules/standard-workflow.md`**
-
----
-
-## 🚦 Pi 端操作觸發條件
-
-判斷本輪變更是否需要使用者去 Pi 上做事（pip install / apt / raspi-config / 硬體啟用 / systemd 等）。觸發則寫 pineedtodo 並提醒使用者回報。
-→ **詳細：`.claude/rules/pi-side-trigger.md`**
-
----
-
-## 📂 專案資料結構維護觸發條件
-
-判斷本輪是否動到專案目錄結構（檔案 / 資料夾增刪 / 改名 / 改 `.gitignore`）。觸發則更新 projectStructure.md。
-→ **詳細：`.claude/rules/projectstructure-trigger.md`**
-
----
-
-## 🔁 Incremental rebuild 流程
-
-當架構出現「多線程 + 多 queue + 旗號狀態交互產生不穩 bug」、debug 範圍難收斂時，**不要繼續打補丁**，改走 S1-S7 incremental rebuild：每步只加一層複雜度、實機測完才下一步。
-→ **詳細：`.claude/rules/incremental-rebuild.md`**
-
----
-
-## 📝 BDD + TDD 開發流程（DORMANT 2026-05-25）
-
-S1 v2 sales/ L0-L5 全層完成後**休眠** — 後續 S2-S7 / wire-up / HTML 不走 BDD+TDD，改走 Pi 實機測試 + 回報 + 改 code 迴圈（見 🔁 Incremental rebuild）。**僅在新增 `myProgram/sales/` 業務邏輯時重啟**（重啟條件 + 完整 4 階段 playbook 仍在 `.claude/rules/bdd-tdd-workflow.md`，既有 sales/ tests 仍是 regression 安全網；總數見 SessionStart hook 注入快照）。
-
----
-
-## 🌐 部署資訊
-
-| 項目 | 值 |
+| 情境 | 載入後讀 |
 |---|---|
-| Pi SSH | `pi@raspberrypi.local` |
-| Pi 路徑 | `/home/pi/Desktop/project_jiqiren` |
-| GitHub Repo | `https://github.com/leon13018/project_jiqiren.git` |
-| 部署方式 | 本機 push → PostToolUse hook 自動跑 `sync_pi.ps1` → SSH 自動 `git pull`（手動跑 `& sync_pi.ps1` 仍可作 fallback）|
+| 改 `myProgram/{sales,main,tts,action,input_reader}.py` 任何 .py code | 走 SDD 流程（`sdd.md`）+ 對應領域 reference |
+| 編 myProgram 前理解廠商 SDK / 線程 / 路徑 / sales 設計 | `myprogram-vendor.md` / `myprogram-threading-paths.md` / `sales-dialog-design.md` / `sales-tts-ux.md` |
+| 派 subagent / agent teams、判斷派發規模門檻 | `dispatch.md` |
+| 編輯任何 tracked 檔 / worktree 隔離 / git 收尾 / sync Pi | `worktree.md` + `standard-workflow.md` |
+| 判斷是否需 Pi 端操作 → 寫 pineedtodo / 維護 projectStructure / 部署資訊 | `pi-and-structure.md` |
+| 架構多線程 + queue + 旗號難收斂 | `incremental-rebuild.md` |
+| 新增 sales 業務邏輯（BDD+TDD，dormant） | `bdd-tdd.md` |
+| 繁簡對照 / 環境 quirk / 跨任務工作原則 | `conventions.md` |
 
----
-
-## 🔗 我需要更多細節時 → 看這裡
-
-| 我要找... | 路徑 |
-|---|---|
-| 完整目錄結構 / 每檔職責 | `resources/projectStructure/projectStructure.md` |
-| Pi 上目前已安裝什麼（snapshot） | `resources/requirements/raspberry_pi_setup.md` |
-| 過去每一輪 Pi 上做了什麼操作（歷史細節） | `resources/pineedtodo/` |
-| 專案背景 / 進度報告 | `resources/presentation/人形機器人期末專題5.7進度報告.pdf` |
-| Subagent / Team 派發協議完整版 | `.claude/rules/subagent-dispatch-protocol.md` |
-| sales-coder 自訂 subagent 定義（frontmatter + 系統 prompt） | `.claude/agents/sales-coder.md` |
-| 編寫程式碼準則（主 agent + subagent 共同遵守） | Skill: `andrej-karpathy-skills:karpathy-guidelines` |
-| Worktree 工作流程完整版 | `.claude/rules/worktree-workflow.md` |
-| 標準收尾循環完整版 | `.claude/rules/standard-workflow.md` |
-| Pi 端操作觸發完整條件 + 流程 | `.claude/rules/pi-side-trigger.md` |
-| 專案資料結構維護觸發完整條件 | `.claude/rules/projectstructure-trigger.md` |
-| 廠商 SDK 關鍵 API（編 .py 時 path-scoped 自動載入） | `.claude/rules/vendor-sdk-api.md` |
-| Linux 路徑規範（寫 code / Pi 設定時 path-scoped 自動載入） | `.claude/rules/path-conventions.md` |
-| 多線程規範（編 `myProgram/*.py` path-scoped 自動載入） | `.claude/rules/threading-conventions.md` |
-| Incremental rebuild 流程（架構難收斂時的 S1-S7 模板） | `.claude/rules/incremental-rebuild.md` |
-| BDD + TDD 開發流程完整版（dormant，編 sales/* / tests/* / 規格書時 path-scoped 自動載入） | `.claude/rules/bdd-tdd-workflow.md` |
-| SDD 流程完整版 v3（spec/plan 兩檔 / 4 階段 / 三段 subagent 迴圈 / Iron Law / Red Flags / Status 4 選 1 / self-review 4 類） | `.claude/rules/sdd-workflow.md` |
-| SDD reviewer prompt templates（spec-reviewer + code-quality-reviewer，三段迴圈第 2-3 段用） | `.claude/rules/sdd-prompts/` |
-| SDD spec 集中存放（meta-spec 範本 + L4_v3 範本 + superpowers 借鏡 spec） | `resources/specs/` |
-| SDD 多源最佳實踐調研報告（Anthropic 官方 / 社群插件 / 思想家三源整合） | `resources/research/SDD_best_practices_2026-05-31.md` |
-| 廠商已驗證範例代碼（學 pattern 用，可讀可仿） | `resources/examples/` |
-| 架構規劃（後端模組結構 / 前後端契約 / 擴展觸發條件） | `resources/architecture/` |
-| 廠商 SDK 完整 API 清單 + 禁改背景 | memory: `vendor-files` |
-| 派發協議：心態原則 / 規則對應表 | memory: `subagent-dispatch` |
-| Worktree：視野範圍速查 / cleanup 原理 | memory: `worktree-workflow` |
-| 標準收尾：補充準則 / 歷史 bug 教訓 | memory: `standard-workflow` |
-| pineedtodo/ 檔名 + 內容結構(寫新檔前必讀) | memory: `pineedtodo-spec` |
-| 工作邊界（能做不能做） | memory: `workflow-constraints` |
-| 使用者背景 | memory: `user-profile` |
-| 部署細節（IP / repo / 路徑） | memory: `project-deployment` |
-| 輸出語言規範（簡繁對照） | memory: `output-language` |
-| 架構願景（三層願景 / 後端模組決議 / 接口框架延後） | memory: `project-architecture-vision` |
-| BDD + TDD（dormant 狀態說明 + 重啟條件 + 既有產出位置） | memory: `bdd-tdd-workflow` |
-| SDD 流程（背景 / 與 BDD-TDD 關係 / 兩種 spec template / 觸發強制適用所有 myProgram/ code） | memory: `sdd-workflow` |
-| 派發規模門檻（中小以上派 sales-coder / 超級小定義 / karpathy invoke 強制） | memory: `dispatch-threshold-by-change-size` |
-| Worker / wire-up 結構改動派 sales-coder 規則 | memory: `worker-level-changes-dispatch-sales-coder` |
-| TTS 等待 + timeout 倒數架構（speak_and_wait / wait_idle / 全層覆蓋） | memory: `speak-and-wait-architecture` |
-| Cross-L cancel intent + 6s confirm 子狀態 | memory: `cancel-confirm-cross-l` |
-| L3 C-2 三選一設計（含 2026-05-29 silent timeout 合流 confirm 反轉 + 2026-05-30 keyword 擴展） | memory: `c2-three-way-design` |
-| 跨層客服 24s confirm 統一 helper（L2/L3/L4 + qty followup 共 6 個進入點） | memory: `service-confirm-unified` |
-| L4 簡化版設計（30s 單一 budget + 12s 重提示 + 亂答不重置；2026-05-30 從 60s 簡化） | memory: `l4-ack-wallclock-budget-design` |
-| Countdown 終端打印（read「timeout = N」/ sleep「wait = N」語意區分） | memory: `countdown-print-design` |
+> 編寫 / 修改 code 前一律遵守 `andrej-karpathy-skills:karpathy-guidelines`（主 agent 自寫前 invoke；sales-coder 已 frontmatter 預載）。
 
 ---
 
 ## ⚙️ 操作習慣
 
-- 優先 `Read` / `Edit` / `Write` / `Glob` / `Grep` —— Windows shell 只給 git 用。
+- 優先 `Read` / `Edit` / `Write` / `Glob` / `Grep` — Windows shell 只給 git 用。
 - 規劃階段（還沒確定要做什麼）→ 暫停確認，不要先 commit。
-- 任務完成回報應包含：(1) 改了什麼、(2) 是否觸發 1a / 3a 寫了 pineedtodo、(3) Pi 是否同步成功、(4) 是否需要使用者後續行動（Pi 端操作 + 回報安裝狀況）。如有 Pi 動作，明確標示「請完成後回報哪些成功裝上」。
+- 任務完成回報：(1) 改了什麼 (2) 是否寫了 pineedtodo (3) Pi 是否同步成功 (4) 是否需使用者後續行動（Pi 端操作 + 回報安裝狀況）。
 
 ---
 
 ## 📋 維護原則
 
-- **三層架構：** CLAUDE.md（大標題 + pointer）→ `.claude/rules/<topic>.md`（完整協議內容）→ memory `<topic>`（背景 / 歷史 / Why 細節）。
-- **CLAUDE.md 變動原則：** 只放標題 + 一句話描述 + pointer；具體規則內容拆到 rules 或 memory。
-- **path-scoped 規則：** 只在編特定檔案類型才需要的（如廠商 SDK API / Linux 路徑規範 / BDD+TDD 流程）→ `.claude/rules/<topic>.md` 加 `paths: [...]` frontmatter，動到對應檔才載入（省 context）。當前 4 個 path-scoped rules：`vendor-sdk-api` / `path-conventions` / `threading-conventions` / `bdd-tdd-workflow`。
-- **無 paths 規則：** 跟 CLAUDE.md 同等啟動載入 — 純組織用，不省 context。
-- 維護用 metadata（最後審查日期、人類備註）可用 `<!-- HTML 註解 -->` — 不會進 Claude context；但 git log 通常已足。
+- **兩層架構**：CLAUDE.md（極簡核心 + skill 觸發表）→ `project-01-workflow` skill（SKILL.md router + `references/` 細節，progressive disclosure）。
+- memory 只剩 `user_profile` + `user_step_by_step_pace`（使用者背景 / 工作節奏）；其餘協議 / 領域 / 歷史都在 skill + `resources/`。
+- 新增 / 改協議內容：寫進 skill 對應 `references/<topic>.md`，CLAUDE.md 只在觸發表加一行。
