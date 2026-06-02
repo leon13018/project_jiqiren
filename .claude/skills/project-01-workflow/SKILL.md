@@ -12,7 +12,7 @@ description: >-
 Raspberry Pi 上的規則匹配點餐 / 收款機器人。本 skill 是專案所有 workflow 協議 + myProgram 領域知識的單一入口。**本檔只路由**——細節在 `reference/`，用到才 Read（progressive disclosure，省常駐 context）。
 
 > 安全紅線（⛔ 不改 vendor / Windows 不裝依賴 / 不 import vendor SDK / 不用 `git add -A`）+ 繁中產出，由 CLAUDE.md + hook 確定性強制；本檔不重複但假設生效。
-> **檔案位置**：repo 檔（myProgram / tests / resources / .claude）→ `.claude/code_map.md`；skill 內部 → 下方路由表 + `examples/`（SDD reviewer 範本）+ `scripts/`（`clean-pi-pycache.ps1`）。
+> **檔案位置**：repo 檔 → **巢狀 code_map**（root `.claude/code_map.md` + 各層 `<層>/.claude/code_map.md`，逐層下沉、第一優先查）；skill 內部 → 下方路由表 + `examples/`（SDD reviewer 範本）+ `scripts/`（`clean-pi-pycache.ps1`）。
 
 ## 路由表：要做 X → Read 哪個 reference（用到才載）
 
@@ -46,4 +46,4 @@ Raspberry Pi 上的規則匹配點餐 / 收款機器人。本 skill 是專案所
 
 - 取代舊 `.claude/rules/` + 大部分 memory（2026-06-01 遷移）。路由摘要留本檔，**協議細節寫進 `reference/<topic>.md`**，可執行碼放 `scripts/`。
 - reference 間用相對路徑連結（`[worktree](worktree.md)`）。
-- 新增 / 移動 reference / scripts / examples → **同步更新本檔路由表**，且新 reference 開頭加 **🎯 何時讀本檔** 自描述標頭；repo 結構變動 → 更新 `.claude/code_map.md`。
+- 新增 / 移動 reference / scripts / examples → **同步更新本檔路由表**，且新 reference 開頭加 **🎯 何時讀本檔** 自描述標頭；repo 結構變動 → 更新**該層**的 `.claude/code_map.md`（巢狀；判準見 `reference/pi-and-structure.md`）。

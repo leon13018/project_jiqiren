@@ -59,7 +59,7 @@ EnterWorktree(name="<task-name>")
 **觸發**：階段 3 審查通過後，主 agent 判斷本輪變更是否**改動到專案資料結構**（觸發清單見
 [`pi-and-structure.md`](pi-and-structure.md) §結構變動維護）。
 
-**動作**：主 agent 在 worktree 內 **結構變動 → 更新 `.claude/code_map.md`**（skill 內部檔案則更 `SKILL.md` 路由表） — 然後
+**動作**：主 agent 在 worktree 內 **結構變動 → 更新「該層」的 `.claude/code_map.md`**（巢狀；判準見 [`pi-and-structure.md`](pi-and-structure.md)。skill 內部檔案則更 `SKILL.md` 路由表） — 然後
 `git add` + `git commit`（可跟 3a 的 pineedtodo commit 合併為單一 commit）。
 
 **不觸發**：直接進階段 4。

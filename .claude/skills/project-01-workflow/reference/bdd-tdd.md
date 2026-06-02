@@ -254,7 +254,7 @@ git add tests/spec/L?_*_scenarios.py \             # 本輪新增 BDD spec（若
 3. 若失敗或紅 → 退回 subagent 或自己修
 4. **必跑：條件性步驟 3a / 3b**
    - 3a（pineedtodo）：通常本流程不觸發（Windows 跑測試，無 Pi 操作）
-   - 3b（code_map）：若本輪建了新 `tests/spec/` 或 `tests/sales/` 檔，更新 `.claude/code_map.md`
+   - 3b（code_map）：巢狀 code_map——只在改到某層 code_map 已列的**直接**子項目時更新該層。`tests/spec/` / `tests/sales/` 下的**個別測試檔通常不需動**（`tests/` code_map 粗顆粒不列個別檔）；新增子資料夾才更 `tests/.claude/code_map.md`。詳見 `pi-and-structure.md`
 5. ExitWorktree keep → ff-merge → push（hook 自動 sync）→ cleanup
 
 ---
@@ -299,7 +299,7 @@ git add tests/spec/L?_*_scenarios.py \             # 本輪新增 BDD spec（若
 
 ## tests/ 目錄結構
 
-> 實際檔案清單見 `.claude/code_map.md`（`tests/` 段）。本節只說明 BDD 的組織原則：`tests/spec/` 按 L 層組織（BDD 階段產出），`tests/sales/` 按 prod 模組組織（TDD 階段最終測試）。
+> tests/ 結構見 `tests/.claude/code_map.md`。本節只說明 BDD 的組織原則：`tests/spec/` 按 L 層組織（BDD 階段產出），`tests/sales/` 按 prod 模組組織（TDD 階段最終測試）。
 
 **spec/ vs sales/ 對應關係：**
 
