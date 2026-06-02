@@ -7,7 +7,8 @@
 - `myProgram/` — 機器人主程式（Pi 上執行）：點餐 / 收款規則匹配狀態機（見下）
 - `tests/` — pytest 測試（sales 業務邏輯 + spec）
 - `resources/` — 專案文件與產出物（spec / plan / review / 研究 / Pi 待辦…），非 code
-- `.claude/` — CC 配置：`CLAUDE.md`、`code_map.md`(本檔)、`skills/`、`hooks/`(見 `NOTES.md`)、`agents/sales-coder.md`、`settings*.json`
+- `CLAUDE.md` — 專案主規範入口（核心紅線 + 繁中 + skill 觸發表；root 直接放，非在 `.claude/` 內）
+- `.claude/` — CC 配置：`code_map.md`(本檔)、`skills/`、`hooks/`(見 `NOTES.md`)、`agents/sales-coder.md`、`settings*.json`
 - `sync_pi.ps1` 同步 myProgram→Pi　`pytest.ini` 測試設定
 
 ## myProgram/

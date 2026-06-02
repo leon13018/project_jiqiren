@@ -32,7 +32,7 @@ if ($agentType -in $lightAgents) {
 ## SubagentStart 注入（agent_type=$agentType）
 
 - 輸出語言：產出物（文件 / 引用 / commit message）一律繁體中文
-- 完整 project context：``.claude/CLAUDE.md`` + ``project-01-workflow`` skill + ``.claude/hooks/NOTES.md``
+- 完整 project context：``CLAUDE.md`` + ``project-01-workflow`` skill + ``.claude/hooks/NOTES.md``
 ---
 "@
     exit 0
@@ -62,7 +62,7 @@ Write-Output @"
 
 ### 🔗 完整文檔
 
-- ``.claude/CLAUDE.md`` — 專案主規範入口（極簡核心：安全 + 繁中 + skill 觸發表）
+- ``CLAUDE.md`` — 專案主規範入口（極簡核心：安全 + 繁中 + skill 觸發表）
 - ``project-01-workflow`` skill — 完整 workflow 協議 + myProgram 領域知識（取代舊 ``.claude/rules/``）
 - ``.claude/hooks/NOTES.md`` — hooks 自動化系統研究筆記
 - ``.claude/code_map.md`` — repo 檔案結構 / 路徑導航索引（單一事實來源）
