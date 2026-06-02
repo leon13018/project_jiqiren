@@ -60,9 +60,9 @@
 
 # Part C — S6 非阻塞 input reader（最終設計 + 4 教訓）
 
-**S6**：`myProgram/input_reader.py` daemon reader thread + `queue.Queue` + bytes-level decode，取代 `input()` blocking。實機經 5 commit 修補才乾淨；下方記最終設計 + 4 個要避免的 bug。
+**S6**：`myProgram/input_reader.py` daemon reader thread + `queue.Queue` + bytes-level decode，取代 `input()` blocking。實機修補多次才乾淨；下方記最終設計 + 4 個要避免的 bug。
 
-## 最終穩定設計（commit `9931605` 後）
+## 最終穩定設計
 ```python
 # myProgram/input_reader.py
 class InputReader:
@@ -100,7 +100,7 @@ class InputReader:
 3. **daemon thread 卡 stdin readline syscall → finalizer hang**：「程式結束」印出後 process 不退、要按鍵才回 shell。根因：daemon reader 卡 kernel `read(fd)`，interpreter 退出時 finalizer 等 stdin lock、daemon C-level 釋放不了。`daemon=True` 只保證隨 process die，不保證 finalizer 不卡 lock。修：`main()` finally 加 `os._exit(0)` 強退跳過 finalizer。
 4. **`sys.stdin.close()` 不解 readline、反而 lock deadlock**：根因鏈：Linux `close(fd)` 不 unblock in-syscall read；`TextIOWrapper.close()` 要 acquire `BufferedReader` internal lock；daemon reader 此刻正 hold 該 lock 在 readline 內 → main thread close() 永遠拿不到 lock → `os._exit` 跑不到。修：**移除** `sys.stdin.close()`，shutdown 只清 queue，daemon 隨 `os._exit` 殺。教訓：別嘗試「主動 unblock」blocking read，直接 `os._exit` 強退最可靠。
 
-> 註：舊版（移除 close 前）退出印 `Fatal Python error: _enter_buffered_busy ...`，實際程式已正常退出、只是 finalizer 印錯誤訊息嚇人，`os._exit(0)` 後消失。`read()` 用 latest-wins drain（撈光殘留但 return 最後一筆）而非全清——保留 user 剛打、caller 還沒消費的最新輸入，避免 race window 殺合法輸入（subagent 偏離 plan 但主 agent 審查接受）。
+> 註：舊版（移除 close 前）退出印 `Fatal Python error: _enter_buffered_busy ...`，實際已正常退出、只是 finalizer 印錯誤訊息嚇人，`os._exit(0)` 後消失。`read()` 用 latest-wins drain（撈光殘留但 return 最後一筆）而非全清——保留 user 剛打、caller 還沒消費的最新輸入，避免 race window 殺合法輸入。
 
 ## worker shutdown 對比
 | Worker | shutdown | 為何 |
