@@ -8,6 +8,7 @@
 - `plans/` — SDD 計畫 / 業務程式邏輯規劃（L0–L5）。
 - `reviews/` — 程式碼審查報告。
 - `research/` — 研究筆記（官方文檔轉述、最佳實踐、SDD 等）。
+- `evals/` — skill EDD 回歸測試套件（場景 `evals.json` + `baseline/` transcript）。
 - `architecture/` — 架構願景 + 前後端契約 + 後端模組結構。
 - `requirements/` — 需求文件（Raspberry Pi setup / 已安裝清單）。
 - `pineedtodo/` — Pi 端待辦操作說明書（append-only）。
