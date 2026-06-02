@@ -1,4 +1,4 @@
-# SDD (Spec-Driven Development) 工作流程 — v3
+# SDD (Spec-Driven Development) 工作流程
 
 > **🎯 何時讀本檔**：要寫 / 改 `myProgram/` 下**任何 `.py` code**（sales / main / tts / action / input_reader，不分規模）——動手前先走 SDD 寫 spec。
 
@@ -18,7 +18,7 @@
 
 編寫或修改 `myProgram/` 內任何 `.py` code 前 **強制**先寫 spec 到 `resources/specs/`，主 agent 與使用者對齊後才實作，**不分規模**。完整版拆 `<name>_<date>_spec.md`（WHAT）+ `_plan.md`（HOW step-by-step），mini 版 5 行單檔。
 
-> **Why**：主對話對齊期 context 龐雜（discussion / ambiguity / 歷史 patch），sales-coder 帶過去會被噪訊污染；fresh-context subagent 只看 spec + 必要 reference 注意力最集中。v3（2026-05-31）借鏡 superpowers v5.1.0：Iron Law 明文 / Red Flags / adversarial pose / 4 狀態 dispatch / self-review / spec-plan 分離 / 三段 subagent 迴圈。設計依據存 `resources/specs/sdd_*_spec.md` + `resources/research/SDD_best_practices_2026-05-31.md`。
+> **Why**：主對話對齊期 context 龐雜（discussion / ambiguity / 歷史 patch），sales-coder 帶過去會被噪訊污染；fresh-context subagent 只看 spec + 必要 reference 注意力最集中。
 
 ---
 
@@ -46,7 +46,7 @@
 
 **plan.md（HOW，step-by-step）**：每檔每 step **2-5 分鐘 / 一原子動作**，依 TDD Red-Green-Refactor 排序（寫 failing test → 跑見 FAIL → 寫最小 prod → 跑見 PASS → commit）。
 **No Placeholders（禁寫）**：「TBD / TODO / implement later」「Add appropriate error handling（無具體 code）」「Write tests for the above（無實際 test）」「Similar to Step N（要 repeat code）」。
-**例外**：v3 升級前既有 spec 不回填 plan.md；只對 v3 後新 spec 強制。
+**例外**：不回填舊 spec 的 plan.md（成本高收益低）；只對新 spec 強制拆。
 
 ### Mini 版（≤ 3 行單檔純值替換 / typo / 單一 const tweak）— 5 行單檔不拆 plan
 ```markdown
@@ -115,7 +115,7 @@
 3. **Scope check**：單一可實作 plan 還是該拆分（涵蓋多獨立 subsystem → 拆 sub-spec）？
 4. **Ambiguity check**：任何需求能兩種解讀？挑一個寫死。
 
-inline 修完才 AskUserQuestion，不必 re-review。（借鏡 superpowers brainstorming "Spec Self-Review"。）
+inline 修完才 AskUserQuestion，不必 re-review。
 
 ---
 
@@ -142,7 +142,7 @@ inline 修完才 AskUserQuestion，不必 re-review。（借鏡 superpowers brai
 | Spec-reviewer ✅ | 看 subagent 回的 `Spec compliant` 字串 | 信 implementer 自報 |
 | Code-quality ✅ | 看 subagent 回的 `Approved` 字串 | 跳過審查 |
 
-違反 = 不誠實，不是效率。（借鏡 superpowers verification-before-completion。）
+違反 = 不誠實，不是效率。
 
 ---
 

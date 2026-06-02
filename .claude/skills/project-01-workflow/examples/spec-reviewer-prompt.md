@@ -1,6 +1,6 @@
 # Spec-reviewer subagent prompt template
 
-> SDD v3 三段迴圈第 2 段（spec compliance review）。流程與「為何用 fresh-context subagent」見 [`../reference/sdd.md`](../reference/sdd.md) §三段 subagent 迴圈。
+> SDD 三段迴圈第 2 段（spec compliance review）。流程與「為何用 fresh-context subagent」見 [`../reference/sdd.md`](../reference/sdd.md) §三段 subagent 迴圈。
 
 ## 派發方式
 

@@ -37,7 +37,7 @@
 ### 預設模型 opus xhigh
 - `Agent({ model: "opus" })`。Agent 工具只接受 `sonnet`/`opus`/`haiku`，**不能指定子版本**（用 session 對應 Opus）。
 - **沒有 `effort`/`thinking`/`skills` 參數**可傳 → 要 xhigh 在 prompt 內明寫；要預載 skills 必須走 `.claude/agents/<name>.md` frontmatter（見文末）。
-- **Why opus xhigh**：跨檔 refactor 實測 sonnet 踩坑率高、opus xhigh 零坑（見 Wave 6 招），既然 opus xhigh 是安全選項就預設化，省每次判斷複雜度。`sales-coder` frontmatter 已內建 `model: opus`（無 effort 欄 → 繼承 session effort），派發不必再傳。研究 / Explore 類仍可手動指定 sonnet。
+- **Why opus xhigh**：跨檔 refactor sonnet 踩坑率高、opus xhigh 穩；預設化省每次判斷複雜度。`sales-coder` frontmatter 已內建 `model: opus`（無 effort 欄 → 繼承 session effort），派發不必再傳。研究 / Explore 類仍可手動指定 sonnet。
 - **Co-Authored-By**：用實際模型署名，預設 `Co-Authored-By: Claude Opus <noreply@anthropic.com>`；研究類用 sonnet 時為 `Claude Sonnet 4.6`。
 
 ---
@@ -51,8 +51,7 @@
 
 **「超級小」定義（同時滿足才算）**：改動 ≤ 3 行（不含 docstring/comment）｜單一檔案｜純值替換 / typo / const 微調，無邏輯結構改動｜無新增 function/class/簽名變動｜無 cross-file propagation。
 
-- 灰色地帶（const 多處 / 多檔同步 typo / docstring 大段重寫）→ **派 sales-coder**。規模主觀判斷**向保守傾斜**，不確定就派。
-- **教訓**（2026-05-30 `7661f10`）：3 處 const + docstring 多段我判「超級小」自改，user 糾正——已是 cross-line propagation + docstring 重寫，超門檻。
+- 灰色地帶（const 多處 / 多檔同步 typo / docstring 大段重寫）→ **派 sales-coder**：多處 const + docstring 重寫已是 cross-line propagation，超門檻。規模主觀判斷**向保守傾斜**，不確定就派。
 
 ---
 
@@ -62,7 +61,7 @@
 
 - **觸發**：結構性改動（新方法 / 新 attr / `_loop` 重排 / try-finally / lock scope / callback signature / wire-up）。
 - **不觸發**：純 const / 純字串 / 單行 typo / 純 docstring（仍可直接 patch）。
-- **Why**（2026-05-30 `8e3aa67`）：worker thread 結構盲點（race / state machine / try-finally 邊界 / 新 attr 與既有 lock 互動）非主 agent 一眼 grep 得完，sales-coder 嚴格 TDD + 多角度更穩。若涉 race / sticky state / thread sync，**一律派**。
+- **Why**：worker thread 結構盲點（race / state machine / try-finally 邊界 / 新 attr 與既有 lock 互動）非主 agent 一眼 grep 得完，sales-coder 嚴格 TDD 更穩。涉 race / sticky state / thread sync **一律派**。
 
 ---
 
@@ -85,7 +84,7 @@
 - 不做 post-commit closeout（不 ExitWorktree / ff-merge / push / git worktree remove）— 主 agent 收尾。你只做：編輯 → commit → 回報。
 - 不要 cd 到主 checkout 路徑（會引發 Gotcha M）— 維持在 worktree cwd；若 git 把 commit 落到 main 是已知偶發 Gotcha M，主 agent 會 workaround。
 ```
-**Why**：sonnet subagent 常越權做完整收尾（ff-merge/push/cleanup），破壞主 agent 審查機會 + 可能殘留 worktree。加此規範後實測零越權。
+**Why**：subagent 常越權做完整收尾（ff-merge/push/cleanup），破壞主 agent 審查機會 + 殘留 worktree。
 
 ---
 
@@ -101,7 +100,7 @@
 
 ## Wave 6 招防護（跨檔 refactor）
 
-派 subagent 做「跨檔簽名變動 + 既有 test 連動更新」的 Wave 時，**opus + xhigh + 6 招**比單純拆細範圍更有效（2026-05-26 實測：sonnet 連踩 4 坑 vs opus xhigh 三 wave 零坑、233 passed 一次到位）。
+派 subagent 做「跨檔簽名變動 + 既有 test 連動更新」的批次（Wave）時，**opus + xhigh + 6 招**比單純拆細範圍更有效。
 
 **6 招（prompt 內必含）**：
 1. **先列再做**：開工前 grep 受影響檔/test，在 thinking 內列清單，return 必含此清單。
