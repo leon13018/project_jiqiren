@@ -2,8 +2,8 @@
 
 人形機器人課程期末專題。Raspberry Pi 4 上的規則匹配點餐 / 收款模擬系統。
 
-> **本檔＝root 層、全域恆載核心**：安全紅線 + 繁中 + skill 觸發表 + 導航指標。
-> workflow 協議與 myProgram 領域知識在 **`project-01-workflow` skill**（用到才載）；**檔案路徑 / 結構一律查 `.claude/code_map.md`**。
+> **本檔＝root 層、全域恆載核心**：安全紅線 + 繁中 + skill 載入指標 + 導航指標。
+> workflow 協議與 myProgram 領域知識在 **`project-01-workflow` skill**（用到才載）。
 > 分層 / 各層 CLAUDE.md 內容分配標準 → 見文末「📋 維護原則」。
 
 ---
@@ -29,18 +29,7 @@
 
 ## 📐 工作流程與領域知識 → 載入 `project-01-workflow` skill
 
-本專案所有協議與知識都在該 skill。**做下列任一類工作前務必先載入 skill**，再依其 `SKILL.md` router 表 Read 對應 `reference/<topic>.md`（即使任務看似簡單也載入——規則會演進，重讀 reference 比憑記憶可靠）。**所有檔案位置先查 code_map。**
-
-| 情境 | 載入後讀 |
-|---|---|
-| 改 `myProgram/` 下任何 .py code（檔見 code_map） | 走 SDD 流程（`sdd.md`）+ 對應領域 reference |
-| 編 myProgram 前理解廠商 SDK / 線程 / 路徑 / sales 設計 | `myprogram-vendor.md` / `myprogram-threading-paths.md` / `sales-dialog-design.md` / `sales-tts-ux.md` |
-| 派 subagent / agent teams、判斷派發規模門檻 | `dispatch.md` |
-| 編輯任何 tracked 檔 / worktree 隔離 / git 收尾 / sync Pi | `worktree.md` + `standard-workflow.md` |
-| 判斷是否需 Pi 端操作 → 寫 pineedtodo / 結構變動更新 code_map / 部署資訊 | `pi-and-structure.md` |
-| 架構多線程 + queue + 旗號難收斂 | `incremental-rebuild.md` |
-| 新增 sales 業務邏輯（BDD+TDD，dormant） | `bdd-tdd.md` |
-| 繁簡對照 / 環境 quirk / 跨任務工作原則 | `conventions.md` |
+做**任何實作性工作前務必先載入 `project-01-workflow` skill**（即使任務看似簡單——規則會演進，重讀 reference 比憑記憶可靠），再依其 `SKILL.md` **router 表**選讀對應 `reference/`。**路由與領域細節都在 skill，本檔不重複。**
 
 > 編寫 / 修改 code 前一律遵守 `andrej-karpathy-skills:karpathy-guidelines`（主 agent 自寫前 invoke；sales-coder 已 frontmatter 預載）。
 
@@ -57,11 +46,11 @@
 
 ## 📋 維護原則
 
-- **分層**：CLAUDE.md（核心紅線 + skill 觸發表）＋ **`code_map.md`（檔案路徑單一事實來源）** → `project-01-workflow` skill（router + `reference/` 細節）。
+- **分層**：CLAUDE.md（核心紅線 + skill 載入指標）＋ **`code_map.md`（檔案路徑單一事實來源）** → `project-01-workflow` skill（router + `reference/` 細節）。
 - **CLAUDE.md 跨層內容分配標準**（官方 lean & layered）：
   - **root**：全域大局 + critical gotchas（安全紅線）+ 全域指標。critical 一律留 root（∵ `/compact` 後 root 倖存、子層蒸發，且需恆載事先勸阻）。
   - **子層**：只放該層局部慣例（怎麼跑測試 / 該讀哪份 reference / 局部 pattern / 解釋性細節）+ 指回 root 的薄 pointer，**不重述紅線**。
   - **零重複解釋**：紅線權威版只在 root；hook 才是強制執行、CLAUDE.md 是 advisory，故 root 紅線寫精簡即可。
   - 每行自問「移掉會不會讓 Claude 出錯」，不會就刪；每檔目標 root ≤~100 行、子層 ≤~60 行。
 - memory 只剩 `user_profile` + `user_step_by_step_pace`；其餘協議 / 領域 / 歷史都在 skill + `resources/`。
-- 新增 / 改協議 → 寫進 skill `reference/<topic>.md`；**新增 / 移動檔案 → 同步更新該層 `code_map.md`**；CLAUDE.md 只在觸發表加一行。
+- 新增 / 改協議 → 寫進 skill `reference/<topic>.md`（router 在 `SKILL.md`）；**新增 / 移動檔案 → 同步更新該層 `code_map.md`**。
