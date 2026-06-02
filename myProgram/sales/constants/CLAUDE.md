@@ -4,4 +4,4 @@
 
 sales 各層的文案、關鍵字、商品、動作、計時等常數（純資料，無邏輯）。
 
-- 文案改動一律繁體中文；TTS / 計時相關設計見 skill 的 `sales-tts-ux.md`。
+- 文案 / 字串套用 root 🌏 繁中規範（見 root `CLAUDE.md`）；TTS / 計時設計見 skill 的 `sales-tts-ux.md`。
