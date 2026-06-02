@@ -8,7 +8,6 @@
 - `resources/` — 專案文件與產出物（非 code）：SDD 規格 / 計畫 / 審查、研究筆記、架構契約、Pi 需求與待辦、範例、報告、prompt 存檔、roadmap / changelog。
 - `tests/` — pytest 測試：sales 業務邏輯回歸網 + spec 測試。
 - `.claude/` — Claude Code 配置：`code_map.md`(本檔)、`skills/`（`project-01-workflow` 等）、`hooks/`（自動化 hook + `NOTES.md`）、`agents/`（`sales-coder`）、`settings*.json`。
-- `.git/` — Git 版控內部資料（非專案內容；噪音候選，日後處理）。
 
 ## 檔案
 - `CLAUDE.md` — 專案主規範入口（核心紅線 + 繁中規範 + skill 觸發表 + 本層 code_map 指標）；root 直接放。

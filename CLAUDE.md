@@ -2,9 +2,9 @@
 
 人形機器人課程期末專題。Raspberry Pi 4 上的規則匹配點餐 / 收款模擬系統。
 
-> **本檔＝root 層、全域恆載核心**（安全紅線 critical gotchas + 繁中 + skill 觸發表 + 導航指標）；`/compact` 後仍從磁碟倖存重載，故 critical 紅線一律放此。
-> **各子目錄另有自己的 `CLAUDE.md`**放局部慣例（只在進該目錄時按需載入、`/compact` 後會蒸發）——不重述本檔紅線，只放指回本檔的薄 pointer。
-> workflow 協議與 myProgram 領域知識在 **`project-01-workflow` skill**（用到才載）；**檔案路徑 / 結構一律查 `.claude/code_map.md`**，不在本檔重複。
+> **本檔＝root 層、全域恆載核心**：安全紅線 + 繁中 + skill 觸發表 + 導航指標。
+> workflow 協議與 myProgram 領域知識在 **`project-01-workflow` skill**（用到才載）；**檔案路徑 / 結構一律查 `.claude/code_map.md`**。
+> 分層 / 各層 CLAUDE.md 內容分配標準 → 見文末「📋 維護原則」。
 
 ---
 
@@ -15,11 +15,9 @@
 3. **不要嘗試在 Windows import / 執行任何依賴廠商 SDK 的程式碼** — 必 ImportError。
 4. **不要用 `git add -A` / `git add .`** 🔒 — 明確列出檔名，避免誤加。
 
-> 🔒 = PreToolUse hook 自動 block（hooks 位置與完整文檔 → code_map `.claude/` 段 / `hooks/NOTES.md`），不依賴主 agent 自律。
-> **push 後永遠手動跑 `& sync_pi.ps1`**（PostToolUse hook 會試著自動跑，但 background session 不可依賴；手動跑為 idempotent no-op）。
-> 編 sales code 或對應測試（路徑見 code_map）後沒跑 pytest → Stop hook block 一次提醒。
-> 每次新 session 注入 git / 測試數快照（SessionStart hook）；派 subagent 注入標準規範（SubagentStart hook）。
-> 寫檔含簡體字 → PostToolUse hook 純警示（不擋流程）。
+> 🔒 = PreToolUse hook 自動 block（不靠自律；hooks 完整文檔 → `hooks/NOTES.md`）。
+> **push 後永遠手動跑 `& sync_pi.ps1`**（PostToolUse 會試自動跑但 background session 不可依賴；手動為 idempotent no-op）。
+> 其餘自動化（Stop pytest 守 / SessionStart 快照 / SubagentStart 規範注入 / 簡體字警示）行為見 `hooks/NOTES.md`。
 
 ---
 
