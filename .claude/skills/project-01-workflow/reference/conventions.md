@@ -30,7 +30,7 @@
 
 ## 開發環境 quirk（Windows cp936 簡體 locale）
 
-**使用者在台灣，但 Windows 系統設定 = 中國大陸 / 簡體（GBK/cp936，非 Big5/cp950）**（2026-05-25 使用者告知，推翻「台灣 Windows=Big5」誤判）。
+**使用者在台灣，但 Windows 系統設定 = 中國大陸 / 簡體（GBK/cp936，非 Big5/cp950）**（別假設「台灣 Windows=Big5」）。
 - 寫 PowerShell / Windows 編碼相關註解時，別假設「台灣 Windows=Big5」；用「系統 code page（這台是 cp936）」或「系統 code page（非 UTF-8）」。
 - 使用者用簡體打字 → 經簡轉繁工具 → 我看到繁中；**對話顯示繁中不代表系統環境是繁中**。
 - 亂碼問題優先查 **UTF-8 vs cp936** 衝突（如 `Get-Content` 不指定 `-Encoding utf8` 會以 cp936 解碼 UTF-8 檔）。
@@ -42,6 +42,6 @@
 
 修一條路徑的 bug 時，主動 grep / 列舉同類路徑（同 return state、同 callback pattern、同子狀態類型），一次修完並在報告明列「順帶掃了哪幾條」，不要等使用者第二輪才講「其他也有」。
 
-**Why**（2026-05-26 連續踩）：L4 客服 timeout 回主選單→隱含 dialog/L5 也要；L4 有 mute 訊息但 dialog 沒有→期待所有 L1 重進路徑統一；DnC 12s 改→DyC 也要對稱。每次「修一條、使用者拉回補三條」，同類掃過比 ping-pong 省 round-trip。
+**Why**（連續踩過）：L4 客服 timeout 回主選單→隱含 dialog/L5 也要；L4 有 mute 訊息但 dialog 沒有→期待所有 L1 重進路徑統一；DnC 12s 改→DyC 也要對稱。每次「修一條、使用者拉回補三條」，同類掃過比 ping-pong 省 round-trip。
 
 **How**：收到「X 路徑有 bug」→ 動手前先 grep 同 return 值 / 同 callback 簽名 / 同 subroutine 入口 → 一次修完、報告明列順帶掃的 sibling；同類語意實際應不同（少數例外）則明說「為何只修這條」。適用：sales/ 狀態機分支、wire-up callback、NLU keyword 同義詞、constants timeout 對稱組。（與 step-by-step pace 不衝突：同類掃描算當前任務範圍，非預先推測。）
