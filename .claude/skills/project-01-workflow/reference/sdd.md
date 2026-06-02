@@ -335,55 +335,34 @@ Sales-coder 拿到 spec + plan 後**自行 TaskCreate** 拆內部清單，對應
 
 ## Sales-coder 派發 prompt 範本
 
+> 流程 / DoD / 回報格式 / self-review 都在 `.claude/agents/sales-coder.md`（系統提示恆載），**派發 prompt 只給任務特化、不複寫**。
+
 ```markdown
 ## 任務
-
 依 SDD spec + plan 實作 <feature_name>。
-
-**Spec / Plan 檔（必先完整讀）**：
-- Spec：`resources/specs/<spec_name>_spec.md`（WHAT）
-- Plan：`resources/specs/<spec_name>_plan.md`（HOW，step-by-step）
-
-Spec 涵蓋設計動機 / 行為規約 / 改檔範圍 / out-of-scope / 參考。
-Plan 涵蓋每檔 step-by-step + 完整 test/impl code + commit msg。
-**所有實作決定以 spec/plan 為準**；spec 沒寫的照 karpathy「最小可驗證」原則。
+- Spec：`resources/specs/<name>_<date>_spec.md`（WHAT）
+- Plan：`resources/specs/<name>_<date>_plan.md`（HOW，step-by-step）
+所有實作決定以 spec/plan 為準；spec 沒寫的照 karpathy「最小可驗證」，有疑義停下回報。
 
 ## 工作環境
+- 已在 worktree `.claude/worktrees/<name>/`，branch `worktree-<name>`；上 commit `<SHA>` 是 spec/plan doc（不要改）
+- 所有 commit 落 `worktree-<name>`，commit 後 `git branch --contains <SHA>` 自驗（落 main 停回報，Gotcha M）
 
-- 你已在 worktree `.claude/worktrees/<name>/`，branch `worktree-<name>`
-- 上 commit `<SHA>` 是主 agent 寫的 spec/plan doc（**不要改 spec/plan**）
-- 你的所有 commit 必須落在 `worktree-<name>` 分支（commit 後 `git branch --contains <SHA>` 驗證；落 main 立刻停回報，防 Gotcha M）
+## 任務特化
+- commit message 範本：<...>
+- git add 範圍：<明列檔名>
+- 既有可 reuse helper / pattern：<spec §5 引用>
 
-## 強制流程
-
-1. **Spec/Plan first**：Read 兩份 doc → TaskCreate 拆內部清單（對應 plan 每檔每 step）
-2. **先列再做**：Read 現有檔後，列出「我要改 X / 加 Y / 刪 Z」清單給主 agent 看；確認與 spec 一致才開始 Edit
-3. **TDD Red-Green-Refactor**：依 plan 每 step 順序，先 RED 才 GREEN
-4. **每改完跑 pytest**：不累積多改動才跑
-5. **commit 前自檢**：`git status` + `git diff --cached` + `git branch --show-current`
-6. **規格衝突必停**：spec/plan 跟現有 code 衝突時，停下回報主 agent
-7. **fail 必停**：pytest fail 立刻回報，不硬塞 prod code 試圖通過
-8. **Self-review 4 類 handoff 前自查**（見 .claude/agents/sales-coder.md §SDD 任務協議）
-
-## Definition of done
-
-- pytest 全綠（指令見 spec §6）
-- 我列的 spec §X 全部 covered
-- `git branch --contains <最後 SHA>` 落 worktree branch
-- commit message 含 spec 引用（路徑 + 段落號）
-
-## 回報格式（Status 強制 4 選 1，見 sales-coder.md）
-
-開頭必選 1 個 status：DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT
-
-後接：改動清單 / 測試對比 / pytest 輸出 / Commit SHA / branch verify / 偏離 / TaskList 摘要
+## ⛔ 邊界
+- 不做 post-commit closeout（不 ExitWorktree / ff-merge / push / worktree remove）— 主 agent 收尾，你只做 編輯→commit→回報
+- 不 cd 主 checkout（引發 Gotcha M）
 ```
 
 ---
 
 ## Self-review 4 類（sales-coder handoff 前自查）
 
-Sales-coder handoff 前自查找問題立刻修：**Completeness / Quality / Discipline / Testing** 四類（詳見 `.claude/agents/sales-coder.md` §SDD 任務協議）。
+Sales-coder handoff 前自查找問題立刻修：**Completeness / Quality / Discipline / Testing** 四類（詳見 `.claude/agents/sales-coder.md` §Handoff 前 self-review）。
 
 ---
 
@@ -451,5 +430,5 @@ Sales-coder handoff 前自查找問題立刻修：**Completeness / Quality / Dis
 - 派發協議：[dispatch.md](dispatch.md)
 - Worktree：[worktree.md](worktree.md)
 - 標準收尾：[standard-workflow.md](standard-workflow.md)
-- Sales-coder 自訂 subagent：`.claude/agents/sales-coder.md`（含 SDD 任務協議段 + 4 狀態 + self-review 4 類）
+- Sales-coder 自訂 subagent：`.claude/agents/sales-coder.md`（含 implementer 契約：流程骨幹 / DoD / Status 4 狀態 / self-review 4 類）
 - 編寫程式碼準則：invoke `andrej-karpathy-skills:karpathy-guidelines` SKILL

@@ -397,7 +397,7 @@ Built-in subagent（`Explore` / `Plan` / `general-purpose` / `claude-code-guide`
 ### Prompt 內容新增（sales-coder 派發 prompt 必含）
 
 - **Spec/Plan 兩檔路徑**：`resources/specs/<name>_<date>_spec.md` + `<name>_<date>_plan.md`（v3 起兩檔；mini spec 不拆）
-- sales-coder frontmatter 已預載 SDD 任務協議段（spec first / TaskCreate / Definition of done / 偏離標明 / Status 4 選 1 / self-review 4 類），prompt 不必再塞這些通用規範
+- sales-coder.md body（系統提示恆載）已含 implementer 契約（流程骨幹 / DoD / Status 4 選 1 / self-review 4 類），prompt 不必再塞這些通用規範
 - 任務特化規則（commit msg 範本 / git add 範圍）仍要 prompt 內塞
 
 ### Subagent 回報強制 4 狀態
