@@ -2,15 +2,15 @@
 
 人形機器人課程期末專題。Raspberry Pi 4 上的規則匹配點餐 / 收款模擬系統。
 
-> 本檔只放**不能延遲載入的核心**（安全紅線 + 繁中 + skill 觸發表）。所有 workflow 協議與 myProgram 領域知識
-> 都在 **`project-01-workflow` skill**（progressive disclosure，用到才載）。
-> **檔案路徑 / 專案結構不在本檔重複——一律以 `.claude/code_map.md` 為單一事實來源。**
+> **本檔＝root 層、全域恆載核心**（安全紅線 critical gotchas + 繁中 + skill 觸發表 + 導航指標）；`/compact` 後仍從磁碟倖存重載，故 critical 紅線一律放此。
+> **各子目錄另有自己的 `CLAUDE.md`**放局部慣例（只在進該目錄時按需載入、`/compact` 後會蒸發）——不重述本檔紅線，只放指回本檔的薄 pointer。
+> workflow 協議與 myProgram 領域知識在 **`project-01-workflow` skill**（用到才載）；**檔案路徑 / 結構一律查 `.claude/code_map.md`**，不在本檔重複。
 
 ---
 
 ## ⛔ 絕對禁止（違反就壞東西）
 
-1. **不要修改廠商 Hiwonder TonyPi SDK** 🔒 — `myProgram/vendor/` 下、code_map 標 🔒 的檔（`ActionGroupControl.py` / `Board.py`），含 Pi-only 依賴（`pigpio` / `RPi.GPIO` / `BusServoCmd` / `PWMServo` / `smbus2`），改了破壞硬體通訊。只能 `Read` 引用、`import` 使用。
+1. **不要修改廠商 Hiwonder TonyPi SDK** 🔒 — `myProgram/vendor/ActionGroupControl.py` / `Board.py`，改了破壞硬體通訊。只能 `Read` 引用、`import` 使用。（Pi-only 依賴等局部細節見 `myProgram/vendor/CLAUDE.md`）
 2. **不要在 Windows 本機安裝任何依賴**（`pip` / `npm` / `apt`）🔒 — 執行環境是 Pi，本機只負責編輯與 git。（pytest 已全域裝為例外）
 3. **不要嘗試在 Windows import / 執行任何依賴廠商 SDK 的程式碼** — 必 ImportError。
 4. **不要用 `git add -A` / `git add .`** 🔒 — 明確列出檔名，避免誤加。
@@ -60,5 +60,10 @@
 ## 📋 維護原則
 
 - **分層**：CLAUDE.md（核心紅線 + skill 觸發表）＋ **`code_map.md`（檔案路徑單一事實來源）** → `project-01-workflow` skill（router + `reference/` 細節）。
+- **CLAUDE.md 跨層內容分配標準**（官方 lean & layered）：
+  - **root**：全域大局 + critical gotchas（安全紅線）+ 全域指標。critical 一律留 root（∵ `/compact` 後 root 倖存、子層蒸發，且需恆載事先勸阻）。
+  - **子層**：只放該層局部慣例（怎麼跑測試 / 該讀哪份 reference / 局部 pattern / 解釋性細節）+ 指回 root 的薄 pointer，**不重述紅線**。
+  - **零重複解釋**：紅線權威版只在 root；hook 才是強制執行、CLAUDE.md 是 advisory，故 root 紅線寫精簡即可。
+  - 每行自問「移掉會不會讓 Claude 出錯」，不會就刪；每檔目標 root ≤~100 行、子層 ≤~60 行。
 - memory 只剩 `user_profile` + `user_step_by_step_pace`；其餘協議 / 領域 / 歷史都在 skill + `resources/`。
-- 新增 / 改協議 → 寫進 skill `reference/<topic>.md`；**新增 / 移動檔案 → 同步更新 `code_map.md`**；CLAUDE.md 只在觸發表加一行。
+- 新增 / 改協議 → 寫進 skill `reference/<topic>.md`；**新增 / 移動檔案 → 同步更新該層 `code_map.md`**；CLAUDE.md 只在觸發表加一行。
