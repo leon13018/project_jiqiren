@@ -95,7 +95,7 @@ git push origin main
 git worktree remove .claude/worktrees/<name>
 git branch -D worktree-<name>   # -D 大寫，因未被 ff-merged
 ```
-**徵兆速查**：ff-merge 失敗訊息 `Diverging branches can't be fast-forwarded`；`git log --oneline -5` 主 main 比 worktree branch 多 ≥1 commit。踩到不必再想，直接 cherry-pick + `-D`（2026-05-26 Wave 0 `d60798e`→cherry-pick `bd77ded` 驗證可行）。
+**徵兆速查**：ff-merge 失敗訊息 `Diverging branches can't be fast-forwarded`；`git log --oneline -5` 主 main 比 worktree branch 多 ≥1 commit。踩到不必再想，直接 cherry-pick + `-D`。
 
 ---
 

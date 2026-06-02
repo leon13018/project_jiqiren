@@ -38,9 +38,7 @@
 
 ## Background session 雙保險（為何步驟 5 永遠手動）
 
-**Claude Code background job session 內 PostToolUse hook 觸發非 deterministic——有時跑有時不跑，視為不可依賴。** 統一規則「**永遠手動跑**」省得判斷 session 類型（idempotent no-op、~3s）。
-
-> **實證（2026-05-27）**：同一 background session 內三次 push，hook 只觸發其中一次（`16a90bd` ❌ / `aae2338` ❌ / `f084aba` ✅）；規律未明（async + 120s timeout race 之 hypothesis）。Live session 通常正常跑，但仍照統一規則手動跑。
+**Claude Code background job session 內 PostToolUse hook 觸發非 deterministic——有時跑有時不跑，視為不可依賴**（同一 background session 內多次 push，hook 可能只觸發其中一次）。統一規則「**永遠手動跑**」省得判斷 session 類型（idempotent no-op、~3s）。
 
 （判斷 session 類型：system context 含 `# Background Session` + `$CLAUDE_JOB_DIR` → background；否則 live。僅供理解 hook 為何有時不觸發，不影響「永遠手動」規則。）
 
@@ -50,9 +48,9 @@
 
 **Rule**：Pi 每次 `git pull` 拉到新 commit 後，必須清光 project 樹下所有 `__pycache__`，避免 Python import 走 stale `.pyc` 跑舊邏輯。**Windows dev 端不必清**（mtime invalidation 自然 work）。
 
-**根因**：Python 用 mtime-based invalidation；`git pull` 把新 `.py` 的 mtime 設成 commit timestamp，若 < 上次 demo 留下的 `.pyc` mtime → Python 認為 source 沒變 → 用 stale `.pyc`。（2026-05-27 Pi 實機踩過：source/NLU test/simulation 全對，demo 仍跑舊邏輯；`find . -name __pycache__ -type d -exec rm -rf {} +` 清光後立即正常。）
+**根因**：Python 用 mtime-based invalidation；`git pull` 把新 `.py` 的 mtime 設成 commit timestamp，若 < 上次 demo 留下的 `.pyc` mtime → Python 認為 source 沒變 → 用 stale `.pyc`（症狀：source/test/simulation 全對，demo 仍跑舊邏輯。手動清：`find . -name __pycache__ -type d -exec rm -rf {} +`）。
 
-**已實作**：`.claude/hooks/auto-sync-pi.ps1` 在 `sync_pi.ps1` 完成後，用**獨立 try/catch** SSH 清 Pi pycache。**關鍵設計**：清理放獨立 try/catch（不與 git pull 同 try）——否則 git progress msg 被當 error 拋出會跳過清理（`600a4cc` 同 try 踩到，`034846d` 拆獨立修好）。
+**已實作**：`.claude/hooks/auto-sync-pi.ps1` 在 `sync_pi.ps1` 完成後，用**獨立 try/catch** SSH 清 Pi pycache。**關鍵設計**：清理放獨立 try/catch（不與 git pull 同 try）——否則 git progress msg 被當 error 拋出會跳過清理。
 
 **何時值得加清 pycache**：
 | 訊號 | 加清理 |
@@ -77,7 +75,7 @@
 
 - 不確定變更範圍（還在規劃）→ **先停下確認**，不要先 commit。
 - `sync_pi.ps1` 失敗 → 先診斷、提修法與使用者確認再改（腳本 gitignored，改動不進 git）。
-- **歷史 bug（2026-05-21 已修）**：`sync_pi.ps1` 中 `[ -d "$REMOTE_PATH" ]` 雙引號內 tilde 不展開致誤走 clone 分支 → 已改絕對路徑。教訓：SSH 傳 bash 腳本若路徑需 tilde 展開，別在 `[ -d ... ]` 雙引號內用 `~`，改 `$HOME` / 絕對路徑。
+- SSH 傳 bash 腳本若路徑需 tilde 展開，別在 `[ -d ... ]` 雙引號內用 `~`（不展開），改 `$HOME` / 絕對路徑。
 
 ---
 

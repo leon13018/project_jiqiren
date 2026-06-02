@@ -68,7 +68,7 @@
 **同步**：本機 `git push` → PostToolUse hook 嘗試自動 `sync_pi.ps1`（SSH 到 Pi `git pull`，首次則 clone；SSH 金鑰已設）→ **但 hook 不可依賴，push 後永遠手動 `& sync_pi.ps1`**（雙保險理由見 [standard-workflow.md](standard-workflow.md)）。
 
 **Pi 端執行環境**（已安裝清單見 `resources/requirements/raspberry_pi_setup.md`）：
-- Python **3.11.9**（2026-05-23 source build 在 `~/Python-3.11.9/`；系統內建 3.7 不足、edge-tts 強制依賴）。
+- Python **3.11.9**（source build 在 `~/Python-3.11.9/`；系統內建 3.7 不足、edge-tts 強制依賴）。
 - 雲端 TTS：edge-tts（pip）+ mpg123（apt）。
 - **跑法**：`python3.11 -m myProgram`（推薦，透過 `__main__.py`）或 `python3.11 -m myProgram.main`。舊 `myProgram.myProgram` 已失效（檔名改 main.py）。
 - **.gitignore 排除**：`.claude/settings.local.json` / `.claude/worktrees/` / `sync_pi.ps1` / `resources/presentation/` / `resources/userPrompt/`；其餘 `resources/*` 已 tracked。`CLAUDE.md` tracked 並 push（2026-06-02 移至 root）。
@@ -91,7 +91,7 @@
   （`--no-binary :all:` 拿 source、`--index-url pypi` 跳過 piwheels；編譯連結 Buster 現有 lib 自然相容。）
 - 缺 C extension `*-dev`（編 Pillow 需 libjpeg-dev/libtiff5-dev）→ 先 `sudo apt install <list>-dev` 再 build。
 - 不推薦升級系統 lib（Buster repo 無新版）。
-- **已驗證（2026-05-23）**：`RPi.GPIO` source build ✅；`Pillow<10`（9.5.0）+ `libtiff5-dev` ✅；純 Python（pyserial/pigpio/smbus2）piwheels 版可直接用。
+- **已驗證可行**：`RPi.GPIO` source build ✅；`Pillow<10`（9.5.0）+ `libtiff5-dev` ✅；純 Python（pyserial/pigpio/smbus2）piwheels 版可直接用。
 - **Python stdlib C extension 缺失（如 `_tkinter`）**是另一回事：`apt install tk-dev tcl-dev` → `cd ~/Python-3.11.9 && make clean && ./configure --enable-optimizations --prefix=/usr/local && make -j4 && sudo make altinstall`（Pi 4 約 20-40 分；既有 pip 套件不受影響）。
 
 ### 2. 使用者報「X 沒作用」→ 先對 git commit 再 debug
@@ -99,7 +99,7 @@
 ```bash
 git log -1 --oneline main && ssh -o ConnectTimeout=5 pi@raspberrypi.local "cd /home/pi/Desktop/project_jiqiren && git log -1 --oneline"
 ```
-兩邊 SHA 對齊才往下；不同先排查 sync。**Why**（2026-05-26）：使用者報「Dialog mute 沒生效」，trace + 模擬都證實邏輯對，差點亂猜；實因 Pi 沒同步到新 commit。一條指令省下深挖成本。**也適用**「之前可以的 X 現在不行」→ 比對最近 commit 是否動到 X。
+兩邊 SHA 對齊才往下；不同先排查 sync。**Why**：邏輯明明對卻不動，常是 Pi 沒同步到新 commit；一條指令省下深挖成本。**也適用**「之前可以的 X 現在不行」→ 比對最近 commit 是否動到 X。
 
 ---
 
