@@ -1,6 +1,6 @@
 # myProgram/vendor/ — 本層導引
 
-> **本層檔案結構索引在 `.claude/code_map.md`——任何「vendor 裡的檔在哪 / 結構」務必第一優先讀它。**
+> **本層結構索引：`.claude/code_map.md`——任何「vendor 裡的檔在哪 / 結構」務必第一優先讀它。**
 
 廠商 Hiwonder TonyPi SDK。
 

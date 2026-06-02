@@ -1,7 +1,7 @@
 # myProgram/sales/ — 本層導引
 
-> **本層檔案結構索引在 `.claude/code_map.md`——任何「sales 裡的檔在哪 / 結構」務必第一優先讀它。**
-> 深入子目錄（`states/` / `constants/`）→ 讀 `<子目錄>/.claude/code_map.md`（若無，以本層 code_map 說明為準）。
+> **本層結構索引：`.claude/code_map.md`——任何「sales 裡的檔在哪 / 結構」務必第一優先讀它。**
+> 下沉：深入子目錄 → 讀 `<子目錄>/.claude/code_map.md`（不存在則以本層 code_map 說明為準）。
 
 銷售對話業務邏輯**核心**：規則匹配點餐 / 收款的多層對話狀態機（L0–L5）+ NLU 意圖辨識 + 商品解析 + 購物車。
 
