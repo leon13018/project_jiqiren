@@ -227,7 +227,7 @@ uvicorn myProgram.sales.api:app --host 0.0.0.0 --port 8000
 
 - 後端模組結構細節：`backend-module-structure.md`
 - 業務邏輯規格書：`resources/plans/業務程式邏輯規劃/L0_共通.md` + L1-L5
-- 廠商 SDK 不可改背景：`.claude/CLAUDE.md` ⛔ 絕對禁止 #1
+- 廠商 SDK 不可改背景：`CLAUDE.md` ⛔ 絕對禁止 #1
 - Pi 套件相容性陷阱：memory `pi-glibc-piwheels-trap`
 
 ---

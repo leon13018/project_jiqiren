@@ -65,7 +65,7 @@ myProgram/
 | 每步只加一層複雜度 | `.claude/rules/incremental-rebuild.md` | S1 v2 不上 web framework / DB，先把 5 層業務跑通 |
 | 不過度設計 | karpathy-guidelines | 不預先建 `states/` 子資料夾、不預先寫 `api.py` 空殼 |
 | 純函式 + callback 注入 | 大公司分層解耦慣例 | `nlu.py` / `cart.py` 純函式；`states.py` 對外動作以 callback 注入 |
-| 廠商 SDK 不可改 | `.claude/CLAUDE.md` ⛔ 絕對禁止 #1 | `sales/` 內任何檔不修 `ActionGroupControl.py` / `Board.py`，只透過 callback 間接呼叫 |
+| 廠商 SDK 不可改 | `CLAUDE.md` ⛔ 絕對禁止 #1 | `sales/` 內任何檔不修 `ActionGroupControl.py` / `Board.py`，只透過 callback 間接呼叫 |
 
 ---
 

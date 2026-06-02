@@ -30,7 +30,7 @@ Iron Law 驗證明文化 / Red Flags 表 / adversarial 審查 pose / 4 狀態 di
 ### 不觸發 ❌（不需 spec）
 
 - `myProgram/vendor/` 廠商 SDK（禁改，見 ⛔ 絕對禁止 #1）
-- `.claude/` 內任何檔（hook / agents / settings / CLAUDE.md 等，結構見 code_map）
+- `.claude/` 內任何檔（hook / agents / settings 等）+ 根 `CLAUDE.md`（結構見 code_map）
 - `resources/` 內任何檔（子資料夾見 code_map）
 - `tests/sales/` 純測試補強（若伴隨 prod code 改動，**跟 prod 走同一 spec**；獨立補回歸網不需）
 - `.gitignore` / `sync_pi.ps1` / `pytest.ini` / `pyproject.toml` 等工具設定

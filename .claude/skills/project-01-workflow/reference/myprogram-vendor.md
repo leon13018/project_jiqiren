@@ -8,7 +8,7 @@
 
 ## ⛔ 絕對禁止修改（hook 強制執法）
 
-**`myProgram/vendor/ActionGroupControl.py` 與 `myProgram/vendor/Board.py` 絕對絕對不能修改內容**，只能 `Read` 引用、`import` 使用。見 [CLAUDE.md](../../../CLAUDE.md) ⛔ 絕對禁止 #1。
+**`myProgram/vendor/ActionGroupControl.py` 與 `myProgram/vendor/Board.py` 絕對絕對不能修改內容**，只能 `Read` 引用、`import` 使用。見 [CLAUDE.md](../../../../CLAUDE.md) ⛔ 絕對禁止 #1。
 
 **🔒 hook 強制：** `.claude/hooks/block-vendor-edit.ps1` 的 PreToolUse hook 自動 block 對這兩個檔的 Edit / Write，不依賴主 agent 自律。regex 為 `/myProgram/(?:.+/)?(ActionGroupControl|Board)\.py$`（涵蓋舊路徑防回滾 + 任意子層 future-proof）。
 
@@ -110,4 +110,4 @@ S3 嚴格不呼叫 `Act.stopAction()`（見 [incremental-rebuild.md](incremental
 
 ---
 
-**相關 reference：** [myprogram-threading-paths.md](myprogram-threading-paths.md)（線程規範 + worker shutdown）/ [incremental-rebuild.md](incremental-rebuild.md)（sticky 旗號詳解）/ [CLAUDE.md](../../../CLAUDE.md) ⛔ #1
+**相關 reference：** [myprogram-threading-paths.md](myprogram-threading-paths.md)（線程規範 + worker shutdown）/ [incremental-rebuild.md](incremental-rebuild.md)（sticky 旗號詳解）/ [CLAUDE.md](../../../../CLAUDE.md) ⛔ #1

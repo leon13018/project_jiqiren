@@ -16,7 +16,7 @@
 
 - 程式碼註解：`# 顯示訂單明細` ✅ ／ `# 显示订单明细` ❌
 - 字串字面值：`"歡迎光臨！冰紅茶 30 元"` ✅ ／ `"欢迎光临！冰红茶 30 元"` ❌
-- Markdown 文件（含本專案內所有 `.md`、包括 [CLAUDE.md](../../../CLAUDE.md) / memory / `resources/` 內檔案）
+- Markdown 文件（含本專案內所有 `.md`、包括 [CLAUDE.md](../../../../CLAUDE.md) / memory / `resources/` 內檔案）
 - commit message 內的中文（若有）
 - 任何寫進檔案的中文
 

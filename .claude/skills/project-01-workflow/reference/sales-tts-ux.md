@@ -286,4 +286,4 @@ while True:
 
 ---
 
-**相關 reference**：[sales-dialog-design.md](sales-dialog-design.md)（對話狀態機 / 跨層流程）/ [myprogram-threading-paths.md](myprogram-threading-paths.md)（多線程 / S6 input）/ [sdd.md](sdd.md)（改 sales code 走 SDD 流程）/ [CLAUDE.md](../../../CLAUDE.md)
+**相關 reference**：[sales-dialog-design.md](sales-dialog-design.md)（對話狀態機 / 跨層流程）/ [myprogram-threading-paths.md](myprogram-threading-paths.md)（多線程 / S6 input）/ [sdd.md](sdd.md)（改 sales code 走 SDD 流程）/ [CLAUDE.md](../../../../CLAUDE.md)

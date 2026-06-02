@@ -163,7 +163,7 @@ python3.11 -m myProgram.main   # 等效
 - `resources/userPrompt/`
 
 → 其餘 `resources/*` 子資料夾已 tracked，會 push 上 GitHub + sync 到 Pi。
-→ `.claude/CLAUDE.md` tracked 並 push（2026-05-21 起），讓專案上下文跟著 repo 走。
+→ `CLAUDE.md` tracked 並 push（2026-05-21 起，原 `.claude/CLAUDE.md`，2026-06-02 移至 root），讓專案上下文跟著 repo 走。
 
 ---
 
@@ -234,4 +234,4 @@ git log -1 --oneline main && ssh -o ConnectTimeout=5 pi@raspberrypi.local "cd /h
 
 **相關 reference**：[worktree.md](worktree.md)（階段 3a / 3b 觸發判斷）/
 [standard-workflow.md](standard-workflow.md)（步驟 1a / 1b + sync 規範）/
-[CLAUDE.md](../../../CLAUDE.md)（部署資訊表 + 觸發條件大標題）
+[CLAUDE.md](../../../../CLAUDE.md)（部署資訊表 + 觸發條件大標題）

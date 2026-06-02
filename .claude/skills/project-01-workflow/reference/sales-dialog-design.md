@@ -402,4 +402,4 @@ KEYWORDS_L4_C_CONFIRM_NO_STRICT_SHORT = ["否", "不要", "不", "取消"]
 
 ---
 
-**相關 reference**：[sales-tts-ux.md](sales-tts-ux.md)（TTS / 計時倒數 / UX 過場）/ [myprogram-threading-paths.md](myprogram-threading-paths.md)（S6 非阻塞 input 底層）/ [sdd.md](sdd.md)（改 sales code 走 SDD 流程）/ [CLAUDE.md](../../../CLAUDE.md)
+**相關 reference**：[sales-tts-ux.md](sales-tts-ux.md)（TTS / 計時倒數 / UX 過場）/ [myprogram-threading-paths.md](myprogram-threading-paths.md)（S6 非阻塞 input 底層）/ [sdd.md](sdd.md)（改 sales code 走 SDD 流程）/ [CLAUDE.md](../../../../CLAUDE.md)
