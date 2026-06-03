@@ -64,8 +64,8 @@
 
 **Claude Code 在本專案只負責檔案編輯與 git 管理，不在 Windows 本機跑任何安裝 / 部署。** Why：開發流程 Windows（編輯）→ GitHub（版控）→ Pi（部署執行）；本機非執行環境。
 
-- **可做 ✅**：Read/Write/Edit/Glob/Grep｜git status/diff/log/add/commit/push（經使用者確認）｜WebSearch/WebFetch｜跑 pytest（`python -m pytest tests/sales/`，純測試框架、與 production 無關；pytest 已全域裝為例外）｜`& sync_pi.ps1`。
-- **不做 ❌**：`pip/npm/apt install`、執行專案 .py、啟 dev server｜除 `sync_pi.ps1` 外的任意 Pi 端 SSH｜本機 import/執行依賴廠商 SDK 的 code（必 ImportError，實際驗證一律使用者在 Pi 上做）。
+- **可做 ✅**：Read/Write/Edit/Glob/Grep｜git status/diff/log/add/commit/push（經使用者確認）｜WebSearch/WebFetch｜跑 pytest（`python -m pytest tests/sales/`，純測試框架、與 production 無關；pytest 已全域裝為例外）｜`& sync_pi.ps1`｜**Pi 端 git / 同步修復**（fetch / reset / log / status 等唯讀或版控修復指令）可直接 SSH（`ssh pi@raspberrypi.local`，repo `/home/pi/Desktop/project_jiqiren`；使用者 2026-06-03 授權，例：force-push 後 Pi divergence 用 `git reset --hard origin/main` 修）。
+- **不做 ❌**：`pip/npm/apt install`、執行專案 .py、啟 dev server｜在 Pi 上跑 / 啟動 production 應用或裝依賴（Pi 是執行環境，實機驗證一律使用者做）｜本機 import/執行依賴廠商 SDK 的 code（必 ImportError）。
 
 ---
 
