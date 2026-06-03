@@ -378,6 +378,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 ### N. Background job session 內 PostToolUse hook 非 deterministic ⚠️ Claude Code 端行為
 > **✅ 2026-06-03 已繞過**：sync 改用 **Stop hook（`stop-sync-pi.ps1`）** 觸發——官方確認 Stop 在所有 session 類型（含 headless/background）可靠 fire（非同步 PostToolUse 的非確定性是該事件特有，Stop 不受影響）。`auto-sync-pi.ps1` 已移除。本 gotcha 保留作歷史 + 設計決策背景（見 `resources/specs/pi_sync_stop_hook_2026-06-03_spec.md` / `resources/research/CC_hooks_automation_best_practices_2026-06-03.md`）。
+> **實證（2026-06-03）**：(1) live session — push 後 turn 結束 stop-sync 自動觸發、marker 推進、Pi 同步（log 11:58:32）。(2) **headless `claude -p` session** — session 結束時 stop-sync 同樣可靠觸發並完成 sync（log 12:07:38，`Updating 14f65c6..8fa861b Fast-forward`）。對照本 gotcha 對 PostToolUse 的「非確定性」觀察：**Stop hook 在非互動 session 是可靠的**，與官方說法一致。
 **症狀：** Claude Code background job 模式（`$CLAUDE_JOB_DIR` env var 存在 / system context 含「Background Session」段）內，PostToolUse hook **觸發行為非 deterministic — 有時跑有時不跑，原因未明，視為不可依賴**。具體影響：`git push origin main` 後 auto-sync-pi.ps1 可能沒被 Claude Code 觸發 → Pi 沒同步 → user demo 跑舊版 code。
 **踩到時間：** 2026-05-27 S3 同步動作落地 push commit `16a90bd` 後，使用者 Pi 上 `git log -1` 看到 HEAD 仍是 `028ac3f`（前一輪 commit）。檢查 `auto-sync-pi.log` 發現該 push 沒進 log（最後 entry 是上一輪 live session 結束 push）。手動 invoke hook script 跑得起來 → 確認 hook script 本身沒壞。
 **Finding refine（同日後續觀察）：** 原以為「完全不觸發」，但同一個 background session 內後續 push 行為不一致：
