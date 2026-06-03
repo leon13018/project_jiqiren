@@ -35,6 +35,10 @@ if ([string]::IsNullOrWhiteSpace($cmd)) {
 #   git add --all
 #   git add .        （點號做為唯一 path 參數，或後面只接空白）
 # 不擋：git add ./path/to/file（點號後接路徑分隔字元）
+#
+# 註：本 hook 在 settings.json 帶 `if: "Bash(git add *)"` gate（逐 subcommand 比對，
+#     引號內不解析）→ 只有真的以 git add 開頭的子命令才 spawn 本 script。故 commit
+#     message 內文含字面 -A/. 不再誤觸（gotcha K 已由 if gate 根治，毋須收緊此 regex）。
 if ($cmd -match '\bgit\s+add\s+(-A\b|--all\b|\.(?:\s|$))') {
     $decision = @{
         hookSpecificOutput = @{

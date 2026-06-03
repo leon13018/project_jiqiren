@@ -24,7 +24,7 @@
 
 | 檔名 | 事件 | matcher | 用途 | 風險 |
 |---|---|---|---|---|
-| `block-git-add-bulk.ps1` | PreToolUse | Bash | 擋 `git add -A` / `--all` / `.` | 低（命中精準）|
+| `block-git-add-bulk.ps1` | PreToolUse | Bash（+`if:"Bash(git add *)"` gate）| 擋 `git add -A` / `--all` / `.` | 低（命中精準）|
 | `block-windows-install.ps1` | PreToolUse | Bash\|PowerShell | 擋本機 `pip` / `npm` / `apt` install（pytest 例外）| 低 |
 | `block-vendor-edit.ps1` | PreToolUse | Edit\|Write | 擋廠商 SDK 檔（ActionGroupControl/Board.py）| 低 |
 | `state-mark-sales-dirty.ps1` | PostToolUse | Edit\|Write | 編 sales/* 時寫 flag | 低 |
@@ -38,7 +38,7 @@
 **對應 settings.json 結構：**
 ```
 PreToolUse:
-  Bash → block-git-add-bulk
+  Bash → block-git-add-bulk        (帶 if:"Bash(git add *)" gate，gotcha K 根治)
   Bash|PowerShell → block-windows-install
   Edit|Write → block-vendor-edit
 PostToolUse:
@@ -342,12 +342,14 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 **驗證：** 手動 pipe stdin JSON 給 hook → 看 stdout 是不是乾淨繁中
 **Gotcha A vs J 區別：** A 是 .ps1 **input**（讀 source code）編碼問題（用 BOM 解決）；J 是 .ps1 **output**（寫 stdout）編碼問題（用 OutputEncoding override 解決）。兩個都得處理。
 
-### K. block-git-add-bulk regex 太寬，誤擋含 `git add -A` / `git add .` 字面的 commit message
+### K. block-git-add-bulk regex 太寬，誤擋含 `git add -A` / `git add .` 字面的 commit message ⚠️ 已修
 **症狀：** commit message 內文寫了「擋 `git add -A` / `git add .`」這類字串時，本 hook 把整個 Bash command 字串（含 commit -m "...") 掃到，誤判為要跑 `git add -A` 並 deny。
 **原因：** regex `\bgit\s+add\s+(-A\b|--all\b|\.(?:\s|$))` 沒限定「行首」或「在 shell separator `&&` `;` `|` 之後」，掃整段 command 字串就會中招。
 **踩到時間：** 2026-05-25 寫 commit「hooks: force UTF-8 stdout encoding ... 5 hooks (... bulk-add deny reason)」第一次 commit body 內含字面 `'git add -A'` / `'git add .'` 被擋。
-**workaround：** commit message 內文避開字面 `git add -A` / `git add .`，改用「bulk-add」「bulk」「-A 旗標」描述。
-**TODO：** 收緊 regex 加 lookbehind 限定 shell separator / 行首。沒急做（commit message 寫法 workaround 簡單）。
+**修法（2026-06-03，commit 待填）：** 不收緊 regex，改在 settings.json 給本 hook entry 加 `"if": "Bash(git add *)"` gate。官方確認 `if` 用 permission-rule 語法**逐 subcommand 比對**（分隔符 `&& || ; |` 等，**引號內不解析**）→ `git commit -m "...含字面 git add -A..."` 被當單一 `git commit` 子命令，不 match → hook 根本不 spawn → 誤擋根治；真正的 `git add -A`/`--all`/`.` 仍 match → 照常 deny（守門不失效）。附帶省去每次 Bash 呼叫的 spawn。script 內 regex 維持不變（當 spawn 後的實際判斷）。
+**驗證（官方根據）：** 派 claude-code-guide 查 code.claude.com/docs/en/hooks + permissions：`if` 不命中→「never run」（不可能誤 deny）；`Bash(git add *)` match `git add -A`/`--all`/`.`/`file.py`；複合指令逐 subcommand 切、引號內不當獨立命令。
+**已知殘留邊界（不修）：** `git -C "..." add -A` 可能不 match `Bash(git add *)`（git 與 add 間夾 `-C`，文檔未明）——但**現有 regex `\bgit\s+add` 對此型本來就漏抓**（同 gotcha L 的 -C 缺口），故 `if` gate 不引入新回歸，屬同等既有缺口。實務上幾乎不會用 `git -C ... add -A`，踩到再說。
+**workaround（已不需要，存查）：** 修前靠「commit message 內文避開字面 `git add -A` / `git add .`，改用 bulk-add / -A 旗標描述」。`if` gate 上線後不再受限。
 
 ### L. auto-sync-pi regex 太嚴，`git -C ... push origin main` 不命中 ⚠️ 已修
 **症狀：** push 後 Pi 沒 sync 到最新 commit。log 內看不到對應 push 的 `Triggered by:` 行（hook 根本沒跑）。
@@ -481,7 +483,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 1. 一定 EnterWorktree（hook 屬 .claude/，tracked）
 2. 寫 PS 一定加 BOM 否則 PS 5.1 會 mojibake error
 3. 本地測試：`'{...stdin json...}' | & powershell -NoProfile -File path/to/script.ps1`
-4. 改完 settings.json 也要重啟 Claude Code session 才會 reload（**未驗證**，可能 ConfigChange event 自動 reload）
+4. 改完 settings.json：官方文檔（hooks-guide）確認 file watcher **通常幾秒內自動 reload**，沒生效再重啟 session 保險。（前述「未驗證」懸念已由 2026-06-03 best-practices 調研解答，見 `resources/research/CC_hooks_automation_best_practices_2026-06-03.md` §4）
 
 ### 加新 hook event 時
 1. 看 §3 確認 event 真實存在（別瞎掰）
