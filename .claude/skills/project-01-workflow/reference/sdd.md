@@ -99,7 +99,7 @@
 
 [階段 4 + 5] worktree 收尾
   ExitWorktree(keep) → git merge worktree-<name> --ff-only → git push origin main
-  → 手動 & sync_pi.ps1 → git worktree remove + git branch -d worktree-<name>
+  → git worktree remove + git branch -d worktree-<name>（push 後 Stop hook 自動 sync Pi）
 ```
 
 **何時跳過三段迴圈**：Mini spec（≤3 行）→ 主 agent 自 patch + Iron Law，不派 subagent。Meta-task（rules/agents/memory 等非 myProgram code）→ 主 agent 自實作。

@@ -35,7 +35,7 @@ Raspberry Pi 上的規則匹配點餐 / 收款機器人。本 skill 是專案所
 
 ## 跨任務鐵則（細節見對應 reference）
 
-- tracked 檔改動走 **worktree 5 階段**；**push 後永遠手動 `& sync_pi.ps1`**（→ `worktree.md` / `standard-workflow.md`）。
+- tracked 檔改動走 **worktree 5 階段**（→ `worktree.md` / `standard-workflow.md`）。
 - 改 `myProgram/{sales,main,tts,action,input_reader}.py` **必走 SDD**（spec/plan → approval → sales-coder → 三段 reviewer → Iron Law；→ `sdd.md`）。
 - **中小以上改動派 sales-coder**；只有 ≤3 行純值替換主 agent 才自 patch，且先 invoke `karpathy-guidelines`（→ `dispatch.md`）。
 - **派 subagent 後驗證 commit branch**（`git branch --contains <SHA>`，防落 main；→ `worktree.md`）。

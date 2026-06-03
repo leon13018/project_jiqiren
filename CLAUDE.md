@@ -16,8 +16,7 @@
 4. **不要用 `git add -A` / `git add .`** 🔒 — 明確列出檔名，避免誤加。
 
 > 🔒 = PreToolUse hook 自動 block（不靠自律；hooks 完整文檔 → `.claude/hooks/NOTES.md`）。
-> **push 後永遠手動跑 `& sync_pi.ps1`**（PostToolUse 會試自動跑但 background session 不可依賴；手動為 idempotent no-op）。
-> 其餘自動化（Stop pytest 守 / SessionStart 快照 / SubagentStart 規範注入 / 簡體字警示）行為見 `.claude/hooks/NOTES.md`。
+> 自動化 hook（**Pi sync** / Stop pytest 守 / SessionStart 快照 / SubagentStart 規範注入 / 簡體字警示）行為見 `.claude/hooks/NOTES.md`。
 
 ---
 

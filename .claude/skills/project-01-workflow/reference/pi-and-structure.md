@@ -61,7 +61,7 @@
 | 遠端路徑 | `/home/pi/Desktop/project_jiqiren`（絕對路徑，禁 `~`） |
 | GitHub Repo | `https://github.com/leon13018/project_jiqiren.git` |
 
-**同步**：`git push` 後**永遠手動跑 `& sync_pi.ps1`**（SSH 到 Pi `git pull`，首次則 clone；SSH 金鑰已設）。hook 自動跑不可依賴、雙保險理由見 [standard-workflow.md](standard-workflow.md)。
+**同步**：`git push` 後 **Stop hook（`stop-sync-pi.ps1`）在本 turn 結束自動 sync Pi**（SSH 到 Pi `git pull`，首次則 clone；SSH 金鑰已設）。機制見 [standard-workflow.md](standard-workflow.md) §為何用 Stop hook。
 
 **Pi 端執行環境**（已安裝清單見 `resources/requirements/raspberry_pi_setup.md`）：
 - Python **3.11.9**（source build 在 `~/Python-3.11.9/`；系統內建 3.7 不足、edge-tts 強制依賴）。

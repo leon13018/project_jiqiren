@@ -51,7 +51,7 @@
 
 ## Pi demo 沒動作排查 checklist（依序）
 
-1. **Pi git HEAD 同步**：`cd /home/pi/Desktop/project_jiqiren && git log -1 --oneline` 是否最新（見 [pi-and-structure.md](pi-and-structure.md) §Pi 環境陷阱 / [standard-workflow.md](standard-workflow.md) sync 雙保險）。
+1. **Pi git HEAD 同步**：`cd /home/pi/Desktop/project_jiqiren && git log -1 --oneline` 是否最新（見 [pi-and-structure.md](pi-and-structure.md) §Pi 環境陷阱 / [standard-workflow.md](standard-workflow.md) §為何用 Stop hook）。
 2. **Pi pycache 清乾淨**：`ssh pi find .../project_jiqiren -name __pycache__ -type d -exec rm -rf {} +`（見 standard-workflow §pycache；或 `scripts/clean-pi-pycache.ps1`）。
 3. **廠商 baseline**：`cd /home/pi/TonyPi/HiwonderSDK && python3.11 -c "import ActionGroupControl as Act; Act.runAction('wave_hand')"` 跑得動？跑不動 = 廠商環境問題（pigpiod / 舵機接線 / GPIO 權限）。
 4. **我們 import path**：`cd .../project_jiqiren && python3.11 -c "from myProgram.vendor import ActionGroupControl as Act; Act.runAction('wave_hand')"` 跑得動？跑不動 = wire-up 問題。
