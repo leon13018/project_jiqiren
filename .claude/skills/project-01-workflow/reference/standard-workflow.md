@@ -1,11 +1,11 @@
 # 標準任務收尾循環（git 收尾 + sync 權威）
 
-> **🎯 何時讀本檔**：本輪有 tracked 檔改動要收尾（status → add → commit → push → sync），或要懂 sync 雙保險 / Pi pycache。
+> **🎯 何時讀本檔**：本輪有 tracked 檔改動要收尾（status → add → commit → push → sync），或要懂 sync 自動化（Stop hook）/ Pi pycache。
 
 ## 目錄
 - 觸發 / 不觸發
 - 觸發時 5 步
-- Background session 雙保險（為何永遠手動 sync）
+- 為何用 Stop hook 而非 PostToolUse
 - Pi 端 pycache stale
 - Windows 端工作邊界
 - 補充準則
@@ -31,14 +31,14 @@
 1b. **（條件性）結構變動 → 更新 code_map / SKILL.md 路由表**：納入 add。**觸發 + 巢狀判準見 [pi-and-structure.md](pi-and-structure.md) §結構變動維護。**
 2. **`git add <具體檔名>`** — 不用 `-A`/`.`（hook 擋），明列避免誤加 ignored / 敏感檔。
 3. **`git commit -m "..."`** — 英文簡短 + `Co-Authored-By: Claude Opus <noreply@anthropic.com>`。
-4. **`git push origin main`** — push 後 PostToolUse hook 會「嘗試」自動跑 `auto-sync-pi.ps1`（async，最佳努力、**不可依賴**）。
-5. **永遠手動跑 `& sync_pi.ps1`**（PowerShell tool，非 Bash——`&` 是 PS 語法）。即使 hook 自動跑過，手動再跑只是 idempotent no-op（`Already up to date`，~3s）。
+4. **`git push origin main`** — push 後本地 `origin/main` ref 即更新。
+5. **同步交給 Stop hook**：`stop-sync-pi.ps1` 在本 turn 結束時自動比對 `origin/main` 與 marker，落後就 sync Pi（含清 pycache）並回報 `Pi synced to <sha>`。**不再需要手動跑**。需要 turn 結束前就立即同步（少見）時，可選手動 `& sync_pi.ps1`（PowerShell tool，idempotent no-op）。
 
 ---
 
-## Background session 雙保險（為何步驟 5 永遠手動）
+## 為何用 Stop hook 而非 PostToolUse
 
-**Claude Code background job session 內 PostToolUse hook 觸發非 deterministic——有時跑有時不跑，視為不可依賴**（同一 background session 內多次 push，hook 可能只觸發其中一次）。統一規則「**永遠手動跑**」省得判斷 session 類型（idempotent no-op、~3s）。
+**舊 PostToolUse `auto-sync-pi.ps1` 在 background session 觸發非 deterministic**（NOTES gotcha N，Claude Code 端行為、hook 改不掉）。已改用 **Stop hook `stop-sync-pi.ps1`**：官方確認 Stop 在所有 session 類型（含 headless/background）可靠 fire，且靠 `last-synced-commit.marker` 比對 `origin/main` 自我修正（漏掉的 sync 下個 turn 補）。手動 `& sync_pi.ps1` 因此降為可選（需立即同步時）。
 
 ---
 
