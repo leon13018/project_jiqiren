@@ -1,10 +1,10 @@
 ---
 name: project-01-workflow
 description: >-
-  Project_01 人形機器人銷售機器人專案（Raspberry Pi 上的規則匹配點餐 / 收款模擬系統）的所有工作流程協議與
-  myProgram 領域知識。**只要在這個專案內做任何實作性工作就務必載入本 skill**——包括：改動 myProgram/ 下任何 .py
-  code、派發 subagent / agent teams、走 git 收尾 / worktree / SDD 流程、判斷是否需要 Pi 端操作、維護專案資料結構、
-  或 debug 多線程架構難收斂問題。即使使用者沒明說「載入 skill」，只要任務沾到上述任一情境就該主動載入並讀對應 reference。
+  Project_01 人形銷售機器人專案（Raspberry Pi 規則匹配點餐 / 收款模擬系統）的工作流程協議與 myProgram 領域知識。
+  **在本專案做任何實作性工作前都應載入本 skill**——包括改動 myProgram/ 下任何 .py code、派發 subagent / agent
+  teams、走 SDD / worktree / git 收尾流程、判斷是否需 Pi 端操作、維護專案資料結構、或 debug 多線程難收斂問題。
+  任務沾到上述任一情境即主動載入並讀對應 reference，即使使用者沒明說「載入 skill」。
 ---
 
 # Project_01 工作流程與領域知識
@@ -44,6 +44,6 @@ Raspberry Pi 上的規則匹配點餐 / 收款機器人。本 skill 是專案所
 
 ## 維護原則
 
-- 取代舊 `.claude/rules/` + 大部分 memory（2026-06-01 遷移）。路由摘要留本檔，**協議細節寫進 `reference/<topic>.md`**，可執行碼放 `scripts/`。
+- 路由摘要留本檔，**協議細節寫進 `reference/<topic>.md`**，可執行碼放 `scripts/`。
 - reference 間用相對路徑連結（`[worktree](worktree.md)`）。
 - 新增 / 移動 reference / scripts / examples → **同步更新本檔路由表**，且新 reference 開頭加 **🎯 何時讀本檔** 自描述標頭；repo 結構變動 → 更新**該層**的 `.claude/code_map.md`（巢狀；判準見 `reference/pi-and-structure.md`）。
