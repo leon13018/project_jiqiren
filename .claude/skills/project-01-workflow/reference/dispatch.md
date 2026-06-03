@@ -2,6 +2,17 @@
 
 > **🎯 何時讀本檔**：要派 subagent / agent teams、判斷某改動該不該派（規模門檻）、或設定 / 派發 sales-coder。
 
+## 目錄
+- 派發時機
+- subagent_type 對應表
+- 規模門檻（派 vs 主 agent 直接 patch）
+- worker / wire-up 結構改動
+- 派發前必做（依序）
+- 派發後審查 + branch 驗證
+- Wave 6 招防護（跨檔 refactor）
+- sales-coder 自訂 subagent
+- SDD 觸發時的派發增補
+
 ## 派發時機
 
 派發 = **派發前準備 + 派發後審查**，兩階段不可省。subagent 是隔離 context：**讀不到本對話歷史**（這輪的 discussion / 已對齊的設計決定 / 已讀的檔都看不到），但 general-purpose 與自訂 subagent（sales-coder）**啟動時仍會載入專案 CLAUDE.md + git status**（只有 built-in Explore / Plan 跳過）。→ 紅線它本就看得到；要主動餵的是**本對話特有的任務 context**（業務規格 / 設計決定 / reuse 點），不餵就產出偏離。

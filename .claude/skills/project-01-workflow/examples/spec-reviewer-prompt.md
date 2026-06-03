@@ -2,6 +2,10 @@
 
 > **🎯 何時讀本檔**：SDD 三段迴圈第 2 段（spec compliance review）要派 spec-reviewer 時，複製本範本填空派發。流程 / 為何用 fresh-context subagent 見 [`../reference/sdd.md`](../reference/sdd.md) §三段 subagent 迴圈。
 
+## 目錄
+- 派發方式
+- Prompt 範本（複製 + 填空）
+
 ## 派發方式
 
 `general-purpose` + `model: sonnet`（任務單純：對照 spec vs code，sonnet 已足）。

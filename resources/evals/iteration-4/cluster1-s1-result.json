@@ -1,0 +1,91 @@
+{
+  "graded": [
+    {
+      "scenario_id": "1-opus",
+      "results": [
+        {
+          "assertion": "transcript 顯示載入 project-01-workflow skill 並 Read reference/sdd.md",
+          "verdict": "pass",
+          "reasoning": "skill_loaded=project-01-workflow，references_read 含 SKILL.md + reference/sdd.md + reference/dispatch.md。answer 內容（8 段 spec 範本、4 階段、Iron Law 表、三段迴圈模型表）與 sdd.md 實際逐字內容高度吻合，證明確實讀過而非編造。"
+        },
+        {
+          "assertion": "判定此為 myProgram/.py 改動（跨檔 + 業務邏輯）→ 必走完整 SDD（spec + plan，非 mini）",
+          "verdict": "pass",
+          "reasoning": "sdd.md L33 完整版=≥3行/跨檔/行為變更→拆 spec.md+plan.md；L49 mini=≤3行單檔純值替換。answer 正確判 l4+l3+tests 跨檔 + 新增折扣行為→完整版拆兩檔放 resources/specs/，並逐段展開 8 段 spec 要點，分檔規則與 sdd.md L33-65 一致。"
+        },
+        {
+          "assertion": "規劃含派 sales-coder 作 implementer（此規模超出「超級小」門檻）",
+          "verdict": "pass",
+          "reasoning": "dispatch.md L29「超級小」須無 cross-file propagation；L16 subagent_type 表 myProgram/sales/*.py + tests/sales → sales-coder。answer 精準引用 cross-file propagation 直接排除超級小，並給出符合 sdd.md L186-209 範本的派發 prompt 要點（spec/plan 路徑、git add 範圍、邊界禁 closeout、4-status 回報）。"
+        },
+        {
+          "assertion": "規劃含三段 reviewer 迴圈（spec-reviewer + code-quality-reviewer）或引用 examples/ 的 reviewer prompt",
+          "verdict": "pass",
+          "reasoning": "sdd.md L89-96 + L159-166：spec-reviewer(general-purpose, sonnet, examples/spec-reviewer-prompt.md) → code-quality-reviewer(general-purpose, opus, examples/code-quality-reviewer-prompt.md)，Critical/Important 回 3b 迴圈。answer 階段 3a/3b 模型與檔路徑完全對齊，且我已 Glob 確認 examples/spec-reviewer-prompt.md 與 code-quality-reviewer-prompt.md 兩檔實際存在。"
+        },
+        {
+          "assertion": "提到 Iron Law 與 git branch --contains 驗 commit 落 worktree",
+          "verdict": "pass",
+          "reasoning": "sdd.md L120-143 Iron Law（NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE）+ 必跑指令表含 git branch --contains <SHA> 看 worktree-*。answer 設專段逐字引用該 maxim，列 pytest 親跑 / branch --contains 落 worktree（出現 main = Gotcha M）/ spec 逐條 cover / reviewer 字串四項 gate，與 sdd.md 表一一對應。"
+        },
+        {
+          "assertion": "未被迫開第 2 層 reference 才湊齊（sdd.md / dispatch.md 各自自足）",
+          "verdict": "pass",
+          "reasoning": "SKILL.md 路由表 L23/L28 直接指向 sdd.md + dispatch.md + examples/ reviewer 範本，屬正常多檔分流。answer 所需內容（流程/Iron Law/三段迴圈/規模門檻/closeout 5 步）全在 sdd.md+dispatch.md 範圍內；closeout 步驟由 sdd.md L100-103 自足提供，未需開 worktree.md/standard-workflow.md 內容；examples/ 為 reference 指向之 artifact（Glob 驗存在）非被迫補讀。forced_second_hop=false 成立。"
+        }
+      ],
+      "overall": "pass",
+      "weak_assertions": [
+        "assertion 1 — grader 僅能依 declared references_read 與 answer 的內容指紋核實 sdd.md 確被讀過，無法直接檢視原始 transcript 的 Skill/Read 工具呼叫；但內容吻合度極高，判 pass 風險低。"
+      ],
+      "regression_risk": "none。forced_second_hop 落在 sdd 範圍內考量且為 false；answer 對 SDD 流程（4 階段）、Iron Law（逐字+指令表）、三段 reviewer 迴圈（模型/examples 路徑/迴圈回退）、完整 vs mini spec 範本門檻均與去噪後 sdd.md 逐字內容一致，無任何答錯或缺漏跡象。被刪的內容（fresh-context 4→1 行壓縮、spec-kit/BMAD anti-pattern、1 條 generic Red Flag、footer slim）皆非本場景 6 條 assertion 的 load-bearing 依據——範本/流程/Iron Law/表/三段迴圈逐字保留，故無 over-trim 風險。\""
+    },
+    {
+      "scenario_id": "1-sonnet",
+      "results": [
+        {
+          "assertion": "transcript 顯示載入 project-01-workflow skill 並 Read reference/sdd.md",
+          "verdict": "pass",
+          "reasoning": "輸出 skill_loaded=project-01-workflow，references_read 含 reference/sdd.md（且亦讀 dispatch.md）。answer 內容與 sdd.md 範本逐項對應（8 段 spec、4 階段、Iron Law 表、三段迴圈、模型選擇），證實確實讀過而非憑記憶。判 pass。"
+        },
+        {
+          "assertion": "判定此為 myProgram/.py 改動（跨檔 + 業務邏輯）→ 必走完整 SDD（spec + plan，非 mini）",
+          "verdict": "pass",
+          "reasoning": "規模判定段明確：l4.py 計算 + l3.py 文案 + 連動 tests = 跨 2 檔 + 行為變更，觸發 sdd.md L33 完整版條件（≥3行/跨檔/行為變更），明示非 Mini、拆 spec.md + plan.md。判定正確。"
+        },
+        {
+          "assertion": "規劃含派 sales-coder 作 implementer（此規模超出「超級小」門檻）",
+          "verdict": "pass",
+          "reasoning": "階段 2 派 sales-coder（opus）作 implementer。規模判定正確援引 dispatch.md L29「超級小」5 條件須同時滿足（≤3行/單檔/純值替換/無簽名變動/無 cross-file propagation），此改動跨檔且有 cross-file propagation 故不符，必派。符合協議。"
+        },
+        {
+          "assertion": "規劃含三段 reviewer 迴圈（spec-reviewer + code-quality-reviewer）或引用 examples/ 的 reviewer prompt",
+          "verdict": "pass",
+          "reasoning": "階段 3a spec-reviewer（sonnet，用 examples/spec-reviewer-prompt.md）+ 階段 3b code-quality-reviewer（opus，用 examples/code-quality-reviewer-prompt.md），模型選擇與 sdd.md L159-166 表一致，兩個 examples/ 檔均經 Glob 確認存在。三段迴圈（sales-coder→spec-reviewer→code-quality-reviewer）完整。判 pass。"
+        },
+        {
+          "assertion": "提到 Iron Law 與 git branch --contains 驗 commit 落 worktree",
+          "verdict": "pass",
+          "reasoning": "階段 3a 列 Iron Law Gate：pytest + git branch --contains <SHA> 驗 worktree-*（不得顯示 main）+ git diff --stat。Gotcha M 在派發 prompt、驗收表、鐵則提示三處重複。與 sdd.md L120-143 Iron Law 表及 dispatch.md L67 branch 驗證一致。"
+        },
+        {
+          "assertion": "未被迫開第 2 層 reference 才湊齊（sdd.md / dispatch.md 各自自足）",
+          "verdict": "pass",
+          "reasoning": "forced_second_hop=false。核對：SDD 4 階段/Iron Law/三段迴圈/spec 範本/reviewer 模型全在 sdd.md；規模門檻/Wave 6 招/branch 驗證/派發前準備全在 dispatch.md。answer 所有 load-bearing 內容均可由這兩檔直接覆蓋，無需第 2 跳（worktree.md 收尾僅 ASCII 流程沿用，未實質開讀補洞）。判 pass。"
+        }
+      ],
+      "overall": "pass",
+      "weak_assertions": [
+        "assertion 1（載入 skill + Read sdd.md）：弱。僅依 self-report 的 skill_loaded / references_read 欄位與內容吻合度推斷，無真正 transcript tool-call log 可核，無法排除憑高保真記憶複現。",
+        "assertion 6（各自自足）：弱。為負向斷言（未被迫第 2 跳），只能由 forced_second_hop=false 自評 + 內容可由兩檔覆蓋反推；若 navigator 實際暗中靠記憶補洞，此格式無從偵測。"
+      ],
+      "regression_risk": "none。去噪聲稱保留的 load-bearing 內容（SDD 4 階段流程、Iron Law 表、三段 reviewer 迴圈、spec 8 段範本、完整版觸發條件）在 sdd.md 中均完整存在，navigator 全部答對且能逐項對應現有檔案行號（L33 完整版條件、L120-143 Iron Law、L153-166 三段迴圈）。forced_second_hop=false 落在 sdd.md/dispatch.md 範圍內，未見任何缺漏跡象。"
+    }
+  ],
+  "verdict": {
+    "regression_detected": false,
+    "sdd_self_sufficient": true,
+    "lost_load_bearing_content": [],
+    "summary": "Round3 cluster1 對 sdd.md 的去噪經獨立核實無 regression，兩組（1-opus / 1-sonnet）皆 sdd.md+dispatch.md 自足、無被迫第 2 跳。\n\n驗證方法：直讀 sdd.md（working tree 未 commit 版）+ git diff 核實 4 處實際改動 + Glob/ls 確認 examples/ 兩檔存在。\n\ndiff 實際 4 改動（與宣稱「壓縮解釋散文 + 刪 1 anti-pattern + 1 Red Flag + slim footer」吻合）：\n1. L149 Adversarial pose 散文壓縮——禁止/必做 + 3 大類 + examples reviewer template pointer + 「主 agent 自審亦採此立場」全保留，僅刪去 \"finished suspiciously quickly\" 鋪陳。\n2. L154-158 fresh-context reviewer 4 行條列 → 1 行——4 個理由（新眼光/獨立雙重驗證/覆現一致/省 context）全數 inline 保留，無資訊損失。\n3. L220 Red Flag「我記得規則→規則會演進重讀」整列刪除——與 root CLAUDE.md「規則會演進，重讀 reference 比憑記憶可靠」重複，非 6 條 assertion 依據。\n4. L236 anti-pattern「不引入 spec-kit/BMAD/Kiro」刪除（純外部框架護欄，無 assertion 引用）+ footer slim（刪 sales-coder 契約 pointer〔L188/L211 已重複〕與 karpathy invoke〔root 已載〕，保留 L4_v3 8 段範本實例）。\n\n6 條 assertion 的所有 load-bearing 錨點在現行 sdd.md 完整存在：L33 完整版觸發條件（≥3行/跨檔/行為變更）、L49 mini 門檻、L70-103 SDD 4 階段、L89-96 三段 reviewer 迴圈、L120-143 Iron Law 表（含 git branch --contains 驗 worktree）、L159-166 模型表 + examples/ 兩 reviewer prompt 路徑、L100-103 worktree closeout 5 步。examples/spec-reviewer-prompt.md 與 code-quality-reviewer-prompt.md 經 ls 確認實存。\n\n結論：被刪/壓縮內容皆為 (a) 與 root 重複的 anti-rationalization、(b) 與 L188/L211 重複的 sales-coder pointer、(c) 非 assertion 依據的 spec-kit 外部框架護欄，或 (d) 無損的條列→inline 壓縮。grader 兩組 overall=pass、regression_risk=none 與獨立檔案核實一致，無 over-trim、無被迫第 2 跳。lost_load_bearing_content 為空。"
+  }
+}

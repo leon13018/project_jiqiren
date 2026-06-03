@@ -2,6 +2,11 @@
 
 > **🎯 何時讀本檔**：SDD 三段迴圈第 3 段（code quality review，前提：先過第 2 段 spec-reviewer ✅）要派 code-quality-reviewer 時，複製本範本填空派發。流程 / 為何用 fresh-context subagent 見 [`../reference/sdd.md`](../reference/sdd.md) §三段 subagent 迴圈。
 
+## 目錄
+- 派發方式
+- Prompt 範本（複製 + 填空）
+- 主 agent 處理 reviewer 回報
+
 ## 派發方式
 
 `general-purpose` + `model: "opus"`（需架構判斷，sonnet 不夠）。

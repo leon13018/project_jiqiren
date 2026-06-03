@@ -146,7 +146,7 @@ inline 修完才 AskUserQuestion，不必 re-review。
 
 ## Adversarial 審查 pose（階段 3a-3b）
 
-Sales-coder 回報可能不完整 / 不準確 / 過度樂觀（"finished suspiciously quickly"）。審查時**禁止**信任它對「實作了什麼 / 完整度 / spec 解讀」的描述；**必做**：Read 實際 code、逐行對照 spec §3、找 extra 加料、找聲稱實作但 grep 不到的假完成。此 pose 在派 reviewer 時透過 [examples/](../examples/) 的 prompt template 強制執行（template 內含完整 禁止/必做 + 3 大類），主 agent 自審時也採此立場。
+審查時**禁止**信任 sales-coder 對「實作了什麼 / 完整度 / spec 解讀」的自報；**必做**：Read 實際 code、逐行對照 spec §3、抓 extra 加料與「聲稱實作但 grep 不到」的假完成。完整 禁止/必做 + 3 大類在 [examples/](../examples/) reviewer template（派 reviewer 時強制執行；主 agent 自審亦採此立場）。
 
 ---
 
@@ -154,11 +154,7 @@ Sales-coder 回報可能不完整 / 不準確 / 過度樂觀（"finished suspici
 
 **模式**：每 spec 三 agents——sales-coder 整套改完才派 spec-reviewer，spec-reviewer ✅ 才派 code-quality-reviewer。
 
-**為何 fresh-context reviewer（不主 agent 自審）**：
-1. **新眼光**：主 agent 帶「派 sales-coder + 看回報」context；fresh subagent 只看 spec + diff，無偏見。
-2. **平行驗證**：spec-reviewer + code-quality-reviewer 獨立眼光，雙重保險。
-3. **覆現性**：同 prompt template，每次審查模式一致，不依賴主 agent 當輪注意力。
-4. **省主 agent context**：審查 detail 不污染主對話。
+**為何 fresh-context reviewer（不主 agent 自審）**：新眼光（不帶 implementer 偏見）+ 兩 reviewer 獨立雙重驗證 + 同 template 覆現一致 + 審查 detail 不污染主 context。
 
 **模型選擇**：
 | 角色 | 模型 | 理由 |
@@ -222,7 +218,6 @@ Sales-coder 回報可能不完整 / 不準確 / 過度樂觀（"finished suspici
 |---|---|
 | 「這太簡單不需 spec」 | 所有 myProgram/ code 都要 spec（即使 mini 5 行） |
 | 「sales-coder 回報全綠了」 | 主 agent 仍要自己 Read + 跑 pytest（Iron Law） |
-| 「我記得規則」 | 規則會演進，重讀本 reference |
 | 「先 patch 看看再說」 | SDD 強制：先 spec → user approval → 才動 code |
 | 「主 agent 自己改一下就好」 | myProgram/ code 改動屬 sales-coder 範圍，連 1 行也派 |
 | 「commit 落 main 應該是巧合」 | Gotcha M 偶發確實會發生，每次 `git branch --contains` 驗 |
@@ -238,10 +233,10 @@ Sales-coder 回報可能不完整 / 不準確 / 過度樂觀（"finished suspici
 
 **關係**（細節見各檔）：[dispatch.md](dispatch.md) 規模門檻決定**誰實作**（subagent vs 主 agent），SDD 決定**流程**（必有 spec），不衝突；worker/wire-up 改動既派 sales-coder 又走 SDD；[bdd-tdd.md](bdd-tdd.md) 互補（當前 dormant，plan step 內嵌 TDD 不重啟 BDD）；[worktree.md](worktree.md) / [standard-workflow.md](standard-workflow.md) 內嵌於階段 1/3c/4+5。
 
-**Anti-patterns**：❌ Waterfall 化（spec 是 15-30 分鐘對齊產物，非寫 3 週）｜❌ Over-engineering（小 bug 修出 16 criteria；mini spec 對應）｜❌ Stale specs（living document + 階段 3c review）｜❌ Subagent in isolation 全域不一致（spec 含跨檔 invariant）｜❌ 不引入 spec-kit/BMAD/Kiro（SDD 基於既有 skill + worktree）。
+**Anti-patterns**：❌ Waterfall 化（spec 是 15-30 分鐘對齊產物，非寫 3 週）｜❌ Over-engineering（小 bug 修出 16 criteria；mini spec 對應）｜❌ Stale specs（living document + 階段 3c review）｜❌ Subagent in isolation 全域不一致（spec 含跨檔 invariant）。
 
 **何時不必走 SDD**（除「不觸發」外）：純研究 / 探索 / 文件查詢｜CLAUDE.md/rules/memory/skill 自身修訂（主 agent 自編）｜緊急 hotfix Pi demo 當下 bug（先 patch，事後補 mini spec 記 root cause）｜既有 L0-L5 回填 spec（成本高收益低，僅新改動適用）。
 
 ---
 
-**相關**：完整版 8 段範本 `resources/specs/L4_v3_dual_timer_spec.md`；sales-coder 契約 `.claude/agents/sales-coder.md`；編碼準則 invoke `andrej-karpathy-skills:karpathy-guidelines`。
+**完整版 spec 實例**：`resources/specs/L4_v3_dual_timer_spec.md`（8 段範本參考）。
