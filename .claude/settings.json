@@ -39,13 +39,6 @@
           {
             "type": "command",
             "command": "powershell",
-            "args": ["-NoProfile", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/auto-sync-pi.ps1"],
-            "async": true,
-            "timeout": 120
-          },
-          {
-            "type": "command",
-            "command": "powershell",
             "args": ["-NoProfile", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/state-clear-on-pytest.ps1"]
           }
         ]
@@ -73,6 +66,15 @@
             "type": "command",
             "command": "powershell",
             "args": ["-NoProfile", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/stop-check-sales-pytest.ps1"]
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell",
+            "args": ["-NoProfile", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/stop-sync-pi.ps1"]
           }
         ]
       }
