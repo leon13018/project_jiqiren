@@ -4,21 +4,21 @@
 
 ## 派發方式
 
-`general-purpose` + opus xhigh（需架構判斷，sonnet 不夠）。
+`general-purpose` + `model: "opus"`（需架構判斷，sonnet 不夠）。**effort 不寫死 → 繼承 session effort**（Agent 工具無 effort 參數可傳，亦不在 prompt 內強制 xhigh；session 是高 effort 時自然會深入）。
 
 ```python
 Agent({
     subagent_type: "general-purpose",
     model: "opus",
     description: "Code quality review for <spec_name>",
-    prompt: <下方範本，內含 extended thinking + xhigh effort 要求>
+    prompt: <下方範本>
 })
 ```
 
 ## Prompt 範本（主 agent 複製 + 填空後派發）
 
 ```
-你審查 sales-coder commit 的 code quality（已過 spec compliance，現純從工程品質看）。用 extended thinking + xhigh effort、寧可慢不要錯。
+你審查 sales-coder commit 的 code quality（已過 spec compliance，現純從工程品質看）。寧可慢不要錯、仔細逐項審查。
 
 ## 改動範圍
 `git diff <BASE>..<HEAD> --stat` / `git diff <BASE>..<HEAD>` / `git log <BASE>..<HEAD> --oneline`
