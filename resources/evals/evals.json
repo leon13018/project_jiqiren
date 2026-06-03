@@ -1,33 +1,33 @@
 {
   "skill_name": "project-01-workflow",
-  "note": "EDD 回歸 eval（skill_reference_cleanup spec §10）。每場景刻意踩某 cluster 要精簡的『必留』內容；assertion 一律寫成可從 navigator transcript 判定的行為。expected_output = 正確規劃/解法且導航經 SKILL.md 路由 + 對應 reference、無需追第 2 跳、未因內容缺失而答錯。",
+  "note": "EDD 回歸 eval（skill_reference_cleanup spec §10）。每場景刻意踩某 cluster 要精簡的『必留』內容；assertion 一律寫成可從 navigator transcript 判定的行為。expected_output = 正確規劃/解法且導航經 SKILL.md 路由 + 對應 reference、無需追第 2 跳、未因內容缺失而答錯。iteration-3 修正：S1 場景由單 const（屬『超級小』→ 與 sales-coder/三段 reviewer assertion 矛盾）上修為跨檔 + 業務邏輯改動，使完整 SDD 流程成為正解、保住 SDD/reviewer 壓測意圖；S2 sync assertion 由過時的『push 後永遠手動跑 sync_pi.ps1』改為現行『Stop hook 自動 sync + marker 自我修正』（權威見 reference/standard-workflow.md）。",
   "evals": [
     {
       "id": 1,
       "cluster": "SDD/reviewer",
-      "prompt": "我要把 L4 結帳的預算計時從 24 秒改成 30 秒（會動 myProgram/sales/states/l4.py）。先別動手——幫我規劃這個改動該走的完整流程：要不要寫 spec？派誰做？怎麼驗收？",
-      "expected_output": "認定屬 myProgram/ code 改動 → 必走 SDD；規劃含寫 spec(+plan)、派 sales-coder、三段 reviewer 迴圈、Iron Law 驗收。",
+      "prompt": "我要在 L4 結帳加一條新規則：滿 NT$100 打 9 折（會改 myProgram/sales/states/l4.py 的結帳計算邏輯，並連動 l3.py 的提示文案與既有 tests）。先別動手——幫我規劃這個改動該走的完整流程：要不要寫 spec？派誰做？怎麼驗收？",
+      "expected_output": "認定屬 myProgram/ code 改動（跨檔 + 業務邏輯，非超級小）→ 必走完整 SDD；規劃含寫 spec(+plan)、派 sales-coder、三段 reviewer 迴圈、Iron Law 驗收。",
       "files": [],
       "expectations": [
         "transcript 顯示載入 project-01-workflow skill 並 Read reference/sdd.md",
-        "判定此為 myProgram/.py 改動，必走 SDD（即使只改一個常數）",
-        "規劃含派 sales-coder 作 implementer（非主 agent 自己改）",
+        "判定此為 myProgram/.py 改動（跨檔 + 業務邏輯）→ 必走完整 SDD（spec + plan，非 mini）",
+        "規劃含派 sales-coder 作 implementer（此規模超出『超級小』門檻，非主 agent 自己改）",
         "規劃含三段 reviewer 迴圈（spec-reviewer + code-quality-reviewer）或引用 examples/ 的 reviewer prompt",
         "提到 Iron Law（沒跑 pytest 驗證不得宣告完成）與 git branch --contains 驗 commit 落 worktree",
-        "未被迫開第 2 層 reference 才湊齊上述（sdd.md 自足）"
+        "未被迫開第 2 層 reference 才湊齊上述（sdd.md / dispatch.md 各自自足）"
       ]
     },
     {
       "id": 2,
       "cluster": "process",
       "prompt": "情境題：我改完一個 tracked 檔正要收尾，卻發現 subagent 的 commit 跑到 main 去了。幫我說明怎麼救，順便講正常的 worktree 收尾 + 同步到 Pi 的步驟。",
-      "expected_output": "給出 Gotcha M 完整解法 + worktree 5 階段收尾 + push 後手動 sync 的雙保險規則。",
+      "expected_output": "給出 Gotcha M 完整解法 + worktree 5 階段收尾 + push 後 sync 由 Stop hook 自動完成（marker 自我修正）。",
       "files": [],
       "expectations": [
         "transcript 顯示 Read reference/worktree.md（Gotcha M 段）",
         "給出 Gotcha M 解法鏈（ExitWorktree remove → 在主 checkout 驗 → 需後續編輯則新 worktree + cherry-pick（非 ff-merge）→ push → branch -D）",
         "描述 worktree 5 階段或 git 收尾 5 步（status→add→commit→push→sync）",
-        "提到 push 後永遠手動跑 & sync_pi.ps1（背景 session hook 不可依賴）",
+        "正確說明 sync 由 Stop hook（stop-sync-pi.ps1）在 turn 結束自動觸發、push 後不需手動跑；漏掉時下個 turn 靠 marker 自我修正重試（必要時才手動 sync_pi.ps1 / SSH 修復）",
         "未被迫開第 2 層 reference 才湊齊（worktree.md 對 Gotcha M 自足）"
       ]
     },

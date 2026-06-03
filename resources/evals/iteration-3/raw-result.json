@@ -1,0 +1,179 @@
+{
+  "graded": [
+    {
+      "scenario_id": "1-opus",
+      "results": [
+        {
+          "assertion": "transcript 顯示載入 project-01-workflow skill 並 Read reference/sdd.md",
+          "verdict": "pass",
+          "reasoning": "skill_loaded=project-01-workflow；references_read 含 SKILL.md + reference/sdd.md（+ dispatch.md）。answer 內容明確引用 sdd.md 觸發條件與完整版門檻，證明確有讀取而非掛名。"
+        },
+        {
+          "assertion": "判定此為 myProgram/.py 改動（跨檔 + 業務邏輯）→ 必走完整 SDD（spec + plan，非 mini）",
+          "verdict": "pass",
+          "reasoning": "answer 判 l4.py 計算 + l3.py 文案 + tests 為跨檔行為變更，對應 sdd.md 行 33『≥3行/跨檔/行為變更』完整版門檻，須拆 spec.md+plan.md 並明確排除 mini 5 行版。符合本輪上修後的正解（完整 SDD，而非超級小直接 patch）。"
+        },
+        {
+          "assertion": "規劃含派 sales-coder 作 implementer（此規模超出『超級小』門檻，非主 agent 自己改）",
+          "verdict": "pass",
+          "reasoning": "answer 逐條比對 dispatch.md 行 29『超級小』五條件（≤3行/單檔/純值替換/無簽名/無 cross-file），本案跨三檔含條件分支不滿足→派 subagent_type:sales-coder，主 agent 只規劃/審查/收尾。判定路徑與 dispatch.md 一致。"
+        },
+        {
+          "assertion": "規劃含三段 reviewer 迴圈（spec-reviewer + code-quality-reviewer）或引用 examples/ 的 reviewer prompt",
+          "verdict": "pass",
+          "reasoning": "階段3 完整寫出 3a spec-reviewer(sonnet, examples/spec-reviewer-prompt.md) → 3b code-quality-reviewer(opus, examples/code-quality-reviewer-prompt.md) → 3c，含 ✅/❌ 回派邏輯，與 sdd.md 行 89-98 及模型表（行 163-170）逐項對齊，並正確引用兩個 examples/ 範本。"
+        },
+        {
+          "assertion": "提到 Iron Law 與 git branch --contains 驗 commit 落 worktree",
+          "verdict": "pass",
+          "reasoning": "驗收段引 Iron Law『NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION』（對應 sdd.md 行 122），並列 git branch --contains <SHA> 驗落 worktree-* 防 Gotcha M 誤落 main（對應 sdd.md 行 137 / dispatch.md 行 67）。兩要素皆具且用對情境。"
+        },
+        {
+          "assertion": "未被迫開第 2 層 reference 才湊齊（sdd.md / dispatch.md 各自自足）",
+          "verdict": "pass",
+          "reasoning": "references_read 僅 router 直接指向的 sdd.md + dispatch.md（SKILL.md 路由表行 23/28 直分流）；examples/ 僅 Glob 確認 sdd.md 已指向的 reviewer 範本存在，非 Read 補某檔缺漏內容。核對 sdd.md 確含完整 spec/plan 範本、4 階段、三段迴圈、Iron Law、reviewer prompt 指向；dispatch.md 含完整規模門檻。兩檔在各自範圍自足，無 forced second hop。"
+        }
+      ],
+      "overall": "pass",
+      "weak_assertions": [
+        "Assertion 1：近乎恆真（載 skill + 讀一檔即過），無法區辨真理解；本例靠 answer 引用內容旁證才有意義。",
+        "Assertion 5：偏關鍵字配對（『Iron Law』+『git branch --contains』兩個記憶點即可滿足），可被背誦字串而非跨檔推理觸發；本例 navigator 用對情境故仍實質 pass。",
+        "Assertion 4：含『或引用 examples/』的 OR 降低門檻，僅 name-drop 範本檔即可達標，未必驗到三段迴圈順序/模型正確性；本例 navigator 兩者都做到。"
+      ],
+      "regression_risk": "none。核對精簡後 sdd.md 仍完整保留 load-bearing 內容（觸發條件、完整版 8 段 spec + plan 範本、4 階段流程含三段 reviewer 迴圈、Iron Law gate + 必跑指令表、reviewer prompt 指向 examples/），dispatch.md 仍完整保留規模門檻與『超級小』五條件——navigator 不必 forced second hop 即湊齊正解。dispatch.md 行 7 修正後的 subagent context 事實（自訂 sales-coder 啟動載入 CLAUDE.md、僅 built-in Explore/Plan 跳過）navigator 答對：answer 述 sales-coder frontmatter 預載 skill 且只餵任務特化 context，與 sdd.md 行 19『CLAUDE.md 仍照常載入』一致，無誤答。"
+    },
+    {
+      "scenario_id": "1-sonnet",
+      "results": [
+        {
+          "assertion": "transcript 顯示載入 project-01-workflow skill 並 Read reference/sdd.md",
+          "verdict": "pass",
+          "reasoning": "skill_loaded=project-01-workflow，references_read 第一個即 reference/sdd.md。sdd.md 實檔存在且含 SDD 全流程。符合。"
+        },
+        {
+          "assertion": "判定此為 myProgram/.py 改動（跨檔 + 業務邏輯）→ 必走完整 SDD",
+          "verdict": "pass",
+          "reasoning": "answer 開頭明確判為跨檔（l4.py 結帳邏輯 + l3.py 文案 + tests）+ 業務邏輯行為變更 → 觸發完整版 spec+plan（非 mini）。對齊 sdd.md §觸發條件與 §完整版（≥3 行/跨檔/行為變更）。本輪修正點要求的『完整 SDD』正確命中，未誤判為超級小直接 patch。"
+        },
+        {
+          "assertion": "規劃含派 sales-coder 作 implementer",
+          "verdict": "pass",
+          "reasoning": "階段 2 明寫 Agent({subagent_type:'sales-coder', ...})，並引用 frontmatter 預載 opus+karpathy+TDD+skill、只傳任務特化 prompt，符合 dispatch.md §subagent_type 對應表與 §sales-coder 自訂 subagent。"
+        },
+        {
+          "assertion": "規劃含三段 reviewer 迴圈",
+          "verdict": "pass",
+          "reasoning": "階段 2 sales-coder implementer、3a spec-reviewer（Sonnet）、3b code-quality-reviewer（Opus），模型分配與 ✅/❌ 回路皆與 sdd.md §三段 subagent 迴圈一致。三段完整。"
+        },
+        {
+          "assertion": "提到 Iron Law 與 git branch --contains",
+          "verdict": "pass",
+          "reasoning": "階段 3a 列 Iron Law Gate 5 步（IDENTIFY/RUN/READ/VERIFY/ONLY THEN）並寫 git branch --contains <SHA> 必顯示 worktree 分支、否則 Gotcha M，對齊 sdd.md L120-143 與 dispatch.md L67。屬低門檻 recall，但確實命中。"
+        },
+        {
+          "assertion": "未被迫開第 2 層 reference 才湊齊（精簡後 sonnet 也讀得懂）",
+          "verdict": "pass",
+          "reasoning": "forced_second_hop=false。所需資訊（SDD 4 階段/Iron Law/三段迴圈在 sdd.md；派發規則+Wave 6 招在 dispatch.md；worktree 收尾+Gotcha M 在 worktree.md）皆在 router 首跳 reference 內，經核對實檔確實涵蓋，無需開第二跳。精簡後 sonnet 對照組仍湊齊。"
+        }
+      ],
+      "overall": "pass",
+      "weak_assertions": [
+        "提到 Iron Law 與 git branch --contains —— 兩詞在 sdd.md 極顯眼（標題段 + 對照表），純 recall 即過，易給假信心；無法區分『真懂驗證流程』與『照抄關鍵字』。",
+        "規劃含派 sales-coder 作 implementer —— sdd.md/dispatch.md 反覆出現 sales-coder，提名字幾乎必過，無法檢驗是否理解規模門檻判定。"
+      ],
+      "regression_risk": "none. 精簡後 sdd.md 與 dispatch.md 經核對均保留 load-bearing 內容：sdd.md 含完整 4 階段/Iron Law gate/三段迴圈模型表/觸發條件；dispatch.md line 7 修正後明確載明『general-purpose 與自訂 subagent（sales-coder）啟動時仍載入 CLAUDE.md+git status，只 built-in Explore/Plan 跳過』。本場景未考該 context 載入事實題（屬 dispatch-policy 場景），navigator 在 S1 無需作答故無答錯。forced_second_hop=false 證明首跳即足，無缺內容跡象。\""
+    },
+    {
+      "scenario_id": "2",
+      "results": [
+        {
+          "assertion": "transcript 顯示 Read reference/worktree.md（Gotcha M 段）",
+          "verdict": "pass",
+          "reasoning": "references_read 含 worktree.md，Gotcha M 確在該檔行 78-97（驗證表 + cherry-pick + diverge 陷阱）。answer 內容直接取用 §Gotcha M 表，證實確實讀到該段。"
+        },
+        {
+          "assertion": "給出 Gotcha M 解法鏈（ExitWorktree remove → 主 checkout 驗 → 新 worktree + cherry-pick → push → branch -D）",
+          "verdict": "pass",
+          "reasoning": "核對 worktree.md 行 84-95 表：git branch --contains 驗 → ExitWorktree(remove) 回主 checkout → 主 checkout pytest → 進新 worktree 編輯+commit → ExitWorktree(keep) → cherry-pick → push → git branch -D。navigator 6 步完全吻合，且正確走 4b（需後續編輯）路徑並說明 diverge 陷阱（Diverging branches can't be fast-forwarded）與 -D 大寫理由。"
+        },
+        {
+          "assertion": "描述 worktree 5 階段或 git 收尾 5 步",
+          "verdict": "pass",
+          "reasoning": "navigator 完整列 worktree 5 階段（對應 worktree.md 行 17-53）：EnterWorktree → 編輯+commit → 審查+驗 branch（含 3a pineedtodo / 3b code_map 條件） → ExitWorktree keep + ff-only + push → remove + branch -d，並補 Windows __pycache__ lock fallback。"
+        },
+        {
+          "assertion": "正確說明 sync 由 Stop hook（stop-sync-pi.ps1）在 turn 結束自動觸發、push 後不需手動跑；漏掉時下個 turn 靠 marker 自我修正重試（必要時才手動 sync_pi.ps1 / SSH）",
+          "verdict": "pass",
+          "reasoning": "核對 standard-workflow.md 行 35（第 5 步自動）+ 行 41（為何 Stop hook 非 PostToolUse / gotcha N / marker 自我修正）。navigator 明確：push 完就好、sync 不需經手；Stop hook 比對 origin/main 與 last-synced-commit.marker 自動 sync（清 pycache）回報 Pi synced to <sha>；漏掉下個 turn 靠 marker 補；只有 hook 沒成功才手動 sync_pi.ps1 或授權 SSH（pi@raspberrypi.local，/home/pi/Desktop/project_jiqiren）。完全命中本輪修正點（自動非手動），且主動勸阻手動 sync。"
+        },
+        {
+          "assertion": "未被迫開第 2 層 reference 才湊齊（worktree.md 對 Gotcha M 自足）",
+          "verdict": "pass",
+          "reasoning": "forced_second_hop=false 屬實。只讀 router 直接分流的兩檔（worktree.md 處理 Gotcha M、standard-workflow.md 處理 sync），各司其職非補跳。worktree.md §Gotcha M 自含完整解法鏈 + cherry-pick + -D + diverge 陷阱，無需第 2 跳補其本該有的內容。讀第二檔是 router 對 sync 職責的正常分流。"
+        }
+      ],
+      "overall": "pass",
+      "weak_assertions": [
+        "Assertion 3（『5 階段 或 5 步』為 OR 條件，背誦任一即過，未強制觸及較難的 Gotcha M 推理，易給假信心）",
+        "Assertion 1（僅機械檢查是否 Read 到某檔，任何碰到該檔的 transcript 即滿足，不檢驗理解）"
+      ],
+      "regression_risk": "none — 本 S2 run 僅觸及 worktree.md + standard-workflow.md，兩檔對 sync（Stop hook 權威在 standard-workflow.md 行 35/41）與 Gotcha M（worktree.md §Gotcha M 自足）的 load-bearing 內容皆完整。本場景未涉及任務點名的高風險面（S1 跨檔 SDD、dispatch.md line 7 sales-coder 看得到 CLAUDE.md 事實題），無從在此 run 觀察到精簡後 dispatch.md/sdd.md 缺料或 subagent context 載入答錯的跡象。"
+    },
+    {
+      "scenario_id": "dispatch-policy",
+      "results": [
+        {
+          "assertion": "transcript 顯示 Read reference/dispatch.md",
+          "verdict": "pass",
+          "reasoning": "references_read 含 .../reference/dispatch.md，且 answer 內容（subagent 表、模型、4 步、Wave 6 招、branch 驗證、line 7 CLAUDE.md 可見性）與該檔逐項對應，確為實讀非自評。"
+        },
+        {
+          "assertion": "subagent_type = sales-coder（編 myProgram/sales 用自訂，frontmatter 預載）",
+          "verdict": "pass",
+          "reasoning": "answer §1 明指 subagent_type=sales-coder，理由為任務落 myProgram/sales/*.py + tests/sales/*.py（dispatch.md line 16 對應表第一列），並正確指出 frontmatter 預載 SKILL 完整內容非 summary（line 86）。"
+        },
+        {
+          "assertion": "模型 = opus 且不必手動傳（frontmatter 內建；跨檔 refactor sonnet 踩坑率高）",
+          "verdict": "pass",
+          "reasoning": "answer §1 指模型=opus 由 sales-coder frontmatter 內建（model:opus）派發不必再傳（line 20/86），並引『跨檔 refactor sonnet 踩坑率高、opus 穩』。三要素全中。"
+        },
+        {
+          "assertion": "提到 Wave 6 招防護 + 派發前 4 步 + ⛔ 防越權收尾 + 派發後 git branch --contains 防 Gotcha M",
+          "verdict": "pass",
+          "reasoning": "answer §3 列派發前 Step0-4（Step4 含 ⛔ 防越權收尾：不做 closeout、不 cd 主 checkout，對應 line 54-58），§4 逐條列 Wave 6 招（對應 line 73-78），§5 列 git branch --contains <SHA> 顯示 main=Gotcha M（對應 line 67）。四項全覆蓋。"
+        },
+        {
+          "assertion": "Wave 大小判斷正確（一個 sales-coder 一次做完、不一檔一 subagent）",
+          "verdict": "pass",
+          "reasoning": "answer §2 明確判一個 sales-coder 一次做完、不要一檔一 subagent，並引 line 82 準則『2 條結構動深(簽名+連動≥10 test)=一個』『別一條一 subagent，序列 2-3 個是甜蜜點』。判斷與規範一致。"
+        },
+        {
+          "assertion": "正確回答：sales-coder（自訂 subagent）啟動載入專案 CLAUDE.md（紅線本就看得到），只有 built-in Explore/Plan 跳過；要主動餵的是本對話特有任務 context（非紅線）",
+          "verdict": "pass",
+          "reasoning": "本輪修正核心題。answer §6 精準命中 dispatch.md line 7：自訂 subagent 啟動載入 CLAUDE.md+git status，只有 built-in Explore/Plan 跳過；紅線本就看得到（+SubagentStart hook 二次注入）；要主動餵的是本對話隔離 context（舊→新簽名/呼叫端 reuse/設計決定/git add 範圍+commit 範本）而非紅線。無『要靠 prompt 餵紅線』之常見錯誤，方向正確。"
+        },
+        {
+          "assertion": "未被迫開第 2 層 reference 才湊齊 dispatch 相關內容（dispatch.md 自足）",
+          "verdict": "pass",
+          "reasoning": "references_read 僅 SKILL.md + dispatch.md，forced_second_hop=false。經核對 dispatch.md 確含 subagent 表/模型/門檻/4 步/防越權/branch 驗證/Wave 6/Wave 大小/CLAUDE.md 可見性全部，派發側自足。Gotcha M『修法』雖在 worktree.md 但不在本場景提問範圍，未開第二跳合理。"
+        }
+      ],
+      "overall": "pass",
+      "weak_assertions": [
+        "assertion 1（Read dispatch.md）：純路徑存在即可滿足，易給假信心——但本例 answer 內容與檔案逐項對應，確認非空讀。",
+        "assertion 4：條列項多，navigator 容易靠『字面提到關鍵字』湊齊而給假信心；本例逐項實質正確故 pass，但此 assertion 對淺答辨識力弱。"
+      ],
+      "regression_risk": "none"
+    }
+  ],
+  "verdict": {
+    "claude_md_fact_correct": true,
+    "dispatch_self_sufficient": true,
+    "regression_detected": false,
+    "s1_now_full_sdd": true,
+    "s2_sync_now_automatic": true,
+    "failed_assertions": [],
+    "lost_load_bearing_content": [],
+    "summary": "四個受影響場景（1-opus / 1-sonnet / 2 / dispatch-policy）全 overall=pass，本輪三項改動均達到預期且無真退化。\n\n(A) dispatch.md line 7 事實修正已落地並驗證：實檔 line 7 現寫「general-purpose 與自訂 subagent（sales-coder）啟動時仍會載入專案 CLAUDE.md + git status，只有 built-in Explore/Plan 跳過；讀不到的是本對話歷史」。dispatch-policy 場景 assertion 6（本輪核心修正題）navigator 精準命中：自訂 subagent 載入 CLAUDE.md、紅線本就看得到、要主動餵的是本對話特有任務 context（非紅線），無「靠 prompt 餵紅線」的常見錯誤 → claude_md_fact_correct=true。\n\n(B) sdd.md line 19 措辭精修已落地：「改派 fresh-context subagent（不繼承本對話、只收 spec + 必要 reference 的委派；CLAUDE.md 仍照常載入）」，與 dispatch.md line 7 一致，無自相矛盾。S1 navigator 對 sales-coder context 的描述與此對齊，無誤答。\n\n(C) evals.json 兩處修正均生效：\n- S1（id:1）prompt 已上修為跨檔 + 業務邏輯（l4.py 計算 + l3.py 文案 + tests），expected_output 要求完整 SDD。原先單 const『超級小』與 sales-coder/三段 reviewer assertion 的矛盾已解除；S1 兩個對照組（opus/sonnet）6 條 assertion 全 pass，完整 SDD + sales-coder + 三段 reviewer 成為一致正解 → s1_now_full_sdd=true。\n- S2（id:2）assertion 4 已由過時手動 sync 改為現行 Stop hook 自動 sync + marker 自我修正（權威 standard-workflow.md L35/41）；navigator 答對「push 完即可、sync 不需經手、漏掉下個 turn 靠 marker 補、只有 hook 失敗才手動 sync_pi.ps1/SSH」並主動勸阻手動 sync → s2_sync_now_automatic=true。\n\n完整度核對：經逐檔比對，精簡後 sdd.md 仍完整保留所有 load-bearing 內容（觸發條件、完整版 8 段 spec + plan 範本、4 階段流程含三段 reviewer 迴圈、Iron Law gate + 必跑指令表、reviewer prompt 指向 examples/、模型表）；dispatch.md（此前去噪 -33%）仍完整保留 subagent 對應表、預設模型、規模門檻、「超級小」五條件、派發前 4 步、防越權收尾、branch 驗證、Wave 6 招、Wave 大小、CLAUDE.md 可見性。四場景 forced_second_hop 全 false，兩檔在各自範圍自足 → dispatch_self_sufficient=true，無 load-bearing 內容被誤砍。\n\ngrader 標記的 weak_assertions（assertion 1 近恆真、Iron Law/branch 偏關鍵字 recall、OR 條件降門檻）屬既有 eval 設計弱點，非本輪改動造成，且各場景 navigator 均以實質內容旁證實際理解，不影響判定 → regression_detected=false。"
+  }
+}

@@ -16,7 +16,7 @@
 - Red Flags
 - 與其他規則的關係 / Anti-patterns / 何時不必走 SDD
 
-> **Why 走 SDD**：主對話對齊期 context 龐雜（discussion / ambiguity / 歷史 patch），sales-coder 帶過去會被噪訊污染；fresh-context subagent 只看 spec + 必要 reference 注意力最集中。
+> **Why 走 SDD**：主對話對齊期 context 龐雜（discussion / ambiguity / 歷史 patch），全帶給 sales-coder 會被噪訊污染；改派 fresh-context subagent（不繼承本對話、只收 spec + 必要 reference 的委派；CLAUDE.md 仍照常載入）注意力最集中。
 
 ---
 
