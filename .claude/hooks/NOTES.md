@@ -25,10 +25,12 @@
 | 檔名 | 事件 | matcher | 用途 | 風險 |
 |---|---|---|---|---|
 | `block-git-add-bulk.ps1` | PreToolUse | Bash | 擋 `git add -A` / `--all` / `.` | 低（命中精準）|
+| `block-windows-install.ps1` | PreToolUse | Bash\|PowerShell | 擋本機 `pip` / `npm` / `apt` install（pytest 例外）| 低 |
 | `block-vendor-edit.ps1` | PreToolUse | Edit\|Write | 擋廠商 SDK 檔（ActionGroupControl/Board.py）| 低 |
 | `auto-sync-pi.ps1` | PostToolUse (async, 120s) | Bash | `git push origin main` 後自動跑 sync_pi.ps1 | 中（log 偶寫 ERROR 但功能正常，見 §6）|
 | `state-mark-sales-dirty.ps1` | PostToolUse | Edit\|Write | 編 sales/* 時寫 flag | 低 |
 | `state-clear-on-pytest.ps1` | PostToolUse | Bash | pytest 跑過清 flag | 低 |
+| `check-traditional-chinese.ps1` | PostToolUse | Edit\|Write | 掃剛寫入檔的常見簡體字 → 純警示（不擋）| 低 |
 | `stop-check-sales-pytest.ps1` | Stop | (無 matcher) | 結束 turn 前若 flag pending → block 一次 | 中（block 體驗略生硬）|
 | `session-start-context.ps1` | SessionStart | (無 matcher, 全 source) | 注入 branch/status/test count 到 Claude context | 低 |
 | `subagent-inject-rules.ps1` | SubagentStart | (無 matcher) | 自動注入標準規範到 subagent context，依 agent_type 分流（編碼類完整 / 研究類精簡）| 低 |
@@ -37,10 +39,11 @@
 ```
 PreToolUse:
   Bash → block-git-add-bulk
+  Bash|PowerShell → block-windows-install
   Edit|Write → block-vendor-edit
 PostToolUse:
   Bash → [auto-sync-pi (async), state-clear-on-pytest]
-  Edit|Write → state-mark-sales-dirty
+  Edit|Write → [state-mark-sales-dirty, check-traditional-chinese]
 Stop:
   → stop-check-sales-pytest
 SessionStart:
@@ -491,7 +494,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 ## 10.6 官方陷阱稽核（2026-06-02）
 
 派 claude-code-guide subagent 重抓官方文檔（`code.claude.com/docs/en/hooks`）整理出 17 條 hooks 陷阱，
-對照本專案全部 9 個 hook 腳本逐一比對。**結論：一條都沒踩到，且多條為主動防禦。** 無需修改。
+對照本專案全部 10 個 hook 腳本逐一比對。**結論：一條都沒踩到，且多條為主動防禦。** 無需修改。
 
 ### 逐條對照
 
