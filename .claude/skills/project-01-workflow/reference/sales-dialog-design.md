@@ -143,10 +143,6 @@ def service_confirm(speak, print_terminal, read_customer_input, speak_and_wait=N
 
 **Rule**：確認類子狀態（被問「正確嗎？」「要繼續嗎？」）的 timeout / 亂答 / 達 unclear 上限等 ambiguous 結果，一律 default「取消 / 不繼續」；只有顧客**明確答應**（YES keyword / 終端 "1" / "對"）才推進。
 
-**Why**：2026-05-26 `9309059` 修錯——`_dialog_checkout_confirm` 曾把 unclear cap default 設 `return True`（進 L4），理由「跟 timeout 一致」，結果顧客亂答 3 次自動扣款（影響錢包）。timeout default 也翻成 cancel（直接 Enter 不該視為同意付款）。
+**Why**：曾把 `_dialog_checkout_confirm` 的 unclear cap default 設 `return True`（進 L4），理由「跟 timeout 一致」，結果顧客亂答 3 次自動扣款（影響錢包）。timeout default 也翻成 cancel（直接 Enter 不該視為同意付款）。
 
 **How to apply**：confirm-like sub-state 的 ambiguous answer 預設 negative（保守 / 不推進 / 回安全狀態）；timeout 跟 unclear cap 不要為「邏輯對稱」一起設成 YES。**例外**：純廣播通知無 yes/no 抉擇不適用；C-2 自動結帳（主迴圈 timeout 沒講結帳 → 推測想結帳離開）是另一層流程，與 confirm 內 unclear 性質不同。
-
----
-
-**相關 reference**：[sales-tts-ux.md](sales-tts-ux.md)（TTS / 計時倒數 / UX 過場）/ [myprogram-threading-paths.md](myprogram-threading-paths.md)（S6 非阻塞 input）/ [sdd.md](sdd.md)（改 sales code 走 SDD）/ [CLAUDE.md](../../../../CLAUDE.md)

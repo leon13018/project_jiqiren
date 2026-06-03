@@ -1,0 +1,115 @@
+{
+  "graded": [
+    {
+      "scenario_id": "3",
+      "results": [
+        {
+          "assertion": "transcript 顯示 Read reference/myprogram-threading-paths.md 與/或 incremental-rebuild.md",
+          "verdict": "pass",
+          "reasoning": "references_read 列出兩檔絕對路徑，且答案 §1/§3/§5 內容逐條對得上兩檔（§單 queue 偏好、§sticky 旗號、Part B 路徑、Part A 地雷區 STT 回授），確為實讀非臆測。兩檔同屬路由表「多線程」/「多線程+queue+旗號難收斂」兩列，正常雙檔分流。"
+        },
+        {
+          "assertion": "建議單一 queue + routing flag 的設計洞察",
+          "verdict": "pass",
+          "reasoning": "答案 §1 忠實重現 incremental-rebuild.md §單 queue 偏好（權威）：STT 結果丟單一 queue、producer 不分流、消費者依情境解讀；並引 cmd_queue+customer_queue+has_customer 的 race window 根因與判準（狀態變化點 vs 輸入點有 race window → 架構錯）。延伸到 STT 延遲使 race window 更大屬合理推論，非杜撰。"
+        },
+        {
+          "assertion": "提到廠商 SDK sticky 旗號需注意",
+          "verdict": "pass",
+          "reasoning": "答案 §3 對 incremental-rebuild.md §sticky 旗號（權威）：stop_action=True 只在 runAction 迴圈消耗、殘留致下個動作第一幀 break、if Act.runningAction 守衛、<1ms race window、vendor 黑盒與自寫 Event 邊界要分開——全部命中且正確。"
+        },
+        {
+          "assertion": "提到 Pi 端 git pull 後須清 __pycache__",
+          "verdict": "pass",
+          "reasoning": "答案 §6 涵蓋 git pull 後 stale .pyc、Stop hook 自動清、懷疑時跑 clean-pi-pycache.ps1（find ... -name __pycache__ -exec rm -rf）。注意：此內容不在兩個 threading reference 內，navigator 額外讀了 pi-and-structure.md + script 才取得，並正確標明其權威落點在 standard-workflow.md/script 註解，屬另一路由列。"
+        },
+        {
+          "assertion": "提到 Linux 絕對路徑 / 正斜線規範",
+          "verdict": "pass",
+          "reasoning": "答案 §5 對 myprogram-threading-paths.md Part B：正斜線、大小寫敏感、絕對路徑從 / 起、禁 C:\\\\/相對/~、專案根 /home/pi/Desktop/project_jiqiren——逐項命中。"
+        },
+        {
+          "assertion": "未被迫開第 2 層 reference 才湊齊",
+          "verdict": "pass",
+          "reasoning": "forced_second_hop 範圍應限於本場景去噪的 threading cluster。該 cluster（threading-paths + incremental）對 threading 領域 assertion（2/3/5）內容完整、無缺漏害補跳。assertion 4 的 __pycache__ 本就屬路由表另一列（Pi 端操作 → pi-and-structure.md），navigator 讀該檔+script 是正常多列分流而非補 threading reference 該有卻缺的內容，故 forced_second_hop=false 成立。"
+        }
+      ],
+      "overall": "pass",
+      "weak_assertions": [
+        "assertion 4（__pycache__）：此條落在 threading cluster 之外的 Pi 部署列，用它驗 threading 去噪 cluster 偏弱——它驗的是跨列路由能力而非 threading reference 內容完整性，與場景去噪標的（threading 三檔）不同源。",
+        "assertion 6 措辭含糊：未界定 forced_second_hop 的『範圍』是限 threading cluster 還是含 assertion 涉及的全部路由列；本案因 __pycache__ 屬獨立列才判 pass，若把範圍解為『湊齊全部 6 條 assertion』則 navigator 確實多讀了 2 個檔，判定會翻面。"
+      ],
+      "regression_risk": "none。threading cluster（threading-paths.md / incremental-rebuild.md）對其負責的 threading 領域 assertion（單 queue、sticky 旗號、Linux 路徑、STT↔TTS 回授、asyncio/subprocess/daemon/reader 教訓）內容完整，無 load-bearing 缺漏跡象；navigator 答出的領域知識（has_customer race 根因、stop_action sticky 消耗點、Part B 路徑規範）與 reference 原文逐條吻合無錯。__pycache__ 需跨列讀 pi-and-structure.md 取得屬既定路由設計（非 threading 去噪缺料），不構成該 cluster 的回歸風險。"
+    },
+    {
+      "scenario_id": "4",
+      "results": [
+        {
+          "assertion": "transcript 顯示 Read reference/sales-dialog-design.md",
+          "verdict": "pass",
+          "reasoning": "references_read 精確列出 sales-dialog-design.md 絕對路徑，且 answer 大量引用該檔專屬內容（第34點 L3 短詞、line 100 6.0s 常數、line 124 24s、line 105 八 gate、line 126 六進入點、line 144 保守 default），非泛泛而談，證明確實讀取。"
+        },
+        {
+          "assertion": "引用 C-2 三選一表或 cancel_confirm/service_confirm 的 gate 與 caller 規約",
+          "verdict": "pass",
+          "reasoning": "同時覆蓋三者：(1) C-2 三選一表 CANCEL→_dialog_exit_a/CONTINUE→main_loop/CHECKOUT→_c2_checkout_via_confirm/timeout 合流 confirm，對齊 line 24-30；(2) cancel_confirm 8 個 explicit gate 全列舉 + YES退L1/NO重prompt，對齊 line 105；(3) service_confirm 6 進入點各自 YES/NO/scan caller 規約，對齊 line 126。皆與 reference 一致。"
+        },
+        {
+          "assertion": "說明 cancel_confirm 與 service_confirm 各自的 wall-clock budget 計時（引用 reference 內秒數）",
+          "verdict": "pass",
+          "reasoning": "cancel_confirm CANCEL_CONFIRM_TIMEOUT=6.0s（line 100）、service_confirm L4_C_CONFIRM_TIMEOUT=24s（line 124）均正確引用；並正確說明 deadline 由 speak_and_wait 從 TTS 播完起算（line 100/124）、silent/歸零行為、亂答不重置 budget（line 124），inverse 表 6s/24s 對齊 line 133。"
+        },
+        {
+          "assertion": "正確判斷「沒有了」歸為結帳意圖 / 走 confirm path",
+          "verdict": "pass",
+          "reasoning": "完全對齊 line 34：L3 normal mode（classify_intent mode=\"normal\"）將『沒有了』歸『結帳』不走 cancel_confirm，合流 _dialog_checkout_confirm；並正確指出僅 _KEYWORDS_REJECT_L3_STRICT 才算取消、L2/L4 才當拒絕。領域知識準確無誤。"
+        },
+        {
+          "assertion": "未被迫開第 2 層 reference 才湊齊",
+          "verdict": "pass",
+          "reasoning": "forced_second_hop=false 屬實。逐項核對：gate/caller、6s/24s 秒數、C-2 三選一、L3 短詞分類、confirm 保守 default 全部存在於 sales-dialog-design.md 單檔（line 16-148），未開 timing.py/l4.py/keywords.py。router 正確分流，該 cluster 內容自足。"
+        }
+      ],
+      "overall": "pass",
+      "weak_assertions": [
+        "assertion 1（Read transcript）：本題僅憑 references_read 自報 + 內容吻合度推斷，無實際 tool-call transcript 可核，屬間接證據；但引用密度極高足以排除幻覺。"
+      ],
+      "regression_risk": "none"
+    },
+    {
+      "scenario_id": "5",
+      "results": [
+        {
+          "assertion": "transcript 顯示 Read reference/bdd-tdd.md 與 reference/conventions.md",
+          "verdict": "pass",
+          "reasoning": "references_read 列出兩個正確絕對路徑（bdd-tdd.md + conventions.md）。答案內容深度（重啟條件第一條原文、4 階段細節、DEGRADED/Iron Law pitfall、繁簡對照表、cp936 quirk）與兩檔實際內容高度吻合，無法靠記憶虛構，確認確實讀了。"
+        },
+        {
+          "assertion": "正確說明『新增業務邏輯』屬 BDD+TDD 重啟條件之一並概述階段",
+          "verdict": "pass",
+          "reasoning": "答案準確引用 bdd-tdd.md L16 重啟條件第一條『新增 myProgram/sales/ 任何業務邏輯（新商品/新對話分支/新 L 層）』，並正確概述 4 階段（BDD spec→plan mode→派單一 subagent 走 TDD Red-Green-Refactor→主 agent 審查收尾跑 pytest），與 L26-31 原文一致。亦正確帶出 DORMANT 自行判斷與不重啟例外（L19-20）。"
+        },
+        {
+          "assertion": "給出繁中產出規範（程式碼註解 / 字串 / commit message 一律繁體）",
+          "verdict": "pass",
+          "reasoning": "答案明列適用範圍（程式碼註解、字串字面值、所有 .md、commit message 中文）一律繁體，不適用對話回覆，並附簡繁對照與 cp936 quirk，皆出自 conventions.md L12-37。完整覆蓋斷言三項要素。"
+        },
+        {
+          "assertion": "未被迫開第 2 層 reference 才湊齊",
+          "verdict": "pass",
+          "reasoning": "forced_second_hop=false。重啟條件+階段全在 bdd-tdd.md、繁中規範全在 conventions.md，router 正常分流兩檔即完整覆蓋本場景（流程概述），無內容缺口逼迫補讀。bdd-tdd.md L56 列的外部資源屬實際動手重啟才需，非回答本場景所需，detail 判斷正確。"
+        }
+      ],
+      "overall": "pass",
+      "weak_assertions": [],
+      "regression_risk": "none"
+    }
+  ],
+  "verdict": {
+    "regression_detected": false,
+    "all_clusters_self_sufficient": true,
+    "failed_assertions": [],
+    "lost_load_bearing_content": [],
+    "summary": "三場景全 pass，無回歸。S3 threading cluster（threading-paths + incremental-rebuild）對其負責的 threading 領域 assertion（單 queue 偏好、sticky 旗號、Linux 正斜線/絕對路徑、has_customer race 根因、stop_action 消耗點）內容自足且與原文逐條吻合；assertion 4 的 __pycache__ 本屬路由表 Pi 部署列（pi-and-structure.md + script），navigator 跨列讀取是既定路由設計而非 threading 去噪缺料，forced_second_hop=false 成立。S4 sales cluster（sales-dialog-design.md）單檔自足覆蓋 C-2 三選一表、cancel_confirm 8 gate / service_confirm 6 進入點 caller 規約、6.0s/24s 雙計時器 budget、L3「沒有了」歸結帳走 confirm path，全部對齊 line 16-148 未開第二層。S5 dormant+conv cluster（bdd-tdd.md + conventions.md）正常雙檔分流：重啟條件第一條 + 4 階段在 bdd-tdd.md、繁簡產出規範 + cp936 quirk 在 conventions.md，無內容缺口逼補讀。Round3 保守去噪（只刪 see-also footer / 重複 anecdote / meta / date 戳）未動到任何 load-bearing 領域知識，無誤砍需補回。唯二弱點為驗證面非內容面：S3 assertion 4/6 措辭未界定 forced_second_hop 範圍（限 threading cluster vs 全 6 條 assertion），本案因 __pycache__ 屬獨立路由列才判 pass；S4 assertion 1 僅憑 references_read 自報 + 高引用密度間接推斷實讀，無 tool-call transcript 可核。兩者皆不影響去噪後 cluster 自足性結論。"
+  }
+}

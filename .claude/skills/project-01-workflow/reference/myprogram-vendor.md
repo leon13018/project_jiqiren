@@ -8,7 +8,7 @@
 - `runAction` 兩種 silent fail
 - Pi demo 沒動作排查 checklist
 
-`myProgram/vendor/ActionGroupControl.py` 與 `Board.py` 是 Hiwonder TonyPi 廠商 SDK。本檔：禁改紅線、可直接 import 的 API 清單、`runAction` 兩種 silent fail、Pi demo 沒動作排查 checklist。
+`myProgram/vendor/ActionGroupControl.py` 與 `Board.py` 是 Hiwonder TonyPi 廠商 SDK。
 
 ---
 
@@ -59,7 +59,3 @@
 3+4 都通 → 跑主程式看是否印 `[動作] <name>`：沒印 = callback 沒觸發（dialogue/state machine wire-up 漏）；印了但不動 → Mode 1/2 silent fail。
 
 > **sticky 旗號**：`Act.stopAction()` 設的 `stop_action=True` 是 sticky、只在 `runAction` 內部迴圈消耗；空轉時呼叫會污染下次 runAction → 必須 `if Act.runningAction: stopAction()` 守衛。完整機制見 [incremental-rebuild.md](incremental-rebuild.md) §廠商 stop_action sticky 旗號。
-
----
-
-**相關 reference**：[myprogram-threading-paths.md](myprogram-threading-paths.md) / [incremental-rebuild.md](incremental-rebuild.md) / [CLAUDE.md](../../../../CLAUDE.md) ⛔#1

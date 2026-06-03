@@ -100,7 +100,3 @@ while True:
 
 **Counter-examples（不應用此哲學）**：真重複 / dead code（同字面 copy-paste）→ 移除；技術其實能縮短卻純靠過場拖時間 → 先優化；ack 跟下句同資訊 → 合併；過場太長拖過實際處理 → 反成負面。
 **派 subagent 寫 user-facing 邏輯**：prompt 必明示「預設保留 ack/transition/pacing；禁以『技術冗餘/簡化/dead code 清理』移除 ack speak / loading 提示；不確定標『待 UX 評估』回報，不擅自簡化」。sweep TTS 文案的 subagent 額外塞此哲學全文。
-
----
-
-**相關 reference**：[sales-dialog-design.md](sales-dialog-design.md)（對話狀態機 / 跨層流程）/ [myprogram-threading-paths.md](myprogram-threading-paths.md)（多線程 / S6 input）/ [sdd.md](sdd.md)（改 sales code 走 SDD）/ [CLAUDE.md](../../../../CLAUDE.md)

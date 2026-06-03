@@ -101,7 +101,7 @@ class InputReader:
 3. **daemon thread 卡 stdin readline syscall → finalizer hang**：「程式結束」印出後 process 不退、要按鍵才回 shell。根因：daemon reader 卡 kernel `read(fd)`，interpreter 退出時 finalizer 等 stdin lock、daemon C-level 釋放不了。`daemon=True` 只保證隨 process die，不保證 finalizer 不卡 lock。修：`main()` finally 加 `os._exit(0)` 強退跳過 finalizer。
 4. **`sys.stdin.close()` 不解 readline、反而 lock deadlock**：根因鏈：Linux `close(fd)` 不 unblock in-syscall read；`TextIOWrapper.close()` 要 acquire `BufferedReader` internal lock；daemon reader 此刻正 hold 該 lock 在 readline 內 → main thread close() 永遠拿不到 lock → `os._exit` 跑不到。修：**移除** `sys.stdin.close()`，shutdown 只清 queue，daemon 隨 `os._exit` 殺。教訓：別嘗試「主動 unblock」blocking read，直接 `os._exit` 強退最可靠。
 
-> 註：舊版（移除 close 前）退出印 `Fatal Python error: _enter_buffered_busy ...`，實際已正常退出、只是 finalizer 印錯誤訊息嚇人，`os._exit(0)` 後消失。`read()` 用 latest-wins drain（撈光殘留但 return 最後一筆）而非全清——保留 user 剛打、caller 還沒消費的最新輸入，避免 race window 殺合法輸入。
+> 註：`read()` 用 latest-wins drain（撈光殘留但 return 最後一筆）而非全清——保留 user 剛打、caller 還沒消費的最新輸入，避免 race window 殺合法輸入。
 
 ## worker shutdown 對比
 | Worker | shutdown | 為何 |
@@ -111,7 +111,3 @@ class InputReader:
 | `input_reader.py` | **只**清 queue | 不 close stdin（教訓 4）；daemon 隨 process die |
 
 `os._exit(0)` 在 `main()` finally 最末——三 worker shutdown 跑完才強退。
-
----
-
-**相關 reference**：[incremental-rebuild.md](incremental-rebuild.md)（單 queue + sticky 詳解）/ [standard-workflow.md](standard-workflow.md)（Pi sync 後清 pycache）/ [myprogram-vendor.md](myprogram-vendor.md)（SDK API + sticky 守衛）
