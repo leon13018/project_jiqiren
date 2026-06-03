@@ -10,15 +10,13 @@
 - Spec self-review 4 點
 - Iron Law（完成宣告驗證）
 - Adversarial 審查 pose
-- 三段 subagent 迴圈（含為何 fresh-context + 模型選擇 + Status 表）
+- 三段 subagent 迴圈
 - 雙軌 TaskCreate
 - Sales-coder 派發 prompt 範本
 - Red Flags
 - 與其他規則的關係 / Anti-patterns / 何時不必走 SDD
 
-編寫或修改 `myProgram/` 內任何 `.py` code 前 **強制**先寫 spec 到 `resources/specs/`，主 agent 與使用者對齊後才實作，**不分規模**。完整版拆 `<name>_<date>_spec.md`（WHAT）+ `_plan.md`（HOW step-by-step），mini 版 5 行單檔。
-
-> **Why**：主對話對齊期 context 龐雜（discussion / ambiguity / 歷史 patch），sales-coder 帶過去會被噪訊污染；fresh-context subagent 只看 spec + 必要 reference 注意力最集中。
+> **Why 走 SDD**：主對話對齊期 context 龐雜（discussion / ambiguity / 歷史 patch），sales-coder 帶過去會被噪訊污染；fresh-context subagent 只看 spec + 必要 reference 注意力最集中。
 
 ---
 
@@ -183,7 +181,7 @@ Sales-coder 回報可能不完整 / 不準確 / 過度樂觀（"finished suspici
 
 ## 雙軌 TaskCreate（session-scoped 不可共享）
 
-- **主 agent 軌（高層 checklist）**：每輪 SDD 必建，典型 10-13 條——對齊 ambiguity / EnterWorktree / 寫 spec+自查+plan / approval / commit spec doc / 派 sales-coder / 依 status 處理 / Iron Law 自驗 / 派 spec-reviewer / 派 code-quality-reviewer / 3c code_map / 4+5 收尾。
+- **主 agent 軌（高層 checklist）**：每輪 SDD 必建，涵蓋上方 4 階段各步。
 - **Subagent 軌**：sales-coder 拿到 spec+plan 後自行 TaskCreate 拆內部清單（對應 plan 每檔每 step），完成回報內 echo TaskList 摘要。
 - **Reviewer subagent 不必 TaskCreate**（單一任務）。
 
@@ -246,4 +244,4 @@ Sales-coder 回報可能不完整 / 不準確 / 過度樂觀（"finished suspici
 
 ---
 
-**相關**：規格範本 `resources/specs/L4_v3_dual_timer_spec.md`（完整版 8 段範本）；reviewer prompt → [examples/](../examples/)；派發 → [dispatch.md](dispatch.md)；worktree → [worktree.md](worktree.md)；收尾 → [standard-workflow.md](standard-workflow.md)；sales-coder 契約 → `.claude/agents/sales-coder.md`；編碼準則 → invoke `andrej-karpathy-skills:karpathy-guidelines`。
+**相關**：完整版 8 段範本 `resources/specs/L4_v3_dual_timer_spec.md`；sales-coder 契約 `.claude/agents/sales-coder.md`；編碼準則 invoke `andrej-karpathy-skills:karpathy-guidelines`。
