@@ -165,9 +165,9 @@ Sales-coder 回報可能不完整 / 不準確 / 過度樂觀（"finished suspici
 **模型選擇**：
 | 角色 | 模型 | 理由 |
 |---|---|---|
-| Implementer (sales-coder) | opus（繼承 session effort）| frontmatter `model: opus`、無 effort 欄 |
+| Implementer (sales-coder) | opus | frontmatter `model: opus` |
 | Spec-reviewer (general-purpose) | sonnet | 對照 spec vs code，cost-effective |
-| Code-quality-reviewer (general-purpose) | opus（effort 繼承 session）| 架構判斷；effort 不寫死、不在 prompt 強制 xhigh |
+| Code-quality-reviewer (general-purpose) | opus | 架構判斷，sonnet 不夠 |
 
 **Prompt template**：spec-reviewer → [`../examples/spec-reviewer-prompt.md`](../examples/spec-reviewer-prompt.md)；code-quality-reviewer → [`../examples/code-quality-reviewer-prompt.md`](../examples/code-quality-reviewer-prompt.md)。主 agent 複製 + 填空（SHA / spec path / sales-coder 回報）。
 
