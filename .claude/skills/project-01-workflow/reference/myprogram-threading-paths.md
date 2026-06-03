@@ -38,6 +38,7 @@
 - **subprocess fire-and-forget**：`Popen` 不 wait 可能被截斷（父程序退 → SIGKILL / stdin pipe 關 → mpg123 退 / 同 thread 馬上另一 blocking 搶 IO → stall）。安全：`subprocess.run()` / `Popen.wait()` / `communicate()`。
 - **daemon flag**：worker 通常 `daemon=True`（主程式退一起死）；但有未完成清理（檔案寫入 / subprocess 收尾）時 daemon 會被硬殺 → 視情況設。
 - **tkinter callback 內 blocking**：callback 由 mainloop 同步派發，內含 5 秒 blocking → UI 凍 5 秒。解法：callback 內 `threading.Thread(target=..., daemon=True).start()`；worker 要更新 UI 不能直接 call widget（非主線程）→ 用 `root.after(0, cb)` 或 queue + `root.after(100, poll)` 排回主線程。
+- **STT↔TTS 自我回授**（未來加 STT 收音 worker 時）：麥克風會把 TTS 喇叭聲聽回去當顧客輸入 → TTS 播放期間用 `tts.wait_idle()`/`_pending` gate 住 STT 收音或丟棄識別（自寫 Event，與 vendor sticky 旗號分開思考）。
 
 > 架構難收斂時的 S1-S7 模板見 [incremental-rebuild.md](incremental-rebuild.md)。廠範完整碼 `resources/examples/機器人動作結合opencv的多線程使用范例.py`（主線程 cv2 迴圈 + 背景 polling global）。
 
