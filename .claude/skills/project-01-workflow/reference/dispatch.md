@@ -32,12 +32,12 @@
 |---|---|---|
 | 編 `myProgram/sales/*.py` / `tests/sales/*.py` / `myProgram/{main,tts,action,input_reader}.py` 等寫 code | **`sales-coder`**（自訂，frontmatter 預載 karpathy + TDD + 本 skill 全文） | 啟動時官方機制注入 SKILL 全文，強過 prompt 內塞 reference summary |
 | 純研究 / 探索 / 文件查詢 | `claude-code-guide` / `Explore` / `Plan`（built-in，可 sonnet） | 不寫 code，輕量省成本 |
-| 其他寫 code（無對應 custom） | `general-purpose` + `model: "opus"` | fallback，prompt 內塞「extended thinking + xhigh、嚴格依規範、寧可慢不要錯」 |
+| 其他寫 code（無對應 custom） | `general-purpose` + `model: "opus"` | fallback，prompt 內塞「嚴格依規範、寧可慢不要錯」；effort 不指定、繼承 session |
 
-### 預設模型 opus xhigh
+### 預設模型 opus（effort 繼承 session）
 - `Agent({ model: "opus" })`。Agent 工具只接受 `sonnet`/`opus`/`haiku`，**不能指定子版本**（用 session 對應 Opus）。
-- **沒有 `effort`/`thinking`/`skills` 參數**可傳 → 要 xhigh 在 prompt 內明寫；要預載 skills 必須走 `.claude/agents/<name>.md` frontmatter（見文末）。
-- **Why opus xhigh**：跨檔 refactor sonnet 踩坑率高、opus xhigh 穩；預設化省每次判斷複雜度。`sales-coder` frontmatter 已內建 `model: opus`（無 effort 欄 → 繼承 session effort），派發不必再傳。研究 / Explore 類仍可手動指定 sonnet。
+- **沒有 `effort`/`thinking`/`skills` 參數**可傳；**effort 一律不指定、繼承 session effort**（不在 prompt 內強制 xhigh——session 是高 effort 時 subagent 自然深入，與 sales-coder「無 effort 欄→繼承 session」一致）；要預載 skills 必須走 `.claude/agents/<name>.md` frontmatter（見文末）。
+- **Why 預設 opus**：跨檔 refactor sonnet 踩坑率高、opus 穩；預設化省每次判斷複雜度。`sales-coder` frontmatter 已內建 `model: opus`，派發不必再傳。研究 / Explore 類仍可手動指定 sonnet。
 - **Co-Authored-By**：用實際模型署名，預設 `Co-Authored-By: Claude Opus <noreply@anthropic.com>`；研究類用 sonnet 時為 `Claude Sonnet 4.6`。
 
 ---
@@ -100,7 +100,7 @@
 
 ## Wave 6 招防護（跨檔 refactor）
 
-派 subagent 做「跨檔簽名變動 + 既有 test 連動更新」的批次（Wave）時，**opus + xhigh + 6 招**比單純拆細範圍更有效。
+派 subagent 做「跨檔簽名變動 + 既有 test 連動更新」的批次（Wave）時，**opus + 6 招**比單純拆細範圍更有效。
 
 **6 招（prompt 內必含）**：
 1. **先列再做**：開工前 grep 受影響檔/test，在 thinking 內列清單，return 必含此清單。

@@ -1,10 +1,10 @@
 # Code-quality-reviewer subagent prompt template
 
-> SDD 三段迴圈第 3 段（code quality review）。**前提**：先通過第 2 段 spec-reviewer ✅。流程與「為何用 fresh-context subagent」見 [`../reference/sdd.md`](../reference/sdd.md) §三段 subagent 迴圈。
+> **🎯 何時讀本檔**：SDD 三段迴圈第 3 段（code quality review，前提：先過第 2 段 spec-reviewer ✅）要派 code-quality-reviewer 時，複製本範本填空派發。流程 / 為何用 fresh-context subagent 見 [`../reference/sdd.md`](../reference/sdd.md) §三段 subagent 迴圈。
 
 ## 派發方式
 
-`general-purpose` + `model: "opus"`（需架構判斷，sonnet 不夠）。**effort 不寫死 → 繼承 session effort**（Agent 工具無 effort 參數可傳，亦不在 prompt 內強制 xhigh；session 是高 effort 時自然會深入）。
+`general-purpose` + `model: "opus"`（需架構判斷，sonnet 不夠）。
 
 ```python
 Agent({

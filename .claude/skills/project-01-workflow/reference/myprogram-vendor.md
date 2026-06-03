@@ -2,6 +2,12 @@
 
 > **🎯 何時讀本檔**：要 `import` / 呼叫廠商 SDK（`ActionGroupControl` / `Board` / `runAction` 等），或 Pi demo 動作沒出來要排查 silent fail。
 
+## 目錄
+- ⛔ 絕對禁止修改（hook 強制執法）
+- 關鍵 API（可直接 import）
+- `runAction` 兩種 silent fail
+- Pi demo 沒動作排查 checklist
+
 `myProgram/vendor/ActionGroupControl.py` 與 `Board.py` 是 Hiwonder TonyPi 廠商 SDK。本檔：禁改紅線、可直接 import 的 API 清單、`runAction` 兩種 silent fail、Pi demo 沒動作排查 checklist。
 
 ---
