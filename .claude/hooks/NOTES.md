@@ -33,7 +33,7 @@
 | `stop-check-sales-pytest.ps1` | Stop | (無 matcher) | 結束 turn 前若 flag pending → block 一次 | 中（block 體驗略生硬）|
 | `stop-sync-pi.ps1` | Stop | (無 matcher) | 每 turn 結束比對 origin/main vs marker，落後則 sync Pi + 清 pycache，成功寫 marker | 中（同步阻塞 turn end ~3s，僅落後時）|
 | `session-start-context.ps1` | SessionStart | (無 matcher, 全 source) | 注入 branch/status/test count 到 Claude context | 低 |
-| `subagent-inject-rules.ps1` | SubagentStart | (無 matcher) | 自動注入標準規範到 subagent context，依 agent_type 分流（編碼類完整 / 研究類精簡）| 低 |
+| `subagent-inject-rules.ps1` | SubagentStart | (無 matcher) | 只對 Explore/Plan（唯一跳過 CLAUDE.md 的 agent）注入「繁中 + 文檔指標」最小導航；其餘 agent 原生載入 CLAUDE.md 故直接放行 | 低 |
 
 **對應 settings.json 結構：**
 ```
@@ -420,9 +420,10 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 ### ~~A. `SubagentStart` hook~~ ✅ **已實作（2026-05-25 同日）**
 原 future idea，**現已上線：** `subagent-inject-rules.ps1`
-- 依 agent_type 分流：編碼類（general-purpose）注入完整規範；研究類（claude-code-guide / Explore / Plan / statusline-setup）注入精簡版
-- 取代 subagent-dispatch-protocol 步驟 2-3 的手動塞規則 boilerplate
-- 主 agent 派發 prompt 只需寫 task description + 任務特化規則
+- **只對 Explore / Plan 注入**「繁中 + 文檔指標」最小導航；其餘 agent（general-purpose / claude-code-guide / statusline-setup / 自訂 sales-coder）**直接放行不注入**。
+- **設計依據（官方 sub-agents.md，2026-06-03 派 claude-code-guide 查證）**：只有 built-in Explore / Plan 啟動時跳過 CLAUDE.md + git status；「Every other built-in and custom subagent loads both」。故唯有 Explore/Plan 看不到專案規範與導航，需 hook 補；其餘 agent 原生載入 CLAUDE.md（紅線 + skill 路由本就在），再注入＝重複佔 attention。且 Explore/Plan 為唯讀研究 agent（主對話帶 CLAUDE.md context 解讀其結果），連紅線都不必傳，只補它們看不到的「繁中產出 + 文檔入口」。
+- **演進**：原設計（2026-05-25）依「編碼類完整 / 研究類精簡」分流、且預設 subagent 讀不到 CLAUDE.md；2026-06-03 查證該前提有誤（只有 Explore/Plan 跳過）後改為現行「只補 Explore/Plan」，刪掉對 CLAUDE.md-loading agent 的全部冗餘注入（含原「完整版」紅線段）。
+- 主 agent 派發 prompt 只需寫 task description + 任務特化規則。
 
 ### B. `watchPaths` + `FileChanged` event
 - SessionStart hook 可 return `watchPaths: ["abs/path/..."]`

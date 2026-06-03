@@ -44,10 +44,10 @@
 
 **Step 1 — 挑相關規則塞 prompt**（寧多不漏）：
 - **不需塞**（frontmatter 預載）：karpathy / TDD / project-01-workflow 全文。
-- **不需塞**（SubagentStart hook 注入）：禁改廠商 SDK / 繁中 / 不用 `git add -A` / commit Co-Authored-By。
+- **不需塞**（sales-coder / general-purpose 啟動原生載入專案 CLAUDE.md）：禁改廠商 SDK / 繁中 / 不用 `git add -A` / commit Co-Authored-By（紅線在 CLAUDE.md，自動載入；只有 Explore/Plan 跳過 CLAUDE.md，由 SubagentStart hook 補最小導航）。
 - **仍需塞（任務特化）**：vendor API 細節 / 業務規格 / 已對齊的設計決定 / 既有 helper reuse 點 / git add 範圍 + commit message 範本。
 
-**Step 2 — 確認 sales-coder 生效**：`Agent({subagent_type:"sales-coder", ...})`（frontmatter 已設 model+skills）。built-in subagent 不能改 frontmatter → 靠 hook 注入 + prompt 塞 karpathy。
+**Step 2 — 確認 sales-coder 生效**：`Agent({subagent_type:"sales-coder", ...})`（frontmatter 已設 model+skills）。built-in subagent（如 general-purpose）不能改 frontmatter 預載 skill → 紅線靠原生載入的 CLAUDE.md，karpathy / 任務特化規則靠 prompt 塞。
 
 **Step 3 — 要求嚴格遵守**：prompt 末要求 subagent 嚴格按規範、不自由發揮。
 
