@@ -3,17 +3,17 @@
 > **🎯 何時讀本檔**：判斷本輪是否需 Pi 端操作 → 寫 pineedtodo；結構變動要更新 code_map；或查部署資訊 / Pi 環境陷阱。
 
 ## 目錄
-- §Pi 端操作觸發條件
-- §pineedtodo 規範
-- §結構變動維護（code_map 巢狀判準）
-- §部署資訊
-- §Pi 環境陷阱（GLIBC / git 對齊）
+- Pi 端操作觸發條件
+- pineedtodo 規範
+- 結構變動維護（code_map 巢狀判準）
+- 部署資訊
+- Pi 環境陷阱（GLIBC / git 對齊）
 
 主 agent 在 [worktree.md](worktree.md) 階段 3a/3b（或 [standard-workflow.md](standard-workflow.md) 步驟 1a/1b）做觸發判斷時參考本檔。
 
 ---
 
-## §Pi 端操作觸發條件
+## Pi 端操作觸發條件
 
 主 agent 審查後判斷本輪變更**實際**會否導致使用者要在 Pi 終端手動做事。
 
@@ -27,7 +27,7 @@
 
 ---
 
-## §pineedtodo 規範（寫新檔前必讀）
+## pineedtodo 規範（寫新檔前必讀）
 
 **檔名**：`resources/pineedtodo/<YYYY-MM-DD>_<short_name>.md`
 - `<YYYY-MM-DD>` = 該輪 commit 日期（台灣時區）。
@@ -41,7 +41,7 @@
 
 ---
 
-## §結構變動維護
+## 結構變動維護
 
 主 agent 審查後判斷本輪是否**動到專案目錄結構**（tracked 或 gitignored 皆算）。
 
@@ -55,7 +55,7 @@
 
 ---
 
-## §部署資訊
+## 部署資訊
 
 | 項目 | 值 |
 |---|---|
@@ -73,7 +73,7 @@
 
 ---
 
-## §Pi 環境陷阱
+## Pi 環境陷阱
 
 ### 1. GLIBC / piwheels source build 陷阱
 **事實**：Pi 4 跑 Debian Buster + GLIBC 2.28（EOL，系統 .so 偏舊）。piwheels（Pi 預設 pip index）為相容新發行版會 rebuild wheel 連結到新 GLIBC/SONAME → 在 Buster 上 ImportError，降版 wheel 也常救不了。
