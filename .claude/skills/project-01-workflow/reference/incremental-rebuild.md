@@ -7,8 +7,8 @@
 - S1-S7 流程模板
 - 核心原則 6 條
 - 反模式
-- §單 queue 偏好詳解（權威）
-- §廠商 stop_action sticky 旗號詳解（權威）
+- 單 queue 偏好詳解（權威）
+- 廠商 stop_action sticky 旗號詳解（權威）
 
 架構出現「多線程 + 多 queue + 旗號狀態交互產生不穩定 bug」、debug 難收斂時，**不要繼續打補丁**，改走 incremental rebuild：殺掉重做、每步只加一層、每步測完才下一步。
 
@@ -57,7 +57,7 @@
 
 ---
 
-## §單 queue 偏好詳解（權威）
+## 單 queue 偏好詳解（權威）
 
 **規則**：多消費者場景下**不要**用可變狀態旗號（`has_customer`/`is_idle`/`mode`）把同一份 input 路由到不同 queue；改用**單一 queue + 順序消費**，消費者在當下情境決定怎麼處理。
 
@@ -69,7 +69,7 @@
 
 ---
 
-## §廠商 stop_action sticky 旗號詳解（權威）
+## 廠商 stop_action sticky 旗號詳解（權威）
 
 廠商 `stopAction()` 設的 `stop_action=True` 是 **sticky 旗號**，**只在 `runAction()` 內部播放迴圈才被消耗**（消耗時印 `'stop'` 並 break）。若 vendor 動作沒在跑時呼叫 `stopAction()` → 旗號保留到下次 `runAction()` 進入 → 第一幀就 break、動作根本沒跑。
 

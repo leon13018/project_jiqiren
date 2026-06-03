@@ -9,8 +9,6 @@
 - 部署資訊
 - Pi 環境陷阱（GLIBC / git 對齊）
 
-主 agent 在 [worktree.md](worktree.md) 階段 3a/3b（或 [standard-workflow.md](standard-workflow.md) 步驟 1a/1b）做觸發判斷時參考本檔。
-
 ---
 
 ## Pi 端操作觸發條件
@@ -21,7 +19,7 @@
 
 **不觸發 ❌**：純程式邏輯修改/重構（無新依賴）｜純文件/markdown/memory/`.claude/` 檔｜`.gitignore`/`sync_pi.ps1`/git 設定｜CLAUDE.md/規範自身修訂。
 
-**輸出**：位置固定 `resources/pineedtodo/<YYYY-MM-DD>_<short_name>.md`；**append-only**（每輪只新增新檔，既有不動不改不刪——當歷史紀錄；發現先前有誤也新開檔修正）。
+**輸出**：位置固定 `resources/pineedtodo/<YYYY-MM-DD>_<short_name>.md`；**append-only**（每輪新增新檔，既有不動不刪；發現先前有誤也新開檔修正）。
 
 **寫完 pineedtodo → 主 agent 提醒使用者回報**：「請在 Pi 完成後回報哪些**成功**裝上/啟用（套件名/raspi-config 項/service），我更新 `resources/requirements/raspberry_pi_setup.md`。失敗/未完成不必報。」收到回報 → Read 該清單把**明確**回報成功項加進去（純文件編輯例外，主 agent 自己改，走標準 5 步收尾）。**禁自動推測**；失敗/未報項絕不寫入。
 
@@ -63,13 +61,13 @@
 | 遠端路徑 | `/home/pi/Desktop/project_jiqiren`（絕對路徑，禁 `~`） |
 | GitHub Repo | `https://github.com/leon13018/project_jiqiren.git` |
 
-**同步**：本機 `git push` → PostToolUse hook 嘗試自動 `sync_pi.ps1`（SSH 到 Pi `git pull`，首次則 clone；SSH 金鑰已設）→ **但 hook 不可依賴，push 後永遠手動 `& sync_pi.ps1`**（雙保險理由見 [standard-workflow.md](standard-workflow.md)）。
+**同步**：`git push` 後**永遠手動跑 `& sync_pi.ps1`**（SSH 到 Pi `git pull`，首次則 clone；SSH 金鑰已設）。hook 自動跑不可依賴、雙保險理由見 [standard-workflow.md](standard-workflow.md)。
 
 **Pi 端執行環境**（已安裝清單見 `resources/requirements/raspberry_pi_setup.md`）：
 - Python **3.11.9**（source build 在 `~/Python-3.11.9/`；系統內建 3.7 不足、edge-tts 強制依賴）。
 - 雲端 TTS：edge-tts（pip）+ mpg123（apt）。
 - **跑法**：`python3.11 -m myProgram`（推薦，透過 `__main__.py`）或 `python3.11 -m myProgram.main`。舊 `myProgram.myProgram` 已失效（檔名改 main.py）。
-- **.gitignore 排除**：`.claude/settings.local.json` / `.claude/worktrees/` / `sync_pi.ps1` / `resources/presentation/` / `resources/userPrompt/`；其餘 `resources/*` 已 tracked。`CLAUDE.md` tracked 並 push（2026-06-02 移至 root）。
+- **.gitignore 排除**：`.claude/settings.local.json` / `.claude/worktrees/` / `sync_pi.ps1` / `resources/presentation/` / `resources/userPrompt/`；其餘 `resources/*` 已 tracked。`CLAUDE.md` 在 root、tracked 並 push。
 
 ---
 
