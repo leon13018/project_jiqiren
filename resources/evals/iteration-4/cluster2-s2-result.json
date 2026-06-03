@@ -1,0 +1,46 @@
+{
+  "graded": [
+    {
+      "scenario_id": "2",
+      "results": [
+        {
+          "assertion": "transcript 顯示 Read reference/worktree.md（Gotcha M 段）",
+          "verdict": "pass",
+          "reasoning": "references_read 含 worktree.md 絕對路徑；answer (A) 段精準復現 Gotcha M 表 80-97 行的全部內容（git branch --contains 驗證、ExitWorktree(remove)、主 checkout 跑驗證、4a/4b、cherry-pick + diverge 陷阱 `Diverging branches can't be fast-forwarded` + `-D` 大寫理由），非憑記憶可得，確證有讀。"
+        },
+        {
+          "assertion": "給出 Gotcha M 解法鏈（ExitWorktree remove → 主 checkout 驗 → 需後續編輯則新 worktree + cherry-pick → push → branch -D）",
+          "verdict": "pass",
+          "reasoning": "answer (A) 1-4 步完整且正確：1 git branch --contains <SHA> 驗 main → 2 ExitWorktree(remove) 回主 checkout（並正確解釋 branch 空可安全 remove + 要回主 checkout 才看得到落地新檔）→ 3 主 checkout 跑 pytest/lint → 4b 新 worktree 編輯 commit ExitWorktree(keep) → cherry-pick <SHA> → push → branch -D（大寫，附 diverge 必失敗的根因與徵兆）。與 worktree.md 84-97 行逐項對齊，無錯。"
+        },
+        {
+          "assertion": "描述 worktree 5 階段或 git 收尾 5 步",
+          "verdict": "pass",
+          "reasoning": "assertion 為 or，navigator 兩者都給。worktree 5 階段：階段1 EnterWorktree、2 git add 具體檔+commit Co-Authored-By、3 審查+branch --contains、3a pineedtodo/3b code_map 條件性、4 ExitWorktree(keep)+ff-only merge+push、5 worktree remove+branch -d，並補 Windows file lock fallback——與 worktree.md 19-53 行一致。git 收尾 5 步（status/diff→pineedtodo/code_map→add→commit→push）對齊 standard-workflow.md 27-35 行。"
+        },
+        {
+          "assertion": "正確說明 sync 由 Stop hook（stop-sync-pi.ps1）在 turn 結束自動觸發、push 後不需手動跑；漏掉時下個 turn 靠 marker 自我修正重試",
+          "verdict": "pass",
+          "reasoning": "answer Pi 同步段全對：stop-sync-pi.ps1（Stop hook）turn 結束自動觸發、比對 origin/main 與 last-synced-commit.marker、落後 sync Pi（含清 __pycache__ stale .pyc）、回報 Pi synced to <sha>、push 完不需經手；漏掉下個 turn 靠 marker 自我修正補 sync；並正確說明用 Stop hook 而非 PostToolUse 的原因（background/headless 非確定性已棄用）。與 standard-workflow.md 35、39-41、45-51 行精準對齊，本輪去噪壓縮的「為何 Stop hook」歷史敘事未造成答錯。"
+        },
+        {
+          "assertion": "未被迫開第 2 層 reference 才湊齊（worktree.md 對 Gotcha M 自足）",
+          "verdict": "pass",
+          "reasoning": "forced_second_hop=false。Gotcha M 解法鏈與 4b diverge 陷阱全在 worktree.md 78-97 行自足（不需外跳）；sync 自動化全在 standard-workflow.md 自足。這兩檔皆 router 對「編寫 tracked 檔/收尾/Gotcha M/sync」的直接指向，非被迫補開的第 3 層。worktree.md 雖鏈 pi-and-structure.md，但僅針對條件性 3a/3b（pineedtodo 觸發清單/code_map 巢狀判準）細節，本場景 process cluster 核心問題未要求那層細節即已答全，故未被迫第 2 hop 成立。"
+        }
+      ],
+      "overall": "pass",
+      "weak_assertions": [
+        "assertion 3（worktree 5 階段 或 git 收尾 5 步）為 or 結構，門檻偏低：navigator 兩者全給屬超額，但單給其一即 pass，難以區分自足 vs 片段背誦。",
+        "assertion 5（未被迫開第 2 層）依賴 navigator 自報 forced_second_hop=false，grader 僅能從 answer 完整性反推、無法從 transcript 直接證明其未實際讀第 3 檔；本場景因答案確實在前兩檔自足而成立，但此 assertion 對「謊報」缺乏獨立驗證力。"
+      ],
+      "regression_risk": "none"
+    }
+  ],
+  "verdict": {
+    "regression_detected": false,
+    "cluster_self_sufficient": true,
+    "lost_load_bearing_content": [],
+    "summary": "Round3 cluster2 (worktree/standard-workflow/pi-and-structure) 去噪驗證通過，無回歸。grader 5 assertion 全 pass、overall pass、regression_risk none，且我逐項對照三份 reference 原檔核實全部成立：\n\n1. Gotcha M 解法鏈完整自足於 worktree.md 78-97 行：git branch --contains 驗證(80)、ExitWorktree(remove)切主checkout(85)、主checkout跑pytest/lint(86)、4a push/4b 新worktree+cherry-pick(87-88)、diverge陷阱`Diverging branches can't be fast-forwarded`+cherry-pick+branch -D大寫(90-97)。無外跳。\n2. worktree 5 階段(19-53，含階段2 Co-Authored-By、階段3 branch --contains、條件性3a/3b、階段4 ExitWorktree keep+ff-only+push、階段5 remove+branch -d、Windows file lock fallback)與 git 收尾 5 步(standard-workflow 27-35)皆完整。\n3. sync 自動化(standard-workflow 35/39-41)：stop-sync-pi.ps1 Stop hook turn 結束自動觸發、marker 比對 origin/main 自我修正、為何用 Stop hook 而非 PostToolUse 的根因(background/headless 非確定性已棄用)全保留——本輪壓縮的歷史敘事未傷及 load-bearing「why」。\n4. 被刪的 3 footer 屬非-hub 互指；worktree.md 對 pi-and-structure.md 的鏈接(31/33)僅指向條件性 3a/3b 細節，非核心 process 答案所需，故未被迫第 2 hop。\n\ncluster 對其核心問題（編寫 tracked 檔 / 收尾 / Gotcha M / sync 自動化）自足。grader 兩條 weak_assertions（assertion 3 的 or 結構降低門檻、assertion 5 依賴 navigator 自報 forced_second_hop）為合理的方法論觀察，僅關乎鑑別力而非正確性，不構成回歸或內容遺失。無被誤砍需補回之點。\n\n驗證檔案（絕對路徑）：\nC:\\Users\\LIN HONG\\Desktop\\Project_01\\.claude\\skills\\project-01-workflow\\reference\\worktree.md\nC:\\Users\\LIN HONG\\Desktop\\Project_01\\.claude\\skills\\project-01-workflow\\reference\\standard-workflow.md\nC:\\Users\\LIN HONG\\Desktop\\Project_01\\.claude\\skills\\project-01-workflow\\reference\\pi-and-structure.md"
+  }
+}

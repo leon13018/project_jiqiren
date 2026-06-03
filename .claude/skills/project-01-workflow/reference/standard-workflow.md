@@ -38,7 +38,7 @@
 
 ## 為何用 Stop hook 而非 PostToolUse
 
-**舊 PostToolUse `auto-sync-pi.ps1` 在 background session 觸發非 deterministic**（NOTES gotcha N，Claude Code 端行為、hook 改不掉）。已改用 **Stop hook `stop-sync-pi.ps1`**：官方確認 Stop 在所有 session 類型（含 headless/background）可靠 fire，且靠 `last-synced-commit.marker` 比對 `origin/main` 自我修正（漏掉的 sync 下個 turn 補）。push 後 sync 全自動，不需經手。
+**Stop hook `stop-sync-pi.ps1`** 在所有 session 類型（含 headless/background）可靠 fire，靠 `last-synced-commit.marker` 比對 `origin/main` 自我修正（漏掉的 sync 下個 turn 自動補）。push 後 sync 全自動、不需經手。（舊 PostToolUse `auto-sync-pi.ps1` 在 background session 非確定性 = NOTES gotcha N，已棄用。）
 
 ---
 
@@ -74,7 +74,3 @@
 - 不確定變更範圍（還在規劃）→ **先停下確認**，不要先 commit。
 - `sync_pi.ps1` 失敗 → 先診斷、提修法與使用者確認再改（腳本 gitignored，改動不進 git）。
 - SSH 傳 bash 腳本若路徑需 tilde 展開，別在 `[ -d ... ]` 雙引號內用 `~`（不展開），改 `$HOME` / 絕對路徑。
-
----
-
-**相關 reference**：[worktree.md](worktree.md) / [dispatch.md](dispatch.md) / [pi-and-structure.md](pi-and-structure.md) ｜ hook 細節 `.claude/hooks/NOTES.md`

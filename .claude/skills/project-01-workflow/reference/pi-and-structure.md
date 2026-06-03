@@ -96,7 +96,3 @@
 git log -1 --oneline main && ssh -o ConnectTimeout=5 pi@raspberrypi.local "cd /home/pi/Desktop/project_jiqiren && git log -1 --oneline"
 ```
 兩邊 SHA 對齊才往下；不同先排查 sync。**Why**：邏輯明明對卻不動，常是 Pi 沒同步到新 commit；一條指令省下深挖成本。**也適用**「之前可以的 X 現在不行」→ 比對最近 commit 是否動到 X。
-
----
-
-**相關 reference**：[worktree.md](worktree.md)（階段 3a/3b）/ [standard-workflow.md](standard-workflow.md)（1a/1b + sync）/ [CLAUDE.md](../../../../CLAUDE.md)（部署表 + 觸發大標題）
