@@ -1,7 +1,8 @@
 # Pi sync 改用 Stop hook 觸發 — 設計 spec
 
-> 日期：2026-06-03 ｜ 狀態：設計已批准，待寫 implementation plan
+> 日期：2026-06-03 ｜ 狀態：設計已批准 + 研究硬化，待寫 implementation plan
 > 觸發：使用者要求「遠端 Pi sync 目前靠手動判斷，想寫個 hook 更穩定觸發」。
+> 依據研究：`resources/research/CC_hooks_automation_best_practices_2026-06-03.md`（官方 hooks/自動化最佳實踐調研；方案 A 為官方明文推薦的「Stop hook 每 turn 掃工作樹」模式）。
 
 ## 問題
 
@@ -42,6 +43,8 @@
   exit 0  （永不輸出 decision:block——sync 是 side effect，不阻斷 turn）
   ```
 - 比對 `origin/main` 而非 `HEAD`：Pi 是 `git pull` 從 origin 拿，只該同步「已 push 上去」的 commit。本機是唯一 push 來源，故本地 `origin/main` ref 在 push 後即等於遠端。
+- **為何 exit0 無 decision、不 block**：sync 是純 side effect，沒有「要 Claude 繼續做」的語意；且官方對「連續 block 8 次無進展的 Stop hook」會強制 override（`stop_hook_active` / `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP`，見研究筆記 §7.3）。永不 block → 完全不受此 cap 影響、不可能 deadlock。
+- **官方背書**：S1 doc 明文推薦「要可靠捕捉任何方式（含透過 Bash 的 git push）造成的狀態變化 → 用 Stop hook 每 turn 掃一次工作樹」。本設計即此 pattern 的 sync 應用（研究筆記 §6.1）。
 - **可選**：實際跑了 sync 時，輸出 `{"systemMessage":"✓ Pi synced to <sha7>"}` 給使用者回饋；未 sync 時純靜默。
 
 ### 3. Sync 動作（從 auto-sync-pi.ps1 移植，DRY 到 Stop hook 內）
@@ -78,6 +81,7 @@
 | worktree session 內 push | 共用 .git，本地 origin/main 更新；Stop hook 讀 main checkout 的 ref，照常觸發 |
 | 使用者手動跑過 `& sync_pi.ps1` | marker 未更新 → 下個 turn 多一次 idempotent no-op sync（~3s，可接受） |
 | 連續多 turn 無 push | 每 turn 一個本地 rev-parse，無 SSH |
+| **turn 被 user 中斷（Ctrl-C）或 API error 結束** | Stop **不 fire**（官方：Stop 不在 user interrupt 觸發，API error 走 StopFailure）→ 該 turn 不同步；**下個正常結束的 turn 自我修正吸收**（marker 未更新就會補） |
 
 ## 連帶文檔更新
 
@@ -89,7 +93,9 @@
 1. 本地單測 Stop hook：模擬 stdin，分別測 marker==origin/main（靜默）、marker 落後（觸發 sync 並更新 marker）、marker 不存在（首次 sync）。
 2. **background session 實測**：在 background job 內 push，確認 Stop hook 真的 fire 並同步（驗證官方文檔說法、補 NOTES gotcha N 對照）。
 3. BOM 檢查：新 .ps1 頭 3 byte = `ef bb bf`。
-4. 端到端：改一個小檔 → commit → push → 確認 turn 結束 Pi `git log -1` 前進到新 commit、pycache 已清。
+4. `/hooks` menu 確認 stop-sync 註冊在 Stop 事件下；改完 settings.json 重啟 session 保險（file watcher 通常自動 reload，但重啟確定）。
+5. 端到端：改一個小檔 → commit → push → 確認 turn 結束 Pi `git log -1` 前進到新 commit、pycache 已清。
+6. timeout/async 確認：stop-sync **不設** `timeout`（command hook 預設 600s 充足）、**不設** `async`（同步才能在 sync 成功後可靠寫 marker）。
 
 ## 不做（YAGNI）
 
