@@ -18,7 +18,7 @@ Agent({
 ## Prompt 範本（主 agent 複製 + 填空後派發）
 
 ```
-你審查 sales-coder commit 的 code quality（已過 spec compliance，現純從工程品質看）。寧可慢不要錯、仔細逐項審查。
+你審查 sales-coder commit 的 code quality（已過 spec compliance，現純從工程品質看）。
 
 ## 改動範圍
 `git diff <BASE>..<HEAD> --stat` / `git diff <BASE>..<HEAD>` / `git log <BASE>..<HEAD> --oneline`

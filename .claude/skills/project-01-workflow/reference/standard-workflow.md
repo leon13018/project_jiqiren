@@ -12,7 +12,7 @@
 
 本檔定義 git 收尾**內核**（status → add → commit → push → sync），會內嵌在 [worktree.md](worktree.md) 階段 2/4。差別只在「誰寫」（subagent vs 主 agent）。
 
-> **核心心態**：很多輪只是聊天 / 查資料 / 討論，沒動檔 → 沒東西可 commit，跑 git/sync 是空操作。**先 `git status`，乾淨就不做收尾。**
+> **先 `git status`，乾淨就不做收尾**（沒改檔的輪次不必跑收尾）。
 
 ---
 
@@ -39,8 +39,6 @@
 ## Background session 雙保險（為何步驟 5 永遠手動）
 
 **Claude Code background job session 內 PostToolUse hook 觸發非 deterministic——有時跑有時不跑，視為不可依賴**（同一 background session 內多次 push，hook 可能只觸發其中一次）。統一規則「**永遠手動跑**」省得判斷 session 類型（idempotent no-op、~3s）。
-
-（判斷 session 類型：system context 含 `# Background Session` + `$CLAUDE_JOB_DIR` → background；否則 live。僅供理解 hook 為何有時不觸發，不影響「永遠手動」規則。）
 
 ---
 

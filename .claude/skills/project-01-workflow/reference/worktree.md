@@ -8,9 +8,9 @@
 - Subagent 視野範圍速查
 - Gotcha M：subagent commit 落 main 的完整處理
 
-每次編寫 / 修改 tracked 檔（不論派 subagent 或主 agent 自己改純文件）**主 agent 必須先 EnterWorktree**，提供隔離環境、避免污染主 checkout 與平行任務。改 gitignored 檔則不需進 worktree（worktree 看不到該檔）。
+每次編寫 / 修改 tracked 檔（不論派 subagent 或主 agent 自己改純文件）**主 agent 必須先 EnterWorktree**。改 gitignored 檔則不需進 worktree（worktree 看不到該檔）。
 
-> **Why**：worktree 隔離保護主 checkout、subagent 在內 commit、主 agent 審查 → 失敗可丟、成功 `--ff-only` merge 保留線性歷史。GitHub 只見 main 一條，worktree branch 是本地暫存。
+> worktree branch 是本地暫存（GitHub 只見 main 一條）：失敗可丟、成功 `--ff-only` merge 回 main。
 
 ---
 
@@ -45,7 +45,7 @@ git push origin main
 git worktree remove .claude/worktrees/<name>
 git branch -d worktree-<name>
 ```
-`--ff-only` 後兩 branch 同 commit、無資訊損失，故預設刪（例外：merge 失敗 → 保留以便調查）。
+預設刪（例外：merge 失敗 → 保留以便調查）。
 **Windows file lock fallback**（pytest 後殘留 `__pycache__`/`.pytest_cache` 偶 lock `.pyc`，`git worktree remove --force` 報 Permission denied）：
 ```powershell
 Remove-Item -Recurse -Force "C:\path\to\worktree" -ErrorAction SilentlyContinue

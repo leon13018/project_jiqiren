@@ -29,8 +29,6 @@
 
 ## §pineedtodo 規範（寫新檔前必讀）
 
-> **Why**：per-task Pi 端操作說明書歷史紀錄，append-only，命名一致 + 結構統一才查閱友好。
-
 **檔名**：`resources/pineedtodo/<YYYY-MM-DD>_<short_name>.md`
 - `<YYYY-MM-DD>` = 該輪 commit 日期（台灣時區）。
 - `<short_name>` = 英數+底線描述（`TTS` / `camera_install` / `whisper_debug`）；**不強制 `_setup` 後綴**；同日多輪用更具體名區隔。
