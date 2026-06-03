@@ -1052,8 +1052,8 @@ def test_l2_b1_reset_on_known_intent() -> None:
 
 # ============================================================
 # L2-B-2-001
-# Scenario (2026-05-31 重寫：對齊 L4 service mode 12s confirm pattern)：
-# L2 main loop 客服 → 12s confirm gate → YES → 回 L2 主迴圈
+# Scenario (2026-05-31 重寫：對齊 L4 service mode confirm pattern)：
+# L2 main loop 客服 → confirm gate → YES → 回 L2 主迴圈
 # Given L2 等待顧客回應中（cart 空）
 # When 顧客輸入命中客服關鍵字（如「客服」）+ confirm 內 YES
 # Then 終端印 SERVICE_PHONE + speak L4_C_CONFIRM_PROMPT_TEMPLATE
@@ -1131,8 +1131,8 @@ def test_l2_b2_service_keyword_silent_exits_l1() -> None:
 
 
 # ============================================================
-# L2-B-3-客服（2026-05-31 重寫：對齊 L4 service mode 12s confirm pattern）
-### Scenario: L2 想一下沉默期內顧客講「客服」 → 12s confirm gate
+# L2-B-3-客服（2026-05-31 重寫：對齊 L4 service mode confirm pattern）
+### Scenario: L2 想一下沉默期內顧客講「客服」 → confirm gate
 ### Given L2 顧客「想一下」進沉默期（think_count=1）
 ### When 沉默期內顧客回「客服」+ confirm 內回 YES
 ### Then 印 SERVICE_PHONE + speak L4_C_CONFIRM_PROMPT_TEMPLATE
@@ -1503,9 +1503,9 @@ def test_l2_c_qty_followup_gibberish_speaks_clarify_then_uses_next_quantity() ->
 
 
 def test_l2_c_qty_followup_service_intent_enters_confirm_yes_respeaks_qty_prompt() -> None:
-    """2026-05-31 重寫：qty 追問內客服 → 12s confirm gate → YES → re-speak QTY_PROMPT → 繼續追問。
+    """2026-05-31 重寫：qty 追問內客服 → confirm gate → YES → re-speak QTY_PROMPT → 繼續追問。
 
-    對齊 L4 / L2 / L3 main loop 客服 12s confirm pattern（commit 92fedb6）。
+    對齊 L4 / L2 / L3 main loop 客服 confirm pattern（commit 92fedb6）。
     YES 後重 speak 的是 QTY_PROMPT_TEMPLATE（鏈路初始提示），不是 QTY_CLARIFY_TEMPLATE
     （後者是「亂答 clarify」非「鏈路初始」）。
     """
@@ -2142,7 +2142,7 @@ def test_l3_b1_unclear_max_final_confirmation_timeout_cancels() -> None:
 
 
 # ============================================================
-# L3-B-1-005（2026-05-31 重寫：對齊 L4 service mode 12s confirm pattern）
+# L3-B-1-005（2026-05-31 重寫：對齊 L4 service mode confirm pattern）
 ### Scenario: B-1 累積後命中已知意圖 → unclear_count reset（confirm YES 路徑）
 ### Given L3 等待中，已 B-1 兩次
 ### When 顧客說「客服」（已知意圖）+ confirm 內 YES
@@ -2193,8 +2193,8 @@ def test_l3_b1_reset_on_known_intent() -> None:
 
 
 # ============================================================
-# L3-B-4-客服（2026-05-31 重寫：對齊 L4 service mode 12s confirm pattern）
-### Scenario: L3 想一下沉默期內顧客講「客服」 → 12s confirm gate
+# L3-B-4-客服（2026-05-31 重寫：對齊 L4 service mode confirm pattern）
+### Scenario: L3 想一下沉默期內顧客講「客服」 → confirm gate
 ### Given L3 顧客已加單，「想一下」進沉默期（think_count=1）
 ### When 沉默期內顧客回「客服」+ confirm 內 YES
 ### Then 印 SERVICE_PHONE + speak L4_C_CONFIRM_PROMPT_TEMPLATE
@@ -2308,8 +2308,8 @@ def test_l3_b1_final_confirmation_gibberish_then_timeout() -> None:
 
 
 # ============================================================
-# L3-B-2-001（2026-05-31 重寫：對齊 L4 service mode 12s confirm pattern）
-### Scenario: L3 main loop 客服 → 12s confirm gate → YES → 回 L3 主迴圈
+# L3-B-2-001（2026-05-31 重寫：對齊 L4 service mode confirm pattern）
+### Scenario: L3 main loop 客服 → confirm gate → YES → 回 L3 主迴圈
 ### Given L3 等待中，cart 含商品
 ### When 顧客輸入命中客服關鍵字（如「客服」）+ confirm 內 YES
 ### Then 終端印 SERVICE_PHONE + speak L4_C_CONFIRM_PROMPT_TEMPLATE
@@ -2933,7 +2933,7 @@ def test_l3_c2_second_stage_timeout_goes_l4() -> None:
 # L3-C-2-003
 ### Scenario: C-2 嚴格 yes/no 子狀態 — 商品輸入視為 gibberish 忽略
 ### Given L3 處於 C-2 子狀態（已播警告語音 + yes/no 提示）
-### When 12s 倒數內顧客輸入「冰紅茶」（非 yes/no 詞）
+### When 倒數內顧客輸入「冰紅茶」（非 yes/no 詞）
 ### Then 商品輸入被忽略（不加 cart），倒數繼續，最終 timeout → L4
 ### Note 2026-05-26 改：原規格 C-2 dispatch 商品加 B-3 違反嚴格 yes/no；改成只認 yes/no
 # ============================================================
@@ -2975,7 +2975,7 @@ def test_l3_c2_second_stage_product_reruns_dispatch_to_b3() -> None:
 # L3-C-2-004
 ### Scenario: C-2 嚴格 yes/no 子狀態 — NO 詞（含 strict reject）→ 取消訂單回 DnC
 ### Given L3 處於 C-2 子狀態（已播警告語音 + yes/no 提示），cart 含商品
-### When 12s 倒數內顧客輸入「我不要了」（含「不要」即 CONFIRM_NO 詞）
+### When 倒數內顧客輸入「我不要了」（含「不要」即 CONFIRM_NO 詞）
 ### Then 取消訂單：清 cart + speak L3_CHECKOUT_REJECT_CLEAR_NOTICE → post-C2 loop → 退 L1
 ### Note 2026-05-26 改：原規格 strict reject 走 L3_REJECT_THANKS exit_a 路徑；
 ###      新嚴格 yes/no 子狀態下統一視為 cancel order（含 strict reject）
@@ -3301,7 +3301,7 @@ def test_l3_prio_l4_service_words_in_l3_falls_through_to_b1() -> None:
 ### Then 計算總額（依 PRODUCTS 實際價）= 234 元，
 ###      終端印金額明細（商品明細 + 總金額 + 掃碼提示），
 ###      系統 speak「您的總金額是 234 元，請您掃碼付款」，
-###      啟動 L4_TOTAL_BUDGET（30s）wall-clock budget
+###      啟動 L4_TOTAL_BUDGET（36s）wall-clock budget
 ###      （2026-05-30 重構：移除 loop_count/unclear_count 機制 → 單一 budget）
 # ============================================================
 
@@ -4137,7 +4137,7 @@ def test_l4_c_service_input_s_treated_as_continue_then_scan() -> None:
 
 # ============================================================
 # L4-C-007（重寫版，2026-05-30 二次重構）
-# Scenario: 客服模式不命中 → speak L4_UNCLEAR_NOTICE + 不重置 12s budget + 保持子狀態
+# Scenario: 客服模式不命中 → speak L4_UNCLEAR_NOTICE + 不重置 confirm budget + 保持子狀態
 # Given L4 客服模式 confirm 子狀態等待中
 # When 顧客輸入「你好」（不命中 YES / NO / s 任一）
 # Then speak L4_UNCLEAR_NOTICE 一次（不重置 budget）；後續仍可輸入 YES/NO/s
@@ -4176,14 +4176,14 @@ def test_l4_c_service_unrecognized_input_speaks_unclear_notice_and_stays() -> No
 
 # ============================================================
 # L4-C-008（新增，2026-05-30 二次重構）
-# Scenario: 客服 confirm 子狀態獨立 12s budget，不共用主 L4 budget
+# Scenario: 客服 confirm 子狀態獨立 confirm budget，不共用主 L4 budget
 # Given L4 主 budget 已快耗盡（fake_monotonic 控制）
 # When 顧客「客服」→ 進客服 confirm；客服內讀 input timeout 倒回
-# Then 客服 confirm 用獨立 L4_C_CONFIRM_TIMEOUT=12s budget，不受主 budget 已耗盡影響
+# Then 客服 confirm 用獨立 L4_C_CONFIRM_TIMEOUT=24s budget，不受主 budget 已耗盡影響
 # ============================================================
 
 def test_l4_c_service_uses_independent_confirm_budget() -> None:
-    """客服 confirm 用獨立 L4_C_CONFIRM_TIMEOUT=12s budget。
+    """客服 confirm 用獨立 L4_C_CONFIRM_TIMEOUT=24s budget。
 
     fake_monotonic 安排：前 N 次 monotonic.now 回 0.0（主 + 客服 deadline 在 budget 內），
     確保客服階段「繼續」YES 路徑能正常走完；之後切到「budget 耗盡」讓主迴圈 forced exit。
@@ -4235,9 +4235,9 @@ def test_l4_c_service_uses_independent_confirm_budget() -> None:
 # L4-C-RESUME-001（新增，2026-05-31 Pi demo fix）
 # Scenario: 客服模式講「繼續」YES → 回 L4 主迴圈重印明細 + 重 speak entry prompt + reset budget
 # Given L4 等掃碼，顧客進客服模式
-# When 顧客在客服 12s confirm 內講 YES keyword（如「繼續」）
-# Then L4 主迴圈：重印金額明細 + 重 speak L4_ENTRY_PROMPT_TEMPLATE + budget reset 30s
-#      後續 30s 內顧客仍有 fresh time 完成掃碼，不會被 stale budget 卡住
+# When 顧客在客服 confirm 內講 YES keyword（如「繼續」）
+# Then L4 主迴圈：重印金額明細 + 重 speak L4_ENTRY_PROMPT_TEMPLATE + budget reset 36s
+#      後續 36s 內顧客仍有 fresh time 完成掃碼，不會被 stale budget 卡住
 # Note 2026-05-31 加：修 Pi demo「繼續後鏈路不知道跑去哪邊」UX bug
 # ============================================================
 
@@ -4282,7 +4282,7 @@ def test_l4_service_mode_continue_yes_reprints_entry_and_resets_budget() -> None
     )
     # 後續 "s" 掃碼成功 → L5（驗 budget reset，沒被 stale budget 卡死）
     assert next_state == "L5", (
-        f"客服繼續 → 重 speak entry → 30s 內 s 應進 L5，實際：{next_state!r}"
+        f"客服繼續 → 重 speak entry → 36s 內 s 應進 L5，實際：{next_state!r}"
     )
 
 
@@ -5334,7 +5334,7 @@ def test_l4_normal_scan_within_budget_succeeds() -> None:
 
 # ============================================================
 # L4 重構簡化版新行為 regression tests（2026-05-30 加）
-# - 30s budget 耗盡 forced exit
+# - 36s budget 耗盡 forced exit
 # - 12s 沒回應重 speak L4_REMIND_PROMPT（不重置 budget）
 # - 亂輸入印 L4_UNCLEAR_NOTICE 不重置 budget
 # - 客服模式共用主 budget remaining（移除獨立 60s timeout）
@@ -5344,10 +5344,10 @@ def test_l4_normal_scan_within_budget_succeeds() -> None:
 def test_l4_silence_full_budget_forces_exit_clears_cart() -> None:
     """L4 全程沒回應 → budget 耗盡 → forced exit + clear cart + 退 L1。
 
-    新設計：每 12s 重 prompt → 達到 30s budget → _l4_exit_d_forced。
+    新設計：每 12s 重 prompt → 達到 36s budget → _l4_exit_d_forced。
     對應規格：「budget 耗盡 → forced exit（speak L4_D_FORCED_EXIT + clear cart）」。
 
-    用 fake_monotonic 跳過真實等待（避免測試跑 30 秒）：第 1 次回 0.0 設定 deadline，
+    用 fake_monotonic 跳過真實等待（避免測試跑 36 秒）：第 1 次回 0.0 設定 deadline，
     第 2 次回 budget+1 → 預算耗盡 → forced exit。
     """
     from unittest.mock import patch
@@ -5479,7 +5479,7 @@ def test_l4_unclear_input_speaks_unclear_notice_not_reset_budget() -> None:
 
 # RETIRED (2026-05-30 二次重構)：
 #   test_l4_service_mode_shares_main_budget_no_independent_timeout
-# 退場理由：新設計客服模式改為**獨立 L4_C_CONFIRM_TIMEOUT=12s budget**
+# 退場理由：新設計客服模式改為**獨立 L4_C_CONFIRM_TIMEOUT=24s budget**
 # （非共用主 L4 budget remaining），舊行為已不成立。
 # 新行為 cover：test_l4_c_service_uses_independent_confirm_budget（見上方 L4-C-008）。
 
