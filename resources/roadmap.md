@@ -541,5 +541,3 @@ User 安裝 `superpowers@claude-plugins-official` 後要求 reverse-engineer →
 **狀態：** 待辦（綁定 S2 階段重建 TTS）
 
 ---
-
-**相關 memory：** [[project-deployment]] / [[vendor-files]]
