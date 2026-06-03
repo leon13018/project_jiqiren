@@ -27,11 +27,11 @@
 | `block-git-add-bulk.ps1` | PreToolUse | Bash | 擋 `git add -A` / `--all` / `.` | 低（命中精準）|
 | `block-windows-install.ps1` | PreToolUse | Bash\|PowerShell | 擋本機 `pip` / `npm` / `apt` install（pytest 例外）| 低 |
 | `block-vendor-edit.ps1` | PreToolUse | Edit\|Write | 擋廠商 SDK 檔（ActionGroupControl/Board.py）| 低 |
-| `auto-sync-pi.ps1` | PostToolUse (async, 120s) | Bash | `git push origin main` 後自動跑 sync_pi.ps1 | 中（log 偶寫 ERROR 但功能正常，見 §6）|
 | `state-mark-sales-dirty.ps1` | PostToolUse | Edit\|Write | 編 sales/* 時寫 flag | 低 |
 | `state-clear-on-pytest.ps1` | PostToolUse | Bash | pytest 跑過清 flag | 低 |
 | `check-traditional-chinese.ps1` | PostToolUse | Edit\|Write | 掃剛寫入檔的常見簡體字 → 純警示（不擋）| 低 |
 | `stop-check-sales-pytest.ps1` | Stop | (無 matcher) | 結束 turn 前若 flag pending → block 一次 | 中（block 體驗略生硬）|
+| `stop-sync-pi.ps1` | Stop | (無 matcher) | 每 turn 結束比對 origin/main vs marker，落後則 sync Pi + 清 pycache，成功寫 marker | 中（同步阻塞 turn end ~3s，僅落後時）|
 | `session-start-context.ps1` | SessionStart | (無 matcher, 全 source) | 注入 branch/status/test count 到 Claude context | 低 |
 | `subagent-inject-rules.ps1` | SubagentStart | (無 matcher) | 自動注入標準規範到 subagent context，依 agent_type 分流（編碼類完整 / 研究類精簡）| 低 |
 
@@ -42,10 +42,10 @@ PreToolUse:
   Bash|PowerShell → block-windows-install
   Edit|Write → block-vendor-edit
 PostToolUse:
-  Bash → [auto-sync-pi (async), state-clear-on-pytest]
+  Bash → [state-clear-on-pytest]
   Edit|Write → [state-mark-sales-dirty, check-traditional-chinese]
 Stop:
-  → stop-check-sales-pytest
+  → [stop-check-sales-pytest, stop-sync-pi]
 SessionStart:
   → session-start-context
 SubagentStart:
@@ -83,6 +83,10 @@ state-clear-on-pytest    stop-check-sales-pytest
 - **block 只一次**（pending → reminded 轉換）：避免無限循環（若 Claude 真的不能/不想跑 pytest，e.g. 純 docstring 修改）
 - **下次編 sales/* 自動 reset 回 pending**：再編就再次提醒（合理）
 - **任何 pytest 跑（PASS or FAIL）都清 flag**：Claude 自行從 pytest output 判斷後續
+
+### 同架構的第二個 flag：`last-synced-commit.marker`（stop-sync-pi）
+
+`stop-sync-pi.ps1` 用同屬 `state/` 的 `last-synced-commit.marker` 存「上次成功 sync 到 Pi 的 `origin/main` SHA」。每 turn 結束：`git rev-parse origin/main` vs marker，相同→零 SSH 早退；落後→跑 `sync_pi.ps1` + 清 pycache，**成功才把 marker 更新成新 SHA**。失敗不更新 → 下個 turn 自動重試（自我修正）。與 sales-dirty 同為「state/ flag 檔協作」家族，但更簡單（單向 marker、無 pending/reminded 狀態機、永不 block）。marker 用 no-BOM UTF-8 寫入（`WriteAllText`+`UTF8Encoding $false`），避免 SHA 比對受 BOM 干擾。
 
 ---
 
@@ -373,6 +377,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 - **下次 reproduce 時：** 派發 prompt 第一步要求 subagent 回報 `pwd && git branch --show-current && git rev-parse --git-dir`，跟預期值比對；若不符即停手回報主 agent
 
 ### N. Background job session 內 PostToolUse hook 非 deterministic ⚠️ Claude Code 端行為
+> **✅ 2026-06-03 已繞過**：sync 改用 **Stop hook（`stop-sync-pi.ps1`）** 觸發——官方確認 Stop 在所有 session 類型（含 headless/background）可靠 fire（非同步 PostToolUse 的非確定性是該事件特有，Stop 不受影響）。`auto-sync-pi.ps1` 已移除。本 gotcha 保留作歷史 + 設計決策背景（見 `resources/specs/pi_sync_stop_hook_2026-06-03_spec.md` / `resources/research/CC_hooks_automation_best_practices_2026-06-03.md`）。
 **症狀：** Claude Code background job 模式（`$CLAUDE_JOB_DIR` env var 存在 / system context 含「Background Session」段）內，PostToolUse hook **觸發行為非 deterministic — 有時跑有時不跑，原因未明，視為不可依賴**。具體影響：`git push origin main` 後 auto-sync-pi.ps1 可能沒被 Claude Code 觸發 → Pi 沒同步 → user demo 跑舊版 code。
 **踩到時間：** 2026-05-27 S3 同步動作落地 push commit `16a90bd` 後，使用者 Pi 上 `git log -1` 看到 HEAD 仍是 `028ac3f`（前一輪 commit）。檢查 `auto-sync-pi.log` 發現該 push 沒進 log（最後 entry 是上一輪 live session 結束 push）。手動 invoke hook script 跑得起來 → 確認 hook script 本身沒壞。
 **Finding refine（同日後續觀察）：** 原以為「完全不觸發」，但同一個 background session 內後續 push 行為不一致：
