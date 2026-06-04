@@ -48,3 +48,5 @@
 | A（×2） | **照單執行**（A-1、A-2） |
 | B（×5） | 逐項裁決後 **B-1～B-5 全部執行**（B-3 選 ≤10 行非折衷 ≤5；B-5 選跳 spec-reviewer、保 code-quality-reviewer） |
 | C（×7） | **確認留觀察**，觸發訊號如 §C |
+
+**執行紀錄（2026-06-04）**：A-1（rm log，gitignored）+ A-2/B-1～B-5 已於 worktree `scaffolding-slimming` 執行完畢，commits `09c3b41`/`9d6ec7c`/`4d844ec`/`1999afb` ff-merge 入 main。驗證：CLAUDE.md 行數全合規（root 55、子層 7-8）、舊門檻引用清零（含順手修正 sdd.md:49 Mini 版同步 ≤10 行）、`pytest tests/sales/` 386 passed（hook 快照 344 為 `def test_` 函式數，pytest 含參數化展開，無 failure）。B-1 實況為 4 檔非 Agent ② 報的 7 檔。
