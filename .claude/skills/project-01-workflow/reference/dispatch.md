@@ -37,7 +37,7 @@
 | 中小以上 | **必派 sales-coder**，不論檔案類型 |
 | **超級小** | 主 agent 直接 patch，但**必先** invoke `andrej-karpathy-skills:karpathy-guidelines` |
 
-**「超級小」（須同時滿足）**：≤ 3 行（不含 docstring/comment）｜單一檔案｜純值替換 / typo / const 微調｜無新增 function/class/簽名變動｜無 cross-file propagation。
+**「超級小」（須同時滿足）**：≤ 10 行（不含 docstring/comment）｜單一檔案｜純值 / 字串 / 條件微調 / typo｜無新增 function/class/簽名變動｜無 cross-file propagation。
 
 灰色地帶（const 多處 / 多檔同步 typo / docstring 大段重寫）→ **派 sales-coder**。規模判斷**向保守傾斜**，不確定就派。
 

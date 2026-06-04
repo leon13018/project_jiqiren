@@ -102,7 +102,11 @@
   → git worktree remove + git branch -d worktree-<name>（push 後 Stop hook 自動 sync Pi）
 ```
 
-**何時跳過三段迴圈**：Mini spec（≤3 行）→ 主 agent 自 patch + Iron Law，不派 subagent。Meta-task（rules/agents/memory 等非 myProgram code）→ 主 agent 自實作。
+**何時跳過 / 簡化三段迴圈**：
+- 超級小（dispatch.md 門檻：≤10 行純值 / 字串 / 條件微調）→ 主 agent 自 patch + Iron Law，不派 subagent。
+- 小改動（≤10 行但不符自 patch 條件，如含邏輯分支）→ 派 sales-coder 後**跳 spec-reviewer**（主 agent 自驗 spec 對照），code-quality-reviewer 照跑。
+- Meta-task（rules/agents/memory 等非 myProgram code）→ 主 agent 自實作。
+- 中大改動三段不變。
 
 ---
 

@@ -1,14 +1,21 @@
-# Worktree 工作流程（編寫 tracked 檔時必用）
+# Worktree 工作流程（code / 設定類 tracked 檔必用）
 
-> **🎯 何時讀本檔**：本輪要編寫 / 修改**任何 tracked 檔**（動手前先 EnterWorktree），或要做收尾 ff-merge / cleanup / 處理 commit 落 main（Gotcha M）。
+> **🎯 何時讀本檔**：本輪要編寫 / 修改 worktree 強制範圍的 tracked 檔（分層表見下），或要做收尾 ff-merge / cleanup / 處理 commit 落 main（Gotcha M）。
 
 ## 目錄
+- 觸發分層
 - 5 階段流程（含條件性 3a/3b）
 - 例外狀況 A/B/C
 - Subagent 視野範圍速查
 - Gotcha M：subagent commit 落 main 的完整處理
 
-每次編寫 / 修改 tracked 檔（不論派 subagent 或主 agent 自己改純文件）**主 agent 必須先 EnterWorktree**。改 gitignored 檔則不需進 worktree（worktree 看不到該檔）。
+## 觸發分層
+
+| 改動範圍 | 規則 |
+|---|---|
+| `myProgram/`、`tests/`、`.claude/`（hooks / agents / skills / settings） | **必先 EnterWorktree**（5 階段） |
+| `resources/` 純文件**新增**與**小修** | 可直接 main（`git add` 明列 + 收尾 5 步照走；大規模多檔重構 / 刪除仍進 worktree） |
+| gitignored 檔 | 不進 worktree（worktree 看不到該檔） |
 
 > worktree branch 是本地暫存（GitHub 只見 main 一條）：失敗可丟、成功 `--ff-only` merge 回 main。
 
