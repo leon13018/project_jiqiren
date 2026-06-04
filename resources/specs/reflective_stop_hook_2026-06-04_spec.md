@@ -78,7 +78,7 @@ reflect-worker.ps1（背景）
 ## 7. 邊界 case
 
 - **claude CLI 不存在 / 呼叫失敗 / timeout**：worker try/catch → log → 釋放 lock → 靜默結束；session 零感知。
-- **worktree session**：proposals.md / state 一律錨定**主 checkout**（`git rev-parse --git-common-dir` 上溯主 root），避免 worktree 寫入分裂副本。
+- **worktree session**：proposals.md / state 一律錨定**主 checkout**（依既有 hook 慣例寫死 `$mainCheckout` 常數，同 stop-sync-pi），避免 worktree 寫入分裂副本。
 - **resume / compact**：additionalContext 在 resume 會 stale replay（調研 §5.4）→ 未讀提示靠「每次 Stop 重算 pending 數」自然刷新，不依賴舊注入。
 - **user 中斷 / API error**：Stop 不 fire（主筆記 §7.1）→ 該輪反思自然跳過，下輪補（turn-count 不丟）。
 - **transcript 過大 / 格式變動**：T2 解析失敗 → log 後當作無素材跳過，不得拋錯。
