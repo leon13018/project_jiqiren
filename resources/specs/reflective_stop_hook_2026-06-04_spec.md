@@ -103,6 +103,6 @@ reflect-worker.ps1（背景）
 ## 10. 實作與收尾規範
 
 - 全部 hook 檔改動屬 `.claude/` → **強制 worktree 5 階段**；Meta-task（非 myProgram code）→ 主 agent 自實作（sdd.md 既有例外）。
-- PS1 慣例跟既有 hook：`-NoProfile`、絕對路徑經 `$PSScriptRoot` / `CLAUDE_PROJECT_DIR`、try/catch + log、UTF-8 no-BOM。
+- PS1 慣例跟既有 hook：`-NoProfile`、絕對路徑、try/catch + log、**UTF-8 with BOM**（實測修正：PS 5.1 對無 BOM 的繁中 .ps1 以 cp936 解析必爆 parse error；完整踩坑清單見 NOTES.md §12）。
 - 完工同步：NOTES.md 新增本 hook 行為段（事件 / 觸發 / 上限 / 旗標）；settings.json 經 `/hooks` review 生效；繁中註解。
 - 預設參數集中 PS1 頂部常數：`X=8`、`SESSION_CAP=10`、`REFLECT_MODEL='claude-haiku-4-5-20251001'`、`DIFF_CAP_FILES=30`、`DIFF_CAP_LINES=400`、`PROPOSAL_MAX=3`。
