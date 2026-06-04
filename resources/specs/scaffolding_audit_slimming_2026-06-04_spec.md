@@ -14,7 +14,7 @@
 
 | 優先 | 類別 | 內容 | 尺 |
 |---|---|---|---|
-| 高 | 機制 / 流程門檻 | 9 支 hook script + settings.json + NOTES.md；SDD 三段 reviewer / worktree 5 階段 / dispatch 門檻 / Iron Law 等機制本身 | 機制尺 |
+| 高 | 機制 / 流程門檻 | 10 支 hook script + settings.json + NOTES.md；SDD 三段 reviewer / worktree 5 階段 / dispatch 門檻 / Iron Law 等機制本身 | 機制尺 |
 | 高 | 恆載文字層 | CLAUDE.md ×8 + code_map ×8 | 訊號密度尺 |
 | 中 | memory ×4 + 跨類重複 | 同一規則跨層出現、權威版定位 | 訊號密度尺 |
 | 低 | skill refs 字句層 | 剛經 round-3 denoise，只輕量複核**不重掃** | — |
@@ -38,7 +38,7 @@
 
 | # | 盤什麼 | 校準筆記（prompt 內指定必讀） |
 |---|---|---|
-| ① | settings.json + 9 hooks + NOTES.md：死狀態檔、重複邏輯、為舊 model 行為而建的攔截、log 堆積 | `CC_hooks_automation_best_practices_2026-06-03.md`、`CC-hooks.md` |
+| ① | settings.json + 10 hooks + NOTES.md：死狀態檔、重複邏輯、為舊 model 行為而建的攔截、log 堆積 | `CC_hooks_automation_best_practices_2026-06-03.md`、`CC-hooks.md` |
 | ② | CLAUDE.md ×8 + code_map ×8：跨層重複、壞 pointer、model 本來就會做對的叮嚀、行數超標 | `CC_large_codebases_best_practices_2026-06-01.md`、`large_codebases_official_guide_2026-06-02.md` |
 | ③ | skill 流程門檻（SDD 三段 reviewer / worktree 5 階段 / dispatch 門檻 / Iron Law；字句層不重掃） | `skills_best_practices_research_2026-06-03.md`、`SDD_best_practices_2026-05-31.md` |
 | ④ | memory ×4 輕掃 + 跨類重複偵測 | `memory_official_guide_2026-06-02.md` |
