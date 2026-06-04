@@ -46,7 +46,7 @@
 **No Placeholders（禁寫）**：「TBD / TODO / implement later」「Add appropriate error handling（無具體 code）」「Write tests for the above（無實際 test）」「Similar to Step N（要 repeat code）」。
 **例外**：不回填舊 spec 的 plan.md（成本高收益低）；只對新 spec 強制拆。
 
-### Mini 版（≤ 3 行單檔純值替換 / typo / 單一 const tweak）— 5 行單檔不拆 plan
+### Mini 版（≤ 10 行單檔純值 / 字串 / 條件微調，同 dispatch.md 自 patch 門檻）— 不拆 plan
 ```markdown
 # <task_name> — Mini SDD spec
 - **檔**：`<file_path>:<line>`
