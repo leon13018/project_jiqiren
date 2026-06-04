@@ -555,4 +555,27 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 ---
 
+## 12. stop-reflect（反思型 Stop hook，手搓版）
+
+- 事件：Stop（與 stop-check / stop-sync 並行，互不依賴）。exit 0 always、永不 block。
+- 觸發：T1 = 本 turn 有 git 變動（status 非空或 HEAD ≠ last-reflected marker）→ 素材 = diff（cap 400 行）；
+  T2 = 連續 8 輪無反思 → 素材 = transcript 尾段（30 條 / 8KB cap）。
+- 引擎：Start-Process 拋背景 `reflect-worker.ps1` → `claude -p`（Haiku、fresh context、prompt 經 stdin 餵入、禁工具指示）→
+  提議 append `resources/reflections/proposals.md`（gitignored）；**只提議、絕不自動寫入規範檔**。
+- 防迴圈：`CLAUDE_REFLECT_CHILD=1` 旗標（stop-reflect + stop-sync + stop-check 三支開頭早退）+
+  worker cwd 移出專案（專案 hooks 不載入，雙保險）｜session 呼叫上限 10｜**語意去重**（既有 slug 清單餵進
+  prompt，事後字串比對保底）｜lock 防並發（10 分鐘殭屍自清）。
+- 未讀提示：proposals pending 數增加時，下一次 Stop 輸出 systemMessage + additionalContext（實測結果：<驗證後回填：支援/被忽略>）。
+- state：`.claude/hooks/state/reflect/`；log：`.claude/hooks/reflect.log`（皆 gitignored）。
+- 關閉方式：settings.json 移除該 Stop 群組；或暫時把 `stop-reflect.ps1` 頂部 `$SESSION_CAP` 設 0。
+- **實作踩坑（手搓記錄，未來寫 hook 必讀）**：
+  1. PS1 含繁中必須 **UTF-8 with BOM**——PS 5.1 對無 BOM 檔以 cp936 解析，多位元組序列會吞掉引號造成 parse error。
+  2. Start-Job 子 host 要自設 `[Console]::OutputEncoding=UTF8`，否則 claude stdout 繁中變亂碼（與主腳本各自獨立）。
+  3. **絕不可用 `Select-String -Path` 讀無 BOM UTF-8 檔**（cp936 誤解碼，全形字元匹配必失敗）——一律 `[System.IO.File]::ReadAllText(..., UTF8)`。
+  4. 精確 slug 去重攔不住「同義異名」——必須把既有主題清單餵進評審 prompt 做語意去重。
+  5. prompt 走 stdin 餵 `claude -p`：免 3s stdin 偵測等待、免 Windows 命令列長度上限、免引號轉義。
+- spec / plan：`resources/specs|plans/reflective_stop_hook_2026-06-04_*.md`。
+
+---
+
 **Maintainer note：** 本檔是 hooks 系統的 single source of truth，所有 hook 設計 / 變動 / 移除前都應該先查這檔再動手。若官方文檔升級或新 events 出現，請更新 §3 / §5。

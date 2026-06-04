@@ -78,6 +78,15 @@
             "args": ["-NoProfile", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/stop-sync-pi.ps1"]
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell",
+            "args": ["-NoProfile", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/stop-reflect.ps1"]
+          }
+        ]
       }
     ],
     "SessionStart": [
