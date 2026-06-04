@@ -559,15 +559,17 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 - 事件：Stop（與 stop-check / stop-sync 並行，互不依賴）。exit 0 always、永不 block。
 - 觸發：T1 = 本 turn 有 git 變動（status 非空或 HEAD ≠ last-reflected marker）→ 素材 = diff（cap 400 行）；
-  T2 = 連續 8 輪無反思 → 素材 = transcript 尾段（30 條 / 8KB cap）。
+  T2 = 連續 20 輪無反思 → 素材 = transcript 尾段（30 條 / 8KB cap）。
 - 引擎：Start-Process 拋背景 `reflect-worker.ps1` → `claude -p`（Haiku、fresh context、prompt 經 stdin 餵入、禁工具指示）→
   提議 append `resources/reflections/proposals.md`（gitignored）；**只提議、絕不自動寫入規範檔**。
 - 防迴圈：`CLAUDE_REFLECT_CHILD=1` 旗標（stop-reflect + stop-sync + stop-check 三支開頭早退）+
-  worker cwd 移出專案（專案 hooks 不載入，雙保險）｜session 呼叫上限 10｜**語意去重**（既有 slug 清單餵進
+  worker cwd 移出專案（專案 hooks 不載入，雙保險）｜每日呼叫保險絲 100（`daily-calls_<yyyyMMdd>.txt`，
+  按日重置、7 天自清；正常用不到，防自動化長跑暴走）｜**語意去重**（既有 slug 清單餵進
   prompt，事後字串比對保底）｜lock 防並發（10 分鐘殭屍自清）。
-- 未讀提示：proposals pending 數增加時，下一次 Stop 輸出 systemMessage + additionalContext（實測結果：<驗證後回填：支援/被忽略>）。
+- 未讀提示：proposals pending 數增加時，下一次 Stop 輸出 systemMessage + additionalContext（實測結果：<驗證後回填：支援/被忽略>）；
+  人工清理 proposals 使 pending 回落 → 計數自動 sync-down（否則下一條新提議的提示會被吞）。
 - state：`.claude/hooks/state/reflect/`；log：`.claude/hooks/reflect.log`（皆 gitignored）。
-- 關閉方式：settings.json 移除該 Stop 群組；或暫時把 `stop-reflect.ps1` 頂部 `$SESSION_CAP` 設 0。
+- 關閉方式：settings.json 移除該 Stop 群組；或暫時把 `stop-reflect.ps1` 頂部 `$DAILY_CAP` 設 0。
 - **實作踩坑（手搓記錄，未來寫 hook 必讀）**：
   1. PS1 含繁中必須 **UTF-8 with BOM**——PS 5.1 對無 BOM 檔以 cp936 解析，多位元組序列會吞掉引號造成 parse error。
   2. Start-Job 子 host 要自設 `[Console]::OutputEncoding=UTF8`，否則 claude stdout 繁中變亂碼（與主腳本各自獨立）。
@@ -575,6 +577,8 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
   4. 精確 slug 去重攔不住「同義異名」——必須把既有主題清單餵進評審 prompt 做語意去重。
   5. prompt 走 stdin 餵 `claude -p`：免 3s stdin 偵測等待、免 Windows 命令列長度上限、免引號轉義。
   6. `Start-Process -ArgumentList` **不自動加引號**——本機路徑含空白（`LIN HONG`），每個路徑參數必須 `('"{0}"' -f $path)` 手動包，否則子行程無聲死亡、lock 不釋放。
+  7. **hook 讀 stdin 用 UTF-8 StreamReader**（`[Console]::OpenStandardInput()` + UTF8，自動去 BOM）——`[Console]::In` 受 console code page（cp936）影響，live 環境曾因此 JSON 解析失敗、session_id 變 unknown；解析失敗時記診斷 log（len + 前 80 字）以便確診。
+  8. **計數鍵不可依賴 stdin 解析出的值**——解析失敗會默默 fallback（如 unknown）導致計數語意全變（永不重置）；計數鍵用本地可靠來源（日期）。
 - spec / plan：`resources/specs|plans/reflective_stop_hook_2026-06-04_*.md`。
 
 ---

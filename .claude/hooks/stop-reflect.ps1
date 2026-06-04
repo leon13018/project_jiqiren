@@ -6,7 +6,7 @@
 # 設計：exit 0 always、永不 decision:block（同 stop-sync-pi，不受 8-block cap 影響）。
 # 觸發：T1 = 本 turn 有 git 變動（status 非空 或 HEAD ≠ last-reflected marker）→ 素材 = diff
 #       T2 = 距上次反思已 $TURN_INTERVAL 輪 → 素材 = transcript 尾段
-# 防迴圈：CLAUDE_REFLECT_CHILD 旗標（claude -p 子行程早退）｜session 呼叫上限｜worker 端 slug 去重。
+# 防迴圈：CLAUDE_REFLECT_CHILD 旗標（claude -p 子行程早退）｜每日呼叫保險絲｜worker 端 slug 去重。
 #
 # 輸入：stdin JSON（session_id / transcript_path）。
 # 輸出：有未讀提議時 systemMessage + additionalContext 一行提示；其餘無輸出。
@@ -20,8 +20,8 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 if ($env:CLAUDE_REFLECT_CHILD -eq '1') { exit 0 }
 
 # ── 常數（調整處集中此區）──
-$TURN_INTERVAL  = 8      # T2：每 8 輪無變動也統整一次
-$SESSION_CAP    = 10     # 每 session 模型呼叫上限
+$TURN_INTERVAL  = 20     # T2：每 20 輪無變動也統整一次
+$DAILY_CAP      = 100    # 每日模型呼叫保險絲（正常用不到，防自動化長跑暴走）
 $DIFF_CAP_LINES = 400    # T1 素材 diff 行數上限
 $LOCK_ZOMBIE_MIN = 10    # lock 超過 10 分鐘視為殭屍
 
@@ -31,7 +31,10 @@ $proposals  = Join-Path $mainCheckout 'resources/reflections/proposals.md'
 $workerPath = Join-Path $mainCheckout '.claude/hooks/reflect-worker.ps1'
 
 try {
-    $stdinRaw = [Console]::In.ReadToEnd()
+    # 用 UTF-8 StreamReader 直讀 stdin（自動去 BOM）；[Console]::In 受 console code page（cp936）影響，
+    # live 環境曾因此解析不到 session_id（NOTES §12 踩坑 #7）
+    $reader = New-Object System.IO.StreamReader([Console]::OpenStandardInput(), [System.Text.Encoding]::UTF8)
+    $stdinRaw = $reader.ReadToEnd()
     $evt = $null
     try { $evt = $stdinRaw | ConvertFrom-Json } catch {}
     $sessionId = 'unknown'
@@ -40,6 +43,14 @@ try {
     if ($evt -and $evt.transcript_path) { $transcriptPath = [string]$evt.transcript_path }
 
     if (-not (Test-Path $stateDir)) { New-Item -ItemType Directory -Force $stateDir | Out-Null }
+
+    # 解析不到 session_id → 記診斷（截前 80 字），下次發生可直接確診
+    if ($sessionId -eq 'unknown') {
+        $san = ($stdinRaw -replace '\s+', ' ')
+        if ($san.Length -gt 80) { $san = $san.Substring(0, 80) }
+        Add-Content -Path (Join-Path $mainCheckout '.claude/hooks/reflect.log') -Encoding UTF8 -ErrorAction SilentlyContinue `
+            -Value ('[{0}] 診斷：stdin 解析不到 session_id（len={1}）：{2}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $stdinRaw.Length, $san)
+    }
 
     # ── 未讀提議提示（每次 Stop 重算，天然防 resume stale）──
     $hint = $null
@@ -53,6 +64,10 @@ try {
             $hint = ('🪞 反思提議 +{0} 條待審（共 {1} 條 pending，見 resources/reflections/proposals.md）' -f $delta, $pending)
             [System.IO.File]::WriteAllText($notifiedFile, [string]$pending, [System.Text.UTF8Encoding]::new($false))
         }
+        elseif ($pending -lt $lastNotified) {
+            # 人工清理 / 改 status 後計數回落 → 同步下修，否則下一條新提議的提示會被吞
+            [System.IO.File]::WriteAllText($notifiedFile, [string]$pending, [System.Text.UTF8Encoding]::new($false))
+        }
     }
 
     # ── lock / 上限檢查（不過 → 只發提示就走）──
@@ -63,10 +78,13 @@ try {
         if ($age.TotalMinutes -gt $LOCK_ZOMBIE_MIN) { Remove-Item $lockFile -Force -ErrorAction SilentlyContinue }
         else { $skipReflect = $true }
     }
-    $callsFile = Join-Path $stateDir ('session-calls_' + ($sessionId -replace '[^\w-]','') + '.txt')
+    # 每日保險絲（按日重置；session_id 只作診斷用，不當計數鍵——live 曾解析失敗成 unknown 導致永不重置）
+    $callsFile = Join-Path $stateDir ('daily-calls_' + (Get-Date -Format 'yyyyMMdd') + '.txt')
+    Get-ChildItem $stateDir -Filter 'daily-calls_*.txt' -ErrorAction SilentlyContinue |
+        Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-7) } | Remove-Item -Force -ErrorAction SilentlyContinue
     $calls = 0
     if (Test-Path $callsFile) { $calls = [int](Get-Content $callsFile -ErrorAction SilentlyContinue | Select-Object -First 1) }
-    if ($calls -ge $SESSION_CAP) { $skipReflect = $true }
+    if ($calls -ge $DAILY_CAP) { $skipReflect = $true }
 
     # ── 觸發判斷 ──
     $trigger = ''

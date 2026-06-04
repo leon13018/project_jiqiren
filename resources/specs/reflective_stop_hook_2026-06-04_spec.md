@@ -4,6 +4,7 @@
 > 依據：`resources/research/self_improving_hooks_research_2026-06-04.md`（官方 security-guidance 三層藍本、prompt/agent 選型樹、防迴圈判準、反噬警告）＋ `CC_hooks_automation_best_practices_2026-06-03.md`（Stop hook 機制基本面）。
 > 學習目標：**不裝現成 plugin**，依官方公開資訊手搓同形架構；完工後再逆向比對官方 plugin 找差距。
 > 後續：plan → `resources/plans/reflective_stop_hook_2026-06-04_plan.md`。
+> **修訂 2026-06-04（上線後修理輪）**：T2 間隔 8→20 輪；session 上限 10 → 每日保險絲 100（live 環境 stdin 解析失敗使 session 鍵不可靠）；stdin 改 UTF-8 StreamReader 讀取；新增提示計數 sync-down。細節與踩坑 → NOTES.md §12。
 
 ## 1. 目標
 
@@ -25,7 +26,7 @@
 |---|---|---|
 | `.claude/hooks/stop-reflect.ps1` | Stop hook 本體（輕）：守衛 → 觸發判斷 → 收集素材 → 拋背景 worker → 未讀提議一行提示 | tracked |
 | `.claude/hooks/reflect-worker.ps1` | 背景行程：組 prompt → 呼 `claude -p` → 解析 → 去重 → append 提議檔 → 更新狀態 → log | tracked |
-| `.claude/hooks/state/reflect/` | 狀態：`turn-count.txt`、`session-calls_<session_id>.txt`、`lock`、`last-notified.txt` | gitignored（state/ 既有 ignore） |
+| `.claude/hooks/state/reflect/` | 狀態：`turn-count.txt`、`daily-calls_<yyyyMMdd>.txt`、`lock`、`last-notified.txt`、`last-reflected-commit.txt` | gitignored（state/ 既有 ignore） |
 | `resources/reflections/proposals.md` | 提議檔（append-only；採納後人工清理） | **gitignored**（高頻變動，避免工作樹常駐 dirty 干擾收尾觸發） |
 | `.claude/hooks/reflect.log` | worker 日誌（debug 用） | gitignored（`*.log` 既有 ignore） |
 | `.claude/settings.json` | Stop 事件加掛 `stop-reflect.ps1`（與既有 stop-check / stop-sync 並行，互不依賴） | tracked |
@@ -43,7 +44,7 @@ turn 結束 → Stop fire → stop-reflect.ps1
      T1 變動觸發：git status --porcelain 非空 **或** HEAD ≠ 上次反思 marker（本專案 turn 內常已 commit，
                   純 status 會漏）→ 素材 = 未提交 diff + marker..HEAD 範圍 diff（cap：30 檔 / 400 行，
                   超出截斷並註記）；反思後更新 marker（state：`last-reflected-commit.txt`）
-     T2 定期統整：turn-count ≥ X（預設 8）→ 素材 = transcript 尾段（stdin 的 transcript_path，
+     T2 定期統整：turn-count ≥ X（預設 20）→ 素材 = transcript 尾段（stdin 的 transcript_path，
                   取最後 ~30 條 user/assistant 訊息、cap ~8KB；轉純文字）
      （T1 命中時優先 T1；任一觸發後 turn-count 歸零，否則 +1）
   [拋背景] 建 lock → Start-Process pwsh -NoProfile reflect-worker.ps1（detached，帶素材暫存檔路徑、
@@ -62,7 +63,7 @@ reflect-worker.ps1（背景）
 ## 5. 防迴圈 / 防噪音三件套
 
 1. **遞迴守衛**：`claude -p` 子行程會跑專案 hooks → worker 設 `CLAUDE_REFLECT_CHILD=1`；`stop-reflect.ps1` **與 `stop-sync-pi.ps1`、`stop-check-sales-pytest.ps1`** 開頭都加旗標早退（子 session 不 sync、不 block、不再反思）。
-2. **session 上限**：每 session 模型呼叫 ≤ **10** 次（state 檔按 session_id 計）；達標後本 session 只做未讀提示。
+2. **每日保險絲**：每日模型呼叫 ≤ **100** 次（state 檔按日期計，按日重置、7 天自清）；達標後當日只做未讀提示。正常使用碰不到，只防自動化長跑暴走。（原設計「每 session 10 次」因 live stdin 解析失敗使 session 鍵不可靠而改。）
 3. **主題去重**：模型輸出必附 `topic-slug`（kebab-case），與 proposals.md 既有 slug 比對，重複即棄（仿第 1 層「每 pattern/session fire 一次」）。
 
 補充：lock 檔防並發（前一 worker 未完成則本輪跳過反思）；lock 帶時間戳，> 10 分鐘視為殭屍自動清除。
@@ -105,4 +106,4 @@ reflect-worker.ps1（背景）
 - 全部 hook 檔改動屬 `.claude/` → **強制 worktree 5 階段**；Meta-task（非 myProgram code）→ 主 agent 自實作（sdd.md 既有例外）。
 - PS1 慣例跟既有 hook：`-NoProfile`、絕對路徑、try/catch + log、**UTF-8 with BOM**（實測修正：PS 5.1 對無 BOM 的繁中 .ps1 以 cp936 解析必爆 parse error；完整踩坑清單見 NOTES.md §12）。
 - 完工同步：NOTES.md 新增本 hook 行為段（事件 / 觸發 / 上限 / 旗標）；settings.json 經 `/hooks` review 生效；繁中註解。
-- 預設參數集中 PS1 頂部常數：`X=8`、`SESSION_CAP=10`、`REFLECT_MODEL='claude-haiku-4-5-20251001'`、`DIFF_CAP_FILES=30`、`DIFF_CAP_LINES=400`、`PROPOSAL_MAX=3`。
+- 預設參數集中 PS1 頂部常數：`TURN_INTERVAL=20`、`DAILY_CAP=100`、`REFLECT_MODEL='claude-haiku-4-5-20251001'`、`DIFF_CAP_LINES=400`、`PROPOSAL_MAX=3`（worker）。
