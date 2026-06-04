@@ -1,7 +1,6 @@
 # myProgram/vendor/ — code_map（本層索引，葉層）
 
-> 本層索引：只列 `myProgram/vendor/` 直接子項目，一行一項。顆粒：細。
-> 🔒 廠商 Hiwonder TonyPi SDK，禁改、只能 `import`。
+> 顆粒：細。🔒 廠商 Hiwonder TonyPi SDK，禁改、只能 `import`。
 
 ## 子目錄
 - `.claude/` — 本層 CC 配置（`code_map.md` 本檔）。

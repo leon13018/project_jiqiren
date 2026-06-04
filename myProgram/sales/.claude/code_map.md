@@ -1,7 +1,6 @@
 # myProgram/sales/ — code_map（本層索引）
 
-> 本層索引：只列 `myProgram/sales/` 直接子項目，一行一項。顆粒：細。
-> 下沉：深入任何子目錄 → 讀 `<子目錄>/.claude/code_map.md`（不存在則以本層說明為準）。
+> 顆粒：細。
 
 ## 子目錄
 - `states/` — L0–L5 各層對話狀態 + 跨層流程子模組（`_cancel_confirm` / `_service_confirm` / `_l2_l3_qty_followup`）。

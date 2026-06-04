@@ -1,6 +1,6 @@
 # myProgram/sales/states/ — code_map（本層索引，葉層）
 
-> 本層索引：只列 `myProgram/sales/states/` 直接子項目，一行一項。顆粒：最細。
+> 顆粒：最細。
 
 ## 子目錄
 - `.claude/` — 本層 CC 配置（`code_map.md` 本檔）。

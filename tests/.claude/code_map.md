@@ -1,7 +1,6 @@
 # tests/ — code_map（本層索引）
 
-> 本層索引：只列 `tests/` 直接子項目，一行一項。顆粒：中。
-> 下沉：深入任何子目錄 → 讀 `<子目錄>/.claude/code_map.md`（不存在則以本層說明為準）。
+> 顆粒：中。
 
 ## 子目錄
 - `sales/` — sales 業務邏輯的 pytest 回歸網（對應 `myProgram/sales/`，數百個測試；改 sales prod code 必跑）。
