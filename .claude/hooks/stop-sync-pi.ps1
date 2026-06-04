@@ -17,6 +17,9 @@ $ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
+# 反思 hook 的 claude -p 子行程守衛（見 stop-reflect.ps1）：子 session 不 sync
+if ($env:CLAUDE_REFLECT_CHILD -eq '1') { exit 0 }
+
 try {
     # drain stdin（Stop hook 不需內容，但要讀掉避免 broken pipe）
     $null = [Console]::In.ReadToEnd()

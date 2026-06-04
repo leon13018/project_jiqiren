@@ -21,6 +21,9 @@ $ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
+# 反思 hook 的 claude -p 子行程守衛（見 stop-reflect.ps1）：子 session 不 block
+if ($env:CLAUDE_REFLECT_CHILD -eq '1') { exit 0 }
+
 $mainCheckout = 'C:/Users/LIN HONG/Desktop/Project_01'
 $flagFile = Join-Path $mainCheckout '.claude/hooks/state/sales-dirty.flag'
 
