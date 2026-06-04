@@ -4,5 +4,5 @@
 
 廠商 Hiwonder TonyPi SDK。
 
-- 🔒 `ActionGroupControl.py` / `Board.py` **禁改、只能 `Read` / `import`**——權威紅線見 root `CLAUDE.md` ⛔#1（PreToolUse hook 強制擋，不靠自律）。
+- 🔒 權威紅線見 root `CLAUDE.md` ⛔#1（PreToolUse hook 強制擋）。
 - 局部細節（為何禁改）：兩檔含 Pi-only 依賴（`pigpio` / `RPi.GPIO` / `BusServoCmd` / `PWMServo` / `smbus2`），改動破壞硬體通訊。SDK API 用法見 `project-01-workflow` skill 的 `myprogram-vendor.md`。
