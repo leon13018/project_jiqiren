@@ -574,6 +574,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
   3. **絕不可用 `Select-String -Path` 讀無 BOM UTF-8 檔**（cp936 誤解碼，全形字元匹配必失敗）——一律 `[System.IO.File]::ReadAllText(..., UTF8)`。
   4. 精確 slug 去重攔不住「同義異名」——必須把既有主題清單餵進評審 prompt 做語意去重。
   5. prompt 走 stdin 餵 `claude -p`：免 3s stdin 偵測等待、免 Windows 命令列長度上限、免引號轉義。
+  6. `Start-Process -ArgumentList` **不自動加引號**——本機路徑含空白（`LIN HONG`），每個路徑參數必須 `('"{0}"' -f $path)` 手動包，否則子行程無聲死亡、lock 不釋放。
 - spec / plan：`resources/specs|plans/reflective_stop_hook_2026-06-04_*.md`。
 
 ---
