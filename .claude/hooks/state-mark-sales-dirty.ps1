@@ -10,7 +10,9 @@
 
 $ErrorActionPreference = 'Continue'
 
-$rawInput = [Console]::In.ReadToEnd()
+# 用 UTF-8 StreamReader 直讀 stdin（[Console]::In 受 console code page 影響；NOTES §12 踩坑 #7）
+$reader = New-Object System.IO.StreamReader([Console]::OpenStandardInput(), [System.Text.Encoding]::UTF8)
+$rawInput = $reader.ReadToEnd()
 if ([string]::IsNullOrWhiteSpace($rawInput)) {
     exit 0
 }

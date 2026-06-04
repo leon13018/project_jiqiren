@@ -22,7 +22,7 @@ if ($env:CLAUDE_REFLECT_CHILD -eq '1') { exit 0 }
 
 try {
     # drain stdin（Stop hook 不需內容，但要讀掉避免 broken pipe）
-    $null = [Console]::In.ReadToEnd()
+    $null = (New-Object System.IO.StreamReader([Console]::OpenStandardInput(), [System.Text.Encoding]::UTF8)).ReadToEnd()
 
     $mainCheckout = 'C:/Users/LIN HONG/Desktop/Project_01'
     $markerFile = Join-Path $mainCheckout '.claude/hooks/state/last-synced-commit.marker'
