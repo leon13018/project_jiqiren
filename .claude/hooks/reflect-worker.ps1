@@ -82,21 +82,29 @@ BODY: <≤3 行繁體中文，說清楚踩了什麼、建議固化什麼>
         $env:CLAUDE_REFLECT_CHILD = '1'
         $OutputEncoding = [System.Text.UTF8Encoding]::new($false)            # 餵 stdin 給 claude 用 UTF-8
         [Console]::OutputEncoding = [System.Text.Encoding]::UTF8             # 解碼 claude stdout（job host 預設 cp936 → 繁中變亂碼）
-        $p | & claude -p --model $m 2>&1 | Out-String
+        $out = $p | & claude -p --model $m 2>&1 | Out-String
+        # 帶回 exit code：claude 失敗時錯誤文字也是非空輸出（2>&1 併流），單看輸出會誤判成功
+        [pscustomobject]@{ Out = $out; Code = $LASTEXITCODE }
     } -ArgumentList $prompt, $REFLECT_MODEL
     if (-not (Wait-Job $job -Timeout $CALL_TIMEOUT_S)) {
         Stop-Job $job -ErrorAction SilentlyContinue
         Write-Log ('claude -p 逾時（>{0}s），放棄本次' -f $CALL_TIMEOUT_S)
         exit 0
     }
-    $output = (Receive-Job $job | Out-String).Trim()
+    $res = Receive-Job $job
     Remove-Job $job -Force -ErrorAction SilentlyContinue
     Pop-Location
+    $output = ([string]$res.Out).Trim()
 
     if (-not $output) { Write-Log 'claude -p 無輸出'; exit 0 }
+    if ($res.Code -ne 0) {
+        # exit≠0（auth / rate limit / 無效 model…）→ 視同失敗；$res.Code 為 null 也走這裡（fail-safe）
+        Write-Log ('claude -p 失敗（exit {0}）：{1}' -f $res.Code, $output.Substring(0, [Math]::Min(120, $output.Length)))
+        exit 0
+    }
 
     # claude 已成功回應（含 NONE / 解析不出內容）→ 本輪素材視為已審，前移 marker。
-    # 失敗路徑（CLI 不存在 / 逾時 / 無輸出 / 例外）不會走到這裡 → marker 不動 → 下輪 T1 重審（spec 改動1）
+    # 失敗路徑（CLI 不存在 / 逾時 / 無輸出 / exit≠0 / 例外）不會走到這裡 → marker 不動 → 下輪 T1 重審（spec 改動1）
     if ($MarkerSha) {
         [System.IO.File]::WriteAllText((Join-Path $stateDir 'last-reflected-commit.txt'), $MarkerSha, [System.Text.UTF8Encoding]::new($false))
     }

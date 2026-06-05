@@ -584,6 +584,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
   7. **hook 讀 stdin 用 UTF-8 StreamReader**（`[Console]::OpenStandardInput()` + UTF8，自動去 BOM）——`[Console]::In` 受 console code page（cp936）影響，live 環境曾因此 JSON 解析失敗、session_id 變 unknown；解析失敗時記診斷 log（len + 前 80 字）以便確診。
   8. **計數鍵不可依賴 stdin 解析出的值**——解析失敗會默默 fallback（如 unknown）導致計數語意全變（永不重置）；計數鍵用本地可靠來源（日期）。
   9. **hook 與其 worker 改參數介面必須原子合併**——新版 hook 傳新參數給舊版 worker，param 綁定失敗 → 無聲死亡、lock 不釋放（同 #6 症狀、不同根因）。worktree 內 e2e 必跨版本（hook 跑 worktree 副本、worker 路徑錨定主 checkout）→ 派發鏈驗證只能 merge 後在真實 turn 做。
+  10. **背景 job 呼 CLI 判成敗必須帶回 `$LASTEXITCODE`**——`2>&1` 併流後錯誤文字也是非空輸出，「輸出非空 = 成功」會把 auth / rate-limit / 無效 model 錯誤當成功（marker 誤前移）。job 內 `[pscustomobject]@{ Out=...; Code=$LASTEXITCODE }` 一起回傳。
 - spec / plan：`resources/specs|plans/reflective_stop_hook_2026-06-04_*.md`、`reflect_hardening_2026-06-05_*.md`。
 
 ---
