@@ -30,6 +30,12 @@ $stateDir   = Join-Path $mainCheckout '.claude/hooks/state/reflect'
 $proposals  = Join-Path $mainCheckout 'resources/reflections/proposals.md'
 $workerPath = Join-Path $mainCheckout '.claude/hooks/reflect-worker.ps1'
 
+# ── log 輪轉：>1MB 改名 .1（覆蓋舊 .1；仿官方 security-guidance _base.py 1MB rotate）──
+$logFile = Join-Path $mainCheckout '.claude/hooks/reflect.log'
+if ((Test-Path $logFile) -and ((Get-Item $logFile -ErrorAction SilentlyContinue).Length -gt 1MB)) {
+    Move-Item $logFile ($logFile + '.1') -Force -ErrorAction SilentlyContinue
+}
+
 try {
     # 用 UTF-8 StreamReader 直讀 stdin（自動去 BOM）；[Console]::In 受 console code page（cp936）影響，
     # live 環境曾因此解析不到 session_id（NOTES §12 踩坑 #7）

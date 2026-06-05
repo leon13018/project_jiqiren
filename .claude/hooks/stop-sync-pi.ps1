@@ -27,6 +27,10 @@ try {
     $mainCheckout = 'C:/Users/LIN HONG/Desktop/Project_01'
     $markerFile = Join-Path $mainCheckout '.claude/hooks/state/last-synced-commit.marker'
     $logFile    = Join-Path $mainCheckout '.claude/hooks/stop-sync-pi.log'
+    # log 輪轉：>1MB 改名 .1（覆蓋舊 .1）
+    if ((Test-Path $logFile) -and ((Get-Item $logFile -ErrorAction SilentlyContinue).Length -gt 1MB)) {
+        Move-Item $logFile ($logFile + '.1') -Force -ErrorAction SilentlyContinue
+    }
     $syncScript = Join-Path $mainCheckout 'sync_pi.ps1'
 
     # 當前已 push 到遠端的 commit（push 後本地 origin/main remote-tracking ref 即更新；worktree 共用 ref store）

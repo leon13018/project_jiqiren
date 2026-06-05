@@ -1,6 +1,7 @@
 .claude/settings.local.json
 .claude/worktrees/
 .claude/hooks/*.log
+.claude/hooks/*.log.1
 .claude/hooks/state/
 sync_pi.ps1
 resources/presentation/
