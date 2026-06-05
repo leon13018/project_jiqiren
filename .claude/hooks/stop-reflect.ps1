@@ -101,7 +101,8 @@ try {
 
     if (-not $skipReflect) {
         # T1：本 turn 有 git 變動？
-        $statusOut = (& git -C $mainCheckout status --porcelain 2>$null)
+        # quotePath=false：中文檔名輸出原始 UTF-8 而非八進位轉義（評審模型才看得懂；仿官方 gitutil.py）
+        $statusOut = (& git -C $mainCheckout -c core.quotePath=false status --porcelain 2>$null)
         $head = (& git -C $mainCheckout rev-parse HEAD 2>$null)
         $markerFile = Join-Path $stateDir 'last-reflected-commit.txt'
         $marker = ''
@@ -114,11 +115,11 @@ try {
             $parts += ($statusOut | Out-String)
             if ($marker -and $head -ne $marker) {
                 $parts += ('## 本輪已提交範圍 {0}..{1}' -f $marker.Substring(0,7), $head.Substring(0,7))
-                $parts += ((& git -C $mainCheckout diff "$marker..$head" 2>$null) | Select-Object -First $DIFF_CAP_LINES | Out-String)
+                $parts += ((& git -C $mainCheckout -c core.quotePath=false diff "$marker..$head" 2>$null) | Select-Object -First $DIFF_CAP_LINES | Out-String)
             }
             if ($statusOut) {
                 $parts += '## 未提交 diff'
-                $parts += ((& git -C $mainCheckout diff 2>$null) | Select-Object -First $DIFF_CAP_LINES | Out-String)
+                $parts += ((& git -C $mainCheckout -c core.quotePath=false diff 2>$null) | Select-Object -First $DIFF_CAP_LINES | Out-String)
             }
             [System.IO.File]::WriteAllText($materialFile, ($parts -join "`n"), [System.Text.UTF8Encoding]::new($false))
             if ($head) { [System.IO.File]::WriteAllText($markerFile, $head, [System.Text.UTF8Encoding]::new($false)) }
