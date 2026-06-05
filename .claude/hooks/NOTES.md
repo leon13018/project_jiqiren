@@ -558,17 +558,19 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 ## 12. stop-reflect（反思型 Stop hook，手搓版）
 
 - 事件：Stop（與 stop-check / stop-sync 並行，互不依賴）。exit 0 always、永不 block。
-- 觸發：T1 = 本 turn 有 git 變動（status 非空或 HEAD ≠ last-reflected marker）→ 素材 = diff（cap 400 行）；
+- 觸發：T1 = 本 turn 有 git 變動（status 非空或 HEAD ≠ last-reflected marker）→ 素材 = diff（cap 400 行、
+  `-c core.quotePath=false` 保中文檔名原始 UTF-8）；
   T2 = 連續 20 輪無反思 → 素材 = transcript 尾段（30 條 / 8KB cap）。
 - 引擎：Start-Process 拋背景 `reflect-worker.ps1` → `claude -p`（Haiku、fresh context、prompt 經 stdin 餵入、禁工具指示）→
   提議 append `resources/reflections/proposals.md`（gitignored）；**只提議、絕不自動寫入規範檔**。
+  marker 由 worker **成功後**前移（claude 失敗 / 逾時不前移 → 下輪 T1 重審同素材，素材不丟）。
 - 防迴圈：`CLAUDE_REFLECT_CHILD=1` 旗標（stop-reflect + stop-sync + stop-check 三支開頭早退）+
   worker cwd 移出專案（專案 hooks 不載入，雙保險）｜每日呼叫保險絲 100（`daily-calls_<yyyyMMdd>.txt`，
   按日重置、7 天自清；正常用不到，防自動化長跑暴走）｜**語意去重**（既有 slug 清單餵進
   prompt，事後字串比對保底）｜lock 防並發（10 分鐘殭屍自清）。
 - 未讀提示：proposals pending 數增加時，下一次 Stop 輸出 systemMessage + additionalContext（實測結果：<驗證後回填：支援/被忽略>）；
   人工清理 proposals 使 pending 回落 → 計數自動 sync-down（否則下一條新提議的提示會被吞）。
-- state：`.claude/hooks/state/reflect/`；log：`.claude/hooks/reflect.log`（皆 gitignored）。
+- state：`.claude/hooks/state/reflect/`；log：`.claude/hooks/reflect.log`（>1MB 輪轉成 `.1`；stop-sync-pi.log 同）（皆 gitignored）。
 - 關閉方式：settings.json 移除該 Stop 群組；或暫時把 `stop-reflect.ps1` 頂部 `$DAILY_CAP` 設 0。
 - **實作踩坑（手搓記錄，未來寫 hook 必讀）**：
   1. PS1 含繁中必須 **UTF-8 with BOM**——PS 5.1 對無 BOM 檔以 cp936 解析，多位元組序列會吞掉引號造成 parse error。
@@ -579,7 +581,8 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
   6. `Start-Process -ArgumentList` **不自動加引號**——本機路徑含空白（`LIN HONG`），每個路徑參數必須 `('"{0}"' -f $path)` 手動包，否則子行程無聲死亡、lock 不釋放。
   7. **hook 讀 stdin 用 UTF-8 StreamReader**（`[Console]::OpenStandardInput()` + UTF8，自動去 BOM）——`[Console]::In` 受 console code page（cp936）影響，live 環境曾因此 JSON 解析失敗、session_id 變 unknown；解析失敗時記診斷 log（len + 前 80 字）以便確診。
   8. **計數鍵不可依賴 stdin 解析出的值**——解析失敗會默默 fallback（如 unknown）導致計數語意全變（永不重置）；計數鍵用本地可靠來源（日期）。
-- spec / plan：`resources/specs|plans/reflective_stop_hook_2026-06-04_*.md`。
+  9. **hook 與其 worker 改參數介面必須原子合併**——新版 hook 傳新參數給舊版 worker，param 綁定失敗 → 無聲死亡、lock 不釋放（同 #6 症狀、不同根因）。worktree 內 e2e 必跨版本（hook 跑 worktree 副本、worker 路徑錨定主 checkout）→ 派發鏈驗證只能 merge 後在真實 turn 做。
+- spec / plan：`resources/specs|plans/reflective_stop_hook_2026-06-04_*.md`、`reflect_hardening_2026-06-05_*.md`。
 
 ---
 
