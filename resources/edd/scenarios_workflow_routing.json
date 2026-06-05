@@ -1,0 +1,60 @@
+{
+  "topic": "project-01-workflow 路由與協議判斷回歸",
+  "scenarios": [
+    {
+      "id": "s1-sales-bugfix",
+      "task": "使用者回報 myProgram/sales/order.py 的數量計算在顧客改單時會算錯，初步估計要改約 30 行邏輯並補測試。請決定完整工作流程。",
+      "asserts": [
+        "判斷必須先 EnterWorktree（myProgram/ 屬強制 worktree 範圍）",
+        "判斷必走 SDD（spec/plan → sales-coder → reviewer → Iron Law）",
+        "30 行超過 ≤10 行自 patch 門檻，應派 sales-coder 而非主 agent 自改"
+      ]
+    },
+    {
+      "id": "s2-research-note",
+      "task": "你剛完成一輪網路調研，要把結果寫成一份新的 markdown 筆記放進 resources/research/。請決定完整工作流程。",
+      "asserts": [
+        "判斷 resources/ 純文件新增可直接在 main 工作，不必進 worktree",
+        "判斷不需走 SDD",
+        "git add 必須明列檔名（禁 -A / .）"
+      ]
+    },
+    {
+      "id": "s3-hook-edit",
+      "task": "需要把 .claude/hooks/stop-reflect.ps1 的 TURN_INTERVAL 常數從 20 改成 30。請決定完整工作流程。",
+      "asserts": [
+        "判斷 .claude/ 改動必須先 EnterWorktree",
+        "判斷這是 meta-task，由主 agent 自實作而非派 sales-coder",
+        "知道 hook 的 .ps1 檔必須維持 UTF-8 with BOM"
+      ]
+    },
+    {
+      "id": "s4-gotcha-m",
+      "task": "你派的 subagent 回報完成並給了 commit SHA，但 git branch --contains <SHA> 顯示該 commit 落在 main 而不是 worktree branch。請決定接下來怎麼處理。",
+      "asserts": [
+        "識別這是 Gotcha M（subagent commit 落 main 的已知偶發 bug）",
+        "主 agent 後續需編輯時，要用 cherry-pick 而非 ff-merge（diverge 陷阱）",
+        "清理 worktree branch 要用大寫 -D（因未被 ff-merge）"
+      ]
+    },
+    {
+      "id": "s5-sales-bugfix-sonnet",
+      "model": "sonnet",
+      "task": "使用者回報 myProgram/sales/order.py 的數量計算在顧客改單時會算錯，初步估計要改約 30 行邏輯並補測試。請決定完整工作流程。",
+      "asserts": [
+        "判斷必須先 EnterWorktree（myProgram/ 屬強制 worktree 範圍）",
+        "判斷必走 SDD（spec/plan → sales-coder → reviewer → Iron Law）",
+        "30 行超過 ≤10 行自 patch 門檻，應派 sales-coder 而非主 agent 自改"
+      ]
+    },
+    {
+      "id": "s6-pi-dependency",
+      "task": "sales 新功能需要在 Raspberry Pi 上安裝一個新的 pip 套件才能運作。請決定完整工作流程。",
+      "asserts": [
+        "判斷絕不在 Windows 本機 pip install（紅線 ⛔#2）",
+        "判斷應寫 resources/pineedtodo/<YYYY-MM-DD>_<short_name>.md 由使用者在 Pi 上執行",
+        "知道 pineedtodo 由主 agent 集中撰寫（subagent 只在回報列需求）"
+      ]
+    }
+  ]
+}
