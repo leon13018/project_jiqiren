@@ -8,9 +8,27 @@ export const meta = {
   ],
 }
 
-// 場景由主 agent 讀 resources/edd/ 場景檔後以 args 傳入（workflow 腳本無檔案存取）
-if (!args || !Array.isArray(args.scenarios) || args.scenarios.length === 0) {
-  throw new Error('缺 args.scenarios。用法：讀 resources/edd/scenarios_<topic>.json 後以 args:{scenarios:[{id, model?, task, asserts:[...]}]} 觸發本 workflow。')
+// 場景由主 agent 讀 resources/edd/ 場景檔後以 args 傳入（workflow 腳本無檔案存取）。
+// args 可能以 JSON 字串抵達（Workflow tool 已知陷阱）→ 字串就 parse，兩種都吃。
+let input = args
+if (typeof input === 'string') {
+  try { input = JSON.parse(input) } catch (e) { input = null }
+}
+const scenarios = (input && Array.isArray(input.scenarios)) ? input.scenarios : null
+if (!scenarios || scenarios.length === 0) {
+  throw new Error('缺 args.scenarios。用法：讀 resources/evals/ 下場景檔後以 args:{scenarios:[{id, model?, task, asserts:[...]}]} 觸發本 workflow。')
+}
+
+// 欄位正規化：相容舊 evals.json（prompt/expectations）與新格式（task/asserts）
+const cases = scenarios.map((s) => ({
+  id: String(s.id),
+  model: s.model,
+  task: s.task || s.prompt,
+  asserts: s.asserts || s.expectations || [],
+}))
+const bad = cases.find((c) => !c.task || c.asserts.length === 0)
+if (bad) {
+  throw new Error(`場景 ${bad.id} 缺 task/prompt 或 asserts/expectations`)
 }
 
 const NAV_SCHEMA = {
@@ -116,7 +134,7 @@ ${JSON.stringify(results)}`
 
 phase('Navigate')
 const graded = await pipeline(
-  args.scenarios,
+  cases,
   (s) => agent(navPrompt(s), { label: `nav:${s.id}`, phase: 'Navigate', agentType: 'general-purpose', model: s.model, schema: NAV_SCHEMA }),
   (nav, s) => agent(gradePrompt(nav, s), { label: `grade:${s.id}`, phase: 'Grade', schema: GRADE_SCHEMA }),
 )
