@@ -568,7 +568,9 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
   worker cwd 移出專案（專案 hooks 不載入，雙保險）｜每日呼叫保險絲 100（`daily-calls_<yyyyMMdd>.txt`，
   按日重置、7 天自清；正常用不到，防自動化長跑暴走）｜**語意去重**（既有 slug 清單餵進
   prompt，事後字串比對保底）｜lock 防並發（10 分鐘殭屍自清）。
-- 未讀提示：proposals pending 數增加時，下一次 Stop 輸出 systemMessage + additionalContext（實測結果：<驗證後回填：支援/被忽略>）；
+- 未讀提示：proposals pending 數增加時，下一次 Stop 輸出**純 systemMessage**——Stop 事件無 hookSpecificOutput
+  union member，帶 additionalContext 整包被 schema 拒收（live 實測 2026-06-05，連 systemMessage 都一起沒了）；
+  要餵 model 只能 `decision:block`+reason（與永不 block 原則衝突，不採；官方 plugin 同樣繞道 stderr+exit 2）；
   人工清理 proposals 使 pending 回落 → 計數自動 sync-down（否則下一條新提議的提示會被吞）。
 - state：`.claude/hooks/state/reflect/`；log：`.claude/hooks/reflect.log`（>1MB 輪轉成 `.1`；stop-sync-pi.log 同）（皆 gitignored）。
 - 關閉方式：settings.json 移除該 Stop 群組；或暫時把 `stop-reflect.ps1` 頂部 `$DAILY_CAP` 設 0。

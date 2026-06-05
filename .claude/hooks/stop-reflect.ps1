@@ -9,7 +9,7 @@
 # 防迴圈：CLAUDE_REFLECT_CHILD 旗標（claude -p 子行程早退）｜每日呼叫保險絲｜worker 端 slug 去重。
 #
 # 輸入：stdin JSON（session_id / transcript_path）。
-# 輸出：有未讀提議時 systemMessage + additionalContext 一行提示；其餘無輸出。
+# 輸出：有未讀提議時純 systemMessage 一行提示（Stop 無 hookSpecificOutput，additionalContext 會被 schema 拒收）；其餘無輸出。
 # log：worker 寫 .claude/hooks/reflect.log（本檔自身故障靜默，不影響 session）。
 
 $ErrorActionPreference = 'Continue'
@@ -165,9 +165,10 @@ try {
     }
 
     if ($hint) {
-        $out = @{ systemMessage = $hint
-                  hookSpecificOutput = @{ hookEventName = 'Stop'; additionalContext = $hint } } | ConvertTo-Json -Compress
-        Write-Output $out
+        # Stop 事件無 hookSpecificOutput union member（2026-06-05 live 實測：帶 additionalContext 整包被
+        # schema 驗證拒收，連 systemMessage 都沒顯示）→ 純 systemMessage。提示給「人」看即符合人定奪設計；
+        # 要餵 model 只能 decision:block+reason，與本 hook 永不 block 原則衝突，不採。
+        Write-Output (@{ systemMessage = $hint } | ConvertTo-Json -Compress)
     }
 } catch {}
 exit 0

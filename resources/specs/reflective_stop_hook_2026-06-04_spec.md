@@ -5,7 +5,7 @@
 > 學習目標：**不裝現成 plugin**，依官方公開資訊手搓同形架構；完工後再逆向比對官方 plugin 找差距。
 > 後續：plan → `resources/plans/reflective_stop_hook_2026-06-04_plan.md`。
 > **修訂 2026-06-04（上線後修理輪）**：T2 間隔 8→20 輪；session 上限 10 → 每日保險絲 100（live 環境 stdin 解析失敗使 session 鍵不可靠）；stdin 改 UTF-8 StreamReader 讀取；新增提示計數 sync-down。細節與踩坑 → NOTES.md §12。
-> **修訂 2026-06-05（逆向比對採納輪）**：marker 改 worker 成功後前移（失敗不丟素材）；素材 git 指令加 `core.quotePath=false`；log 1MB 輪轉。spec → `reflect_hardening_2026-06-05_spec.md`。
+> **修訂 2026-06-05（逆向比對採納輪）**：marker 改 worker 成功後前移（失敗不丟素材）；素材 git 指令加 `core.quotePath=false`；log 1MB 輪轉。spec → `reflect_hardening_2026-06-05_spec.md`。另：未讀提示改純 systemMessage（Stop 無 hookSpecificOutput，additionalContext 被 schema 拒收，live 實測）。
 
 ## 1. 目標
 
