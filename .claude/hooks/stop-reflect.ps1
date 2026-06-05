@@ -122,7 +122,6 @@ try {
                 $parts += ((& git -C $mainCheckout -c core.quotePath=false diff 2>$null) | Select-Object -First $DIFF_CAP_LINES | Out-String)
             }
             [System.IO.File]::WriteAllText($materialFile, ($parts -join "`n"), [System.Text.UTF8Encoding]::new($false))
-            if ($head) { [System.IO.File]::WriteAllText($markerFile, $head, [System.Text.UTF8Encoding]::new($false)) }
         }
         elseif (($turnCount + 1) -ge $TURN_INTERVAL -and $transcriptPath -and (Test-Path $transcriptPath)) {
             $trigger = 'T2'
@@ -152,12 +151,15 @@ try {
         [System.IO.File]::WriteAllText($counterFile, '0', [System.Text.UTF8Encoding]::new($false))
         New-Item -ItemType File -Force $lockFile | Out-Null
         # ⚠️ Start-Process 的 ArgumentList 不自動加引號——路徑含空白（LIN HONG）必須手動包 "
-        Start-Process -FilePath 'powershell' -WindowStyle Hidden -ArgumentList @(
+        # MarkerSha 只在 T1 傳：worker 成功（claude 有回應）才前移 marker，失敗下輪重審（spec 改動1）
+        $workerArgs = @(
             '-NoProfile','-File', ('"{0}"' -f $workerPath),
             '-MaterialFile', ('"{0}"' -f $materialFile),
             '-TriggerType', $trigger,
             '-MainCheckout', ('"{0}"' -f $mainCheckout)
-        ) | Out-Null
+        )
+        if ($trigger -eq 'T1' -and $head) { $workerArgs += @('-MarkerSha', $head) }
+        Start-Process -FilePath 'powershell' -WindowStyle Hidden -ArgumentList $workerArgs | Out-Null
     } else {
         [System.IO.File]::WriteAllText($counterFile, [string]($turnCount + 1), [System.Text.UTF8Encoding]::new($false))
     }

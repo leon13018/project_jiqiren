@@ -6,7 +6,8 @@
 param(
     [Parameter(Mandatory=$true)][string]$MaterialFile,
     [Parameter(Mandatory=$true)][string]$TriggerType,
-    [Parameter(Mandatory=$true)][string]$MainCheckout
+    [Parameter(Mandatory=$true)][string]$MainCheckout,
+    [string]$MarkerSha = ''
 )
 
 $ErrorActionPreference = 'Continue'
@@ -93,6 +94,13 @@ BODY: <≤3 行繁體中文，說清楚踩了什麼、建議固化什麼>
     Pop-Location
 
     if (-not $output) { Write-Log 'claude -p 無輸出'; exit 0 }
+
+    # claude 已成功回應（含 NONE / 解析不出內容）→ 本輪素材視為已審，前移 marker。
+    # 失敗路徑（CLI 不存在 / 逾時 / 無輸出 / 例外）不會走到這裡 → marker 不動 → 下輪 T1 重審（spec 改動1）
+    if ($MarkerSha) {
+        [System.IO.File]::WriteAllText((Join-Path $stateDir 'last-reflected-commit.txt'), $MarkerSha, [System.Text.UTF8Encoding]::new($false))
+    }
+
     if ($output -match '(?m)^\s*NONE\s*$' -and $output.Length -lt 40) { Write-Log ("{0} 反思：NONE" -f $TriggerType); exit 0 }
 
     # 解析 + 去重（$existing 已在 prompt 階段讀入）+ 落地
