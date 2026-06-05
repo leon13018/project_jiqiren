@@ -115,11 +115,16 @@ try {
             $parts += ($statusOut | Out-String)
             if ($marker -and $head -ne $marker) {
                 $parts += ('## 本輪已提交範圍 {0}..{1}' -f $marker.Substring(0,7), $head.Substring(0,7))
-                $parts += ((& git -C $mainCheckout -c core.quotePath=false diff "$marker..$head" 2>$null) | Select-Object -First $DIFF_CAP_LINES | Out-String)
+                $rangeDiff = @(& git -C $mainCheckout -c core.quotePath=false diff "$marker..$head" 2>$null)
+                $parts += ($rangeDiff | Select-Object -First $DIFF_CAP_LINES | Out-String)
+                # 截斷必註記（no silent caps）：讓評審知道素材是殘篇，避免下錯結論
+                if ($rangeDiff.Count -gt $DIFF_CAP_LINES) { $parts += ('（diff 已截斷：{0} 行 → 前 {1} 行）' -f $rangeDiff.Count, $DIFF_CAP_LINES) }
             }
             if ($statusOut) {
                 $parts += '## 未提交 diff'
-                $parts += ((& git -C $mainCheckout -c core.quotePath=false diff 2>$null) | Select-Object -First $DIFF_CAP_LINES | Out-String)
+                $wtDiff = @(& git -C $mainCheckout -c core.quotePath=false diff 2>$null)
+                $parts += ($wtDiff | Select-Object -First $DIFF_CAP_LINES | Out-String)
+                if ($wtDiff.Count -gt $DIFF_CAP_LINES) { $parts += ('（diff 已截斷：{0} 行 → 前 {1} 行）' -f $wtDiff.Count, $DIFF_CAP_LINES) }
             }
             [System.IO.File]::WriteAllText($materialFile, ($parts -join "`n"), [System.Text.UTF8Encoding]::new($false))
         }
