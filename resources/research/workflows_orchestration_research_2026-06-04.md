@@ -19,6 +19,7 @@
 8. [多 Agent 編排：engineering blog 實測經驗](#8-多-agent-編排engineering-blog-實測經驗)
 9. [踩坑與硬限制](#9-踩坑與硬限制)
 10. [本專案對照](#10-本專案對照)
+11. [spec→workflow 碼化判準（實做心得）](#11-specworkflow-碼化判準實做心得)
 
 ---
 
@@ -323,6 +324,8 @@ Anthropic 自家 Research 系統（orchestrator-worker）的**實測數字與原
 | **非確定性 throw** | `Date.now()`/`Math.random()`/無參 `new Date()`（時間走 `args`） | S5（⚠未交叉驗證） |
 | **腳本存放位置** | 每次 run 寫到 `~/.claude/projects/<proj>/<session>/workflows/scripts/`，Claude 拿到路徑可要你看/diff/編輯後重跑 | S2✅ + S6 路徑實證 |
 | **觸發關鍵字變更** | v2.1.160 起觸發詞是 **`ultracode`**（舊版是 `workflow`）；自然語「run a workflow」兩版都行 | S2✅（**文檔筆記過時**，仍寫 `workflow`） |
+| **Workflow tool 的 `args` 可能以 JSON 字串抵達** | 腳本端 `args.scenarios` 直接 undefined（字串沒有該屬性）→ 腳本開頭加 `typeof args === 'string' → JSON.parse` 守衛，兩種都吃 | 本機實測 2026-06-05（skill-edd-regression 首跑即中） |
+| **`.claude/workflows/` 具名註冊非即時** | session 中途新增的存檔，具名觸發可能先報 not found（只列內建）；稍後 registry 刷新即認得，不必重啟 | 本機實測 2026-06-05 |
 | **存檔位置** | `.claude/workflows/`（專案共享）/ `~/.claude/workflows/`（個人）；同名專案優先 | S2（文檔筆記已述） |
 | **需 v2.1.154+、research preview** | Pro 要在 `/config` 開 Dynamic workflows 列 | S2（文檔筆記已述） |
 
@@ -339,6 +342,28 @@ Anthropic 自家 Research 系統（orchestrator-worker）的**實測數字與原
 3. **派 sales-coder 做跨檔 refactor 時可考慮 workflow 化**：若某次 refactor 要掃 myProgram/sales 多檔 + 連動 tests，符合 §6「超過一次對話能協調」門檻時，可用 fan-out（每檔一 agent）→ adversarial verify（獨立 agent 跑 pytest 驗）→ synthesize。但**注意 S4/S1 警告：多數 coding 任務並非真並行**（檔間有依賴），多半仍該用單一 sales-coder subagent（主筆記結論不變）。判準：refactor 各檔**真獨立**才 workflow，有跨檔依賴就單 agent。
 
 4. **EDD 回歸要簽核時拆 workflow**：§9「無 mid-run 輸入」意味著「跑完看結果再決定改哪」這種需人介入的流程，要拆成「驗證 workflow」+ 人看 + 「修正 workflow」兩段（S6 的 iter3 腳本正是這樣分輪迭代的）。
+
+---
+
+---
+
+## 11. spec→workflow 碼化判準（實做心得）
+
+> 2026-06-06 補：實做 `skill-edd-regression`（spec → `.claude/workflows/` 永久 harness）後蒸餾。
+
+**核心**：碼化 = 把 plan 從模型注意力搬進確定性代碼。主對話從此只剩三件事——「要不要用、餵 args、收最終 return」；迴圈 / 分支 / 中間結果全在 JS 變數，runtime 執行，不佔 context、不受注意力衰退影響、第 100 次跑與第 1 次一模一樣（goal drift 的結構性解法）。
+
+**帳要算對**：省的是**主對話 context 與流程漂移**，不是總 token——腳本內每個 subagent 照樣讀檔思考（§8.1：多 agent ≈ 聊天 15×）。是拿總成本換可靠性，不是省錢。
+
+**適合碼化的 spec 流程**（四條件越多越值）：
+1. **穩定**——流程本身不會邊做邊改（會改的碼化反而鎖死，改流程變成改 code）；
+2. **會重複跑**——一次性任務讓模型照 spec 做即可，編排開銷 > 任務本身；
+3. **機器可判定**——各步驟產出能用 schema 強制結構化、能寫成 assertion；
+4. **可 fan-out**——步驟間真獨立（有跨步依賴就回單 agent，§8.4）。
+
+**不適合**：中途要人簽核（無 mid-run 輸入，得拆成多個 workflow）；流程需邊做邊調；單線小任務。
+
+**一句話判準：這個流程值不值得變成「可重跑的資產」？值得 → 碼化進 `.claude/workflows/`；只跑一次 → 照 spec 做。**
 
 ---
 
