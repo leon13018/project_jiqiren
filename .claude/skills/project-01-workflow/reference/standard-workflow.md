@@ -73,4 +73,5 @@
 
 - 不確定變更範圍（還在規劃）→ **先停下確認**，不要先 commit。
 - `sync_pi.ps1` 失敗 → 先診斷、提修法與使用者確認再改（腳本 gitignored，改動不進 git）。
+- push 後 live session 的 auto-sync 會可靠觸發——要 amend / force-push 前，先想到壞 commit 可能已上 Pi（修復：SSH `git reset --hard origin/main`）。
 - SSH 傳 bash 腳本若路徑需 tilde 展開，別在 `[ -d ... ]` 雙引號內用 `~`（不展開），改 `$HOME` / 絕對路徑。

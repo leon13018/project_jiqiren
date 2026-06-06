@@ -30,7 +30,7 @@
 
 做**任何實作性工作前務必先載入 `project-01-workflow` skill**（即使任務看似簡單——規則會演進，重讀 reference 比憑記憶可靠），再依其 `SKILL.md` **router 表**選讀對應 `reference/`。**路由與領域細節都在 skill，本檔不重複。**
 
-> 編寫 / 修改 code 前一律遵守 `andrej-karpathy-skills:karpathy-guidelines`（主 agent 自寫前 invoke；sales-coder 已 frontmatter 預載）。
+> 編寫 / 修改 code 前一律遵守 `andrej-karpathy-skills:karpathy-guidelines`——每輪實作自寫前都要 invoke，session 早期載過不算（sales-coder 已 frontmatter 預載）。
 
 ---
 
@@ -51,5 +51,5 @@
   - **子層**：只放該層局部慣例（怎麼跑測試 / 該讀哪份 reference / 局部 pattern / 解釋性細節）+ 指回 root 的薄 pointer，**不重述紅線**。
   - **零重複解釋**：紅線權威版只在 root；hook 才是強制執行、CLAUDE.md 是 advisory，故 root 紅線寫精簡即可。
   - 每行自問「移掉會不會讓 Claude 出錯」，不會就刪；每檔目標 root ≤~100 行、子層 ≤~60 行。
-- memory 只剩 `user_profile` + `user_step_by_step_pace`；其餘協議 / 領域 / 歷史都在 skill + `resources/`。
+- memory 只放「使用者特質 / 授權 / 節奏」這類無處可歸的事實；協議 / 領域 / 歷史在 skill + `resources/`。
 - 新增 / 改協議 → 寫進 skill `reference/<topic>.md`（router 在 `SKILL.md`）；**新增 / 移動檔案 → 同步更新該層 `code_map.md`**。
