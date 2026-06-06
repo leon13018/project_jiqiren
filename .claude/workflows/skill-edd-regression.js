@@ -115,7 +115,7 @@ ${s.asserts.map((a, i) => `  ${i + 1}. ${a}`).join('\n')}
 
 scenario_id 填 ${s.id}。`
 
-const gradePrompt = (nav, s) => `你是對抗性評分員，核對另一個 agent 的協議導航是否正確。**不要採信它的自評結論**——自己 Read "C:/Users/LIN HONG/Desktop/Project_01/.claude/skills/project-01-workflow/" 下的 SKILL.md 與相關 reference 原文逐條核對。
+const gradePrompt = (nav, s) => `你是對抗性評分員，核對另一個 agent 的協議導航是否正確。**不要採信它的自評結論**——自己 Read 專案根（你目前的工作目錄）下 \`.claude/skills/project-01-workflow/\` 的 SKILL.md 與相關 reference 原文逐條核對。
 
 任務情境：
 ${s.task}

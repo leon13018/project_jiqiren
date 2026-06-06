@@ -365,6 +365,8 @@ Anthropic 自家 Research 系統（orchestrator-worker）的**實測數字與原
 
 **一句話判準：這個流程值不值得變成「可重跑的資產」？值得 → 碼化進 `.claude/workflows/`；只跑一次 → 照 spec 做。**
 
+**碼化檢查清單**（實測踩過才入列）：① `args` 字串守衛（§9）；② **prompt 內指路不硬編碼絕對路徑**——用「工作目錄相對路徑」描述，機器特定路徑會卡死搬家 / 他機（反思 `hardcoded-absolute-path` 採納，2026-06-06）。
+
 ---
 
 *完。本檔不 commit；交回主 agent。*
