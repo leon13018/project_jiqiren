@@ -1,0 +1,75 @@
+{
+  "date": "2026-06-07",
+  "run_id": "wf_4b615270-95c",
+  "scope": "notes-split-s3-revalidation",
+  "scenario_ids": [
+    "s3-hook-edit"
+  ],
+  "verdict": {
+    "overall_pass": true,
+    "failed": [],
+    "summary": "整體通過（overall_pass=true）。唯一場景 s3-hook-edit（k=1）三項斷言全數 majority_pass=true，pass_rate 皆為 1.0：(1)「.claude/ 改動必須先 EnterWorktree」、(2)「判定為 meta-task 由主 agent 自實作而非派 sales-coder」、(3)「hook 的 .ps1 須維持 UTF-8 with BOM」。本場景無 baseline_graded，故無法報 skill 增益（with-skill vs bare 的 pass 數差）。最弱環節：雖三項皆過，唯一受測場景單跑 k=1，樣本量薄、不足以反映變異；建議後續提高 k 或補 baseline 對照以量化 skill 增益。\\n\\n題庫自我改進訊號（weak_asserts，非鑑別性斷言）：斷言 2「主 agent 自實作而非派 sales-coder」只查最終結論（自做 vs 派發），不查 navigator 是否正確套用 dispatch.md 的「超級小」五項同時滿足門檻。一個 navigator 即使憑「這是 meta-task 所以我自己做」的錯誤理由也會 pass——meta-task 本身並非 skill 定義的免派條件，真正依據是「超級小」門檻 + sales-coder 對應表不含 .ps1。若改動實際超過 10 行或跨檔，正解應派 general-purpose+opus（dispatch.md line 29：其他寫 code 無對應 custom → general-purpose），但現措辭仍會把「主 agent 自做」誤判為 pass。建議拆成兩條鑑別性斷言：(a) 是否正確套用「超級小」五門檻、(b) 是否認知 sales-coder 不負責 hook .ps1。"
+  },
+  "aggregated": [
+    {
+      "scenario_id": "s3-hook-edit",
+      "k": 1,
+      "asserts": [
+        {
+          "assertion": "判斷 .claude/ 改動必須先 EnterWorktree",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        },
+        {
+          "assertion": "判斷這是 meta-task，由主 agent 自實作而非派 sales-coder",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        },
+        {
+          "assertion": "知道 hook 的 .ps1 檔必須維持 UTF-8 with BOM",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        }
+      ],
+      "weak_asserts": [
+        "斷言 2『主 agent 自實作而非派 sales-coder』只查結論（自做 vs 派發），不查 navigator 是否正確套用 dispatch.md 的「超級小」五項同時滿足門檻。一個 navigator 即使憑『這是 meta-task 所以我自己做』的錯誤理由（meta-task 本身不是 skill 定義的免派條件；真正依據是「超級小」門檻 + sales-coder 對應表不含 .ps1）也會 pass。若改動其實超過 10 行或跨檔，正解應派 general-purpose（line 29：其他寫 code 無對應 custom → general-purpose+opus），但本斷言措辭仍會把『主 agent 自做』判 pass——非鑑別性。建議拆成：(a) 是否正確套用超級小五門檻，(b) 是否認知 sales-coder 不管 hook .ps1。"
+      ],
+      "baseline_graded": null
+    }
+  ],
+  "graded": [
+    {
+      "scenario_id": "s3-hook-edit",
+      "asserts": [
+        {
+          "assertion": "判斷 .claude/ 改動必須先 EnterWorktree",
+          "pass": true,
+          "evidence": "worktree.md 觸發分層表（line 16）：『myProgram/、tests/、.claude/（hooks / agents / skills / settings）→ 必先 EnterWorktree（5 階段）』。stop-reflect.ps1 在 .claude/hooks/ 下，且非 gitignored、非 resources/ 純文件，line 18『gitignored 檔 不進 worktree』與 line 17『resources/ 純文件可直接 main』之例外均不適用。navigator 判 EnterWorktree 正確。"
+        },
+        {
+          "assertion": "判斷這是 meta-task，由主 agent 自實作而非派 sales-coder",
+          "pass": true,
+          "evidence": "dispatch.md 規模門檻 line 40：『「超級小」（須同時滿足）：≤ 10 行｜單一檔案｜純值 / 字串 / 條件微調 / typo｜無新增 function/class/簽名變動｜無 cross-file propagation』——單檔常數 20→30 全滿足，line 38『主 agent 直接 patch，但必先 invoke andrej-karpathy-skills:karpathy-guidelines』。且 subagent_type 對應表（line 27）sales-coder 僅涵蓋『myProgram/sales/*.py / tests/sales/*.py / myProgram/{main,tts,action,input_reader}.py』，hook .ps1 不在其職責。navigator 判主 agent 自做且須先載 karpathy 正確。"
+        },
+        {
+          "assertion": "知道 hook 的 .ps1 檔必須維持 UTF-8 with BOM",
+          "pass": true,
+          "evidence": "hooks-gotchas.md #1（line 7）：『.ps1 必須 UTF-8 with BOM——PS 5.1 讀無 BOM 檔用 ANSI 解碼 → 含中文必 parse error。兩個會產生無 BOM 檔的來源：Claude Code 的 Write 工具（寫完必補 BOM）』，補 BOM 碼為 [System.IO.File]::WriteAllText(..., New-Object System.Text.UTF8Encoding $true)（line 9）。navigator 引用之 WriteAllText+UTF8Encoding($true) 與原文一致。"
+        }
+      ],
+      "pass_count": 3,
+      "total": 3,
+      "weak_asserts": [
+        "斷言 2『主 agent 自實作而非派 sales-coder』只查結論（自做 vs 派發），不查 navigator 是否正確套用 dispatch.md 的「超級小」五項同時滿足門檻。一個 navigator 即使憑『這是 meta-task 所以我自己做』的錯誤理由（meta-task 本身不是 skill 定義的免派條件；真正依據是「超級小」門檻 + sales-coder 對應表不含 .ps1）也會 pass。若改動其實超過 10 行或跨檔，正解應派 general-purpose（line 29：其他寫 code 無對應 custom → general-purpose+opus），但本斷言措辭仍會把『主 agent 自做』判 pass——非鑑別性。建議拆成：(a) 是否正確套用超級小五門檻，(b) 是否認知 sales-coder 不管 hook .ps1。"
+      ],
+      "variant": "skill",
+      "trial": 1
+    }
+  ]
+}
