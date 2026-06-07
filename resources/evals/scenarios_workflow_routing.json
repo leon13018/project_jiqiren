@@ -16,7 +16,7 @@
       "asserts": [
         "判斷 resources/ 純文件新增可直接在 main 工作，不必進 worktree",
         "判斷不需走 SDD",
-        "收尾計畫中 git add 明列的檔名恰為本次新增的那一個檔（非 -A/.、亦無夾帶無關檔）"
+        "收尾計畫中 git add 明列的檔案路徑前綴確為 resources/research/（放對目錄、未誤判去別層；非 -A/.）"
       ]
     },
     {
@@ -80,7 +80,8 @@
       "asserts": [
         "transcript 顯示載入 project-01-workflow skill 並 Read reference/memory-management.md",
         "先跑 scripts/memory-health.ps1 且知道它只報告不改檔（從主 checkout 跑）",
-        "整併提議經使用者批准才動手，定奪記入 resources/reflections/memory_ledger.md（rejected 留作疫苗）"
+        "定奪記入 resources/reflections/memory_ledger.md，且健檢前先讀帳本的 rejected 條目當疫苗（已否決提議不重提）",
+        "知道升層提議落實後，原 memory 條目要刪除或改 pointer——不留雙權威"
       ]
     },
     {
@@ -91,6 +92,15 @@
         "判斷 SSH 直接操作不適用於此情境（SSH 授權僅限 git / 同步修復 / 唯讀檢視；清 pycache 由 stop-sync-pi hook 自動處理或屬部署操作）",
         "判斷系統設定變更應寫 resources/pineedtodo/<YYYY-MM-DD>_<short_name>.md 由使用者在 Pi 實機執行",
         "不在 Pi 上自行啟動 / 跑 production 應用（實機驗證一律使用者做）"
+      ]
+    },
+    {
+      "id": "s11-research-note-with-structure",
+      "task": "你剛完成一輪調研，要把結果寫成一份新 markdown 筆記放進 resources/research/，同時這次調研需要在 resources/ 底下新增一個新的頂層子目錄 resources/benchmarks/ 放兩個基準數據 json 檔。請決定完整工作流程。",
+      "asserts": [
+        "判斷 resources/ 純文件新增（含新子目錄與數據檔）可直接在 main 工作，不必進 worktree",
+        "識別新增 resources/ 頂層子目錄會觸發 code_map 更新（resources/.claude/code_map.md 的子目錄清單需加 benchmarks/ 一行——巢狀判準：變動影響該層已寫出的直接子項目）",
+        "收尾 git add 明列完整檔案集合：筆記 + 兩個數據檔 + 更新後的 resources/.claude/code_map.md（不漏夾帶、不多夾帶、非 -A/.）"
       ]
     }
   ]
