@@ -60,8 +60,8 @@
 
 ## Spec 位置與命名
 
-**統一位置**：`resources/specs/`（flat，不分 L 層 / 模組）。
-- 完整版：`<short_name>_<YYYY-MM-DD>_spec.md` + `_plan.md`（同 prefix）。Mini：`<short_name>_<YYYY-MM-DD>_spec.md` 單檔。
+**位置**：spec → `resources/specs/`、plan → `resources/plans/`（皆 flat，不分 L 層 / 模組；同 prefix 異目錄）。
+- 完整版：`specs/<short_name>_<YYYY-MM-DD>_spec.md` + `plans/<short_name>_<YYYY-MM-DD>_plan.md`。Mini：`specs/<short_name>_<YYYY-MM-DD>_spec.md` 單檔。
 - **拆 spec/plan 理由**：spec = 跟 user 對齊的契約（穩定）；plan = 給 sales-coder 的執行指南（隨重構演化）。派 sales-coder prompt 必含兩檔路徑。
 - **Living document**：實作後行為調整 → spec 內 append 變更段；大改新開 v 版本。**不刪舊 spec**（git history + 維護對比）。
 
@@ -74,7 +74,7 @@
   1. user 描述需求
   2. AskUserQuestion 對齊 ambiguity（按需 2-4 題）
   3. EnterWorktree
-  4. 寫 spec.md（+ plan.md 若完整版）到 resources/specs/（未 commit）
+  4. 寫 spec.md 到 resources/specs/（+ plan.md 到 resources/plans/ 若完整版）（未 commit）
   5. spec self-review 4 點 sweep（見下）
   6. AskUserQuestion：spec/plan 是否需修？
   7. approval → commit spec(+plan) doc（worktree 首 commit）
@@ -195,7 +195,7 @@ inline 修完才 AskUserQuestion，不必 re-review。
 ## 任務
 依 SDD spec + plan 實作 <feature_name>。
 - Spec：`resources/specs/<name>_<date>_spec.md`（WHAT）
-- Plan：`resources/specs/<name>_<date>_plan.md`（HOW，step-by-step）
+- Plan：`resources/plans/<name>_<date>_plan.md`（HOW，step-by-step）
 所有實作決定以 spec/plan 為準；spec 沒寫的照 karpathy「最小可驗證」，有疑義停下回報。
 
 ## 工作環境
