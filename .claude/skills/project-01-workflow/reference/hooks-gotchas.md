@@ -1,11 +1,11 @@
-# PowerShell / hooks 踩坑全集
+﻿# PowerShell / hooks 踩坑全集
 
 > 🎯 **何時讀本檔**：要寫 / 改**任何 .ps1**（hook、worker、skill script），或 debug hook 的編碼 / regex / stdin / 背景行程問題。系統現況與維護流程 → [hooks-system.md](hooks-system.md)。
 
 ## 目錄
 
 - 編碼（#1-6：BOM / stdout / stdin / Select-String / Start-Job / marker）
-- 背景行程 / CLI 呼叫（#7-12）
+- 背景行程 / CLI 呼叫（#7-12、21）
 - Regex / matcher（#13-15：一寬一嚴 + 4 case 測試法）
 - 事件行為（#16-20）
 - 設計原則（fail-open / -NoProfile / 一次性提醒）
@@ -30,6 +30,7 @@
 10. **prompt 餵 `claude -p` 走 stdin**——免 3s stdin 偵測等待、免命令列長度上限、免引號轉義。
 11. **計數鍵不可依賴 stdin 解析值**（解析失敗 fallback 成 unknown → 計數永不重置）——用本地可靠來源（如日期）。
 12. **精確 slug 去重攔不住同義異名**——語意去重要把既有主題清單餵進模型 prompt，字串比對只做保底。
+21. **PS-in-PS `-Command` 字串的內層 `\"` 轉義會被 native 命令列剝除**——`powershell -NoProfile -Command "... \"exit=$x\" ..."` 內層雙引號失效、內容變散 token（CommandNotFoundException）。修法：取值 / echo 移到**外層** shell 做；引號需求複雜時改 `-File` 帶參數或 here-string。（2026-06-07 codemap hook 驗證時實踩）
 
 ## Regex / matcher（一寬一嚴兩個經典）
 
