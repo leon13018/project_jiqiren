@@ -14,6 +14,7 @@
 - `examples/` — 範例 code。
 - `changelogs/` — 開發日誌分期詳錄（按時期一檔；索引在 `changelog.md`）。
 - `roadmaps/` — 未來計畫詳檔（索引在 `roadmap.md`）。
+- `reflections/` — （gitignored）人定奪帳本：`proposals.md`（反思提議）+ `memory_ledger.md`（memory 健檢/整併定奪）。
 - `presentation/` — （gitignored）報告 / 簡報。
 - `userPrompt/` — （gitignored）prompt 存檔。
 - `.claude/` — 本層 CC 配置（`code_map.md` 本檔）。
