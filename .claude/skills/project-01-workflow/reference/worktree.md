@@ -30,6 +30,7 @@ EnterWorktree(name="<task-name>")
 cwd 切到 `.claude/worktrees/<task-name>/`，新分支 `worktree-<task-name>` 從 main 拉出；派發的 subagent 繼承 cwd 自動在內工作。
 
 **階段 2 — 編輯 + commit**
+- **Edit 任何 tracked 檔前先 Read 該 worktree 路徑的副本**——Edit 工具按絕對路徑記讀取狀態，主 checkout 讀過不算（worktree 是另一條路徑，直接 Edit 必被「File must be read first」拒絕、白耗來回）。長檔用 offset/limit 讀目標段即可。
 - 明列 `git add <files>`，**禁 `-A`/`.`**（hook 擋）。
 - Commit：英文簡短標題 + body + `Co-Authored-By: Claude <Model Tier> <noreply@anthropic.com>`（用實際派發模型，預設 Opus）。
 
