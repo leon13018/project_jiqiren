@@ -12,12 +12,14 @@
 - `requirements/` — 需求文件（Raspberry Pi setup / 已安裝清單）。
 - `pineedtodo/` — Pi 端待辦操作說明書（append-only）。
 - `examples/` — 範例 code。
+- `changelogs/` — 開發日誌分期詳錄（按時期一檔；索引在 `changelog.md`）。
+- `roadmaps/` — 未來計畫詳檔（索引在 `roadmap.md`）。
 - `presentation/` — （gitignored）報告 / 簡報。
 - `userPrompt/` — （gitignored）prompt 存檔。
 - `.claude/` — 本層 CC 配置（`code_map.md` 本檔）。
 
 ## 檔案
-- `roadmap.md` — 開發路線圖。
+- `roadmap.md` — 路線圖**索引**：現況快照 + 下一步候選 + 路由到 `roadmaps/`。
 - `watchlist.md` — harness 留觀察項目單一事實來源（重訪節奏 + 觸發訊號；協議見 skill reference/harness-evolution.md）。
-- `changelog.md` — 專案開發日誌（里程碑歷史，**勿當 code map**）。
+- `changelog.md` — 開發日誌**索引**：每期一行路由到 `changelogs/`（**勿當 code map**）。
 - `CLAUDE.md` — 本層導引。
