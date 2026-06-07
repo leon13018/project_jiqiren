@@ -76,6 +76,27 @@ try {
         $flagNote = "`n- ⚠️ sales-dirty flag 存在：$flagContent（上次 session 編了 sales/* 但沒跑 pytest）"
     }
 
+    # model 換代偵測（harness-evolution）：model 欄位存在才比對；換代 → 提醒重訪 watchlist
+    $modelNote = ''
+    $curModel = ''
+    if ($payload -and $payload.PSObject.Properties.Match('model').Count -gt 0 -and $payload.model) {
+        $curModel = if ($payload.model -is [string]) { $payload.model } else { [string]$payload.model.id }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($curModel)) {
+        $modelStateFile = '.claude/hooks/state/last-model.txt'
+        $prevModel = if (Test-Path $modelStateFile) { (Get-Content $modelStateFile -Raw -ErrorAction SilentlyContinue).Trim() } else { '' }
+        if ($prevModel -and $prevModel -ne $curModel) {
+            $modelNote = "`n- ⚠️ model 已換代（$prevModel → $curModel）：harness 假設可能過時，建議重訪 resources/watchlist.md（協議見 skill reference/harness-evolution.md）"
+        }
+        if ($prevModel -ne $curModel) {
+            try {
+                $stateDir = Split-Path $modelStateFile -Parent
+                if (-not (Test-Path $stateDir)) { New-Item -ItemType Directory -Force $stateDir | Out-Null }
+                [System.IO.File]::WriteAllText((Join-Path (Get-Location).Path $modelStateFile), $curModel, (New-Object System.Text.UTF8Encoding($false)))
+            } catch {}
+        }
+    }
+
     # 輸出 — 直接 stdout 自動進 Claude context
     $summary = @"
 ## 專案狀態快照（SessionStart hook 注入，source=$source）
@@ -84,7 +105,7 @@ try {
 - 最新 commit：``$lastCommit``
 - 未提交變動：$statusCount 個檔
 $statusPreview
-- sales/ 測試總數：$salesTestCount（會被 Stop hook 守住 — 改了 sales/* 必跑 pytest）$flagNote
+- sales/ 測試總數：$salesTestCount（會被 Stop hook 守住 — 改了 sales/* 必跑 pytest）$flagNote$modelNote
 
 （本 summary 由 ``.claude/hooks/session-start-context.ps1`` 產生；要關掉編輯 ``.claude/settings.json``。）
 "@

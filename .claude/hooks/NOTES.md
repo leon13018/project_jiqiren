@@ -304,6 +304,11 @@ $utf8Bom = New-Object System.Text.UTF8Encoding $true
 **防禦策略：** session-start-context.ps1 內檢查 stdin JSON 的 `agent_id` field，存在則 silent exit（subagent 不該被注入 main session context）
 **好處：** 不論官方未來怎麼處理，我的 hook 都安全
 
+### C2. session-start-context 的 model 換代偵測（2026-06-07）
+stdin 的 `model` 欄位與 `state/last-model.txt` 比對，換代 → 快照尾提醒重訪 `resources/watchlist.md`（協議：skill reference/harness-evolution.md）。
+**官方查證（2026-06-07 WebFetch hooks 文檔）：** `model` 是 **SessionStart 獨有**輸入欄位（string，如 `"claude-sonnet-4-6"`）——「Only SessionStart hooks receive a model field」。
+**防禦式實作：** 欄位存在才比對（相容 string 與 `{id}` 物件）、state 寫入 try/catch 包裹——提醒功能失敗不毀快照；無欄位 = 零行為差異。fixture 五連測（無欄位/首次/同 model/換 model/物件型）全過。
+
 ### D. Stop hook 在 subagent 內**不會** fire
 **官方原文：** `For subagents, Stop hooks are automatically converted to SubagentStop`
 **意思：** 我們派 Agent({...}) 時，subagent 結束 fire 的是 SubagentStop，不是 Stop → stop-check-sales-pytest.ps1 不會被誤觸發

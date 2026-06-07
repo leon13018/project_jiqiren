@@ -33,6 +33,7 @@ Raspberry Pi 上的規則匹配點餐 / 收款機器人。本 skill 是專案所
 | 新增 sales 業務邏輯（BDD+TDD，dormant） | `bdd-tdd.md` |
 | 寫 / 改 dynamic workflow 腳本、spec 碼化判斷、跑 EDD 回歸 | `workflow-authoring.md` |
 | memory 健檢 / 記憶整併 / 記憶維護 | `memory-management.md` |
+| 反思/整併採納處理、踩雷轉 eval 場景、watch-list 重訪 / model 換代 | `harness-evolution.md` |
 | 繁簡對照 / 環境 quirk / 跨任務原則 | `conventions.md` |
 
 ## 跨任務鐵則（細節見對應 reference）
