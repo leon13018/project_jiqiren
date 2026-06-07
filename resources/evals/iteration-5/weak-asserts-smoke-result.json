@@ -1,0 +1,40 @@
+{
+  "date": "2026-06-07",
+  "run_id": "wf_713a786c-8e3",
+  "scope": "weak-asserts-smoke",
+  "scenario_ids": [
+    "s2-research-note"
+  ],
+  "verdict": {
+    "overall_pass": true,
+    "failed": [],
+    "summary": "場景 s2-research-note 全數通過（3/3）。navigator 正確判定：resources/ 純文件單檔新增可直接在 main 工作（worktree.md L17 分層表 + SKILL.md L42 鐵則背書），零 .py 改動不命中任何 SDD 觸發條件（SKILL.md L43/L24），且收尾 git add 明列檔名禁 -A/.（standard-workflow.md L32 + CLAUDE.md 紅線 4）。最弱環節：斷言 3（git add 明列檔名）為非鑑別性斷言——它考的是 CLAUDE.md 紅線 4 + hook 確定性強制的全域不變規則，每次 git 收尾皆適用，與本情境「是否進 worktree / 是否走 SDD」的場景特定導航判斷脫鉤；即使 navigator 在斷言 1、2 完全判錯，只要複述此全域 git 規則斷言 3 仍會 pass，故無法區分好壞導航。真正承載鑑別力的是斷言 1（resources/ vs worktree 強制範圍）與斷言 2（無 .py 改動 vs SDD 觸發）。\n\n題庫自我改進訊號（weak_asserts 彙整）：\n- s2-research-note：斷言 3『git add 必須明列檔名（禁 -A/.）』為非鑑別性全域不變規則，與本情境導航判斷無關，即使斷言 1、2 判錯仍會 pass，無法鑑別好壞導航。建議改寫為場景特定斷言或自題庫移除。"
+  },
+  "graded": [
+    {
+      "scenario_id": "s2-research-note",
+      "asserts": [
+        {
+          "assertion": "判斷 resources/ 純文件新增可直接在 main 工作，不必進 worktree",
+          "pass": true,
+          "evidence": "worktree.md L17 觸發分層表：『| resources/ 純文件**新增**與**小修** | 可直接 main（git add 明列 + 收尾 5 步照走；大規模多檔重構 / 刪除仍進 worktree） |』；SKILL.md L42 跨任務鐵則同證：『resources/ 純文件新增 / 小修可直接 main』。本情境為單檔 md 新增到 resources/research/，屬純文件新增、非大規模多檔重構/刪除，導航判定不進 worktree 與原文一致。"
+        },
+        {
+          "assertion": "判斷不需走 SDD",
+          "pass": true,
+          "evidence": "SKILL.md L43 鐵則：『改 myProgram/{sales,main,tts,action,input_reader}.py **必走 SDD**』；L24 路由表觸發列為『改 myProgram/ 任何 .py code（走 SDD）』。本情境零 .py 改動（只寫 markdown），未命中 SDD 任一觸發條件，導航判不走 SDD 正確。"
+        },
+        {
+          "assertion": "git add 必須明列檔名（禁 -A / .）",
+          "pass": true,
+          "evidence": "standard-workflow.md L32 第 2 步：『**git add <具體檔名>** — 不用 -A/.（hook 擋），明列避免誤加 ignored / 敏感檔』；worktree.md L34 階段 2 同證：『明列 git add <files>，**禁 -A/.**（hook 擋）』。導航收尾計畫明訂只 add 該新檔名，符合原文。（註：navigator 引『worktree.md L33』實際在 L34，行號小漂移但引句正確存在。）"
+        }
+      ],
+      "pass_count": 3,
+      "total": 3,
+      "weak_asserts": [
+        "斷言 3『git add 必須明列檔名（禁 -A/.）』為非鑑別性：此乃 CLAUDE.md 紅線 4 + hook 確定性強制的全域不變規則，適用於本專案每一次 git 收尾，與本情境是否該進 worktree / 走 SDD 的導航判斷無關。即使 navigator 在斷言 1、2 上完全判錯（誤進 worktree 或誤走 SDD），只要它複述這條全域 git 規則，斷言 3 仍會 pass——查的是『規則存在/被複述』而非『本情境導航正確』，無法鑑別好壞導航。相較之下斷言 1、2 才真正考驗 resources/ vs worktree 強制範圍、無 .py 改動 vs SDD 觸發的場景特定判斷。"
+      ]
+    }
+  ]
+}
