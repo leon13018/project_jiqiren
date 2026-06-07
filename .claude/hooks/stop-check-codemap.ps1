@@ -81,7 +81,7 @@ try {
     if (Test-Path $healthScript) {
         try {
             $healthOut = & $healthScript -RepoRoot $mainCheckout
-            $deadRefs = @($healthOut | Where-Object { $_ -match '死引用' } | ForEach-Object { $_.Trim() })
+            $deadRefs = @($healthOut | Where-Object { $_ -match '死引用：' } | ForEach-Object { $_.Trim() })
         } catch { Write-Log ("health check failed: {0}" -f $_) }   # 健檢失敗 → 跳過 D，C 照常
     }
     $acked = @()
