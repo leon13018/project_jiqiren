@@ -14,7 +14,9 @@ $ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
-$REFLECT_MODEL = 'claude-haiku-4-5-20251001'
+# 2026-06-07 haiku → sonnet：實證誤報率 2/5（utf8-bom 誤解 + 繁簡同形字幻覺），誤報成本=使用者定奪時間；
+# 官方 security-guidance 用 opus-4-7 賭精確度，我們有人工把關取 sonnet 折衷（背景 ~20 turns 一次，成本增量小）
+$REFLECT_MODEL = 'claude-sonnet-4-6'
 $PROPOSAL_MAX  = 3
 $CALL_TIMEOUT_S = 120
 

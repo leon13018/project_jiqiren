@@ -566,7 +566,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 - 觸發：T1 = 本 turn 有 git 變動（status 非空或 HEAD ≠ last-reflected marker）→ 素材 = diff（cap 400 行、
   `-c core.quotePath=false` 保中文檔名原始 UTF-8）；
   T2 = 連續 20 輪無反思 → 素材 = transcript 尾段（30 條 / 8KB cap）。
-- 引擎：Start-Process 拋背景 `reflect-worker.ps1` → `claude -p`（Haiku、fresh context、prompt 經 stdin 餵入、禁工具指示）→
+- 引擎：Start-Process 拋背景 `reflect-worker.ps1` → `claude -p`（**Sonnet**——2026-06-07 自 Haiku 升級：實證誤報率 2/5、誤報成本=人定奪時間；官方用 opus 賭精確度，我們有人工把關取折衷。fresh context、prompt 經 stdin 餵入、禁工具指示）→
   提議 append `resources/reflections/proposals.md`（gitignored）；**只提議、絕不自動寫入規範檔**。
   marker 由 worker **成功後**前移（claude 失敗 / 逾時不前移 → 下輪 T1 重審同素材，素材不丟）。
 - 防迴圈：`CLAUDE_REFLECT_CHILD=1` 旗標（stop-reflect + stop-sync + stop-check 三支開頭早退）+
