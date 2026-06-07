@@ -31,11 +31,15 @@ $agg  = @{}
 $weak = @{}
 foreach ($r in $runs) {
     foreach ($g in $r.Graded) {
-        foreach ($a in $g.asserts) {
-            $key = '{0} ||| {1}' -f $g.scenario_id, $a.assertion
-            if (-not $agg.ContainsKey($key)) { $agg[$key] = @{ pass = 0; total = 0 } }
-            $agg[$key].total++
-            if ($a.pass) { $agg[$key].pass++ }
+        # bare 對照組（baseline:true 的不載 skill 變體）本來就該 fail——不入回歸 pass 率；其批題意見仍收
+        $isBare = ($g.PSObject.Properties.Match('variant').Count -gt 0) -and ($g.variant -eq 'bare')
+        if (-not $isBare) {
+            foreach ($a in $g.asserts) {
+                $key = '{0} ||| {1}' -f $g.scenario_id, $a.assertion
+                if (-not $agg.ContainsKey($key)) { $agg[$key] = @{ pass = 0; total = 0 } }
+                $agg[$key].total++
+                if ($a.pass) { $agg[$key].pass++ }
+            }
         }
         if ($g.PSObject.Properties.Match('weak_asserts').Count) {
             foreach ($w in $g.weak_asserts) {
