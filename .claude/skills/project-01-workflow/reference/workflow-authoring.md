@@ -10,6 +10,8 @@
 不適合：中途要人簽核（無 mid-run 輸入 → 拆多個 workflow）、流程需邊做邊調、單線小任務。
 帳要算對：省的是**主對話 context 與流程漂移**，總 token 反而 ~15×——拿成本換可靠性，不是省錢。
 
+**落點判準（scripts/ vs workflows/）＝「誰持有 plan + 誰做工」**：確定性邏輯本身（解析 / 驗證 / 健檢——不該靠 token 生成的工作）→ skill `scripts/`（真 shell 行程、**任意語言**、有檔案存取，code 不進 context）；多 agent 的 plan（迴圈 / 分支 / 扇出 / 對抗驗證）→ `.claude/workflows/`（runtime 持 plan，腳本**無**檔案存取、**只能 JS 子集**——Python/TS 不行，Python 邏輯由被派的 agent 用 Bash 跑）。詳 → `resources/research/skill_scripts_vs_workflows_research_2026-06-07.md`。
+
 ## 撰寫檢查清單（實測踩過才入列）
 
 1. **args 字串守衛**：`args` 可能以 JSON 字串抵達 → 開頭 `if (typeof args === 'string') { try { args = JSON.parse(args) } catch {} }`。
