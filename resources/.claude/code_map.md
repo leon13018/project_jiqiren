@@ -18,5 +18,6 @@
 
 ## 檔案
 - `roadmap.md` — 開發路線圖。
+- `watchlist.md` — harness 留觀察項目單一事實來源（重訪節奏 + 觸發訊號；協議見 skill reference/harness-evolution.md）。
 - `changelog.md` — 專案開發日誌（里程碑歷史，**勿當 code map**）。
 - `CLAUDE.md` — 本層導引。
