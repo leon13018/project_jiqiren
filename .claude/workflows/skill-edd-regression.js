@@ -25,11 +25,15 @@ const cases = scenarios.map((s) => ({
   model: s.model,
   task: s.task || s.prompt,
   asserts: s.asserts || s.expectations || [],
+  baseline: s.baseline === true,   // true = 加跑一個不載 skill 的 bare 對照（驗證 skill 增益）
 }))
 const bad = cases.find((c) => !c.task || c.asserts.length === 0)
 if (bad) {
   throw new Error(`場景 ${bad.id} 缺 task/prompt 或 asserts/expectations`)
 }
+
+// pass@k：skill-variant 每場景跑 k 次（預設 1 = 單跑；正式守門輪建議 3 抓 flaky）
+const k = (input && Number.isInteger(input.k) && input.k > 0) ? input.k : 1
 
 const NAV_SCHEMA = {
   type: 'object',
@@ -120,6 +124,17 @@ ${s.asserts.map((a, i) => `  ${i + 1}. ${a}`).join('\n')}
 
 scenario_id 填 ${s.id}。`
 
+const bareNavPrompt = (s) => `你是一個不熟悉本專案內部協議的一般 coding agent。你收到以下任務情境（只做流程判斷，不實際修改任何檔案）：
+
+${s.task}
+
+【限制】不要載入任何 skill、不要讀 .claude/skills/ 下任何檔案——僅憑一般軟體工程常識與任務文本作答。回報：
+- references_read 填空陣列、skill_loaded 填 false
+- 最終流程判斷與對以下斷言的逐條自評（met ＋ 一句證據）：
+${s.asserts.map((a, i) => `  ${i + 1}. ${a}`).join('\n')}
+
+scenario_id 填 ${s.id}。`
+
 const gradePrompt = (nav, s) => `你是對抗性評分員，核對另一個 agent 的協議導航是否正確。**不要採信它的自評結論**——自己 Read 專案根（你目前的工作目錄）下 \`.claude/skills/project-01-workflow/\` 的 SKILL.md 與相關 reference 原文逐條核對。
 
 任務情境：
@@ -135,23 +150,50 @@ ${JSON.stringify(nav)}
 
 另以評分員身分批評題目本身：哪些 assertion 即使 navigator 導航錯了也會 pass（非鑑別性、查存在不查正確）？列入 weak_asserts，沒有就回空陣列——弱 assertion 上的 pass 比沒有更糟（製造假信心）。`
 
-const verdictPrompt = (results) => `以下是 ${results.length} 個場景的對抗評分結果。你只做合成、不重新核對：任一 assertion fail 即 overall_pass=false；列出 failed 清單；以繁體中文寫一段總結（指出最弱環節）。若各場景 graders 回報了非空 weak_asserts，在 summary 末尾彙整列出（題庫自我改進訊號）；全空則不提。
+const verdictPrompt = (results) => `以下是 ${results.length} 個場景的聚合評分（每場景 skill-variant 跑 k 次後聚合；assertion 帶 pass_rate 與 majority_pass）。你只做合成、不重新核對：任一 assertion 的 majority_pass=false 即 overall_pass=false；failed 列 majority 失敗項；以繁體中文寫一段總結（指出最弱環節；k>1 時註明各場景 rate；有 baseline_graded 的場景報 with-skill vs bare 的 pass 數差＝skill 增益；weak_asserts 非空則末尾彙整為題庫自我改進訊號，全空則不提）。
 
 ${JSON.stringify(results)}`
 
+// trial 攤平：每場景 k 個 skill-variant trial + （baseline:true 時）1 個 bare 對照 trial
+const trials = cases.flatMap((c) => {
+  const t = Array.from({ length: k }, (_, i) => ({ ...c, variant: 'skill', trial: i + 1 }))
+  if (c.baseline) t.push({ ...c, variant: 'bare', trial: 1 })
+  return t
+})
+
 phase('Navigate')
-const graded = await pipeline(
-  cases,
-  (s) => agent(navPrompt(s), { label: `nav:${s.id}`, phase: 'Navigate', agentType: 'general-purpose', model: s.model, schema: NAV_SCHEMA }),
-  (nav, s) => agent(gradePrompt(nav, s), { label: `grade:${s.id}`, phase: 'Grade', schema: GRADE_SCHEMA }),
+const gradedTrials = await pipeline(
+  trials,
+  (s) => agent(s.variant === 'bare' ? bareNavPrompt(s) : navPrompt(s),
+    { label: `nav:${s.id}${s.variant === 'bare' ? ':bare' : (k > 1 ? `:t${s.trial}` : '')}`, phase: 'Navigate', agentType: 'general-purpose', model: s.model, schema: NAV_SCHEMA }),
+  (nav, s) => agent(gradePrompt(nav, s),
+    { label: `grade:${s.id}${s.variant === 'bare' ? ':bare' : (k > 1 ? `:t${s.trial}` : '')}`, phase: 'Grade', schema: GRADE_SCHEMA })
+    .then((g) => ({ ...g, variant: s.variant, trial: s.trial })),
 )
 
-const ok = graded.filter(Boolean)
-if (ok.length < graded.length) {
-  log(`⚠ ${graded.length - ok.length} 個場景中途失敗（null），verdict 只合成 ${ok.length} 場`)
+const ok = gradedTrials.filter(Boolean)
+if (ok.length < gradedTrials.length) {
+  log(`⚠ ${gradedTrials.length - ok.length} 個 trial 中途失敗（null），聚合只算 ${ok.length} 份`)
 }
 
-phase('Verdict')
-const verdict = await agent(verdictPrompt(ok), { label: 'verdict', phase: 'Verdict', schema: VERDICT_SCHEMA })
+// JS 內聚合：每場景每 assertion 跨 skill-trial 的 pass 率 + majority；bare 對照單獨掛 baseline_graded
+const byId = {}
+for (const g of ok) {
+  if (!byId[g.scenario_id]) byId[g.scenario_id] = { skill: [], bare: null }
+  if (g.variant === 'bare') byId[g.scenario_id].bare = g
+  else byId[g.scenario_id].skill.push(g)
+}
+const aggregated = Object.entries(byId).map(([id, grp]) => {
+  const trialsN = grp.skill.length
+  const asserts = (grp.skill[0] ? grp.skill[0].asserts : []).map((a0, idx) => {
+    const passes = grp.skill.filter((g) => g.asserts[idx] && g.asserts[idx].pass).length
+    return { assertion: a0.assertion, pass_count: passes, trials: trialsN, pass_rate: trialsN ? passes / trialsN : 0, majority_pass: passes >= Math.ceil(trialsN / 2) }
+  })
+  const weak = [...new Set(grp.skill.flatMap((g) => g.weak_asserts || []))]
+  return { scenario_id: id, k: trialsN, asserts, weak_asserts: weak, baseline_graded: grp.bare }
+})
 
-return { verdict, graded: ok }
+phase('Verdict')
+const verdict = await agent(verdictPrompt(aggregated), { label: 'verdict', phase: 'Verdict', schema: VERDICT_SCHEMA })
+
+return { verdict, aggregated, graded: ok }

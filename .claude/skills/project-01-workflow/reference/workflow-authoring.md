@@ -25,10 +25,11 @@
 
 ## 本專案資產
 
-- harness：`.claude/workflows/skill-edd-regression.js`（Navigate→Grade→Verdict EDD 回歸）。
+- harness：`.claude/workflows/skill-edd-regression.js`（Navigate→Grade→Verdict EDD 回歸）。args 選用：`k`（pass@k，正式守門輪用 3 抓 flaky）、場景級 `baseline:true`（加跑不載 skill 的 bare 對照，驗 skill 增益——token ×2 只給有疑慮場景）。
 - 題庫 + 跑法：`resources/evals/`（README.md；`task/asserts` 與舊 `prompt/expectations` 雙格式都吃）。
 - **skill / reference 去噪後必跑一輪 EDD 回歸守門**。
 - **跑完每輪 EDD → 結果落檔 `resources/evals/iteration-N/<scope>-result.json`**（schema 見 evals/README「結果落檔」段）。
+- 跨輪聚合：`skill scripts/aggregate-edd.ps1`（每 assertion 跨輪 pass 率 + weak_asserts 頻次；讀 iteration-*/ 新 schema result.json）。
 
 ## 深層理由 / API 全貌（本檔只留行動清單，不重述）
 
