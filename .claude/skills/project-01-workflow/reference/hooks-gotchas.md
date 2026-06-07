@@ -2,6 +2,14 @@
 
 > 🎯 **何時讀本檔**：要寫 / 改**任何 .ps1**（hook、worker、skill script），或 debug hook 的編碼 / regex / stdin / 背景行程問題。系統現況與維護流程 → [hooks-system.md](hooks-system.md)。
 
+## 目錄
+
+- 編碼（#1-6：BOM / stdout / stdin / Select-String / Start-Job / marker）
+- 背景行程 / CLI 呼叫（#7-12）
+- Regex / matcher（#13-15：一寬一嚴 + 4 case 測試法）
+- 事件行為（#16-20）
+- 設計原則（fail-open / -NoProfile / 一次性提醒）
+
 ## 編碼（本機 code page = cp936 簡中，全部坑的根源）
 
 1. **.ps1 必須 UTF-8 with BOM**——PS 5.1 讀無 BOM 檔用 ANSI 解碼 → 含中文必 parse error。兩個會產生無 BOM 檔的來源：**Claude Code 的 Write 工具**（寫完必補 BOM）、**pwsh 7 `Set-Content -Encoding UTF8`**（no-BOM，還會洗掉既有 BOM；要用 `utf8BOM`）。補 BOM：

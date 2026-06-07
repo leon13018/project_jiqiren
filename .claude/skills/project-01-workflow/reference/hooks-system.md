@@ -2,6 +2,16 @@
 
 > 🎯 **何時讀本檔**：要新增 / 修改 / 移除 / debug 任何 hook，查某 hook 的行為與設計理由，或改 `settings.json` 的 hooks 段。寫 .ps1 的踩坑 → [hooks-gotchas.md](hooks-gotchas.md)。
 
+## 目錄
+
+- 已實作 hooks 一覽
+- Flag file 協作架構（state/ 家族）
+- stop-reflect（反思引擎）
+- Exit / 輸出控制速查
+- 確認不可行（不要再想）
+- 維護指南
+- 未實作但可用
+
 ## 已實作 hooks 一覽
 
 | 檔名 | 事件 | matcher | 用途 |
