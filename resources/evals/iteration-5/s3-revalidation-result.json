@@ -1,0 +1,52 @@
+{
+  "date": "2026-06-07",
+  "run_id": "wf_7a62ecd9-e19",
+  "scope": "s3-revalidation",
+  "scenario_ids": [
+    "3"
+  ],
+  "verdict": {
+    "overall_pass": true,
+    "failed": [],
+    "summary": "場景 3 全數通過（6/6）。navigator 正確只讀 myprogram-threading-paths.md 與 incremental-rebuild.md 兩份權威 reference，即涵蓋全部 5 個技術坑：單 queue + routing flag 設計洞察、廠商 sticky 旗號（stopAction 空轉）、Pi git pull 後清 __pycache__、Linux 絕對路徑/正斜線規範、以及 STT↔TTS 自我回授；無被迫下沉第 2 層湊技術坑，顯示兩檔對自身範圍自足、router 導航準確。相對最弱環節是「Linux 絕對路徑/正斜線」這條——其 pass 部分倚賴 navigator 在 decision 中「隱含遵循」而非顯式條列，evidence 自承 decision 為「隱含」，是本場景論證密度最薄的一項；但仍有 self_assert 直接引該段支撐，未構成 fail。整體無失分項，overall_pass=true。"
+  },
+  "graded": [
+    {
+      "scenario_id": "3",
+      "asserts": [
+        {
+          "assertion": "transcript 顯示 Read reference/myprogram-threading-paths.md 與/或 incremental-rebuild.md",
+          "pass": true,
+          "evidence": "navigator 的 references_read 列出兩檔；兩檔均為對應主題權威來源——myprogram-threading-paths.md 開頭『🎯 何時讀本檔：要在 myProgram/*.py 寫多線程 / queue / thread』，incremental-rebuild.md 開頭『🎯 何時讀本檔：多線程 + 多 queue + 旗號交互產生難收斂的不穩定 bug』。STT worker thread 並行任務正命中此兩檔，Read 行為正確。"
+        },
+        {
+          "assertion": "建議單一 queue + routing flag（而非每路一個 queue）的設計洞察",
+          "pass": true,
+          "evidence": "incremental-rebuild.md §單 queue 偏好詳解（權威）：『多消費者場景下不要用可變狀態旗號（has_customer/is_idle/mode）把同一份 input 路由到不同 queue；改用單一 queue + 順序消費』；Why 段『曾用 cmd_queue + customer_queue + has_customer 在 producer 端分流…字進錯 queue』。navigator decision 明確建議『不要為 STT / 鍵盤各開一 queue + routing flag，沿用單 queue + 消費者情境解讀避免 race』，洞察正確且應用到 STT 情境。"
+        },
+        {
+          "assertion": "提到廠商 SDK sticky 旗號（如 stop_action 空轉）需注意",
+          "pass": true,
+          "evidence": "incremental-rebuild.md §廠商 stop_action sticky 旗號詳解：『廠商 stopAction() 設的 stop_action=True 是 sticky 旗號，只在 runAction() 內部播放迴圈才被消耗…若 vendor 動作沒在跑時呼叫 stopAction() → 旗號保留到下次 runAction() 進入 → 第一幀就 break、動作根本沒跑』；守衛須先查『if Act.runningAction』。myprogram-threading-paths.md Part A 地雷區 STT↔TTS 段亦『自寫 Event，與 vendor sticky 旗號分開思考』。navigator decision 已列『vendor sticky 旗號（stopAction）與自寫 Event 分開思考』，正確。"
+        },
+        {
+          "assertion": "提到 Pi 端 git pull 後須清 __pycache__（stale .pyc 會跑舊邏輯）",
+          "pass": true,
+          "evidence": "myprogram-threading-paths.md Part B『部署提醒：code 推上 Pi 後，git pull 拉到新 commit 必清專案樹下所有 __pycache__ 再跑——stale .pyc 會跑舊邏輯』。navigator decision 收尾的 pineedtodo 已納入『含 git pull 後清 __pycache__ 提醒』，正確。"
+        },
+        {
+          "assertion": "提到 Linux 絕對路徑 / 正斜線規範",
+          "pass": true,
+          "evidence": "myprogram-threading-paths.md Part B 路徑規範：『1. Linux 格式 — 正斜線 /、不用 \\、大小寫敏感。2. 絕對路徑（從 / 起）；禁用 Windows 路徑（C:\\...）、相對路徑、~』。navigator self_assert 引此段，decision 隱含遵循。判 pass。"
+        },
+        {
+          "assertion": "未被迫開第 2 層 reference 才湊齊（各檔對自己範圍自足）",
+          "pass": true,
+          "evidence": "5 個技術坑全部由 myprogram-threading-paths.md 與 incremental-rebuild.md 兩檔涵蓋：單 queue（incremental §單 queue）、sticky 旗號（incremental §sticky + threading Part A）、pycache（threading Part B）、Linux 路徑（threading Part B）、STT↔TTS 回授（threading Part A 地雷區『STT↔TTS 自我回授（未來加 STT 收音 worker 時）…TTS 播放期間 gate 住 STT』）。兩檔開頭『🎯 何時讀本檔』各自宣告範圍，未需被迫下沉第 2 層湊技術坑；navigator 另讀 dispatch/worktree/sdd 純為流程判斷而非補技術坑。判 pass。"
+        }
+      ],
+      "pass_count": 6,
+      "total": 6
+    }
+  ]
+}

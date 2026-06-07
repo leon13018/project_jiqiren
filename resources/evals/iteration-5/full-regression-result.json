@@ -1,0 +1,397 @@
+{
+  "date": "2026-06-07",
+  "run_id": "wf_48945bf8-150",
+  "scope": "full-regression",
+  "scenario_ids": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "s1-sales-bugfix",
+    "s2-research-note",
+    "s3-hook-edit",
+    "s4-gotcha-m",
+    "s5-sales-bugfix-sonnet",
+    "s6-pi-dependency",
+    "s7-pi-ops-boundary",
+    "s8-workflow-authoring",
+    "s9-memory-health"
+  ],
+  "verdict": {
+    "overall_pass": false,
+    "failed": [
+      {
+        "scenario_id": "3",
+        "assertion": "提到 Pi 端 git pull 後須清 __pycache__（stale .pyc 會跑舊邏輯）",
+        "why": "此 caveat 權威在 standard-workflow.md（『Pi 每次 git pull 拉到新 commit 後，必須清光 project 樹下所有 __pycache__，避免 import 走 stale .pyc 跑舊邏輯』），由 SKILL.md 路由表導向，但 navigator 只讀了 threading-paths.md 與 incremental-rebuild.md，未讀 standard-workflow.md，decision 全文未提此坑。該 caveat 真實且與本任務（Pi 部署 STT）直接相關，卻未被 surface。"
+      }
+    ],
+    "summary": "總計 14 個場景、56 條 assertion，僅 1 條 fail（場景 3 之第 4 條），故 overall_pass=false。最弱環節為「跨 reference 路由的完整性」——具體即 Pi 端 git pull 後須清 __pycache__（避免 stale .pyc 跑舊邏輯）這條 caveat。其權威落在 standard-workflow.md（由 SKILL.md 路由表的 git 收尾 / sync Pi 列導向），但場景 3 的任務是「在 myProgram 寫多線程 STT 並部署到 Pi」，navigator 依路由命中 threading-paths.md 與 incremental-rebuild.md 後即自足作答，沒有再沿 Pi 部署面向去讀 standard-workflow.md，導致與本任務高度相關的部署坑漏掉。值得注意的是這非 reference 內容缺失或自足性問題（被讀的兩檔在其範圍內皆自足、且自評誠實標 met:false），而是「一個任務橫跨兩個路由桶（多線程實作 + Pi 部署）時，navigator 易只覆蓋主桶、漏掉次桶的跨檔 caveat」。其餘 13 個場景（含 worktree Gotcha M、cherry-pick 大寫 -D、SDD 規模門檻、繁中規範、pineedtodo、SSH 邊界、workflow-authoring、memory 健檢等）全數 6/6 或滿分通過，skill 的單檔自足性與路由命中率整體穩健；唯一可強化點是在「實作 + 部署」複合任務上提示 navigator 一併讀 standard-workflow.md 的 Pi 收尾段。"
+  },
+  "graded": [
+    {
+      "scenario_id": "1",
+      "asserts": [
+        {
+          "assertion": "transcript 顯示載入 project-01-workflow skill 並 Read reference/sdd.md",
+          "pass": true,
+          "evidence": "navigator references_read 列 reference/sdd.md，且回報內容準確複現 sdd.md 第 70-103 行『SDD 4 階段流程』全文（階段1對齊寫spec→階段2派sales-coder→階段3a/3b reviewer→階段4+5收尾），非憑空。sdd.md 開頭『🎯 何時讀本檔：要寫/改 myProgram/ 下任何 .py code…動手前先走 SDD 寫 spec』"
+        },
+        {
+          "assertion": "判定此為 myProgram/.py 改動（跨檔 + 業務邏輯）→ 必走完整 SDD（spec + plan，非 mini）",
+          "pass": true,
+          "evidence": "sdd.md L33『完整版（≥ 3 行 / 跨檔 / 新功能 / 重構 / 行為變更）— 拆 spec.md + plan.md』，L49『Mini 版（≤ 10 行單檔純值 / 字串 / 條件微調）— 不拆 plan』。改 l4.py+l3.py+tests 為跨檔折扣行為變更，命中完整版、不符 mini，navigator 判拆 spec.md+plan.md 正確"
+        },
+        {
+          "assertion": "規劃含派 sales-coder 作 implementer（此規模超出『超級小』門檻，非主 agent 自己改）",
+          "pass": true,
+          "evidence": "dispatch.md L40『「超級小」（須同時滿足）：≤ 10 行｜單一檔案｜純值/字串/條件微調/typo｜無新增 function/class/簽名變動｜無 cross-file propagation』、L37『中小以上 → 必派 sales-coder，不論檔案類型』。本案跨檔含計算分支全不滿足，navigator 判派 sales-coder（opus，frontmatter 預載）正確"
+        },
+        {
+          "assertion": "規劃含三段 reviewer 迴圈（spec-reviewer + code-quality-reviewer）或引用 examples/ 的 reviewer prompt",
+          "pass": true,
+          "evidence": "sdd.md L89-96『[階段 3a] …派 spec-reviewer（prompt 用 examples/spec-reviewer-prompt.md）… [階段 3b] …派 code-quality-reviewer（prompt 用 examples/code-quality-reviewer-prompt.md）…❌ → 派 sales-coder fix → 回該段重審』。Glob 確認 examples/spec-reviewer-prompt.md + examples/code-quality-reviewer-prompt.md 兩檔存在，navigator 三段迴圈與 prompt 引用皆對"
+        },
+        {
+          "assertion": "提到 Iron Law（沒跑 pytest 驗證不得宣告完成）與 git branch --contains 驗 commit 落 worktree",
+          "pass": true,
+          "evidence": "sdd.md L126『NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE』、L139『pytest 全綠｜python -m pytest tests/sales/ 看 N passed』、L141『Branch 落 worktree｜git branch --contains <SHA> 看 worktree-*』；worktree.md L87 Gotcha M『git branch --contains <SHA> 顯示 main 即觸發』。navigator 收尾均引述，正確"
+        },
+        {
+          "assertion": "未被迫開第 2 層 reference 才湊齊上述（sdd.md / dispatch.md 各自自足）",
+          "pass": true,
+          "evidence": "navigator 僅 Read sdd.md+dispatch.md（+Glob examples/，係 SKILL.md L23 sdd 同列的搭配範本而非另一 reference）。worktree 收尾 5 階段確實已內嵌於 sdd.md L100-103『[階段 4 + 5] worktree 收尾 ExitWorktree(keep) → git merge --ff-only → git push』，規模門檻在 dispatch.md L40，故未開 worktree.md/standard-workflow.md 即自足，navigator 自評屬實"
+        }
+      ],
+      "pass_count": 6,
+      "total": 6
+    },
+    {
+      "scenario_id": "2",
+      "asserts": [
+        {
+          "assertion": "transcript 顯示 Read reference/worktree.md（Gotcha M 段）",
+          "pass": true,
+          "evidence": "worktree.md 確含 Gotcha M 段，line 85 標題『## Gotcha M：subagent commit 落 main 的完整處理』、line 87『git branch --contains <SHA> 顯示 main 即觸發』。navigator references_read 列 worktree.md 且 decision 引用該段內容無誤。"
+        },
+        {
+          "assertion": "給出 Gotcha M 解法鏈（ExitWorktree remove → 在主 checkout 驗 → 需後續編輯則新 worktree + cherry-pick（非 ff-merge）→ push → branch -D）",
+          "pass": true,
+          "evidence": "worktree.md line 92『ExitWorktree(remove) 切回主 checkout 才看得到新檔』、line 93『主 checkout 跑 pytest/lint』、line 95『進新 worktree…+ cherry-pick（非 ff-merge）』、line 97『git merge --ff-only 必失敗 Diverging branches can't be fast-forwarded…解法用 cherry-pick』、line 102『git branch -D worktree-<name> # -D 大寫，因未被 ff-merged』。navigator 4b 完整重現含大寫 -D 與 diverge 陷阱。"
+        },
+        {
+          "assertion": "描述 worktree 5 階段或 git 收尾 5 步（status→add→commit→push→sync）",
+          "pass": true,
+          "evidence": "worktree.md line 44-46 階段 4『ExitWorktree(action=\"keep\")…git merge worktree-<name> --ff-only…git push origin main』、line 49-53 階段 5『git worktree remove…git branch -d』；line 54-60 Windows file lock fallback。navigator 正確描述階段 4 收尾＋階段 5 清理＋例外 A，對應原文。"
+        },
+        {
+          "assertion": "正確說明 sync 由 Stop hook（stop-sync-pi.ps1）在 turn 結束自動觸發、push 後不需手動跑；漏掉時下個 turn 靠 marker 自我修正重試（必要時才手動 sync_pi.ps1 / SSH 修復）",
+          "pass": true,
+          "evidence": "worktree.md line 46『push 後 Stop hook（stop-sync-pi.ps1）在 turn 結束自動 sync Pi』；standard-workflow.md line 35『stop-sync-pi.ps1（Stop hook）在本 turn 結束時自動比對 origin/main 與 marker，落後就 sync』、line 41『靠 last-synced-commit.marker…漏掉的 sync 下個 turn 自動補』、line 76『修復：SSH git reset --hard origin/main』。navigator sync 觸發段全數命中。"
+        },
+        {
+          "assertion": "未被迫開第 2 層 reference 才湊齊（worktree.md 對 Gotcha M 自足）",
+          "pass": true,
+          "evidence": "worktree.md 單檔即含 Gotcha M 全鏈（line 85-104）＋5 階段收尾（line 24-60）＋hook 名稱（line 46 內嵌 stop-sync-pi.ps1）。navigator 只 Read worktree.md 一檔即湊齊本情境所需，無被迫開 standard-workflow.md 等第 2 層；worktree.md 對 Gotcha M 確屬自足。"
+        }
+      ],
+      "pass_count": 5,
+      "total": 5
+    },
+    {
+      "scenario_id": "3",
+      "pass_count": 5,
+      "total": 6,
+      "asserts": [
+        {
+          "assertion": "transcript 顯示 Read reference/myprogram-threading-paths.md 與/或 incremental-rebuild.md",
+          "pass": true,
+          "evidence": "navigator references_read 列出兩檔皆讀，且兩檔內容確為命中本任務的權威檔：myprogram-threading-paths.md 開頭『🎯 何時讀本檔：要在 myProgram/*.py 寫多線程 / queue / thread』、incremental-rebuild.md 開頭『🎯 何時讀本檔：多線程 + 多 queue + 旗號交互產生難收斂的不穩定 bug』。SKILL.md 路由表第 25、32 列亦直接命中這兩檔。"
+        },
+        {
+          "assertion": "建議單一 queue + routing flag（而非每路一個 queue）的設計洞察",
+          "pass": true,
+          "evidence": "incremental-rebuild.md §單 queue 偏好（line 60）：『多消費者場景下不要用可變狀態旗號（has_customer/is_idle/mode）把同一份 input 路由到不同 queue；改用單一 queue + 順序消費』；line 66『input 進來先丟單一 queue，producer 端不分流』。navigator decision 明確採此洞察並延伸到 STT producer 不分流。"
+        },
+        {
+          "assertion": "提到廠商 SDK sticky 旗號（如 stop_action 空轉）需注意",
+          "pass": true,
+          "evidence": "incremental-rebuild.md §廠商 stop_action sticky 旗號（line 72）：『廠商 stopAction() 設的 stop_action=True 是 sticky 旗號，只在 runAction() 內部播放迴圈才被消耗…若 vendor 動作沒在跑時呼叫 stopAction() → 旗號保留到下次 runAction() 進入 → 第一幀就 break』；守衛 line 78『if Act.runningAction: Act.stopAction()』。navigator 點名『廠商 sticky 旗號與自寫 Event 分開』。"
+        },
+        {
+          "assertion": "提到 Pi 端 git pull 後須清 __pycache__（stale .pyc 會跑舊邏輯）",
+          "pass": false,
+          "evidence": "此 caveat 權威在 standard-workflow.md line 47『Pi 每次 git pull 拉到新 commit 後，必須清光 project 樹下所有 __pycache__，避免 Python import 走 stale .pyc 跑舊邏輯』，由 SKILL.md 路由表第 30 列『git 收尾 5 步 / push / sync Pi』導向。navigator 未讀 standard-workflow.md，decision 全文未提此坑（自評亦誠實標 met:false）；pi-and-structure.md §2 只講 git SHA 對齊、未含 pycache 文字。caveat 真實且與本任務（Pi 部署 STT）相關卻未被 surface → FAIL。"
+        },
+        {
+          "assertion": "提到 Linux 絕對路徑 / 正斜線規範",
+          "pass": true,
+          "evidence": "myprogram-threading-paths.md Part B（line 50-51）：『Linux 格式 — 正斜線 /、不用 \\、大小寫敏感』『絕對路徑（從 / 起）；禁用 Windows 路徑（C:\\...）…~』；專案根 /home/pi/Desktop/project_jiqiren（line 55）。navigator decision 末『Linux 絕對路徑正斜線』。"
+        },
+        {
+          "assertion": "未被迫開第 2 層 reference 才湊齊（各檔對自己範圍自足）",
+          "pass": true,
+          "evidence": "navigator 透過 SKILL.md 路由表直接命中 threading-paths（第 25 列）與 incremental-rebuild（第 32 列），未沿 reference 內 cross-link 鏈進更深層；兩檔對各自範圍（多線程地雷 / 單 queue+sticky）自足，未為補洞被迫下沉。斷言 4 之 pycache 屬 standard-workflow.md（git/sync 範圍，路由表第 30 列另列），是 navigator 未讀對的路由檔、非『被迫開第 2 層才湊齊』——已讀檔在其範圍內自足成立。"
+        }
+      ]
+    },
+    {
+      "scenario_id": "4",
+      "asserts": [
+        {
+          "assertion": "transcript 顯示 Read reference/sales-dialog-design.md（與/或 sales-tts-ux.md）",
+          "pass": true,
+          "evidence": "navigator references_read=['reference/sales-dialog-design.md']，且引用內容與該檔原文逐項對得上（如 line 34『沒有了』分類、line 100 CANCEL_CONFIRM_TIMEOUT=6.0、line 124 service_confirm 24s），確為實讀非杜撰。該檔標頭 line 3『🎯 何時讀本檔：要改 sales 對話狀態機 / 跨層流程（…cancel / service confirm、C-2…）』正命中本任務。"
+        },
+        {
+          "assertion": "引用 C-2 三選一表或 cancel_confirm/service_confirm 的 gate 與 caller 規約",
+          "pass": true,
+          "evidence": "navigator 引 C-2 三選一行為對應表（CANCEL→_dialog_exit_a / CONTINUE→_dialog_main_loop / CHECKOUT→_c2_checkout_via_confirm / 6s timeout 合流 confirm），對應原文 line 26-29；並引 cancel_confirm『8 個 explicit gate』（line 105：_dialog_main_loop / _dialog_dispatch_inner_l2 / _l3 / _dialog_checkout_confirm / _l4_dispatch_response / _dialog_unclear_final_confirmation / _l4_final_confirmation / _l4_service_mode）與 service_confirm『6 個進入點』（line 126），caller YES/NO 分支亦符。"
+        },
+        {
+          "assertion": "說明 cancel_confirm 與 service_confirm 各自的 wall-clock budget 計時（引用 reference 內的秒數，不憑空猜）",
+          "pass": true,
+          "evidence": "navigator 報 cancel_confirm=6s（line 100『6s wall-clock budget（CANCEL_CONFIRM_TIMEOUT=6.0），用 speak_and_wait 確保 deadline 從 TTS 播完起算』）、service_confirm=24s（line 124『deadline = monotonic()+L4_C_CONFIRM_TIMEOUT（24s 一次性決策）…亂答 → speak unclear 不重置 budget』），並引 inverse 表 line 133『Timeout | 6s | 24s』。秒數與常數名全與原文一致，無捏造。"
+        },
+        {
+          "assertion": "正確判斷「沒有了」歸為結帳意圖 / 走 confirm path",
+          "pass": true,
+          "evidence": "navigator 依 line 34『L3 reject 短詞 = 結帳意圖（非取消）：「沒有了 / 沒了 / 不了 / 不要 / 不用」等短詞在 L3 normal mode（classify_intent mode=\"normal\"）歸「結帳」（不追加→去結帳），不走 cancel_confirm；…L3 僅 _KEYWORDS_REJECT_L3_STRICT（「我不要了 / 不想買了 / 取消購買 / 退出」等）才算取消』正確判定走 confirm path（→ _dialog_checkout_confirm，line 37『您即將結帳，總共…正確嗎？12s + 5 次亂答容忍』），不誤觸 cancel_confirm 清 cart。"
+        },
+        {
+          "assertion": "未被迫開第 2 層 reference 才湊齊（sales-dialog-design 對該流程自足）",
+          "pass": true,
+          "evidence": "本任務所需四項（C-2 表 line 16-40、L3 短詞分類 line 34、cancel_confirm 6s line 100、service_confirm 24s line 124、inverse 表 line 130-136）全在 sales-dialog-design.md 一檔；line 100 雖以 [sales-tts-ux.md](sales-tts-ux.md) 連結 speak_and_wait 概念，但秒數與流程結論不依賴開啟該檔，navigator 未讀第 2 層即答全，符合自足判斷。"
+        }
+      ],
+      "pass_count": 5,
+      "total": 5
+    },
+    {
+      "scenario_id": "5",
+      "asserts": [
+        {
+          "assertion": "transcript 顯示 Read reference/bdd-tdd.md（重啟條件）與 reference/conventions.md",
+          "pass": true,
+          "evidence": "navigator references_read 列出兩檔；二檔皆實際存在且內容相符——bdd-tdd.md 標題「BDD + TDD 開發流程（新增 `myProgram/sales/` 業務邏輯時必走）」含重啟條件區塊；conventions.md「## 輸出語言規範（繁體中文）」。"
+        },
+        {
+          "assertion": "正確說明『新增業務邏輯』屬 BDD+TDD 重啟條件之一，並概述其階段",
+          "pass": true,
+          "evidence": "bdd-tdd.md 行16『### 重啟條件（任一成立 → 重啟）』第一條：『新增 `myProgram/sales/` 任何業務邏輯（新商品 / 新對話分支 / 新 L 層）』；4 階段行28-31：1.主 agent 寫 BDD spec 骨架(只含註解+空函數pass,禁import prod) 2.主 agent plan mode 規劃 TDD+Implementation→ExitPlanMode 3.派單一 subagent 走 TDD Red-Green-Refactor 4.主 agent 審查+收尾自跑 pytest(Iron Law)。navigator 概述與此逐項吻合。"
+        },
+        {
+          "assertion": "給出繁中產出規範（程式碼註解 / 字串輸出 / commit message 內中文一律繁體）",
+          "pass": true,
+          "evidence": "conventions.md 行15『- **適用**：程式碼註解 / 字串字面值 / 所有 `.md`(...) / commit message 中文 / 任何寫進檔案的中文』；行16『- **不適用**：對話回覆本身（簡繁混合 OK）』。navigator decision 三項(註解/字串字面值/commit message 中文一律繁體 + 對話可簡繁混合)完全對應。"
+        },
+        {
+          "assertion": "未被迫開第 2 層 reference 才湊齊（bdd-tdd / conventions 各自足）",
+          "pass": true,
+          "evidence": "navigator 僅 Read bdd-tdd.md + conventions.md，未讀 sdd.md/worktree.md/dispatch.md。bdd-tdd.md 自身即含『### 重啟條件』(行15-18)+『## 4 階段鳥瞰』(行26-31)，足以回答重啟條件與階段；conventions.md『## 輸出語言規範（繁體中文）』(行12-17)自足回答繁中規範。兩檔各自自足，核心問題未需第二層 reference。"
+        }
+      ],
+      "pass_count": 4,
+      "total": 4
+    },
+    {
+      "scenario_id": "s1-sales-bugfix",
+      "asserts": [
+        {
+          "assertion": "判斷必須先 EnterWorktree（myProgram/ 屬強制 worktree 範圍）",
+          "pass": true,
+          "evidence": "worktree.md §觸發分層表第 1 列：「`myProgram/`、`tests/`、`.claude/`（hooks / agents / skills / settings）| **必先 EnterWorktree**（5 階段）」。order.py 位於 myProgram/sales/ 命中此列。sdd.md SDD 4 階段流程階段 1 第 3 步亦明列 EnterWorktree。導航判 YES 正確。"
+        },
+        {
+          "assertion": "判斷必走 SDD（spec/plan → sales-coder → reviewer → Iron Law）",
+          "pass": true,
+          "evidence": "sdd.md §觸發條件：「觸發 ✅（必寫 spec）：任何 `myProgram/` 下 `.py` 改動，不分規模——`sales/**/*.py`（業務邏輯）...」；§Spec template 完整版條件「≥ 3 行 / 跨檔 / 新功能 / 重構 / 行為變更 — 拆 spec.md + plan.md」，30 行邏輯命中完整版。SDD 4 階段：階段 2 派 sales-coder、階段 3a spec-reviewer、3b code-quality-reviewer、Iron Law「NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE」。導航判 YES 正確。"
+        },
+        {
+          "assertion": "30 行超過 ≤10 行自 patch 門檻，應派 sales-coder 而非主 agent 自改",
+          "pass": true,
+          "evidence": "dispatch.md §規模門檻表：「中小以上 | 必派 sales-coder，不論檔案類型」；「超級小（須同時滿足）：≤ 10 行（不含 docstring/comment）｜單一檔案｜純值 / 字串 / 條件微調 / typo｜無新增 function/class/簽名變動｜無 cross-file propagation」。30 行且為改單數量計算邏輯分支，兩條件皆不符自 patch，落入必派 sales-coder；且「規模判斷向保守傾斜，不確定就派」。導航判 YES 正確。"
+        }
+      ],
+      "pass_count": 3,
+      "total": 3
+    },
+    {
+      "scenario_id": "s2-research-note",
+      "asserts": [
+        {
+          "assertion": "判斷 resources/ 純文件新增可直接在 main 工作，不必進 worktree",
+          "pass": true,
+          "evidence": "worktree.md「觸發分層」表 line 17：『resources/ 純文件新增與小修 | 可直接 main（git add 明列 + 收尾 5 步照走；大規模多檔重構 / 刪除仍進 worktree）』。而 line 16 僅 myProgram/、tests/、.claude/ 才必先 EnterWorktree。本輪單檔 markdown 新增屬可直接 main。"
+        },
+        {
+          "assertion": "判斷不需走 SDD",
+          "pass": true,
+          "evidence": "SKILL.md「跨任務鐵則」line 42：『改 myProgram/{sales,main,tts,action,input_reader}.py 必走 SDD』。resources/research/ 純 markdown 不沾這些 code 檔，故不觸發 SDD。路由表 line 23 亦把 SDD 綁定『改 myProgram/ 任何 .py code』。"
+        },
+        {
+          "assertion": "git add 必須明列檔名（禁 -A / .）",
+          "pass": true,
+          "evidence": "standard-workflow.md「觸發時 5 步」步驟 2：『git add <具體檔名> — 不用 -A/.（hook 擋），明列避免誤加 ignored / 敏感檔』。worktree.md 階段 2 亦載：『明列 git add <files>，禁 -A/.（hook 擋）』。"
+        }
+      ],
+      "pass_count": 3,
+      "total": 3
+    },
+    {
+      "scenario_id": "s3-hook-edit",
+      "asserts": [
+        {
+          "assertion": "判斷 .claude/ 改動必須先 EnterWorktree",
+          "pass": true,
+          "evidence": "worktree.md 觸發分層表 line 16：『`myProgram/`、`tests/`、`.claude/`（hooks / agents / skills / settings） → 必先 EnterWorktree（5 階段）』。stop-reflect.ps1 屬 .claude/hooks，命中此列，必走 worktree。SKILL.md 跨任務鐵則 line 41『myProgram/、tests/、.claude/ 改動走 worktree 5 階段』亦佐證。"
+        },
+        {
+          "assertion": "判斷這是 meta-task，由主 agent 自實作而非派 sales-coder",
+          "pass": true,
+          "evidence": "dispatch.md 規模門檻表 line 38『超級小 → 主 agent 直接 patch，但必先 invoke andrej-karpathy-skills:karpathy-guidelines』，line 40 定義超級小須同時滿足『≤10 行｜單一檔案｜純值/字串/條件微調/typo｜無新增 function/簽名變動｜無 cross-file propagation』——TURN_INTERVAL 20→30 單檔純值替換全中。且 subagent_type 對應表 line 27 sales-coder 只涵蓋 myProgram/sales/*.py、tests/sales/*.py、myProgram/{main,tts,action,input_reader}.py，hook 腳本不在其職責，故主 agent 自做（navigator 用『meta-task』一詞；skill 無此字面但結論正確）。SKILL.md line 43『只有 ≤10 行純值替換主 agent 才自 patch，且先 invoke karpathy-guidelines』一致。"
+        },
+        {
+          "assertion": "知道 hook 的 .ps1 檔必須維持 UTF-8 with BOM",
+          "pass": true,
+          "evidence": "此要求不在被核對的 project-01-workflow skill 內（SKILL.md 與 15 份 reference grep『BOM/ef bb bf』全無命中；conventions.md 只提 UTF-8 vs cp936 衝突、未提 .ps1 必加 BOM）。navigator 引的是 .claude/hooks/NOTES.md line 281『所有 .ps1 必須加 UTF-8 BOM（\\xEF\\xBB\\xBF 前綴）』、line 292『動完任何 .ps1 後跑 head -c 3 確認頭 3 byte 是 ef bb bf』、line 290『Write 工具寫 .ps1 = 無 BOM，必須補 BOM』。該知識正確且 navigator 引用 NOTES.md 屬實，唯佐證來源為 hooks 文檔而非本 skill；以『navigator 是否正確知道此要求』論之為 PASS。"
+        }
+      ],
+      "pass_count": 3,
+      "total": 3
+    },
+    {
+      "scenario_id": "s4-gotcha-m",
+      "asserts": [
+        {
+          "assertion": "識別這是 Gotcha M（subagent commit 落 main 的已知偶發 bug）",
+          "pass": true,
+          "evidence": "worktree.md L85-87 標題『Gotcha M：subagent commit 落 main 的完整處理』，內文『已知偶發 bug：subagent 在 worktree 內 commit，commit 卻落到 main 而非 worktree-*。驗證：git branch --contains <SHA> 顯示 main 即觸發』，與情境（branch --contains 顯示 main）完全吻合。"
+        },
+        {
+          "assertion": "主 agent 後續需編輯時，要用 cherry-pick 而非 ff-merge（diverge 陷阱）",
+          "pass": true,
+          "evidence": "worktree.md L95 表格『4b. 需主 agent 後續編輯｜進新 worktree 編輯 + commit + ExitWorktree(keep) + cherry-pick（非 ff-merge）+ push』；L97-99『4b 的 diverge 陷阱：新 worktree 從 Gotcha M 之前的 base 分出 → branch 歷史比 main 短一 commit → git merge --ff-only 必失敗 Diverging branches can't be fast-forwarded。解法用 cherry-pick：git cherry-pick <worktree-commit-SHA>』。"
+        },
+        {
+          "assertion": "清理 worktree branch 要用大寫 -D（因未被 ff-merge）",
+          "pass": true,
+          "evidence": "worktree.md L102『git branch -D worktree-<name>   # -D 大寫，因未被 ff-merged』；L104『踩到不必再想，直接 cherry-pick + -D』。"
+        }
+      ],
+      "pass_count": 3,
+      "total": 3
+    },
+    {
+      "scenario_id": "s5-sales-bugfix-sonnet",
+      "asserts": [
+        {
+          "assertion": "判斷必須先 EnterWorktree（myProgram/ 屬強制 worktree 範圍）",
+          "pass": true,
+          "evidence": "worktree.md 觸發分層表（line 16）：「myProgram/、tests/、.claude/（hooks / agents / skills / settings）｜必先 EnterWorktree（5 階段）」。order.py 路徑為 myProgram/sales/order.py，落在 myProgram/ 強制範圍，無例外條件。dispatch.md Step 0（line 54）：「派發前主 agent 先進 worktree（除 bootstrap），subagent 繼承 cwd」。本案非 bootstrap，故必先 EnterWorktree 成立。"
+        },
+        {
+          "assertion": "判斷必走 SDD（spec/plan → sales-coder → reviewer → Iron Law）",
+          "pass": true,
+          "evidence": "sdd.md 觸發條件（line 25）：「任何 myProgram/ 下 .py 改動，不分規模——sales/**/*.py（業務邏輯）...」。30 行邏輯 + 補測試屬完整版（line 33：「≥ 3 行 / 跨檔 / 新功能 / 重構 / 行為變更——拆 spec.md + plan.md」）。SDD 4 階段（line 73-103）：階段1 主 agent 寫 spec/plan → 階段2 派 sales-coder → 階段3a spec-reviewer → 階段3b code-quality-reviewer，且 Iron Law（line 126）「NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE」為完成宣告必跑 gate，三段不可省。完整流程鏈成立。"
+        },
+        {
+          "assertion": "30 行超過 ≤10 行自 patch 門檻，應派 sales-coder 而非主 agent 自改",
+          "pass": true,
+          "evidence": "dispatch.md 規模門檻（line 40）：「超級小（須同時滿足）：≤ 10 行（不含 docstring/comment）｜單一檔案｜純值 / 字串 / 條件微調 / typo｜無新增 function/class/簽名變動｜無 cross-file propagation」。30 行邏輯改動不符 ≤10 行，且屬邏輯而非純值微調，故屬「中小以上」，line 37「必派 sales-coder，不論檔案類型」。sdd.md Red Flags（line 226）：「主 agent 自己改一下就好」→「myProgram/ code 改動屬 sales-coder 範圍，連 1 行也派」。應派 sales-coder 成立。"
+        }
+      ],
+      "pass_count": 3,
+      "total": 3
+    },
+    {
+      "scenario_id": "s6-pi-dependency",
+      "asserts": [
+        {
+          "assertion": "判斷絕不在 Windows 本機 pip install（紅線 ⛔#2）",
+          "pass": true,
+          "evidence": "CLAUDE.md ⛔#2「不要在 Windows 本機安裝任何依賴（pip / npm / apt）🔒 — 執行環境是 Pi，本機只負責編輯與 git」。skill pi-and-structure.md §Pi 端操作觸發條件把套件安裝動作全導向 Pi：「主 agent 審查後判斷本輪變更實際會否導致使用者要在 Pi 終端手動做事」，且 §pineedtodo 寫完後「主 agent 提醒使用者回報」由使用者在 Pi 完成安裝。navigator 正確判定本機不裝、委由 Pi 端執行。"
+        },
+        {
+          "assertion": "判斷應寫 resources/pineedtodo/<YYYY-MM-DD>_<short_name>.md 由使用者在 Pi 上執行",
+          "pass": true,
+          "evidence": "pi-and-structure.md §Pi 端操作觸發條件「觸發 ✅：新增/移除 Python 套件 import（pip）…」；§輸出「位置固定 resources/pineedtodo/<YYYY-MM-DD>_<short_name>.md；append-only」；§pineedtodo 規範檔名與「驗證段（置尾）：跑什麼指令確認本輪 Pi 操作成功」。worktree.md 階段 3a 亦印證「主 agent 在 worktree 內新增一檔 resources/pineedtodo/<YYYY-MM-DD>_<short_name>.md…提醒使用者回報成功項」。navigator 路徑、觸發、append-only、置尾驗證段全對。"
+        },
+        {
+          "assertion": "知道 pineedtodo 由主 agent 集中撰寫（subagent 只在回報列需求）",
+          "pass": true,
+          "evidence": "worktree.md 階段 3a「subagent 不寫此檔（只在回報列 Pi 需求），由主 agent 集中撰寫保一致」；dispatch.md Step 4「不做 post-commit closeout…你只做：編輯 → commit → 回報」。navigator 準確引述 subagent 只回報、主 agent 集中寫。"
+        }
+      ],
+      "pass_count": 3,
+      "total": 3
+    },
+    {
+      "scenario_id": "s7-pi-ops-boundary",
+      "asserts": [
+        {
+          "assertion": "判斷 SSH 直接操作不適用於此情境（SSH 授權僅限 git / 同步修復 / 唯讀檢視；清 pycache 由 stop-sync-pi hook 自動處理或屬部署操作）",
+          "pass": true,
+          "evidence": "standard-workflow.md §Windows 端工作邊界『可做 ✅』只列『Pi 端 git / 同步修復（fetch / reset / log / status 等唯讀或版控修復指令）可直接 SSH』——清 pycache 不在此授權清單內。同檔 §Pi 端 pycache stale『已實作：.claude/hooks/stop-sync-pi.ps1 在 sync_pi.ps1 完成後，用獨立 try/catch SSH 清 Pi pycache』，確認清理由 Stop hook 自動處理而非主 agent 手動 SSH。"
+        },
+        {
+          "assertion": "判斷系統設定變更應寫 resources/pineedtodo/<YYYY-MM-DD>_<short_name>.md 由使用者在 Pi 實機執行",
+          "pass": true,
+          "evidence": "pi-and-structure.md §Pi 端操作觸發條件『觸發 ✅』明列『systemd service/自啟動』與『任何改 Pi 系統設定/環境變數/權限』；『輸出：位置固定 resources/pineedtodo/<YYYY-MM-DD>_<short_name>.md；append-only』，且『寫完 pineedtodo → 主 agent 提醒使用者回報』成功啟用項。"
+        },
+        {
+          "assertion": "不在 Pi 上自行啟動 / 跑 production 應用（實機驗證一律使用者做）",
+          "pass": true,
+          "evidence": "standard-workflow.md §Windows 端工作邊界『不做 ❌』明列『在 Pi 上跑 / 啟動 production 應用或裝依賴（Pi 是執行環境，實機驗證一律使用者做）』。"
+        }
+      ],
+      "pass_count": 3,
+      "total": 3
+    },
+    {
+      "scenario_id": "s8-workflow-authoring",
+      "asserts": [
+        {
+          "assertion": "transcript 顯示載入 project-01-workflow skill 並 Read reference/workflow-authoring.md",
+          "pass": true,
+          "evidence": "navigator references_read 含 reference/workflow-authoring.md 且 skill_loaded:true。其 decision 內容對應 workflow-authoring.md 多處原文：碼化判準（檔首『碼化判準』『這個流程值不值得變成可重跑的資產』）、撰寫檢查清單八條、§本專案資產『skill / reference 去噪後必跑一輪 EDD 回歸守門』（第30行）。引用密度與細節（如第13行落點判準 scripts/ vs workflows/、JS 子集無檔案存取）顯示確實讀過原文，非泛談。"
+        },
+        {
+          "assertion": "提到 args 可能以 JSON 字串抵達、腳本開頭需 typeof 守衛（檢查清單①）",
+          "pass": true,
+          "evidence": "workflow-authoring.md 第17行檢查清單①原文：『args 字串守衛：args 可能以 JSON 字串抵達 → 開頭 if (typeof args === \"string\") { try { args = JSON.parse(args) } catch {} }』。navigator decision 派發 prompt 明列此項並逐字引出 typeof 守衛碼，與原文一致。"
+        },
+        {
+          "assertion": "提到不可硬編絕對路徑、應用 cwd 相對路徑（檢查清單②）",
+          "pass": true,
+          "evidence": "workflow-authoring.md 第18行檢查清單②原文：『不硬編碼絕對路徑：prompt 指路用「工作目錄相對」描述（agent 繼承 cwd，自己組絕對路徑）』。navigator decision 明列此項並準確還原『不硬編碼絕對路徑、工作目錄相對、agent 繼承 cwd 自組絕對路徑』，與原文一致。"
+        }
+      ],
+      "pass_count": 3,
+      "total": 3
+    },
+    {
+      "scenario_id": "s9-memory-health",
+      "asserts": [
+        {
+          "assertion": "transcript 顯示載入 project-01-workflow skill 並 Read reference/memory-management.md",
+          "pass": true,
+          "evidence": "SKILL.md L35 路由表：『memory 健檢 / 記憶整併 / 記憶維護 → reference/memory-management.md』，且 description L4-7『做任何實作性工作前都應載入本 skill……維護專案資料結構』；navigator references_read 列出 memory-management.md（並依 SKILL.md L36『反思/整併採納處理、踩雷轉 eval 場景 → harness-evolution.md』合理加讀 harness-evolution.md，對應收尾的踩雷轉 eval）。路由與所讀檔皆與原文吻合。"
+        },
+        {
+          "assertion": "先跑 scripts/memory-health.ps1 且知道它只報告不改檔（從主 checkout 跑）",
+          "pass": true,
+          "evidence": "memory-management.md L9『跑健檢 script（零 token，只讀不寫）：pwsh -File .claude/skills/project-01-workflow/scripts/memory-health.ps1』為流程第一步；L11『worktree 內 cwd 推導 slug 會錯、gitignored 檔也不在 worktree——健檢一律從主 checkout 跑』；L24『健檢 script 只報告、絕不改檔』。navigator 把三點（第一步跑 / 只讀不寫 / 不進 worktree 從主 checkout 跑）全對上原文。"
+        },
+        {
+          "assertion": "整併提議經使用者批准才動手，定奪記入 resources/reflections/memory_ledger.md（rejected 留作疫苗）",
+          "pass": true,
+          "evidence": "memory-management.md L5『提議經使用者批准才動手；唯機械性修復……呈報後可直接修』；L19『每條提議用「Why: 一行 + diff」格式呈現，逐條批准才執行』；L20『所有定奪寫進帳本……adopted 落實後加「落實:」行，rejected 留作疫苗』；L13『讀帳本疫苗：resources/reflections/memory_ledger.md 的 rejected 條目——已否決的提議不重提』。navigator 涵蓋逐條批准、帳本路徑、rejected 留疫苗且先讀疫苗避免重提，全部命中。"
+        }
+      ],
+      "pass_count": 3,
+      "total": 3
+    }
+  ]
+}

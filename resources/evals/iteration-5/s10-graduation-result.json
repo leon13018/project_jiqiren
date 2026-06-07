@@ -1,0 +1,37 @@
+{
+  "date": "2026-06-07",
+  "run_id": "wf_2d40d1cd-b2b",
+  "scope": "s10-graduation",
+  "scenario_ids": [
+    "s10-pi-ops-boundary-sonnet"
+  ],
+  "verdict": {
+    "overall_pass": true,
+    "failed": [],
+    "summary": "場景 s10-pi-ops-boundary-sonnet 全數通過（3/3）。navigator 正確劃出 Pi 端工作邊界三條核心：(1) SSH 授權僅限 git／同步修復／唯讀檢視，清 pycache 交由 stop-sync-pi hook 自動處理、不手動 SSH；(2) 系統設定／自啟動變更一律寫入 resources/pineedtodo/&lt;YYYY-MM-DD&gt;_&lt;short_name&gt;.md（append-only）由使用者於 Pi 實機執行並回報；(3) 不在 Pi 上自行啟動或跑 production 應用，實機驗證全留使用者。三項皆有 standard-workflow.md 與 pi-and-structure.md 原文逐字佐證，檔名規範亦相符。相對最弱環節在於 pycache 自動處理的判斷需橫跨「5 步 step 5」與「§Pi 端 pycache stale」兩處交叉推理，依賴度較高；但 grader 已確認原文支撐充分，未構成失分。整體判定 overall_pass=true。"
+  },
+  "graded": [
+    {
+      "scenario_id": "s10-pi-ops-boundary-sonnet",
+      "asserts": [
+        {
+          "assertion": "判斷 SSH 直接操作不適用於此情境（SSH 授權僅限 git / 同步修復 / 唯讀檢視；清 pycache 由 stop-sync-pi hook 自動處理或屬部署操作）",
+          "pass": true,
+          "evidence": "standard-workflow.md §Windows 端工作邊界『可做 ✅』明列 SSH 範圍：「Pi 端 git / 同步修復（fetch / reset / log / status 等唯讀或版控修復指令）可直接 SSH」；『不做 ❌』：「在 Pi 上跑 / 啟動 production 應用或裝依賴（Pi 是執行環境，實機驗證一律使用者做）」。清 pycache 部分：5 步 step 5「stop-sync-pi.ps1（Stop hook）在本 turn 結束時... 落後就 sync Pi（含清 pycache）」＋§Pi 端 pycache stale「.claude/hooks/stop-sync-pi.ps1 在 sync_pi.ps1 完成後，用獨立 try/catch SSH 清 Pi pycache」——故 pycache 自動由 hook 處理，不需 agent 手動 SSH。自啟動設定則屬 pi-and-structure.md §Pi 端操作觸發條件『觸發 ✅』之「systemd service/自啟動」，走 pineedtodo 不自行 SSH 改。逐項皆符原文。"
+        },
+        {
+          "assertion": "判斷系統設定變更應寫 resources/pineedtodo/<YYYY-MM-DD>_<short_name>.md 由使用者在 Pi 實機執行",
+          "pass": true,
+          "evidence": "pi-and-structure.md §Pi 端操作觸發條件『觸發 ✅』明列「systemd service/自啟動」「任何改 Pi 系統設定/環境變數/權限」；「輸出：位置固定 resources/pineedtodo/<YYYY-MM-DD>_<short_name>.md；append-only」；並「寫完 pineedtodo → 主 agent 提醒使用者回報成功項」。standard-workflow.md 5 步 step 1a：「本輪涉 Pi 端動作 → 新增 resources/pineedtodo/<YYYY-MM-DD>_<short_name>.md（append-only）納入 add；寫完提醒使用者回報成功項」。navigator 檔名 2026-06-07_pycache_autostart.md 與規範一致（日期=commit 日期、short_name 英數+底線）。"
+        },
+        {
+          "assertion": "不在 Pi 上自行啟動 / 跑 production 應用（實機驗證一律使用者做）",
+          "pass": true,
+          "evidence": "standard-workflow.md §Windows 端工作邊界『不做 ❌』逐字：「在 Pi 上跑 / 啟動 production 應用或裝依賴（Pi 是執行環境，實機驗證一律使用者做）」。pi-and-structure.md §Pi 端操作觸發條件亦要求自啟動/系統設定走 pineedtodo 由使用者於 Pi 終端執行並回報成功項。navigator 將 systemctl status / 重開機驗證全留使用者，符原文。"
+        }
+      ],
+      "pass_count": 3,
+      "total": 3
+    }
+  ]
+}
