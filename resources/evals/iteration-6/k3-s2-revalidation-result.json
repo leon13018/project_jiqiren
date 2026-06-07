@@ -1,0 +1,133 @@
+{
+  "date": "2026-06-07",
+  "run_id": "wf_05285289-372",
+  "scope": "k3-s2-revalidation",
+  "scenario_ids": [
+    "s2-research-note"
+  ],
+  "verdict": {
+    "overall_pass": true,
+    "failed": [],
+    "summary": "場景 s2-research-note（k=3）全數通過：三條 assertion 的 majority_pass 皆為 true，pass_rate 均為 3/3（100%）——「resources/ 純文件可直接在 main 工作、不必進 worktree」「不需走 SDD」「收尾 git add 明列恰為本次新增單檔、未用 -A/. 亦無夾帶」三者俱穩定通過，無偏弱環節，overall_pass=true。\\n\\n題庫自我改進訊號（weak_asserts 彙整）：本場景三條 assertion 的鑑別性偏弱，均偏向驗證「通則照背」而非「本場景關鍵分歧」，建議改寫以提升鑑別力——(1) 斷言3（git add 明列單檔）鑑別性最弱：題幹已限定僅一個新檔、且「明列檔名禁 -A/.」是 standard-workflow 每場景複誦的通則，即使上游導航錯（resources/main 決策、code_map/pineedtodo 觸發判斷）仍會 pass；且本場景產出是「計畫」非真實 git 指令，無法驗執行真值。建議改為要求 add 路徑前綴確為 resources/research/（驗證放對目錄），或另拆獨立 assertion 直接查 code_map 巢狀判準與 pineedtodo 觸發判斷是否正確，而非只查最終 add 列表。(2) 斷言2（不需走 SDD）對任何純文件任務恆真，憑「這是 docs 不是 code」常識即過，未檢驗是否真引到 SKILL.md 的 {sales,main,tts,action,input_reader}.py 觸發清單；建議改問「SDD 觸發的精確檔案集合為何、為何本任務落在其外」。(3) 斷言3「無夾帶無關檔」因本場景天然無 Pi/結構觸發，列任何單一新檔即過，無法驗 navigator 是否審視過夾帶分支；建議新增「同時改了 code_map」之類場景才能鑑別是否漏掉夾帶判斷。"
+  },
+  "aggregated": [
+    {
+      "scenario_id": "s2-research-note",
+      "k": 3,
+      "asserts": [
+        {
+          "assertion": "判斷 resources/ 純文件新增可直接在 main 工作，不必進 worktree",
+          "pass_count": 3,
+          "trials": 3,
+          "pass_rate": 1,
+          "majority_pass": true
+        },
+        {
+          "assertion": "判斷不需走 SDD",
+          "pass_count": 3,
+          "trials": 3,
+          "pass_rate": 1,
+          "majority_pass": true
+        },
+        {
+          "assertion": "收尾計畫中 git add 明列的檔名恰為本次新增的那一個檔（非 -A/.、亦無夾帶無關檔）",
+          "pass_count": 3,
+          "trials": 3,
+          "pass_rate": 1,
+          "majority_pass": true
+        }
+      ],
+      "weak_asserts": [
+        "斷言 3（git add 明列單檔）對本場景鑑別性弱：題幹已告知『一份新 markdown 筆記』即只有一個新檔，且『明列檔名、禁 -A/.』是 standard-workflow 每場景都複誦的通則。即使 navigator 把核心判斷（resources/ 該不該進 worktree、要不要走 SDD）導航錯了，只要它照背收尾 5 步、寫出單一檔名，這條仍會 pass——它不檢驗本場景的關鍵分歧（resources/main 決策），只檢驗一條與該決策獨立的 rote 收尾規則。建議改寫為鑑別性版本：要求 add 的路徑前綴確為 resources/research/（驗證它真把檔放對目錄、未誤判去別層），或要求同時確認『無觸發 pineedtodo / code_map 更新故不夾帶這兩類檔』，才能抓出導航分歧。",
+        "Assertion 3（git add 只列單一新檔）部分非鑑別：它逐字只查『add 列表內容＝本次新增檔、無 -A/.』，這是任何讀過 no-`-A` 規則的 navigator 都會照打的形式，且本場景產出僅是『計畫』非實際 git 指令輸出，無法驗執行真值。真正載重的上游判斷（code_map 是否該更新、pineedtodo 是否該寫）若被導航錯——例如 navigator 誤判 code_map 需更新而多開一檔——它仍會把『自己（錯誤地）認定的檔集』如實列入 add，此 assertion 仍會 pass。建議拆出獨立 assertion 直接查 code_map 巢狀判準與 pineedtodo 觸發的判斷正確性，而非只查最終 add 列表。",
+        "斷言2『不需走 SDD』為弱鑑別：它只驗『沒碰 .py → 不走 SDD』，對任何純文件任務皆恆真。即使 navigator 沒真正定位到 SKILL.md 第 43 行那份 `{sales,main,tts,action,input_reader}.py` 觸發清單、只是憑『這是 docs 不是 code』的常識也會 pass——查存在不查是否引對觸發列。要有鑑別性應改問『SDD 觸發的精確檔案集合為何、為何本任務落在其外』。",
+        "斷言3的『無夾帶無關檔』部分弱鑑別：本場景天然無 Pi/結構觸發，故只要 navigator 列任何單一新檔就 pass，無法檢驗它是否真的審視過 1a/1b 條件分支。換成『新增 resources/research/ 同時也改了 code_map』的場景才能鑑別 navigator 是否漏掉 1b 夾帶。"
+      ],
+      "baseline_graded": null
+    }
+  ],
+  "graded": [
+    {
+      "scenario_id": "s2-research-note",
+      "asserts": [
+        {
+          "assertion": "判斷 resources/ 純文件新增可直接在 main 工作，不必進 worktree",
+          "pass": true,
+          "evidence": "worktree.md 觸發分層表第 17 列原文：『resources/ 純文件新增與小修 → 可直接 main（git add 明列 + 收尾 5 步照走；大規模多檔重構/刪除仍進 worktree）』。本任務為 resources/research/ 單一新 md 筆記＝純文件新增，非大規模多檔重構/刪除，落『可直接 main』格。SKILL.md 鐵則第 42 行亦云『myProgram/、tests/、.claude/ 改動走 worktree；resources/ 純文件新增/小修可直接 main』。navigator 導航正確。"
+        },
+        {
+          "assertion": "判斷不需走 SDD",
+          "pass": true,
+          "evidence": "sdd.md 觸發條件原文：觸發✅『任何 myProgram/ 下 .py 改動』；不觸發❌明列『resources/ 內任何檔』。第 242 行『何時不必走 SDD：純研究 / 探索 / 文件查詢』。本任務產出為 resources/research/ markdown 筆記、無任何 .py code，故不走 SDD。navigator 導航正確。"
+        },
+        {
+          "assertion": "收尾計畫中 git add 明列的檔名恰為本次新增的那一個檔（非 -A/.、亦無夾帶無關檔）",
+          "pass": true,
+          "evidence": "standard-workflow.md 第 32 行原文：『git add <具體檔名> — 不用 -A/.（hook 擋），明列避免誤加 ignored / 敏感檔』。navigator 收尾僅 git add resources/research/<本次新增筆記>.md 單一檔、明列、禁 -A/.，符合原文且無夾帶其他檔。"
+        }
+      ],
+      "pass_count": 3,
+      "total": 3,
+      "weak_asserts": [
+        "斷言 3（git add 明列單檔）對本場景鑑別性弱：題幹已告知『一份新 markdown 筆記』即只有一個新檔，且『明列檔名、禁 -A/.』是 standard-workflow 每場景都複誦的通則。即使 navigator 把核心判斷（resources/ 該不該進 worktree、要不要走 SDD）導航錯了，只要它照背收尾 5 步、寫出單一檔名，這條仍會 pass——它不檢驗本場景的關鍵分歧（resources/main 決策），只檢驗一條與該決策獨立的 rote 收尾規則。建議改寫為鑑別性版本：要求 add 的路徑前綴確為 resources/research/（驗證它真把檔放對目錄、未誤判去別層），或要求同時確認『無觸發 pineedtodo / code_map 更新故不夾帶這兩類檔』，才能抓出導航分歧。"
+      ],
+      "variant": "skill",
+      "trial": 1
+    },
+    {
+      "scenario_id": "s2-research-note",
+      "asserts": [
+        {
+          "assertion": "判斷 resources/ 純文件新增可直接在 main 工作，不必進 worktree",
+          "pass": true,
+          "evidence": "worktree.md 觸發分層表第 17 行：『resources/ 純文件新增與小修 → 可直接 main（git add 明列 + 收尾 5 步照走；大規模多檔重構 / 刪除仍進 worktree）』；強制進 worktree 範圍第 16 行僅含 myProgram/、tests/、.claude/。SKILL.md 第 42 行同義重述。本任務為單一 markdown 新增於 resources/research/，非大規模多檔重構/刪除，navigator 判不進 worktree 與原文一致。"
+        },
+        {
+          "assertion": "判斷不需走 SDD",
+          "pass": true,
+          "evidence": "SKILL.md 第 43 行鐵則：『改 myProgram/{sales,main,tts,action,input_reader}.py 必走 SDD』；第 24 行路由『改 myProgram/ 任何 .py code（走 SDD）』。SDD 觸發明文限縮在 .py code。研究筆記為純文件、不沾任何 code，navigator 判不走 SDD 正確。"
+        },
+        {
+          "assertion": "收尾計畫中 git add 明列的檔名恰為本次新增的那一個檔（非 -A/.、亦無夾帶無關檔）",
+          "pass": true,
+          "evidence": "standard-workflow.md 第 32 行：『git add <具體檔名> — 不用 -A/.（hook 擋），明列避免誤加』，navigator 收尾步驟 2 寫 git add <單一 research 檔名>，形式合規。無夾帶無關檔之依據：(a) pi-and-structure.md 第 20 行 pineedtodo 不觸發明列『純文件/markdown/memory』，故無 pineedtodo 檔；(b) pi-and-structure.md 第 50 行巢狀判準『只有變動影響到某層 code_map 已寫出的直接子項目才更新該層』，而 resources/.claude/code_map.md 第 9 行只列 research/ 資料夾、不列其內個別檔，在既有 research/ 內新增一檔不影響已寫出的直接子項目 → 可優雅失敗、不更新 code_map。故本輪僅一檔需 add，navigator 判定與原文一致。"
+        }
+      ],
+      "pass_count": 3,
+      "total": 3,
+      "weak_asserts": [
+        "Assertion 3（git add 只列單一新檔）部分非鑑別：它逐字只查『add 列表內容＝本次新增檔、無 -A/.』，這是任何讀過 no-`-A` 規則的 navigator 都會照打的形式，且本場景產出僅是『計畫』非實際 git 指令輸出，無法驗執行真值。真正載重的上游判斷（code_map 是否該更新、pineedtodo 是否該寫）若被導航錯——例如 navigator 誤判 code_map 需更新而多開一檔——它仍會把『自己（錯誤地）認定的檔集』如實列入 add，此 assertion 仍會 pass。建議拆出獨立 assertion 直接查 code_map 巢狀判準與 pineedtodo 觸發的判斷正確性，而非只查最終 add 列表。"
+      ],
+      "variant": "skill",
+      "trial": 2
+    },
+    {
+      "scenario_id": "s2-research-note",
+      "asserts": [
+        {
+          "assertion": "判斷 resources/ 純文件新增可直接在 main 工作，不必進 worktree",
+          "pass": true,
+          "evidence": "worktree.md 觸發分層表第 17 行：『| `resources/` 純文件**新增**與**小修** | 可直接 main（`git add` 明列 + 收尾 5 步照走；大規模多檔重構 / 刪除仍進 worktree）|』。本任務為單一新 md 放進 resources/research/，屬『新增』非『重構/刪除』，故不必進 worktree。SKILL.md 鐵則第 42 行亦載『resources/ 純文件新增 / 小修可直接 main』。"
+        },
+        {
+          "assertion": "判斷不需走 SDD",
+          "pass": true,
+          "evidence": "SKILL.md 第 43 行鐵則：『改 `myProgram/{sales,main,tts,action,input_reader}.py` **必走 SDD**』；路由表第 24 行 SDD 對應『改 myProgram/ 任何 .py code（走 SDD）』。本任務純寫 resources/research/ 文件、零 .py 改動，未命中 SDD 觸發。"
+        },
+        {
+          "assertion": "收尾計畫中 git add 明列的檔名恰為本次新增的那一個檔（非 -A/.、亦無夾帶無關檔）",
+          "pass": true,
+          "evidence": "standard-workflow.md 第 32 行：『**`git add <具體檔名>`** — 不用 `-A`/`.`（hook 擋），明列避免誤加 ignored / 敏感檔』。條件性 1a(第 30 行 pineedtodo，需涉 Pi 端動作)/1b(第 31 行結構變動)皆未觸發——本任務無 Pi 動作、研究筆記非改變索引的結構變動，故只 add 那一份新 md、無夾帶。"
+        }
+      ],
+      "pass_count": 3,
+      "total": 3,
+      "weak_asserts": [
+        "斷言2『不需走 SDD』為弱鑑別：它只驗『沒碰 .py → 不走 SDD』，對任何純文件任務皆恆真。即使 navigator 沒真正定位到 SKILL.md 第 43 行那份 `{sales,main,tts,action,input_reader}.py` 觸發清單、只是憑『這是 docs 不是 code』的常識也會 pass——查存在不查是否引對觸發列。要有鑑別性應改問『SDD 觸發的精確檔案集合為何、為何本任務落在其外』。",
+        "斷言3的『無夾帶無關檔』部分弱鑑別：本場景天然無 Pi/結構觸發，故只要 navigator 列任何單一新檔就 pass，無法檢驗它是否真的審視過 1a/1b 條件分支。換成『新增 resources/research/ 同時也改了 code_map』的場景才能鑑別 navigator 是否漏掉 1b 夾帶。"
+      ],
+      "variant": "skill",
+      "trial": 3
+    }
+  ]
+}

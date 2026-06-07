@@ -1,0 +1,130 @@
+{
+  "date": "2026-06-07",
+  "run_id": "wf_62e4f48c-120",
+  "scope": "baseline-s9",
+  "scenario_ids": [
+    "s9-memory-health"
+  ],
+  "verdict": {
+    "overall_pass": true,
+    "failed": [],
+    "summary": "場景 s9-memory-health（k=1）三條 assertion 的 majority_pass 全為 true（pass_rate 各 1/1），故 overall_pass=true，無 majority 失敗項。最弱環節落在 baseline 對照：bare（無 skill）變體三條全 FAIL（pass_count 0/3）——bare navigator 自承 skill_loaded=false、references_read=[]，僅靠常識推到「先跑健檢腳本、只讀不改、批准才動手」的大方向，卻完全命不中專案特定的 scripts/memory-health.ps1 路徑、「從主 checkout 跑」約束、以及 resources/reflections/memory_ledger.md 帳本與 rejected 留作疫苗協議。對照之下 with-skill 三條全 pass，skill 增益＝+3 條（3/3 vs 0/3），是本場景鑑別力的主要來源，證明該 skill 對 memory 健檢流程屬不可省。\\n\\n題庫自我改進訊號（weak_asserts 彙整）：\\n1. assertion 1 末段「並 Read reference/memory-management.md」屬「查存在不查正確」——只要載 skill 並開檔即 pass，未驗證是否真依六步流程（先 script 後判斷、機械修復 vs 內容判斷分流）；讀了檔卻把順序走錯（先動手再呈報、跳過讀帳本疫苗）的 navigator 仍會 pass。建議補上順序／分流正確性的查核才有鑑別力。\\n2. assertion 3 把兩種不同強度子句綁在一條：「批准才動手」是通用安全常識（不導航專案協議也命中、不具鑑別性），而「記入 resources/reflections/memory_ledger.md + rejected 留作疫苗」才是專案特定鑑別點。AND 語意下雖應 fail，但易被寬鬆評分員誤判；建議拆成兩條獨立 assertion（通用批准 vs ledger/疫苗）。\\n3. assertion 3 另一漏洞：可僅靠「memory_ledger.md 檔存在」＋「口頭覆述批准／疫苗字樣」通過，未要求驗證 navigator 實際把升層落實後「原 memory 條目刪除或改 pointer、不留雙權威」（memory-management.md 第 25 行）這個易漏硬邊界；只覆述口號即可 pass，對真正會犯的「雙權威殘留」錯誤不具鑑別力。"
+  },
+  "aggregated": [
+    {
+      "scenario_id": "s9-memory-health",
+      "k": 1,
+      "asserts": [
+        {
+          "assertion": "transcript 顯示載入 project-01-workflow skill 並 Read reference/memory-management.md",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        },
+        {
+          "assertion": "先跑 scripts/memory-health.ps1 且知道它只報告不改檔（從主 checkout 跑）",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        },
+        {
+          "assertion": "整併提議經使用者批准才動手，定奪記入 resources/reflections/memory_ledger.md（rejected 留作疫苗）",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        }
+      ],
+      "weak_asserts": [
+        "assertion 1 末段『並 Read reference/memory-management.md』屬查存在不查正確：只要 navigator 載 skill 並打開該檔就 pass，不要求它真的依六步流程導航——一個讀了檔卻把流程走錯（如先動手再呈報、跳過讀帳本疫苗）的 navigator 仍會 pass。應加查『先 script 後判斷、機械修復 vs 內容判斷分流』等順序/分流正確性才有鑑別力。",
+        "assertion 3 的判定可僅靠『memory_ledger.md 檔存在』與『口頭覆述批准/疫苗字樣』通過，未要求驗證 navigator 實際把升層落實後『原 memory 條目刪除或改 pointer、不留雙權威』（memory-management.md 第 25 行）這個易漏的硬邊界——只覆述口號即可 pass，對真正會犯的『雙權威殘留』錯誤不具鑑別力。"
+      ],
+      "baseline_graded": {
+        "scenario_id": "s9-memory-health",
+        "asserts": [
+          {
+            "assertion": "transcript 顯示載入 project-01-workflow skill 並 Read reference/memory-management.md",
+            "pass": false,
+            "evidence": "Ground truth: SKILL.md 路由表「memory 健檢 / 記憶整併 / 記憶維護 → reference/memory-management.md」，且 description 要求『在本專案做任何實作性工作前都應載入本 skill…維護專案資料結構…即使使用者沒明說載入 skill』。navigator transcript 明確 skill_loaded=false、references_read=[]，decision 自述『在不載入 skill 的限制下…無法命中專案特定的檔案路徑』。完全未載入、未讀，FAIL。"
+          },
+          {
+            "assertion": "先跑 scripts/memory-health.ps1 且知道它只報告不改檔（從主 checkout 跑）",
+            "pass": false,
+            "evidence": "Ground truth: memory-management.md 步驟1『跑健檢 script（零 token，只讀不寫）：pwsh -File .claude/skills/project-01-workflow/scripts/memory-health.ps1』『健檢一律從主 checkout 跑』，邊界『健檢 script 只報告、絕不改檔』。navigator 只靠常識推到『先跑健檢腳本、健檢只讀不改』方向，但自承『無法得知確切路徑 scripts/memory-health.ps1，也不知道須從主 checkout 跑』——未命中確切路徑與主 checkout 約束，FAIL。"
+          },
+          {
+            "assertion": "整併提議經使用者批准才動手，定奪記入 resources/reflections/memory_ledger.md（rejected 留作疫苗）",
+            "pass": false,
+            "evidence": "Ground truth: memory-management.md 步驟3『讀帳本疫苗：resources/reflections/memory_ledger.md 的 rejected 條目——已否決的提議不重提』，步驟5『逐條批准才執行』，步驟6『所有定奪寫進帳本…adopted 落實後加落實行，rejected 留作疫苗』。navigator 命中『批准才動手』通用慣例，但自承『不知道定奪要記入 resources/reflections/memory_ledger.md，也不知道被否決提議要留作疫苗』——專案特定 ledger 路徑與疫苗協議未命中，FAIL。"
+          }
+        ],
+        "pass_count": 0,
+        "total": 3,
+        "weak_asserts": [
+          "assertion 3 將兩個不同強度的子句綁在一條：『批准才動手』是通用安全常識（即使不導航專案協議的 agent 也會命中、不具鑑別性），而『記入 resources/reflections/memory_ledger.md + rejected 留作疫苗』才是專案特定鑑別點。本案 navigator 誠實標 false 故無誤判，但若 navigator 只做到『批准才動手』而謊稱整條 met，AND 語意下雖應 fail，實務上易被寬鬆評分員誤判為 pass——建議拆成兩條獨立 assertion（通用批准 vs ledger/疫苗），讓鑑別點單獨成立。assertion 1、2 為強鑑別（直接查 skill 載入事實與專案特定路徑/約束），不弱。"
+        ],
+        "variant": "bare",
+        "trial": 1
+      }
+    }
+  ],
+  "graded": [
+    {
+      "scenario_id": "s9-memory-health",
+      "asserts": [
+        {
+          "assertion": "transcript 顯示載入 project-01-workflow skill 並 Read reference/memory-management.md",
+          "pass": true,
+          "evidence": "SKILL.md 路由表第 36 行：『memory 健檢 / 記憶整併 / 記憶維護 → memory-management.md』。navigator 載入 skill 取得路由表後 Read 該 reference，並依其『流程（六步）』骨架展開決策（健檢→機械修復→讀帳本疫苗→整併四問→人定奪→記帳），與原文一致。額外讀 harness-evolution.md 亦由第 37 行『踩雷轉 eval 場景』正當路由，未誤導。"
+        },
+        {
+          "assertion": "先跑 scripts/memory-health.ps1 且知道它只報告不改檔（從主 checkout 跑）",
+          "pass": true,
+          "evidence": "memory-management.md 第 9 行『跑健檢 script（零 token，只讀不寫）：pwsh -File .claude/skills/project-01-workflow/scripts/memory-health.ps1』、第 11 行『worktree 內 cwd 推導 slug 會錯、gitignored 檔也不在 worktree——健檢一律從主 checkout 跑』、第 24 行『健檢 script 只報告、絕不改檔』。navigator 流程第 1 步逐點命中（只讀不寫＋主 checkout 跑＋worktree slug 會錯理由），且 script 檔確實存在。"
+        },
+        {
+          "assertion": "整併提議經使用者批准才動手，定奪記入 resources/reflections/memory_ledger.md（rejected 留作疫苗）",
+          "pass": true,
+          "evidence": "memory-management.md 第 5 行『提議經使用者批准才動手』、第 19 行『逐條批准才執行』、第 13 行『讀帳本疫苗：resources/reflections/memory_ledger.md 的 rejected 條目——已否決的提議不重提』、第 20 行『所有定奪寫進帳本…rejected 留作疫苗』。navigator 第 3/5/6 步全數對應；唯機械性修復呈報後可直接修（第 5 行）navigator 亦正確區分。memory_ledger.md 檔確實存在。"
+        }
+      ],
+      "pass_count": 3,
+      "total": 3,
+      "weak_asserts": [
+        "assertion 1 末段『並 Read reference/memory-management.md』屬查存在不查正確：只要 navigator 載 skill 並打開該檔就 pass，不要求它真的依六步流程導航——一個讀了檔卻把流程走錯（如先動手再呈報、跳過讀帳本疫苗）的 navigator 仍會 pass。應加查『先 script 後判斷、機械修復 vs 內容判斷分流』等順序/分流正確性才有鑑別力。",
+        "assertion 3 的判定可僅靠『memory_ledger.md 檔存在』與『口頭覆述批准/疫苗字樣』通過，未要求驗證 navigator 實際把升層落實後『原 memory 條目刪除或改 pointer、不留雙權威』（memory-management.md 第 25 行）這個易漏的硬邊界——只覆述口號即可 pass，對真正會犯的『雙權威殘留』錯誤不具鑑別力。"
+      ],
+      "variant": "skill",
+      "trial": 1
+    },
+    {
+      "scenario_id": "s9-memory-health",
+      "asserts": [
+        {
+          "assertion": "transcript 顯示載入 project-01-workflow skill 並 Read reference/memory-management.md",
+          "pass": false,
+          "evidence": "Ground truth: SKILL.md 路由表「memory 健檢 / 記憶整併 / 記憶維護 → reference/memory-management.md」，且 description 要求『在本專案做任何實作性工作前都應載入本 skill…維護專案資料結構…即使使用者沒明說載入 skill』。navigator transcript 明確 skill_loaded=false、references_read=[]，decision 自述『在不載入 skill 的限制下…無法命中專案特定的檔案路徑』。完全未載入、未讀，FAIL。"
+        },
+        {
+          "assertion": "先跑 scripts/memory-health.ps1 且知道它只報告不改檔（從主 checkout 跑）",
+          "pass": false,
+          "evidence": "Ground truth: memory-management.md 步驟1『跑健檢 script（零 token，只讀不寫）：pwsh -File .claude/skills/project-01-workflow/scripts/memory-health.ps1』『健檢一律從主 checkout 跑』，邊界『健檢 script 只報告、絕不改檔』。navigator 只靠常識推到『先跑健檢腳本、健檢只讀不改』方向，但自承『無法得知確切路徑 scripts/memory-health.ps1，也不知道須從主 checkout 跑』——未命中確切路徑與主 checkout 約束，FAIL。"
+        },
+        {
+          "assertion": "整併提議經使用者批准才動手，定奪記入 resources/reflections/memory_ledger.md（rejected 留作疫苗）",
+          "pass": false,
+          "evidence": "Ground truth: memory-management.md 步驟3『讀帳本疫苗：resources/reflections/memory_ledger.md 的 rejected 條目——已否決的提議不重提』，步驟5『逐條批准才執行』，步驟6『所有定奪寫進帳本…adopted 落實後加落實行，rejected 留作疫苗』。navigator 命中『批准才動手』通用慣例，但自承『不知道定奪要記入 resources/reflections/memory_ledger.md，也不知道被否決提議要留作疫苗』——專案特定 ledger 路徑與疫苗協議未命中，FAIL。"
+        }
+      ],
+      "pass_count": 0,
+      "total": 3,
+      "weak_asserts": [
+        "assertion 3 將兩個不同強度的子句綁在一條：『批准才動手』是通用安全常識（即使不導航專案協議的 agent 也會命中、不具鑑別性），而『記入 resources/reflections/memory_ledger.md + rejected 留作疫苗』才是專案特定鑑別點。本案 navigator 誠實標 false 故無誤判，但若 navigator 只做到『批准才動手』而謊稱整條 met，AND 語意下雖應 fail，實務上易被寬鬆評分員誤判為 pass——建議拆成兩條獨立 assertion（通用批准 vs ledger/疫苗），讓鑑別點單獨成立。assertion 1、2 為強鑑別（直接查 skill 載入事實與專案特定路徑/約束），不弱。"
+      ],
+      "variant": "bare",
+      "trial": 1
+    }
+  ]
+}

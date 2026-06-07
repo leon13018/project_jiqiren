@@ -46,10 +46,10 @@
 | 1 | **code_map 死引用檢查（Currency 落地）**：code_map.md 列的每個路徑 Test-Path 一遍，報死引用 | quality-criteria Currency + Red Flag「references to deleted files」 | 「路徑單一事實來源」的脫節風險無人守 | 低（PS script，與 memory-health 對稱） | **adopted**（365f3a1：scripts/codemap-health.ps1 三段解析+祖先 walk-up，fixture 3 組 + 真實 repo 8 份全綠；用法在 pi-and-structure.md） |
 | 2 | **grader 兼批 eval（weak_asserts 欄）**：gradePrompt 加「指出哪些 assertion 即使導航錯也會 pass」 | grader.md「weak assertion 的 pass 比沒有還糟」 | 我們的 assertion 多為「有 Read X」存在性檢查，正是官方點名的弱型 | 極低（prompt + schema 各一欄） | **adopted**（365f3a1：GRADE_SCHEMA + gradePrompt + verdictPrompt 三處；smoke 驗證見 iteration-5） |
 | 3 | **EDD 結果落檔協議**：主 agent 收 workflow 回傳後寫 `resources/evals/iteration-N/result.json`（schema 固定） | 官方每 run grading.json 是一切聚合的基礎 | verdict 只回對話不落檔，跨輪趨勢不可查 | 低（協議寫進 README/workflow-authoring） | **adopted**（README「結果落檔」段 + workflow-authoring 資產行；iteration-5 回填今日三輪 dogfood） |
-| 4 | **pass@k 變異數（正式守門輪 k=3）**：場景複跑 k 次按 rate 判，平時 k=1 | run_eval 每 query 3 次；analyzer 抓 flaky | 單次跑+任一 fail 即紅=flaky 誤判 | 中（~20 行 + token ×k——只在去噪守門輪開） | pending |
-| 5 | **baseline 對照（選擇性場景）**：對「去噪有疑慮」場景跑裸 navigator 對照，驗證 skill 增益 | with/without delta 是 benchmark 核心 | 無從證明去噪後 skill 仍有增益 | 中（token ×2，僅限少數場景） | pending |
-| 6 | **CLAUDE.md 分層健檢**（六維 rubric 改造：Architecture 維改「分層分配正確性」+ 行數預算硬 check） | 六維 rubric 骨架 | CLAUDE.md 無對等於 memory-health 的健檢 | 中（依賴候選 1 先做） | pending |
-| 7 | **跨輪聚合 script**：讀各 iteration result.json 算每 assertion 跨輪 pass 率（抓非鑑別 assertion） | aggregate_benchmark.py | 依賴候選 3 | 中 | pending |
+| 4 | **pass@k 變異數（正式守門輪 k=3）**：場景複跑 k 次按 rate 判，平時 k=1 | run_eval 每 query 3 次；analyzer 抓 flaky | 單次跑+任一 fail 即紅=flaky 誤判 | 中（~20 行 + token ×k——只在去噪守門輪開） | **adopted**（01684bf：trial 攤平 + JS 內聚合 + majority_pass；k=3 驗證見 iteration-6/k3-s2-revalidation） |
+| 5 | **baseline 對照（選擇性場景）**：對「去噪有疑慮」場景跑裸 navigator 對照，驗證 skill 增益 | with/without delta 是 benchmark 核心 | 無從證明去噪後 skill 仍有增益 | 中（token ×2，僅限少數場景） | **adopted**（01684bf：場景級 baseline:true + bareNavPrompt；s9 實證 3/3 vs 0/3 增益 +3，見 iteration-6/baseline-s9） |
+| 6 | **CLAUDE.md 分層健檢**（六維 rubric 改造：Architecture 維改「分層分配正確性」+ 行數預算硬 check） | 六維 rubric 骨架 | CLAUDE.md 無對等於 memory-health 的健檢 | 中（依賴候選 1 先做） | **adopted**（01684bf：scripts/claudemd-health.ps1 行數預算+死引用葉名遞迴；真實 repo 8 份全綠；用法在 pi-and-structure.md） |
+| 7 | **跨輪聚合 script**：讀各 iteration result.json 算每 assertion 跨輪 pass 率（抓非鑑別 assertion） | aggregate_benchmark.py | 依賴候選 3 | 中 | **adopted**（01684bf：scripts/aggregate-edd.ps1；iteration-5 實資料 4 收 4 跳、場景 3 跨輪 1/2 正確呈現） |
 
 已在做的不重列：「Why+diff 呈現」（memory-management 第 5 步已採）、对抗 grader、帳本人定奪。
 
