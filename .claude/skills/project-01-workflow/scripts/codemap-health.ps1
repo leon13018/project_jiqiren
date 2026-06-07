@@ -25,7 +25,7 @@ foreach ($m in $maps) {
     $layerRoot = Split-Path (Split-Path $m.FullName -Parent) -Parent   # <層>/.claude/code_map.md → <層>
     $relMap = $m.FullName.Substring($RepoRoot.Length).TrimStart('\')
     $candidates = 0
-    foreach ($line in (Get-Content $m.FullName)) {
+    foreach ($line in (Get-Content $m.FullName -Encoding UTF8)) {
         $lineDirs = New-Object System.Collections.Generic.List[string]   # 本行已解析成目錄的 token 完整路徑
         foreach ($cm in [regex]::Matches($line, '`([^`]+)`')) {
             $tok = $cm.Groups[1].Value.Trim()
