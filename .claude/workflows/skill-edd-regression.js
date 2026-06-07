@@ -8,7 +8,7 @@ export const meta = {
   ],
 }
 
-// 場景由主 agent 讀 resources/edd/ 場景檔後以 args 傳入（workflow 腳本無檔案存取）。
+// 場景由主 agent 讀 resources/evals/ 場景檔後以 args 傳入（workflow 腳本無檔案存取）。
 // args 可能以 JSON 字串抵達（Workflow tool 已知陷阱）→ 字串就 parse，兩種都吃。
 let input = args
 if (typeof input === 'string') {
@@ -59,7 +59,7 @@ const NAV_SCHEMA = {
 const GRADE_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['scenario_id', 'asserts', 'pass_count', 'total'],
+  required: ['scenario_id', 'asserts', 'pass_count', 'total', 'weak_asserts'],
   properties: {
     scenario_id: { type: 'string' },
     asserts: {
@@ -77,6 +77,11 @@ const GRADE_SCHEMA = {
     },
     pass_count: { type: 'integer' },
     total: { type: 'integer' },
+    weak_asserts: {
+      type: 'array',
+      items: { type: 'string' },
+      description: '非鑑別性 assertion：即使導航錯也會 pass（如只查「有 Read X」而不查判斷正確）。沒有就回空陣列',
+    },
   },
 }
 
@@ -126,9 +131,11 @@ ${s.asserts.map((a, i) => `${i + 1}. ${a}`).join('\n')}
 navigator 的回報（僅供對照，其自評不可採信）：
 ${JSON.stringify(nav)}
 
-逐條判 pass/fail；evidence 必須引 skill 原文（檔名＋關鍵句）。scenario_id 填 ${s.id}。`
+逐條判 pass/fail；evidence 必須引 skill 原文（檔名＋關鍵句）。scenario_id 填 ${s.id}。
 
-const verdictPrompt = (results) => `以下是 ${results.length} 個場景的對抗評分結果。你只做合成、不重新核對：任一 assertion fail 即 overall_pass=false；列出 failed 清單；以繁體中文寫一段總結（指出最弱環節）。
+另以評分員身分批評題目本身：哪些 assertion 即使 navigator 導航錯了也會 pass（非鑑別性、查存在不查正確）？列入 weak_asserts，沒有就回空陣列——弱 assertion 上的 pass 比沒有更糟（製造假信心）。`
+
+const verdictPrompt = (results) => `以下是 ${results.length} 個場景的對抗評分結果。你只做合成、不重新核對：任一 assertion fail 即 overall_pass=false；列出 failed 清單；以繁體中文寫一段總結（指出最弱環節）。若各場景 graders 回報了非空 weak_asserts，在 summary 末尾彙整列出（題庫自我改進訊號）；全空則不提。
 
 ${JSON.stringify(results)}`
 

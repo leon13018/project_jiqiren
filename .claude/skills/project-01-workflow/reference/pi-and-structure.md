@@ -50,6 +50,7 @@
 - **巢狀判準（可優雅失敗）**：改哪層更新哪層。**若該層沒有自己的 `.claude/code_map.md`** → 通常**不需動**：其最近有 code_map 的祖先是粗顆粒、不列個別檔（例：新增 `tests/sales/` 測試檔，`tests/` code_map 只記「`sales/` — 回歸網」不列檔，故不動）。**只有變動影響到某層 code_map 已寫出的直接子項目**（新增/刪除/改名）才更新該層。
 - skill 內部檔（reference/examples/scripts）增刪 → 更新 `SKILL.md` 路由表。
 - **場景 B（使用者手動改結構）**：使用者回報「我改了 X」→ 主 agent 觸發此事件（純文件編輯例外，走 [standard-workflow.md](standard-workflow.md) 5 步）。
+- **code_map 健檢（死引用）**：`pwsh -File .claude/skills/project-01-workflow/scripts/codemap-health.ps1`——掃各層 code_map 的路徑引用逐一驗存活（解析順序：本層→同行目錄→祖先層；只報告不改檔；exit 0/1/2）。gitignored 檔不進 worktree，一律從主 checkout 跑（或 `-RepoRoot` 指過去）。觸發：結構變動收尾順手跑、或使用者喊「code_map 健檢」。死引用 = 該層 code_map 漏更新——修 code_map 而非刪引用。
 
 ---
 
