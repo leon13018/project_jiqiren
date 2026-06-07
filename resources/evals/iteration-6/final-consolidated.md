@@ -24,3 +24,8 @@
 - ✅ 順手修 aggregate-edd.ps1 bare 污染 bug（`a306b4b`：baseline 對照組不入回歸 pass 率）
 - 題庫現 11 場景。
 - **本輪新 weak_asserts（×3，全為更深層的「查存在 vs 查因果鏈」批評）依「防無限打磨」原則不立即處置**——grader 每輪必有意見屬預期；待頻次表跨輪 ≥2 票再議。已知方向備忘：s2 斷言 3 改考因果鏈、s9 補負向斷言（誤進 worktree / 未批准直改）、s11 斷言 2 把「research/ 行與 root 不動」寫進文字。
+
+## 補：weak_asserts 第二輪（2026-06-07，s9 順序考點）
+
+「s9 查存在不查順序/邊界」跨輪達 ×2 共識 → 採納：s9 加第 5 條「六步順序＋授權邊界」（`d8061e1`）→ graduation **5/5**（`s9-order-assert-graduation-result.json`）。同輪另一筆 NOTES 拆遷復驗：s3 3/3（`notes-split-s3-revalidation-result.json`），grader BOM 證據引自新 hooks-gotchas.md——拆遷後路由實證接通。
+×1 觀望累積：s2 斷言 3 prefix 因果鏈、s2 斷言 2、s11 斷言 2、s3 斷言 2（超級小門檻）、s9 斷言 1（補 worktree/SDD 排除考點，方向與已修的順序考點不同，另計）。

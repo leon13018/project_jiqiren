@@ -1,0 +1,99 @@
+{
+  "date": "2026-06-07",
+  "run_id": "wf_401cdaa8-047",
+  "scope": "s9-order-assert-graduation",
+  "scenario_ids": [
+    "s9-memory-health"
+  ],
+  "verdict": {
+    "overall_pass": true,
+    "failed": [],
+    "summary": "場景 s9-memory-health（k=1，pass rate 5/5 = 100%）全數通過，無 majority 失敗項，故 overall_pass=true。navigator 正確完成 memory 健檢導航全鏈路：載入 project-01-workflow skill 並 Read reference/memory-management.md（路由命中）、先跑 scripts/memory-health.ps1 且理解其只報告不改檔（從主 checkout 跑）、將定奪記入 memory_ledger.md 並在健檢前先讀帳本 rejected 條目當「疫苗」、知道升層提議落實後原 memory 條目須刪除或改 pointer（不留雙權威），以及六步順序正確（讀帳本疫苗在整併判斷之前）並能區分「提議須使用者批准」與「機械修復呈報後可直接修」的授權邊界。本輪無 baseline_graded（null），故無 skill 增益數據可報。最弱環節為 assert 1：它屬半弱鑑別性檢查，僅驗證「有載 skill + Read memory-management.md」即路由命中存在性，無法鑑別導航核心決策（不進 worktree、不走 SDD、主 agent 自做）品質——即使這些判斷搞錯，只要開了兩個檔此條仍會 pass，核心決策實際是靠 assert 2/5 才測到。\n\n題庫自我改進訊號（weak_asserts）：assert 1 為存在性檢查而非品質鑑別檢查，建議補一條專測「正確排除 worktree（slug 在 repo 外／gitignored）＋ 排除 SDD（不碰 myProgram .py）」的鑑別性 assertion，以補足對導航排除決策的覆蓋。"
+  },
+  "aggregated": [
+    {
+      "scenario_id": "s9-memory-health",
+      "k": 1,
+      "asserts": [
+        {
+          "assertion": "transcript 顯示載入 project-01-workflow skill 並 Read reference/memory-management.md",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        },
+        {
+          "assertion": "先跑 scripts/memory-health.ps1 且知道它只報告不改檔（從主 checkout 跑）",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        },
+        {
+          "assertion": "定奪記入 memory_ledger.md，且健檢前先讀帳本的 rejected 條目當疫苗（已否決提議不重提）",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        },
+        {
+          "assertion": "知道升層提議落實後，原 memory 條目要刪除或改 pointer——不留雙權威",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        },
+        {
+          "assertion": "六步順序正確：讀帳本疫苗在整併判斷之前；且區分『提議須使用者批准』與『機械修復呈報後可直接修』的授權邊界",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        }
+      ],
+      "weak_asserts": [
+        "assert 1 半弱：只查『有載 skill + Read memory-management.md』是查存在不查判斷品質——navigator 即使把 worktree/SDD 判斷搞錯，只要開了這兩個檔此條仍 pass。它驗證了路由命中，但無法鑑別導航的核心決策（不進 worktree、不走 SDD、主 agent 自做）是否正確；那些靠 assert 2/5 才測到。建議補一條專測『正確排除 worktree（slug 在 repo 外/gitignored）+ 排除 SDD（不碰 myProgram .py）』的鑑別性 assertion。"
+      ],
+      "baseline_graded": null
+    }
+  ],
+  "graded": [
+    {
+      "scenario_id": "s9-memory-health",
+      "asserts": [
+        {
+          "assertion": "transcript 顯示載入 project-01-workflow skill 並 Read reference/memory-management.md",
+          "pass": true,
+          "evidence": "SKILL.md 路由表第 36 行『memory 健檢 / 記憶整併 / 記憶維護 → memory-management.md』；該 reference 確實存在且開頭『🎯 何時讀本檔：使用者要求「memory 健檢 / 記憶整併 / 記憶維護」』。navigator references_read 含 reference/memory-management.md，導航的路由命中正確。"
+        },
+        {
+          "assertion": "先跑 scripts/memory-health.ps1 且知道它只報告不改檔（從主 checkout 跑）",
+          "pass": true,
+          "evidence": "memory-management.md 第 9-11 步『跑健檢 script（零 token，只讀不寫）pwsh -File .claude/skills/project-01-workflow/scripts/memory-health.ps1 … 健檢一律從主 checkout 跑』；§邊界第 24 行『健檢 script 只報告、絕不改檔』。Glob 確認 script 實存於 .claude/skills/project-01-workflow/scripts/memory-health.ps1。navigator 六步第①步即跑且明說主 checkout、worktree 推 slug 會錯，正確。"
+        },
+        {
+          "assertion": "定奪記入 memory_ledger.md，且健檢前先讀帳本的 rejected 條目當疫苗（已否決提議不重提）",
+          "pass": true,
+          "evidence": "memory-management.md 第 13 步『讀帳本疫苗：resources/reflections/memory_ledger.md 的 rejected 條目——已否決的提議不重提』在第 4 步整併判斷之前；第 20 步『記帳：所有定奪寫進帳本 … rejected 留作疫苗』。帳本檔頭實證『append-only；rejected 留作疫苗防重提』。navigator 順序與目的地均對。"
+        },
+        {
+          "assertion": "知道升層提議落實後，原 memory 條目要刪除或改 pointer——不留雙權威",
+          "pass": true,
+          "evidence": "memory-management.md §邊界第 25 行『升層落實後，原 memory 條目刪除或改成 pointer——不留雙權威』；帳本實例第 13/18 行兩條 adopted 落實行均記『原 *.md + 索引行已刪』。navigator 收尾明列此項，正確。"
+        },
+        {
+          "assertion": "六步順序正確：讀帳本疫苗在整併判斷之前；且區分『提議須使用者批准』與『機械修復呈報後可直接修』的授權邊界",
+          "pass": true,
+          "evidence": "memory-management.md 第 5 行開宗『提議經使用者批准才動手；唯機械性修復（索引補行/刪行、frontmatter 補欄）呈報後可直接修』；第 12 步機械修復『error 級結構問題呈報後直接修，內容性問題進第 4 步』；第 19 步『每條提議用 Why:一行+diff，逐條批准才執行』。六步順序 跑script→機械修復→讀帳本疫苗(③)→整併四問(④)→人定奪(⑤)→記帳(⑥)，疫苗在判斷前。navigator 完整復現且劃清授權邊界。"
+        }
+      ],
+      "pass_count": 5,
+      "total": 5,
+      "weak_asserts": [
+        "assert 1 半弱：只查『有載 skill + Read memory-management.md』是查存在不查判斷品質——navigator 即使把 worktree/SDD 判斷搞錯，只要開了這兩個檔此條仍 pass。它驗證了路由命中，但無法鑑別導航的核心決策（不進 worktree、不走 SDD、主 agent 自做）是否正確；那些靠 assert 2/5 才測到。建議補一條專測『正確排除 worktree（slug 在 repo 外/gitignored）+ 排除 SDD（不碰 myProgram .py）』的鑑別性 assertion。"
+      ],
+      "variant": "skill",
+      "trial": 1
+    }
+  ]
+}
