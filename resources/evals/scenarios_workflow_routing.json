@@ -81,7 +81,8 @@
         "transcript 顯示載入 project-01-workflow skill 並 Read reference/memory-management.md",
         "先跑 scripts/memory-health.ps1 且知道它只報告不改檔（從主 checkout 跑）",
         "定奪記入 resources/reflections/memory_ledger.md，且健檢前先讀帳本的 rejected 條目當疫苗（已否決提議不重提）",
-        "知道升層提議落實後，原 memory 條目要刪除或改 pointer——不留雙權威"
+        "知道升層提議落實後，原 memory 條目要刪除或改 pointer——不留雙權威",
+        "六步順序正確：讀帳本疫苗在整併判斷之前；且區分「提議須使用者批准」與「機械修復呈報後可直接修」的授權邊界"
       ]
     },
     {
