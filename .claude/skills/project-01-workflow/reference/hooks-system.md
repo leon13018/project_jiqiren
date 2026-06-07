@@ -24,6 +24,7 @@
 | `check-traditional-chinese.ps1` | PostToolUse | Edit\|Write | 掃剛寫入檔的常見簡體字 → 純警示 |
 | `stop-check-sales-pytest.ps1` | Stop | — | flag pending → block 一次（pending→reminded，不無限擋） |
 | `stop-sync-pi.ps1` | Stop | — | origin/main 比 marker 落後 → sync Pi + 清 pycache，成功才前移 marker |
+| `stop-check-codemap.ps1` | Stop | — | 結構變動（git 快照 diff）/ 死引用（codemap-health 重用）未反映到 code_map → block 一次（spec：codemap_guard_stop_hook_2026-06-07_spec.md） |
 | `stop-reflect.ps1` | Stop | — | 背景反思（見下節） |
 | `session-start-context.ps1` | SessionStart | — | 注入 branch / status / test 數快照；model 換代偵測 → 提醒重訪 `resources/watchlist.md` |
 | `subagent-inject-rules.ps1` | SubagentStart | — | 只對 Explore/Plan（唯一跳過 CLAUDE.md 的 agent）注入「繁中＋文檔指標」；其餘 agent 原生載 CLAUDE.md，直接放行 |
@@ -37,6 +38,7 @@ Stop hook 輸入 JSON **沒有本輪 tool 歷史**（官方確認）→ 跨 hook
 - **sales-dirty 三方**：編 sales/* → mark 寫 `pending`；pytest 跑過（PASS 或 FAIL）→ clear 刪 flag；Stop 時 `pending` → block 一次並改 `reminded`（防無限循環）、再編自動 reset 回 pending。
 - **sync marker（單向，永不 block）**：`last-synced-commit.marker` 存上次成功 sync 的 origin/main SHA；落後才 SSH、成功才前移、失敗下輪自動重試。**no-BOM UTF-8 寫入**（BOM 會干擾 SHA 比對）。
 - **model marker**：`last-model.txt`，SessionStart 比對換代（`model` 為 SessionStart 獨有輸入欄位，官方文檔確認；防禦式：欄位存在才比對）。
+- **codemap 守門（state/codemap/）**：`last-snapshot.txt` 檔案清單基線（過關才前移）＋ `reminded.txt` 已提醒集合（當前 ⊆ 它即放行，包含比對非 hash）＋ `acked-deadrefs.txt` 已提醒死引用（同批只擋一次）。皆 no-BOM UTF-8。
 
 ## stop-reflect（反思引擎）
 

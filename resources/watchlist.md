@@ -8,7 +8,7 @@
 |---|---|---|---|---|
 | W-1 | Iron Law 條件化（信任 sales-coder 回報） | 驗證成本顯著上升（套件 >1 分鐘） | scaffolding audit C-1 | open |
 | W-2 | pineedtodo append-only 堆積 | 檔數 >15 或使用者回報追蹤困難 | scaffolding audit C-2 | open |
-| W-3 | code_map 巢狀維護成本 | 連續 ≥2 次結構變動漏更新 code_map | scaffolding audit C-3 | open |
+| W-3 | code_map 巢狀維護成本 | 連續 ≥2 次結構變動漏更新 code_map | scaffolding audit C-3 | **closed**（2026-06-07 stop-check-codemap hook 確定性接管：快照 diff 抓漏登錄 + 自動死引用健檢；spec: codemap_guard_stop_hook_2026-06-07_spec.md） |
 | W-4 | Gotcha M 驗證 + 文檔縮編 | 再 2 個月零發生（至 2026-08）+ harness changelog 證實修復 → worktree.md 該段縮編（NOTES 已於 2026-06-07 墓碑化，hook 側殘留在 hooks-gotchas.md #19） | scaffolding audit C-4 | open |
 | W-5 | sales-dirty 三方協作 hooks | sales 業務凍結或 flag 誤動作 | scaffolding audit C-5 | open |
 | W-6 | 子層 pytest/SDD 提醒重複疑慮 | 子層行數超標或官方指引改變 | scaffolding audit C-6 | open |
