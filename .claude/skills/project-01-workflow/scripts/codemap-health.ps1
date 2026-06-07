@@ -17,8 +17,9 @@ $errs  = New-Object System.Collections.Generic.List[string]
 $warns = New-Object System.Collections.Generic.List[string]
 
 # 找全部 <層>/.claude/code_map.md（排除 worktrees）
+# worktrees 排除須比對「相對 RepoRoot」路徑——比對完整路徑時，-RepoRoot 指向 worktree 會把所有檔排光（靜默假全綠）
 $maps = @(Get-ChildItem $RepoRoot -Recurse -Filter 'code_map.md' -File -ErrorAction SilentlyContinue |
-          Where-Object { $_.FullName -match '\\\.claude\\code_map\.md$' -and $_.FullName -notmatch '\\worktrees\\' })
+          Where-Object { $_.FullName -match '\\\.claude\\code_map\.md$' -and $_.FullName.Substring($RepoRoot.Length) -notmatch '\\worktrees\\' })
 
 foreach ($m in $maps) {
     $layerRoot = Split-Path (Split-Path $m.FullName -Parent) -Parent   # <層>/.claude/code_map.md → <層>

@@ -17,8 +17,9 @@ if (-not (Test-Path $rootMd)) {
 $errs  = New-Object System.Collections.Generic.List[string]
 $warns = New-Object System.Collections.Generic.List[string]
 
+# worktrees 排除須比對「相對 RepoRoot」路徑——比對完整路徑時，-RepoRoot 指向 worktree 會把所有檔排光（靜默假全綠）
 $files = @(Get-ChildItem $RepoRoot -Recurse -Filter 'CLAUDE.md' -File -ErrorAction SilentlyContinue |
-           Where-Object { $_.FullName -notmatch '\\worktrees\\' })
+           Where-Object { $_.FullName.Substring($RepoRoot.Length) -notmatch '\\worktrees\\' })
 
 foreach ($f in $files) {
     $rel = $f.FullName.Substring($RepoRoot.Length).TrimStart('\')
@@ -45,7 +46,7 @@ foreach ($f in $files) {
                 # 散文式 bare-name 提及（如 `Board.py`、`SKILL.md`）→ 葉名遞迴找（防呆不防騙）
                 $leaf = Split-Path $relTok -Leaf
                 $hit = @(Get-ChildItem $RepoRoot -Recurse -Filter $leaf -ErrorAction SilentlyContinue |
-                         Where-Object { $_.FullName -notmatch '\\(\.git|worktrees)\\' } | Select-Object -First 1).Count -gt 0
+                         Where-Object { $_.FullName.Substring($RepoRoot.Length) -notmatch '\\(\.git|worktrees)\\' } | Select-Object -First 1).Count -gt 0
             }
             if (-not $hit) { $errs.Add(("死引用：{0} → {1}" -f $rel, $tok)) }
         }

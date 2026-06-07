@@ -15,8 +15,7 @@
 3. **不要嘗試在 Windows import / 執行任何依賴廠商 SDK 的程式碼** — 必 ImportError。
 4. **不要用 `git add -A` / `git add .`** 🔒 — 明確列出檔名，避免誤加。
 
-> 🔒 = PreToolUse hook 自動 block（不靠自律；hooks 完整文檔 → `.claude/hooks/NOTES.md`）。
-> 自動化 hook（**Pi sync** / Stop pytest 守 / SessionStart 快照 / SubagentStart 規範注入 / 簡體字警示）行為見 `.claude/hooks/NOTES.md`。
+> 🔒 = PreToolUse hook 自動 block（不靠自律）。hooks 行為文檔與 .ps1 踩坑 → skill `reference/hooks-system.md` / `hooks-gotchas.md`（路由見 SKILL.md）。
 
 ---
 
