@@ -57,6 +57,8 @@
 | 廠商 SDK | `/home/pi/TonyPi/HiwonderSDK/` |
 | Pi 家目錄 | `/home/pi` |
 
+> **部署提醒**：code 推上 Pi 後，`git pull` 拉到新 commit 必清專案樹下所有 `__pycache__` 再跑——stale .pyc 會跑舊邏輯（權威與清法 → [standard-workflow.md](standard-workflow.md)）。
+
 ---
 
 # Part C — S6 非阻塞 input reader（最終設計 + 4 教訓）
