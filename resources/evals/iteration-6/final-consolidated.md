@@ -15,3 +15,12 @@
 ## 結論
 
 候選 4-7 全部落實並驗證：pass@k（k 預設 1 零成本）、baseline 對照（場景級 opt-in）、claudemd-health.ps1（真實 repo 8 份全綠）、aggregate-edd.ps1（iteration-5 實資料 4 收 4 跳、場景 3 的 1/2 跨輪率正確呈現）。
+
+## 補：weak_asserts 維護循環第一輪（2026-06-07，使用者實跑定奪）
+
+頻次表（語意聚類）→ 定奪 → 落實（`49f4a0f`）→ graduation 10/10（`weak-asserts-round1-graduation-result.json`）：
+
+- ✅ s2 斷言 3 → path-prefix 版；s9 斷言 3 拆兩條 + 補「不留雙權威」考點（s9 變 4 asserts）；新增 s11 複合場景（筆記+code_map 同改，考夾帶判斷——navigator 完整推對巢狀判準）
+- ✅ 順手修 aggregate-edd.ps1 bare 污染 bug（`a306b4b`：baseline 對照組不入回歸 pass 率）
+- 題庫現 11 場景。
+- **本輪新 weak_asserts（×3，全為更深層的「查存在 vs 查因果鏈」批評）依「防無限打磨」原則不立即處置**——grader 每輪必有意見屬預期；待頻次表跨輪 ≥2 票再議。已知方向備忘：s2 斷言 3 改考因果鏈、s9 補負向斷言（誤進 worktree / 未批准直改）、s11 斷言 2 把「research/ 行與 root 不動」寫進文字。

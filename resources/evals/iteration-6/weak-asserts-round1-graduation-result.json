@@ -1,0 +1,205 @@
+{
+  "date": "2026-06-07",
+  "run_id": "wf_e095888e-771",
+  "scope": "weak-asserts-round1-graduation",
+  "scenario_ids": [
+    "s2-research-note",
+    "s9-memory-health",
+    "s11-research-note-with-structure"
+  ],
+  "verdict": {
+    "overall_pass": true,
+    "failed": [],
+    "summary": "三個場景（s2-research-note、s9-memory-health、s11-research-note-with-structure）全部通過：每條 assertion 的 majority_pass 皆為 true，故 overall_pass=true。本輪 k=1，各場景所有斷言 pass_rate 均為 1.0（s2：3/3、s9：4/4、s11：3/3）。無 failed 項。所有場景皆無 baseline_graded，故無法報告 with-skill vs bare 的 skill 增益。最弱環節：雖無 majority 失敗，但題庫鑑別力本身偏弱——三個場景的 weak_asserts 一致指向同一病灶：多條斷言屬「查存在型」，只檢驗 navigator 有沒有照抄目錄／有沒有提到某要素，未鎖定真正棘手的因果推導與步驟順序，對「要素齊全但導航邏輯錯誤」的回答不具鑑別力，這是本輪最需補強的部分。\n\n題庫自我改進訊號（weak_asserts 彙整）：\n1. s2 斷言 3（git add 前綴為 resources/research/）非鑑別性：場景前提已明述筆記放進 resources/research/，正確路徑等於直接抄題目給定目錄，navigator 不必真正完成 worktree/SDD 導航即可 pass，本質測「有沒有照抄目錄」而非「有沒有導航協議」。建議改成檢驗 navigator 是否從 worktree.md 分層表正確推得「resources/ 例外」的因果鏈，而非只看最終 add 路徑字串。\n2. s9 斷言 1（載入 skill 並 Read memory-management.md）屬查存在型：任何認得路由表的 navigator 都會載入本檔，即使流程順序與授權邊界全錯仍照樣 pass。本場景真正鑑別點在步驟順序（疫苗須在整併判斷前）與授權邊界（提議須批准 vs 機械修復可直接做），這些未被任一斷言獨立鎖定。建議補一條負向斷言：navigator 是否誤把健檢跑進 worktree、或誤將整併提議當機械修復未經人批准就直接改 memory。\n3. s11 斷言 2（識別 code_map 需更新並加 benchmarks/ 一行）查存在即過，無法鑑別真正棘手的巢狀判斷（research/ 那行不該動、root code_map 不該動）。若 navigator 錯誤地也為 research 筆記加一行或誤更新 root code_map，本斷言仍會 pass。建議把「只加 benchmarks/ 一行且 research/ 行與 root code_map 皆不動」寫進斷言才具鑑別性。"
+  },
+  "aggregated": [
+    {
+      "scenario_id": "s2-research-note",
+      "k": 1,
+      "asserts": [
+        {
+          "assertion": "判斷 resources/ 純文件新增可直接在 main 工作，不必進 worktree",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        },
+        {
+          "assertion": "判斷不需走 SDD",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        },
+        {
+          "assertion": "收尾 git add 明列的檔案路徑前綴確為 resources/research/（放對目錄、未誤判去別層；非 -A/.）",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        }
+      ],
+      "weak_asserts": [
+        "斷言 3（git add 前綴為 resources/research/）非鑑別性：場景前提已明述筆記要放進 resources/research/，正確路徑等於直接抄題目給定的目錄，navigator 不必真正完成 worktree/SDD 協議導航即可 pass；其『未誤判去別層』要件要踩錯反而得主動發明別的路徑，門檻過低，本質測『有沒有照抄目錄』而非『有沒有導航協議』。建議改成檢驗 navigator 是否從 worktree.md 分層表正確推得『resources/ 例外』這條因果鏈（而非只看最終 add 路徑字串）。"
+      ],
+      "baseline_graded": null
+    },
+    {
+      "scenario_id": "s9-memory-health",
+      "k": 1,
+      "asserts": [
+        {
+          "assertion": "transcript 顯示載入 project-01-workflow skill 並 Read reference/memory-management.md",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        },
+        {
+          "assertion": "先跑 scripts/memory-health.ps1 且知道它只報告不改檔（從主 checkout 跑）",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        },
+        {
+          "assertion": "定奪記入 resources/reflections/memory_ledger.md，且健檢前先讀帳本的 rejected 條目當疫苗（已否決提議不重提）",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        },
+        {
+          "assertion": "知道升層提議落實後，原 memory 條目要刪除或改 pointer——不留雙權威",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        }
+      ],
+      "weak_asserts": [
+        "斷言 1『載入 skill 並 Read memory-management.md』屬查存在型：任何認得路由表的 navigator 都會載入本檔，它不鑑別後續導航對錯（即使流程順序、授權邊界全錯，只要載了檔本條照樣 pass）。本場景真正的鑑別點在步驟順序（疫苗在整併判斷前）與授權邊界（提議須批准 vs 機械修復可直接做），這些細節未被任何斷言獨立鎖定——斷言 2/3/4 雖各含一個正確細節，但都只查『有提到 X』不查『X 與其他步驟的相對順序/前置條件是否擺對』，故對『順序顛倒但要素齊全』的錯誤導航不具鑑別力。建議補一條負向斷言：navigator 是否誤把健檢跑進 worktree、或誤將整併提議當機械修復直接改 memory（未經人批准）。"
+      ],
+      "baseline_graded": null
+    },
+    {
+      "scenario_id": "s11-research-note-with-structure",
+      "k": 1,
+      "asserts": [
+        {
+          "assertion": "判斷 resources/ 純文件新增（含新子目錄與數據檔）可直接在 main 工作，不必進 worktree",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        },
+        {
+          "assertion": "識別新增 resources/ 頂層子目錄會觸發 code_map 更新（resources/.claude/code_map.md 子目錄清單需加 benchmarks/ 一行——巢狀判準：變動影響該層已寫出的直接子項目）",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        },
+        {
+          "assertion": "收尾 git add 明列完整檔案集合：筆記 + 兩個數據檔 + 更新後的 resources/.claude/code_map.md（不漏夾帶、不多夾帶、非 -A/.）",
+          "pass_count": 1,
+          "trials": 1,
+          "pass_rate": 1,
+          "majority_pass": true
+        }
+      ],
+      "weak_asserts": [
+        "Assertion 2 的措辭只要求『識別 code_map 需更新並加 benchmarks/ 一行』——這部分查存在即過，無法鑑別 navigator 是否做對真正棘手的巢狀判斷（research/ 那行該不該動、root code_map 該不該動）。若 navigator 錯誤地也為 research 筆記新增一行、或誤更新 root code_map，本 assertion 仍會 pass。真正的鑑別點（中顆粒不列個別檔→research/ 行不動、只動 resources 層不動 root）藏在 navigator 的理由鏈裡而非 assertion 文字，應把『只加 benchmarks/ 一行且 research/ 行與 root code_map 皆不動』寫進 assertion 才具鑑別性。"
+      ],
+      "baseline_graded": null
+    }
+  ],
+  "graded": [
+    {
+      "scenario_id": "s2-research-note",
+      "asserts": [
+        {
+          "assertion": "判斷 resources/ 純文件新增可直接在 main 工作，不必進 worktree",
+          "pass": true,
+          "evidence": "worktree.md 觸發分層表（line 17）：『resources/ 純文件新增與小修 → 可直接 main（git add 明列 + 收尾 5 步照走；大規模多檔重構 / 刪除仍進 worktree）』；SKILL.md 跨任務鐵則（line 42）亦載『resources/ 純文件新增 / 小修可直接 main』。本任務為單檔 markdown 筆記新增，落在此例外，導航正確。"
+        },
+        {
+          "assertion": "判斷不需走 SDD",
+          "pass": true,
+          "evidence": "SKILL.md line 43：『改 myProgram/{sales,main,tts,action,input_reader}.py 必走 SDD』；路由表 line 24 SDD 桶亦限定『改 myProgram/ 任何 .py code』。本任務只寫 resources/research/ 下 markdown，不碰任何 myProgram code，故無 SDD 觸發，導航正確。"
+        },
+        {
+          "assertion": "收尾 git add 明列的檔案路徑前綴確為 resources/research/（放對目錄、未誤判去別層；非 -A/.）",
+          "pass": true,
+          "evidence": "Glob 確認 resources/research/ 目錄存在且已有多份同類研究筆記（如 skill_scripts_vs_workflows_research_2026-06-07.md）；standard-workflow.md 第 2 步（line 32）：『git add <具體檔名> — 不用 -A/.（hook 擋），明列避免誤加』。navigator 將 add 前綴定為 resources/research/<檔名>.md 並明列單檔、禁 -A/.，與原文一致。"
+        }
+      ],
+      "pass_count": 3,
+      "total": 3,
+      "weak_asserts": [
+        "斷言 3（git add 前綴為 resources/research/）非鑑別性：場景前提已明述筆記要放進 resources/research/，正確路徑等於直接抄題目給定的目錄，navigator 不必真正完成 worktree/SDD 協議導航即可 pass；其『未誤判去別層』要件要踩錯反而得主動發明別的路徑，門檻過低，本質測『有沒有照抄目錄』而非『有沒有導航協議』。建議改成檢驗 navigator 是否從 worktree.md 分層表正確推得『resources/ 例外』這條因果鏈（而非只看最終 add 路徑字串）。"
+      ],
+      "variant": "skill",
+      "trial": 1
+    },
+    {
+      "scenario_id": "s9-memory-health",
+      "asserts": [
+        {
+          "assertion": "transcript 顯示載入 project-01-workflow skill 並 Read reference/memory-management.md",
+          "pass": true,
+          "evidence": "SKILL.md 路由表 L36『| memory 健檢 / 記憶整併 / 記憶維護 | memory-management.md |』正是本場景對應列；navigator references_read 列出 reference/memory-management.md，且 decision 內容（六步流程、四問、邊界）與該檔原文逐句吻合，非空殼宣稱。"
+        },
+        {
+          "assertion": "先跑 scripts/memory-health.ps1 且知道它只報告不改檔（從主 checkout 跑）",
+          "pass": true,
+          "evidence": "memory-management.md L9『跑健檢 script（零 token，只讀不寫）：pwsh -File .claude/skills/project-01-workflow/scripts/memory-health.ps1』、L11『worktree 內 cwd 推導 slug 會錯、gitignored 檔也不在 worktree——健檢一律從主 checkout 跑』、L24『健檢 script 只報告、絕不改檔』。navigator step 1 三點俱全（只讀不寫＋主 checkout＋slug 推導會錯之因），且 Glob 已證 script 存在於該路徑。"
+        },
+        {
+          "assertion": "定奪記入 resources/reflections/memory_ledger.md，且健檢前先讀帳本的 rejected 條目當疫苗（已否決提議不重提）",
+          "pass": true,
+          "evidence": "memory-management.md L13『讀帳本疫苗：resources/reflections/memory_ledger.md 的 rejected 條目——已否決的提議不重提』為流程第 3 步（在整併四問之前）；L20『記帳：所有定奪寫進帳本…rejected 留作疫苗』。navigator step 3 讀疫苗在 step 4 整併判斷之前、step 6 記帳，順序與授權邊界皆對。"
+        },
+        {
+          "assertion": "知道升層提議落實後，原 memory 條目要刪除或改 pointer——不留雙權威",
+          "pass": true,
+          "evidence": "memory-management.md 邊界 L25『升層落實後，原 memory 條目刪除或改成 pointer——不留雙權威』。navigator 收尾段落原文引用此句並納入判斷，且其『選層判準 hook > root CLAUDE.md > skill reference > NOTES > memory』與 L16 一致，顯示理解升層方向而非機械複述。"
+        }
+      ],
+      "pass_count": 4,
+      "total": 4,
+      "weak_asserts": [
+        "斷言 1『載入 skill 並 Read memory-management.md』屬查存在型：任何認得路由表的 navigator 都會載入本檔，它不鑑別後續導航對錯（即使流程順序、授權邊界全錯，只要載了檔本條照樣 pass）。本場景真正的鑑別點在步驟順序（疫苗在整併判斷前）與授權邊界（提議須批准 vs 機械修復可直接做），這些細節未被任何斷言獨立鎖定——斷言 2/3/4 雖各含一個正確細節，但都只查『有提到 X』不查『X 與其他步驟的相對順序/前置條件是否擺對』，故對『順序顛倒但要素齊全』的錯誤導航不具鑑別力。建議補一條負向斷言：navigator 是否誤把健檢跑進 worktree、或誤將整併提議當機械修復直接改 memory（未經人批准）。"
+      ],
+      "variant": "skill",
+      "trial": 1
+    },
+    {
+      "scenario_id": "s11-research-note-with-structure",
+      "asserts": [
+        {
+          "assertion": "判斷 resources/ 純文件新增（含新子目錄與數據檔）可直接在 main 工作，不必進 worktree",
+          "pass": true,
+          "evidence": "worktree.md §觸發分層 line 17：『resources/ 純文件新增與小修 → 可直接 main（git add 明列 + 收尾 5 步照走；大規模多檔重構/刪除仍進 worktree）』。本輪是 1 筆記 + 1 子目錄 + 2 json 的『新增』，非大規模重構/刪除，落在『可直接 main』分支。另 SKILL.md 跨任務鐵則 line 42 同樣寫『resources/ 純文件新增/小修可直接 main』。navigator 不進 worktree 正確。"
+        },
+        {
+          "assertion": "識別新增 resources/ 頂層子目錄會觸發 code_map 更新（resources/.claude/code_map.md 子目錄清單需加 benchmarks/ 一行——巢狀判準：變動影響該層已寫出的直接子項目）",
+          "pass": true,
+          "evidence": "pi-and-structure.md §結構變動維護 line 46『新增/刪除/移動/改名檔案或資料夾』觸發 ✅；line 50 巢狀判準『只有變動影響到某層 code_map 已寫出的直接子項目（新增/刪除/改名）才更新該層』。實讀 resources/.claude/code_map.md line 5-17『## 子目錄』段逐列直接子目錄（specs/ plans/ research/...），新增頂層 benchmarks/ 即新增一個直接子項目 → 須加一行；筆記落在既有 research/（line 9 已列、中顆粒不列個別檔，line 19-23 檔案段也不列 research 下檔）故 research/ 行不動。navigator 巢狀判斷正確。"
+        },
+        {
+          "assertion": "收尾 git add 明列完整檔案集合：筆記 + 兩個數據檔 + 更新後的 resources/.claude/code_map.md（不漏夾帶、不多夾帶、非 -A/.）",
+          "pass": true,
+          "evidence": "standard-workflow.md 觸發時 5 步 step1b『結構變動 → 更新 code_map / SKILL.md 路由表：納入 add』+ step2『git add <具體檔名> — 不用 -A/.（hook 擋），明列避免誤加』。完整集合＝research/<筆記>.md + benchmarks/<2 個>.json + resources/.claude/code_map.md，共四檔；CLAUDE.md 紅線 4『不要用 git add -A/.』🔒 hook 確定性擋。navigator 明列四檔且禁 -A/. 正確。"
+        }
+      ],
+      "pass_count": 3,
+      "total": 3,
+      "weak_asserts": [
+        "Assertion 2 的措辭只要求『識別 code_map 需更新並加 benchmarks/ 一行』——這部分查存在即過，無法鑑別 navigator 是否做對真正棘手的巢狀判斷（research/ 那行該不該動、root code_map 該不該動）。若 navigator 錯誤地也為 research 筆記新增一行、或誤更新 root code_map，本 assertion 仍會 pass。真正的鑑別點（中顆粒不列個別檔→research/ 行不動、只動 resources 層不動 root）藏在 navigator 的理由鏈裡而非 assertion 文字，應把『只加 benchmarks/ 一行且 research/ 行與 root code_map 皆不動』寫進 assertion 才具鑑別性。"
+      ],
+      "variant": "skill",
+      "trial": 1
+    }
+  ]
+}
