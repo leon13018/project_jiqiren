@@ -63,6 +63,7 @@ cd "C:/Users/LIN HONG/Desktop"
 New-Item -ItemType Directory leon-statusline/leon-statusline/src -Force
 New-Item -ItemType Directory leon-statusline/leon-statusline/tests -Force
 New-Item -ItemType Directory leon-statusline/leon-statusline/.claude-plugin -Force
+New-Item -ItemType Directory leon-statusline/leon-statusline/skills/setup-statusline -Force
 New-Item -ItemType Directory leon-statusline/.claude-plugin -Force
 cd leon-statusline
 git init
@@ -88,14 +89,17 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({ test: { include: ['tests/**/*.test.mjs'] } })
 ```
 
-- [ ] **Step 4: 寫 `leon-statusline/.claude-plugin/plugin.json`**（statusLine schema 於 Task 13 再驗證/微調）
+- [ ] **Step 4: 寫 `leon-statusline/.claude-plugin/plugin.json`**（**無 statusLine 欄位** — plugin settings.json 不支援主 statusLine，改由 setup 指令寫入使用者 settings.json）
 
 ```json
 {
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "leon-statusline",
+  "displayName": "leon-statusline",
   "version": "1.0.0",
   "description": "Cross-platform 4-line Claude Code status line",
-  "statusLine": { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/statusline.mjs" }
+  "author": { "name": "leon13018" },
+  "license": "MIT"
 }
 ```
 
@@ -104,8 +108,8 @@ export default defineConfig({ test: { include: ['tests/**/*.test.mjs'] } })
 ```json
 {
   "name": "leon-statusline-marketplace",
-  "owner": "leon13018",
-  "plugins": [ { "name": "leon-statusline", "source": "./leon-statusline" } ]
+  "owner": { "name": "leon13018" },
+  "plugins": [ { "name": "leon-statusline", "source": "./leon-statusline", "description": "Cross-platform 4-line status line" } ]
 }
 ```
 
@@ -1016,6 +1020,146 @@ git commit -m "feat: entry point (stdin -> 4 lines -> exit 0, never crash)"
 
 ---
 
+## Task 9.5: setup.mjs（安全 merge 寫 statusLine）+ setup 指令
+
+**Files:**
+- Create: `leon-statusline/setup.mjs`
+- Create: `leon-statusline/skills/setup-statusline/SKILL.md`
+- Test: `leon-statusline/tests/setup.test.mjs`
+
+- [ ] **Step 1: 失敗測試 `tests/setup.test.mjs`**
+
+```js
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { targetPath, mergeStatusLine, applySetup } from '../setup.mjs'
+
+let dir
+beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'lsls-')) })
+afterEach(() => { rmSync(dir, { recursive: true, force: true }) })
+
+describe('targetPath', () => {
+  it('user/project/local', () => {
+    expect(targetPath('user', '/home/leon', '/proj')).toBe('/home/leon/.claude/settings.json')
+    expect(targetPath('project', '/home/leon', '/proj')).toBe('/proj/.claude/settings.json')
+    expect(targetPath('local', '/home/leon', '/proj')).toBe('/proj/.claude/settings.local.json')
+  })
+})
+
+describe('mergeStatusLine', () => {
+  it('adds statusLine, preserves other keys', () => {
+    const out = mergeStatusLine({ a: 1, hooks: {} }, 'node x')
+    expect(out.a).toBe(1)
+    expect(out.hooks).toEqual({})
+    expect(out.statusLine).toEqual({ type: 'command', command: 'node x', refreshInterval: 10 })
+  })
+})
+
+describe('applySetup', () => {
+  it('reports existing without writing when statusLine present and not forced', () => {
+    const f = join(dir, 'settings.json')
+    writeFileSync(f, JSON.stringify({ statusLine: { type: 'command', command: 'old' }, keep: 1 }))
+    const r = applySetup(f, 'node new', false)
+    expect(r.existing).toBe(true)
+    expect(r.written).toBe(false)
+    expect(JSON.parse(readFileSync(f, 'utf8')).statusLine.command).toBe('old')
+  })
+  it('writes + backs up when forced; preserves other keys', () => {
+    const f = join(dir, 'settings.json')
+    writeFileSync(f, JSON.stringify({ statusLine: { command: 'old' }, keep: 1 }))
+    const r = applySetup(f, 'node new', true)
+    expect(r.written).toBe(true)
+    expect(existsSync(r.backup)).toBe(true)
+    const after = JSON.parse(readFileSync(f, 'utf8'))
+    expect(after.statusLine.command).toBe('node new')
+    expect(after.keep).toBe(1)
+  })
+  it('creates file when absent', () => {
+    const f = join(dir, 'sub', 'settings.json')
+    const r = applySetup(f, 'node new', false)
+    expect(r.written).toBe(true)
+    expect(JSON.parse(readFileSync(f, 'utf8')).statusLine.command).toBe('node new')
+  })
+})
+```
+
+- [ ] **Step 2: 跑測試確認失敗** → FAIL
+
+- [ ] **Step 3: 實作 `setup.mjs`**
+
+```js
+import { readFileSync, writeFileSync, copyFileSync, existsSync, mkdirSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join, dirname } from 'node:path'
+
+export function targetPath(scope, home = homedir(), projectDir = process.cwd()) {
+  if (scope === 'project') return join(projectDir, '.claude', 'settings.json')
+  if (scope === 'local') return join(projectDir, '.claude', 'settings.local.json')
+  return join(home, '.claude', 'settings.json')
+}
+
+export function mergeStatusLine(existing, command) {
+  return { ...(existing || {}), statusLine: { type: 'command', command, refreshInterval: 10 } }
+}
+
+export function applySetup(file, command, force, stamp = String(Date.now())) {
+  let existing = null
+  try { existing = JSON.parse(readFileSync(file, 'utf8')) } catch {}
+  if (existing && existing.statusLine && !force) {
+    return { existing: true, written: false, path: file }
+  }
+  let backup = null
+  if (existsSync(file)) { backup = `${file}.bak-${stamp}`; copyFileSync(file, backup) }
+  else { mkdirSync(dirname(file), { recursive: true }) }
+  writeFileSync(file, JSON.stringify(mergeStatusLine(existing, command), null, 2))
+  return { existing: !!(existing && existing.statusLine), written: true, path: file, backup }
+}
+
+// CLI: node setup.mjs --root <pluginRoot> [--scope user|project|local] [--force]
+function arg(name, def) { const i = process.argv.indexOf(name); return i >= 0 ? process.argv[i + 1] : def }
+if (process.argv[1] && process.argv[1].endsWith('setup.mjs')) {
+  const root = arg('--root', process.env.CLAUDE_PLUGIN_ROOT || '.')
+  const scope = arg('--scope', 'user')
+  const force = process.argv.includes('--force')
+  const command = `node "${join(root, 'statusline.mjs')}"`
+  const r = applySetup(targetPath(scope), command, force)
+  process.stdout.write(JSON.stringify(r))
+}
+```
+
+- [ ] **Step 4: 跑測試** → PASS
+
+- [ ] **Step 5: 寫 setup 指令 `skills/setup-statusline/SKILL.md`**
+
+```markdown
+---
+description: 安裝 leon-statusline 狀態列到 settings.json（user/project/local）。使用者明確呼叫才執行。
+disable-model-invocation: true
+---
+
+# leon-statusline setup
+
+把 leon-statusline 狀態列寫進 settings.json。範圍："$ARGUMENTS"（user / project / local，未給則預設 user）。
+
+步驟：
+1. 執行：`node "${CLAUDE_PLUGIN_ROOT}/setup.mjs" --root "${CLAUDE_PLUGIN_ROOT}" --scope <範圍>`
+2. 若輸出含 `"existing":true`（目標 settings.json 已有 statusLine）：**停下來問使用者**「偵測到已有 statusLine，覆蓋（舊設定會自動備份）還是取消？」。
+   - 同意覆蓋 → 重跑並加 `--force`。
+   - 取消 → 不動，回報已取消。
+3. 若 `"written":true` → 回報成功與 `backup` 備份路徑，提示重啟或 `/reload-plugins` 生效。
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add setup.mjs skills/setup-statusline/SKILL.md tests/setup.test.mjs
+git commit -m "feat: setup command (safe-merge statusLine, ask before overwrite)"
+```
+
+---
+
 ## Task 10: 全測試綠燈 + README + 安裝/分享說明
 
 **Files:**
@@ -1083,8 +1227,9 @@ gh repo create leon-statusline --public --source=. --remote=origin --push
 ```
 /plugin marketplace add C:/Users/LIN HONG/Desktop/leon-statusline
 /plugin install leon-statusline
+/leon-statusline:setup-statusline user
 ```
-（或用 push 後的 GitHub URL）
+（或用 push 後的 GitHub URL）。第 3 步 setup 會把 statusLine 寫進 `~/.claude/settings.json`；若偵測到既有 statusLine 會**先問你**覆蓋（備份）或取消。
 
 - [ ] **Step 2: 確認狀態列出現且無錯**
 
