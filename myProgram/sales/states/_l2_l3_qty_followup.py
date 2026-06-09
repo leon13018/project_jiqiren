@@ -107,8 +107,8 @@ def resolve_and_add_products(
 
     added_count = 0
     cancel_notices: list[str] = []
-    over_pending: list = []  # Pass 1 收集的真超量（remaining>0 且 qty>remaining）商品名
-    missing: list = []       # Pass 1 收集的缺數量商品名
+    invalid_pending: dict = {}  # Pass 1 收集的無效數量商品 {product: reason}（reason ∈ {"over_limit","zero"}）
+    missing: list = []          # Pass 1 收集的缺數量商品名
 
     # Pass 1：直接給數量者即時分類
     for product, qty in products:
@@ -123,18 +123,18 @@ def resolve_and_add_products(
             speak(f"{product}已經點到單筆上限 {MAX_QTY_PER_ITEM} {unit}，無法再加")
             continue
         if qty > remaining:
-            # 2026-06-09：不再 cap，收進 over_pending 走 Pass 1.5 合併重問
-            over_pending.append(product)
+            # 2026-06-09：不再 cap，收進 invalid_pending 走 Pass 1.5 合併重問
+            invalid_pending[product] = "over_limit"
             continue
         # 正常加入
         cart_module.add_item(cart, product, qty)
         added_count += 1
 
-    # Pass 1.5：合併超量重問（情境1）；先於 missing 追問（情境3）
-    if over_pending:
-        n = len(over_pending)
+    # Pass 1.5：合併無效數量重問（情境1）；先於 missing 追問（情境3）
+    if invalid_pending:
+        n = len(invalid_pending)
         control = invalid_qty_reask(
-            over_pending, cart, speak, print_terminal,
+            invalid_pending, cart, speak, print_terminal,
             read_customer_input, speak_and_wait,
         )
         if control == "resolved":
@@ -230,7 +230,7 @@ def _qty_follow_up_sub_loop(
             if qty > remaining:
                 # 2026-06-09：不再 cap，funnel 進 invalid_qty_reask（單商品）
                 control = invalid_qty_reask(
-                    [product], cart, speak, print_terminal,
+                    {product: "over_limit"}, cart, speak, print_terminal,
                     read_customer_input, speak_and_wait,
                 )
                 if control == "resolved":

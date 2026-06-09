@@ -6885,7 +6885,7 @@ def test_over_limit_exit_returns_to_l1() -> None:
 
 
 def test_over_limit_cancel_overlimit_reenters_with_notice() -> None:
-    """超量 → 否定 → 二選一取消超量繼續 → speak「好的已為您取消超量的商品」+ entry。"""
+    """超量 → 否定 → 二選一取消這些商品繼續 → speak「好的已為您取消這些商品」+ entry。"""
     speaks: list = []
     cart = cart_module.new_cart()
     customer_input = FakeCustomerInput(["紅茶100", "不買了", "取消超量的商品繼續", None, None])
@@ -6894,4 +6894,4 @@ def test_over_limit_cancel_overlimit_reenters_with_notice() -> None:
         read_customer_input=customer_input.read, cart=cart, think_count=0,
         opencv_disable=lambda: None, do_action=lambda *a, **k: None,
     )
-    assert any("好的已為您取消超量的商品" in s for s in speaks)
+    assert any("好的已為您取消這些商品" in s for s in speaks)

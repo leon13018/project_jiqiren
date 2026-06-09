@@ -19,6 +19,7 @@ from myProgram.sales.constants import (
     INVALID_QTY_CANCEL_CONFIRM_TIMEOUT,
     INVALID_QTY_OVERLIMIT_SINGLE_TEMPLATE,
     INVALID_QTY_OVERLIMIT_MULTI_TEMPLATE,
+    INVALID_QTY_ZERO_TEMPLATE,
     INVALID_QTY_UNCLEAR_PREFIX,
     INVALID_QTY_CANCEL_CONFIRM_PROMPT,
     KEYWORDS_INVALID_QTY_CANCEL_TRIGGER,
@@ -74,50 +75,69 @@ def _join_names(names: list) -> str:
     return "、".join(names[:-1]) + "和" + names[-1]
 
 
-def _format_invalid_qty_prompt(pending: list, cart) -> str:
-    """組超量重問 prompt。remaining = MAX_QTY_PER_ITEM - cart 既有量（cart 空時即 50）。"""
-    if len(pending) == 1:
-        p = pending[0]
-        unit = PRODUCTS[p]["單位"]
-        remaining = MAX_QTY_PER_ITEM - cart_module.get_quantity(cart, p)
-        return INVALID_QTY_OVERLIMIT_SINGLE_TEMPLATE.format(product=p, remaining=remaining, unit=unit)
-    products = _join_names(pending)
-    details = "、".join(
-        f"{MAX_QTY_PER_ITEM - cart_module.get_quantity(cart, p)} {PRODUCTS[p]['單位']}"
-        for p in pending
-    )
-    return INVALID_QTY_OVERLIMIT_MULTI_TEMPLATE.format(products=products, details=details)
+def _format_invalid_qty_prompt(pending: dict, cart) -> str:
+    """組無效數量重問 prompt，依 reason 分組（zero / over_limit）。
+
+    remaining = MAX_QTY_PER_ITEM - cart 既有量（cart 空時即 50）。混合 reason（一句裡
+    有 0 也有超量）→ zero 句 + over 句串接成一個 speak（各句以「。」自結）。over-limit 句
+    的 single/multi 由 over_products 數量決定（非 total pending）。
+    """
+    zero_products = [p for p, r in pending.items() if r == "zero"]
+    over_products = [p for p, r in pending.items() if r == "over_limit"]
+    parts = []
+    if zero_products:
+        items = "、".join(f"{p}0{PRODUCTS[p]['單位']}" for p in zero_products)
+        parts.append(INVALID_QTY_ZERO_TEMPLATE.format(items=items, products=_join_names(zero_products)))
+    if over_products:
+        if len(over_products) == 1:
+            p = over_products[0]
+            unit = PRODUCTS[p]["單位"]
+            remaining = MAX_QTY_PER_ITEM - cart_module.get_quantity(cart, p)
+            parts.append(INVALID_QTY_OVERLIMIT_SINGLE_TEMPLATE.format(product=p, remaining=remaining, unit=unit))
+        else:
+            products = _join_names(over_products)
+            details = "、".join(
+                f"{MAX_QTY_PER_ITEM - cart_module.get_quantity(cart, p)} {PRODUCTS[p]['單位']}"
+                for p in over_products
+            )
+            parts.append(INVALID_QTY_OVERLIMIT_MULTI_TEMPLATE.format(products=products, details=details))
+    return "".join(parts)
 
 
-def _apply_quantities(response: str, pending: list, cart) -> None:
+def _classify_into_pending(product: str, qty: int, pending: dict, cart) -> None:
+    """重答後重新分類單一商品：合法→add+del；仍 0→reason=zero；仍超量→reason=over_limit。"""
+    remaining = MAX_QTY_PER_ITEM - cart_module.get_quantity(cart, product)
+    if 0 < qty <= remaining:
+        cart_module.add_item(cart, product, qty)
+        del pending[product]
+    elif qty == 0:
+        pending[product] = "zero"
+    else:  # qty > remaining
+        pending[product] = "over_limit"
+
+
+def _apply_quantities(response: str, pending: dict, cart) -> None:
     """把 response 內可解析數量 apply 到 pending 商品（in-place 改 pending / cart）。
 
-    有效（0 < qty <= remaining）→ add_item + 從 pending 移除；超量 / <=0 → 留在 pending。
+    對每個提及的 pending 商品重新分類（合法→add+del；仍 0→zero；仍超量→over_limit）。
     多 pending 用 parse_products（需商品名）；單 pending 額外接受 bare number（parse_quantity）。
     """
     parsed = parse_products(response)
     parsed_names = {product for product, _ in parsed}
     for product, qty in parsed:
         if product in pending and qty is not None:
-            remaining = MAX_QTY_PER_ITEM - cart_module.get_quantity(cart, product)
-            if 0 < qty <= remaining:
-                cart_module.add_item(cart, product, qty)
-                pending.remove(product)
+            _classify_into_pending(product, qty, pending, cart)
     # bare-number fallback：唯有 parse_products 完全沒命中任何商品名（response 是真
-    # bare number 如「30」）時，才把 response 當數量套到唯一 pending。若 response 含
+    # bare number 如「30」/「0」）時，才把 response 當數量套到唯一 pending。若 response 含
     # 任何商品名（parsed_names 非空），上方 loop 已處理；此時不可用 parse_quantity 把
     # 句中其他數字（如顧客只報「刮刮樂5」時的 5）誤套到未被提及的另一 pending 商品。
     if len(pending) == 1 and not parsed_names and has_quantity(response):
-        product = pending[0]
-        qty = parse_quantity(response)
-        remaining = MAX_QTY_PER_ITEM - cart_module.get_quantity(cart, product)
-        if 0 < qty <= remaining:
-            cart_module.add_item(cart, product, qty)
-            pending.remove(product)
+        product = next(iter(pending))
+        _classify_into_pending(product, parse_quantity(response), pending, cart)
 
 
 def invalid_qty_reask(
-    pending: list,
+    pending: dict,
     cart,
     speak,
     print_terminal,
@@ -127,7 +147,8 @@ def invalid_qty_reask(
     """無效數量重問主 loop（12s budget + 最多 INVALID_QTY_MAX_RESETS 次 reset）。
 
     Args:
-        pending: 仍超量商品名 list（in-place 縮減；有效答案 add_item 後移除）。
+        pending: dict{product: reason}，reason ∈ {"over_limit", "zero"}（in-place 縮減；
+            有效答案 add_item 後 del；重答仍無效則更新 reason）。
 
     Returns:
         "resolved"        — pending 全部進範圍（皆已 add_item 進 cart）
