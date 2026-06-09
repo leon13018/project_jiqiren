@@ -71,8 +71,8 @@ from myProgram.sales.constants import (
     KEYWORDS_C2_CANCEL_STRICT_SHORT,
     DIALOG_VAGUE_BUY_REASK,
     CANCEL_DECLINED_NOTICE,
-    OVER_LIMIT_TIMEOUT_REENTER_PREFIX,
-    OVER_LIMIT_CANCEL_REENTER_PREFIX,
+    INVALID_QTY_TIMEOUT_REENTER_PREFIX,
+    INVALID_QTY_CANCEL_REENTER_PREFIX,
     ACTION_L2,
     ACTION_L3,
     ACTION_L3_CHECKOUT_GO,
@@ -288,8 +288,8 @@ def _dialog_dispatch_inner_l2(
         if control == "exit_l1":
             return _dialog_exit_a(speak, cart)
         if control in ("reenter_timeout", "reenter_cancel"):
-            prefix = (OVER_LIMIT_TIMEOUT_REENTER_PREFIX if control == "reenter_timeout"
-                      else OVER_LIMIT_CANCEL_REENTER_PREFIX)
+            prefix = (INVALID_QTY_TIMEOUT_REENTER_PREFIX if control == "reenter_timeout"
+                      else INVALID_QTY_CANCEL_REENTER_PREFIX)
             entry = L2_ENTRY_PROMPT if cart_module.is_empty(cart) else L3_ENTRY_PROMPT
             speak(prefix + entry)
             return None
@@ -415,8 +415,8 @@ def _dialog_dispatch_inner_l3(
         if control == "exit_l1":
             return _dialog_exit_a(speak, cart)
         if control in ("reenter_timeout", "reenter_cancel"):
-            prefix = (OVER_LIMIT_TIMEOUT_REENTER_PREFIX if control == "reenter_timeout"
-                      else OVER_LIMIT_CANCEL_REENTER_PREFIX)
+            prefix = (INVALID_QTY_TIMEOUT_REENTER_PREFIX if control == "reenter_timeout"
+                      else INVALID_QTY_CANCEL_REENTER_PREFIX)
             entry = L2_ENTRY_PROMPT if cart_module.is_empty(cart) else L3_ENTRY_PROMPT
             speak(prefix + entry)
             return None
@@ -785,8 +785,8 @@ def _dialog_main_loop(
             if control == "exit_l1":
                 return _dialog_exit_a(speak, cart)
             if control in ("reenter_timeout", "reenter_cancel"):
-                prefix = (OVER_LIMIT_TIMEOUT_REENTER_PREFIX if control == "reenter_timeout"
-                          else OVER_LIMIT_CANCEL_REENTER_PREFIX)
+                prefix = (INVALID_QTY_TIMEOUT_REENTER_PREFIX if control == "reenter_timeout"
+                          else INVALID_QTY_CANCEL_REENTER_PREFIX)
                 entry = L2_ENTRY_PROMPT if cart_module.is_empty(cart) else L3_ENTRY_PROMPT
                 speak(prefix + entry)
                 continue

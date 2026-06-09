@@ -1,12 +1,12 @@
-"""超量重問狀態鏈（2026-06-09 加；spec resources/specs/over_limit_reask_2026-06-09_spec.md）。
+"""無效數量重問狀態鏈（2026-06-09 加；spec resources/specs/invalid_qty_reask_2026-06-09_spec.md）。
 
-數量超量 → 不自動 cap，進重問 loop 問到正確數量才加入。對齊 _cancel_confirm /
-_service_confirm 風格：callback 注入、不 import 廠商 SDK、對 cart in-place。即時提交
-模型——有效數量立即 add_item，pending list 只含仍超量商品名。
+數量無效（超量 / 為 0）→ 不自動 cap / skip，進重問 loop 問到合法數量才加入。對齊
+_cancel_confirm / _service_confirm 風格：callback 注入、不 import 廠商 SDK、對 cart
+in-place。即時提交模型——有效數量立即 add_item，pending list 只含仍超量商品名。
 
 兩 public helper：
-    over_limit_reask        — 重問主 loop（12s budget + 最多 2 reset）
-    over_limit_cancel_confirm — 「取消超量商品 vs 退出交易」二選一（6s，保守 default 保 cart）
+    invalid_qty_reask         — 重問主 loop（12s budget + 最多 2 reset）
+    invalid_qty_cancel_confirm — 「取消這些商品 vs 退出交易」二選一（6s，保守 default 保 cart）
 """
 
 import time
@@ -14,18 +14,18 @@ import time
 from myProgram.sales.constants import (
     PRODUCTS,
     MAX_QTY_PER_ITEM,
-    OVER_LIMIT_REASK_TIMEOUT,
-    OVER_LIMIT_MAX_RESETS,
-    OVER_LIMIT_CANCEL_CONFIRM_TIMEOUT,
-    OVER_LIMIT_REASK_SINGLE_TEMPLATE,
-    OVER_LIMIT_REASK_MULTI_TEMPLATE,
-    OVER_LIMIT_UNCLEAR_PREFIX,
-    OVER_LIMIT_CANCEL_CONFIRM_PROMPT,
-    KEYWORDS_OVER_LIMIT_CANCEL_TRIGGER,
-    KEYWORDS_OVER_LIMIT_CONTINUE,
-    KEYWORDS_OVER_LIMIT_CONTINUE_STRICT_SHORT,
-    KEYWORDS_OVER_LIMIT_EXIT,
-    KEYWORDS_OVER_LIMIT_EXIT_STRICT_SHORT,
+    INVALID_QTY_REASK_TIMEOUT,
+    INVALID_QTY_MAX_RESETS,
+    INVALID_QTY_CANCEL_CONFIRM_TIMEOUT,
+    INVALID_QTY_OVERLIMIT_SINGLE_TEMPLATE,
+    INVALID_QTY_OVERLIMIT_MULTI_TEMPLATE,
+    INVALID_QTY_UNCLEAR_PREFIX,
+    INVALID_QTY_CANCEL_CONFIRM_PROMPT,
+    KEYWORDS_INVALID_QTY_CANCEL_TRIGGER,
+    KEYWORDS_INVALID_QTY_CONTINUE,
+    KEYWORDS_INVALID_QTY_CONTINUE_STRICT_SHORT,
+    KEYWORDS_INVALID_QTY_EXIT,
+    KEYWORDS_INVALID_QTY_EXIT_STRICT_SHORT,
 )
 from myProgram.sales.nlu import (
     has_quantity, parse_quantity, classify_intent,
@@ -37,19 +37,19 @@ from myProgram.sales.states._cancel_confirm import is_cancel_intent
 from myProgram.sales.states._service_confirm import service_confirm
 
 
-def over_limit_cancel_confirm(speak, read_customer_input, speak_and_wait=None) -> str:
-    """「取消超量商品繼續 vs 退出交易」二選一 6s 子狀態。
+def invalid_qty_cancel_confirm(speak, read_customer_input, speak_and_wait=None) -> str:
+    """「取消這些商品繼續 vs 退出交易」二選一 6s 子狀態。
 
     Returns:
-        "cancel_overlimit" — 取消超量商品、保留其他、繼續（CONTINUE keyword / silent / 亂答耗盡）
+        "cancel_overlimit" — 取消無效數量商品、保留其他、繼續（CONTINUE keyword / silent / 亂答耗盡）
         "exit"             — 退出交易（純 EXIT keyword）
 
     check 順序 CONTINUE 先於 EXIT：保守原則，任何含「取消/繼續」→ 保 cart；
     唯純「退出/離開」才 exit。timeout / silent / 亂答耗盡 → cancel_overlimit（保 cart）。
     """
     _speak_blocking = speak_and_wait if speak_and_wait is not None else speak
-    _speak_blocking(OVER_LIMIT_CANCEL_CONFIRM_PROMPT)
-    deadline = time.monotonic() + OVER_LIMIT_CANCEL_CONFIRM_TIMEOUT
+    _speak_blocking(INVALID_QTY_CANCEL_CONFIRM_PROMPT)
+    deadline = time.monotonic() + INVALID_QTY_CANCEL_CONFIRM_TIMEOUT
 
     while True:
         remaining = deadline - time.monotonic()
@@ -58,13 +58,13 @@ def over_limit_cancel_confirm(speak, read_customer_input, speak_and_wait=None) -
         response = read_customer_input(timeout=remaining)
         if response is None:
             return "cancel_overlimit"
-        if (contains_any(response, KEYWORDS_OVER_LIMIT_CONTINUE)
-                or equals_strict_short(response, KEYWORDS_OVER_LIMIT_CONTINUE_STRICT_SHORT)):
+        if (contains_any(response, KEYWORDS_INVALID_QTY_CONTINUE)
+                or equals_strict_short(response, KEYWORDS_INVALID_QTY_CONTINUE_STRICT_SHORT)):
             return "cancel_overlimit"
-        if (contains_any(response, KEYWORDS_OVER_LIMIT_EXIT)
-                or equals_strict_short(response, KEYWORDS_OVER_LIMIT_EXIT_STRICT_SHORT)):
+        if (contains_any(response, KEYWORDS_INVALID_QTY_EXIT)
+                or equals_strict_short(response, KEYWORDS_INVALID_QTY_EXIT_STRICT_SHORT)):
             return "exit"
-        _speak_blocking(OVER_LIMIT_UNCLEAR_PREFIX + OVER_LIMIT_CANCEL_CONFIRM_PROMPT)
+        _speak_blocking(INVALID_QTY_UNCLEAR_PREFIX + INVALID_QTY_CANCEL_CONFIRM_PROMPT)
 
 
 def _join_names(names: list) -> str:
@@ -74,19 +74,19 @@ def _join_names(names: list) -> str:
     return "、".join(names[:-1]) + "和" + names[-1]
 
 
-def _format_over_limit_prompt(pending: list, cart) -> str:
+def _format_invalid_qty_prompt(pending: list, cart) -> str:
     """組超量重問 prompt。remaining = MAX_QTY_PER_ITEM - cart 既有量（cart 空時即 50）。"""
     if len(pending) == 1:
         p = pending[0]
         unit = PRODUCTS[p]["單位"]
         remaining = MAX_QTY_PER_ITEM - cart_module.get_quantity(cart, p)
-        return OVER_LIMIT_REASK_SINGLE_TEMPLATE.format(product=p, remaining=remaining, unit=unit)
+        return INVALID_QTY_OVERLIMIT_SINGLE_TEMPLATE.format(product=p, remaining=remaining, unit=unit)
     products = _join_names(pending)
     details = "、".join(
         f"{MAX_QTY_PER_ITEM - cart_module.get_quantity(cart, p)} {PRODUCTS[p]['單位']}"
         for p in pending
     )
-    return OVER_LIMIT_REASK_MULTI_TEMPLATE.format(products=products, details=details)
+    return INVALID_QTY_OVERLIMIT_MULTI_TEMPLATE.format(products=products, details=details)
 
 
 def _apply_quantities(response: str, pending: list, cart) -> None:
@@ -116,7 +116,7 @@ def _apply_quantities(response: str, pending: list, cart) -> None:
             pending.remove(product)
 
 
-def over_limit_reask(
+def invalid_qty_reask(
     pending: list,
     cart,
     speak,
@@ -124,7 +124,7 @@ def over_limit_reask(
     read_customer_input,
     speak_and_wait=None,
 ) -> str:
-    """超量重問主 loop（12s budget + 最多 OVER_LIMIT_MAX_RESETS 次 reset）。
+    """無效數量重問主 loop（12s budget + 最多 INVALID_QTY_MAX_RESETS 次 reset）。
 
     Args:
         pending: 仍超量商品名 list（in-place 縮減；有效答案 add_item 後移除）。
@@ -132,13 +132,13 @@ def over_limit_reask(
     Returns:
         "resolved"        — pending 全部進範圍（皆已 add_item 進 cart）
         "reenter_timeout" — 倒數歸零 / silent / 客服 NO（caller 重 speak entry + continue）
-        "reenter_cancel"  — 否定 → 二選一選「取消超量商品繼續」
+        "reenter_cancel"  — 否定 → 二選一選「取消這些商品繼續」
         "exit_l1"         — 否定 → 二選一選「退出」（caller 走 _dialog_exit_a）
     """
     _speak_blocking = speak_and_wait if speak_and_wait is not None else speak
-    resets_left = OVER_LIMIT_MAX_RESETS
-    _speak_blocking(_format_over_limit_prompt(pending, cart))
-    deadline = time.monotonic() + OVER_LIMIT_REASK_TIMEOUT
+    resets_left = INVALID_QTY_MAX_RESETS
+    _speak_blocking(_format_invalid_qty_prompt(pending, cart))
+    deadline = time.monotonic() + INVALID_QTY_REASK_TIMEOUT
 
     while True:
         remaining = deadline - time.monotonic()
@@ -150,8 +150,8 @@ def over_limit_reask(
 
         # (1) 否定 → 二選一
         if (is_cancel_intent(response)
-                or contains_any(response, KEYWORDS_OVER_LIMIT_CANCEL_TRIGGER)):
-            if over_limit_cancel_confirm(speak, read_customer_input, speak_and_wait) == "exit":
+                or contains_any(response, KEYWORDS_INVALID_QTY_CANCEL_TRIGGER)):
+            if invalid_qty_cancel_confirm(speak, read_customer_input, speak_and_wait) == "exit":
                 return "exit_l1"
             return "reenter_cancel"
 
@@ -165,7 +165,7 @@ def over_limit_reask(
             )
             deadline += time.monotonic() - paused
             if result == "yes":
-                _speak_blocking(_format_over_limit_prompt(pending, cart))
+                _speak_blocking(_format_invalid_qty_prompt(pending, cart))
                 continue
             return "reenter_timeout"
 
@@ -176,9 +176,9 @@ def over_limit_reask(
                 return "resolved"
             if resets_left > 0:
                 resets_left -= 1
-                deadline = time.monotonic() + OVER_LIMIT_REASK_TIMEOUT
-            _speak_blocking(_format_over_limit_prompt(pending, cart))
+                deadline = time.monotonic() + INVALID_QTY_REASK_TIMEOUT
+            _speak_blocking(_format_invalid_qty_prompt(pending, cart))
             continue
 
         # (4) 亂答 → 提示，不重置
-        _speak_blocking(OVER_LIMIT_UNCLEAR_PREFIX + _format_over_limit_prompt(pending, cart))
+        _speak_blocking(INVALID_QTY_UNCLEAR_PREFIX + _format_invalid_qty_prompt(pending, cart))

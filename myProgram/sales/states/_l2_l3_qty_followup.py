@@ -40,7 +40,7 @@ from myProgram.sales.constants import (
 from myProgram.sales.nlu import parse_quantity, has_quantity, classify_intent
 from myProgram.sales import cart as cart_module
 from myProgram.sales.states._service_confirm import service_confirm
-from myProgram.sales.states._over_limit_reask import over_limit_reask
+from myProgram.sales.states._invalid_qty_reask import invalid_qty_reask
 
 
 def format_cancel_prefix(cancel_notices: list[str]) -> str:
@@ -133,7 +133,7 @@ def resolve_and_add_products(
     # Pass 1.5：合併超量重問（情境1）；先於 missing 追問（情境3）
     if over_pending:
         n = len(over_pending)
-        control = over_limit_reask(
+        control = invalid_qty_reask(
             over_pending, cart, speak, print_terminal,
             read_customer_input, speak_and_wait,
         )
@@ -202,7 +202,7 @@ def _qty_follow_up_sub_loop(
                                      attempts cap / 客服 NO/silent
                                      → skip 該商品；caller 用 notice 拼接 reask 後單一 speak
         (False, None, None) — cart cap 上限 skip（即時 speak 通知已發出，不需 caller 二次處理）
-        (False, None, control) — 追問內答超量 → funnel 進 over_limit_reask；非 resolved 時
+        (False, None, control) — 追問內答超量 → funnel 進 invalid_qty_reask；非 resolved 時
                                  control ∈ {"reenter_timeout","reenter_cancel","exit_l1"} 冒泡給 caller。
     """
     _speak_blocking = speak_and_wait if speak_and_wait is not None else speak
@@ -228,8 +228,8 @@ def _qty_follow_up_sub_loop(
                 speak(f"{product}已經點到單筆上限 {MAX_QTY_PER_ITEM} {unit}，無法再加")
                 return False, None, None
             if qty > remaining:
-                # 2026-06-09：不再 cap，funnel 進 over_limit_reask（單商品）
-                control = over_limit_reask(
+                # 2026-06-09：不再 cap，funnel 進 invalid_qty_reask（單商品）
+                control = invalid_qty_reask(
                     [product], cart, speak, print_terminal,
                     read_customer_input, speak_and_wait,
                 )

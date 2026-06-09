@@ -6150,7 +6150,7 @@ def test_resolve_and_add_products_single_huge_qty_reasks_then_adds() -> None:
     from myProgram.sales.constants import MAX_QTY_PER_ITEM
     speak_calls: list = []
     cart = cart_module.new_cart()
-    # cart 空 → "紅茶 100"（一次給超量）→ over_limit_reask prompt「最多只能選購 50」→ "5" → 加 5
+    # cart 空 → "紅茶 100"（一次給超量）→ invalid_qty_reask prompt「最多只能選購 50」→ "5" → 加 5
     # → added=True → speak L2_TO_L3_TRANSITION → continue → None None → C-2 silent → confirm；
     # 「對」 → confirm yes → L4（需 confirm yes 才到 L4 + 保留 cart）
     customer_input = FakeCustomerInput(["紅茶 100", "5", None, None, "對"])
@@ -6178,7 +6178,7 @@ def test_resolve_and_add_products_cumulative_over_cap_reasks_remaining() -> None
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 30)  # 預設 cart 已有 30 瓶
-    # cart 非空 → L3 模式 → "紅茶 25"（累加 55>50）→ over_limit_reask prompt「最多只能選購 20」
+    # cart 非空 → L3 模式 → "紅茶 25"（累加 55>50）→ invalid_qty_reask prompt「最多只能選購 20」
     # → "10" → 30+10=40（OK）→ added → speak L3_REASK → continue → None None → C-2 silent → confirm；
     # 「對」 → confirm yes → L4
     customer_input = FakeCustomerInput(["紅茶 25", "10", None, None, "對"])
@@ -6238,7 +6238,7 @@ def test_resolve_and_add_products_huge_number_does_not_crash() -> None:
     speak_calls: list = []
     cart = cart_module.new_cart()
     # 完整 Pi 實機輸入；舊代碼會 raise AssertionError 整個程式 crash
-    # 2026-06-09 超量重問：天文數字 → over_limit_reask → "3" → 加 3（非 cap）
+    # 2026-06-09 超量重問：天文數字 → invalid_qty_reask → "3" → 加 3（非 cap）
     # 後續 None None → C-2 silent → confirm；「對」 → confirm yes → L4
     customer_input = FakeCustomerInput(["紅茶 34435454545454545", "3", None, None, "對"])
 
@@ -6265,7 +6265,7 @@ def test_resolve_and_add_products_multi_product_partial_over_limit() -> None:
     """2026-06-09 超量重問：「紅茶 100 刮刮樂 3」→ 刮刮樂3 即加、紅茶進重問 → 改「紅茶40」→ 40。"""
     speak_calls: list = []
     cart = cart_module.new_cart()
-    # 一次給多商品 → 刮刮樂3 即加（in-range）、紅茶100 收 over_pending → over_limit_reask(["冰紅茶"])
+    # 一次給多商品 → 刮刮樂3 即加（in-range）、紅茶100 收 over_pending → invalid_qty_reask(["冰紅茶"])
     # → "紅茶40" → 加 40 → added → L3；後續 None None → C-2 silent → confirm；「對」 → L4
     customer_input = FakeCustomerInput(["紅茶 100 刮刮樂 3", "紅茶40", None, None, "對"])
 
@@ -6805,7 +6805,7 @@ def test_qty_followup_read_uses_qty_followup_timeout_constant() -> None:
 
 
 # ============================================================
-# 超量重問狀態鏈 over_limit_reask 整合測試（2026-06-09 加；spec over_limit_reask）
+# 無效數量重問狀態鏈 invalid_qty_reask 整合測試（2026-06-09 加；spec invalid_qty_reask）
 # 取代既有「超量自動 cap」行為：超量 → 進重問鏈 → 問到正確數量才加入。
 # ============================================================
 
@@ -6814,7 +6814,7 @@ def test_qty_followup_over_limit_funnels_into_reask_loop() -> None:
     """情境2：紅茶缺數量 → 追問 → 答 100（超量）→ 進重問鏈 → 改 5 → 加 5。"""
     speaks: list = []
     cart = cart_module.new_cart()
-    # 「紅茶」(缺量) → 追問 → "100"(超量) → over_limit_reask prompt → "5" → 加 5
+    # 「紅茶」(缺量) → 追問 → "100"(超量) → invalid_qty_reask prompt → "5" → 加 5
     #  → resolve_and_add_products 返 added → L2_TO_L3_TRANSITION → None None → C-2 → 「對」 → L4
     customer_input = FakeCustomerInput(["紅茶", "100", "5", None, None, "對"])
     next_state, _ = states.run_dialog(
