@@ -112,6 +112,7 @@ def test_parse_products_iced_tea_short_word_tea_no_longer_matches() -> None:
 def test_parse_products_explicit_zero_surfaces_zero() -> None:
     """「紅茶0」→ qty 為 0（明確 0），非 None；多商品保留各自。"""
     assert product_parser.parse_products("紅茶0") == [("冰紅茶", 0)]
+    assert product_parser.parse_products("紅茶0杯") == [("冰紅茶", 0)]
     assert product_parser.parse_products("紅茶 刮刮樂0") == [("冰紅茶", None), ("刮刮樂", 0)]
 
 
