@@ -26,6 +26,9 @@ __all__ = [
     "L4_QR_REFRESH_INTERVAL",
     "L4_C_CONFIRM_TIMEOUT",
     "CANCEL_CONFIRM_TIMEOUT",
+    "OVER_LIMIT_REASK_TIMEOUT",
+    "OVER_LIMIT_MAX_RESETS",
+    "OVER_LIMIT_CANCEL_CONFIRM_TIMEOUT",
 ]
 
 # ============================================================
@@ -119,3 +122,10 @@ L4_C_CONFIRM_TIMEOUT: int = 24
 # 與 C2_DECISION_TIMEOUT 對齊（6s）— 都是「已警告倒數中」的緊湊子狀態，避免顧客等太久。
 # silent / 倒數歸零 → 視為 YES（取消），跟 _dialog_c2_second_stage 同樣 wall-clock 行為。
 CANCEL_CONFIRM_TIMEOUT: float = 6.0
+
+# 超量重問狀態鏈（2026-06-09 加；spec over_limit_reask）
+# 數量超量 → 進重問 loop：12s budget，答了數量仍超量可重置最多 2 次（總 12×3=36s）。
+OVER_LIMIT_REASK_TIMEOUT: int = 12
+OVER_LIMIT_MAX_RESETS: int = 2
+# 「取消超量商品 vs 退出交易」二選一 6s（對齊 CANCEL_CONFIRM_TIMEOUT；無 reset，保守 default 保 cart）
+OVER_LIMIT_CANCEL_CONFIRM_TIMEOUT: int = 6

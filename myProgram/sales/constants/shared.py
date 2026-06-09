@@ -12,6 +12,12 @@ __all__ = [
     "CANCEL_DECLINED_NOTICE",
     "PRODUCT_CANCELLED_NOTICE_TEMPLATE",
     "MULTI_PRODUCT_CANCELLED_NOTICE_TEMPLATE",
+    "OVER_LIMIT_REASK_SINGLE_TEMPLATE",
+    "OVER_LIMIT_REASK_MULTI_TEMPLATE",
+    "OVER_LIMIT_UNCLEAR_PREFIX",
+    "OVER_LIMIT_CANCEL_CONFIRM_PROMPT",
+    "OVER_LIMIT_TIMEOUT_REENTER_PREFIX",
+    "OVER_LIMIT_CANCEL_REENTER_PREFIX",
 ]
 
 # 客服電話（L1 客服模式 / L4 客服模式 / qty followup 客服 trigger 等）
@@ -39,3 +45,14 @@ PRODUCT_CANCELLED_NOTICE_TEMPLATE: str = "商品{product}已幫您取消"
 # N==1 仍用 PRODUCT_CANCELLED_NOTICE_TEMPLATE 保留商品名（顧客需知哪個被取消）
 # 切換邏輯見 myProgram/sales/states/_l2_l3_qty_followup.py::format_cancel_prefix
 MULTI_PRODUCT_CANCELLED_NOTICE_TEMPLATE: str = "有{count}項商品已幫您取消"
+
+# 超量重問狀態鏈文案（2026-06-09 加；spec over_limit_reask）
+# {remaining} = MAX_QTY_PER_ITEM - cart 既有量（cart 空時即 50）
+OVER_LIMIT_REASK_SINGLE_TEMPLATE: str = "{product}目前最多只能選購 {remaining} {unit}，請重新說您想要的數量。"
+# {products}「冰紅茶和刮刮樂」；{details}「50 瓶、50 張」（per-product remaining+unit 以「、」連）
+OVER_LIMIT_REASK_MULTI_TEMPLATE: str = "{products}目前最多只能各選購 {details}，請重新說您想要的數量。"
+OVER_LIMIT_UNCLEAR_PREFIX: str = "不好意思，系統無法判斷您的回復。"
+OVER_LIMIT_CANCEL_CONFIRM_PROMPT: str = "請問您是想取消超量的商品然後繼續交易，還是想直接退出交易？"
+# reenter prefix 以全形「，」結尾，與當前層 entry prompt 合成單句 speak（UX pacing）
+OVER_LIMIT_TIMEOUT_REENTER_PREFIX: str = "由於您沒回應購買數量，請重新進選購，"
+OVER_LIMIT_CANCEL_REENTER_PREFIX: str = "好的已為您取消超量的商品，"

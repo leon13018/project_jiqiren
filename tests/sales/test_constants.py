@@ -228,3 +228,26 @@ def test_qty_followup_timeout_is_12_seconds() -> None:
 def test_qty_followup_timeout_strictly_longer_than_generic() -> None:
     """QTY_FOLLOWUP_TIMEOUT 必須嚴格大於 WAIT_NO_RESPONSE — 否則拆出新常數無意義。"""
     assert const.QTY_FOLLOWUP_TIMEOUT > const.WAIT_NO_RESPONSE
+
+
+# ============================================================
+# 超量重問狀態鏈 over_limit_reask（2026-06-09 加；spec over_limit_reask）
+# ============================================================
+def test_over_limit_constants_present_and_valued() -> None:
+    from myProgram.sales.constants import (
+        OVER_LIMIT_REASK_TIMEOUT, OVER_LIMIT_MAX_RESETS,
+        OVER_LIMIT_CANCEL_CONFIRM_TIMEOUT,
+        OVER_LIMIT_REASK_SINGLE_TEMPLATE, OVER_LIMIT_REASK_MULTI_TEMPLATE,
+        OVER_LIMIT_UNCLEAR_PREFIX, OVER_LIMIT_CANCEL_CONFIRM_PROMPT,
+        OVER_LIMIT_TIMEOUT_REENTER_PREFIX, OVER_LIMIT_CANCEL_REENTER_PREFIX,
+        KEYWORDS_OVER_LIMIT_CANCEL_TRIGGER, KEYWORDS_OVER_LIMIT_CONTINUE,
+        KEYWORDS_OVER_LIMIT_CONTINUE_STRICT_SHORT,
+        KEYWORDS_OVER_LIMIT_EXIT, KEYWORDS_OVER_LIMIT_EXIT_STRICT_SHORT,
+    )
+    assert OVER_LIMIT_REASK_TIMEOUT == 12
+    assert OVER_LIMIT_MAX_RESETS == 2
+    assert OVER_LIMIT_CANCEL_CONFIRM_TIMEOUT == 6
+    assert "{product}" in OVER_LIMIT_REASK_SINGLE_TEMPLATE
+    assert "{products}" in OVER_LIMIT_REASK_MULTI_TEMPLATE and "{details}" in OVER_LIMIT_REASK_MULTI_TEMPLATE
+    assert "退出" in KEYWORDS_OVER_LIMIT_EXIT
+    assert "繼續" in KEYWORDS_OVER_LIMIT_CONTINUE_STRICT_SHORT

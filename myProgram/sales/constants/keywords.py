@@ -39,6 +39,11 @@ __all__ = [
     "KEYWORDS_L4_C_CONFIRM_YES_STRICT_SHORT",
     "KEYWORDS_L4_C_CONFIRM_NO",
     "KEYWORDS_L4_C_CONFIRM_NO_STRICT_SHORT",
+    "KEYWORDS_OVER_LIMIT_CANCEL_TRIGGER",
+    "KEYWORDS_OVER_LIMIT_CONTINUE",
+    "KEYWORDS_OVER_LIMIT_CONTINUE_STRICT_SHORT",
+    "KEYWORDS_OVER_LIMIT_EXIT",
+    "KEYWORDS_OVER_LIMIT_EXIT_STRICT_SHORT",
 ]
 
 # ============================================================
@@ -342,3 +347,25 @@ KEYWORDS_L4_C_CONFIRM_NO: list = [
 # 「不」單字 strict 防「不錯」「不過」substring 誤命中
 # 「取消」單字 strict 防「取消購物車」之類 substring noise（雖實際罕見）
 KEYWORDS_L4_C_CONFIRM_NO_STRICT_SHORT: list = ["否", "不要", "不", "取消"]
+
+# ============================================================
+# 超量重問狀態鏈 keyword（2026-06-09 加；spec over_limit_reask）
+# ============================================================
+
+# 進二選一的廣義否定 trigger（補 is_cancel_intent 漏接的 bare「取消」「退出」）
+KEYWORDS_OVER_LIMIT_CANCEL_TRIGGER: list = [
+    "取消", "不買", "不買了", "不要了", "不想買", "不想要了", "算了", "放棄", "退出",
+    "不买", "不买了", "不想买", "不想要了", "放弃",
+]
+# 二選一 CONTINUE（取消超量商品繼續）— caller 先 check（保守：任何 取消/繼續 → 保 cart）
+KEYWORDS_OVER_LIMIT_CONTINUE: list = [
+    "取消超量", "取消超過", "取消超量的商品", "取消超過的商品", "取消商品",
+    "繼續交易", "繼續購買", "繼續", "取消",
+    "继续交易", "继续",
+]
+KEYWORDS_OVER_LIMIT_CONTINUE_STRICT_SHORT: list = ["繼續", "取消", "继续"]
+# 二選一 EXIT（退出交易）— caller 後 check（純 退出/離開 才退）
+KEYWORDS_OVER_LIMIT_EXIT: list = [
+    "退出", "直接退出", "退出交易", "直接退出交易", "離開", "离开",
+]
+KEYWORDS_OVER_LIMIT_EXIT_STRICT_SHORT: list = ["退出", "離開", "离开"]
