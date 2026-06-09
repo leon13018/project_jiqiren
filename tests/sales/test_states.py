@@ -6805,3 +6805,96 @@ def test_qty_followup_read_uses_qty_followup_timeout_constant() -> None:
     # 反向：追問 path 不再用 WAIT_NO_RESPONSE (6s)。其他 caller（L2 entry / C-2 silent /
     # confirm）可能仍用 6s 或其他值，故只驗「12 有出現」+ 「至少 12 有出現」即可。
     assert next_state == "L4"
+
+
+# ============================================================
+# 超量重問狀態鏈 over_limit_reask 整合測試（2026-06-09 加；spec over_limit_reask）
+# 取代既有「超量自動 cap」行為：超量 → 進重問鏈 → 問到正確數量才加入。
+# ============================================================
+
+
+def test_qty_followup_over_limit_funnels_into_reask_loop() -> None:
+    """情境2：紅茶缺數量 → 追問 → 答 100（超量）→ 進重問鏈 → 改 5 → 加 5。"""
+    speaks: list = []
+    cart = cart_module.new_cart()
+    # 「紅茶」(缺量) → 追問 → "100"(超量) → over_limit_reask prompt → "5" → 加 5
+    #  → resolve_and_add_products 返 added → L2_TO_L3_TRANSITION → None None → C-2 → 「對」 → L4
+    customer_input = FakeCustomerInput(["紅茶", "100", "5", None, None, "對"])
+    next_state, _ = states.run_dialog(
+        speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
+        read_customer_input=customer_input.read, cart=cart, think_count=0,
+        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+    )
+    assert cart_module.get_quantity(cart, "冰紅茶") == 5
+    assert any("最多只能選購" in s for s in speaks)
+
+
+def test_scenario1_multi_over_limit_combined_reask() -> None:
+    """情境1：紅茶100刮刮樂3434 → 合併重問 → 一次重講 → 全加入。"""
+    speaks: list = []
+    cart = cart_module.new_cart()
+    customer_input = FakeCustomerInput(["紅茶100刮刮樂3434", "紅茶40刮刮樂30", None, None, "對"])
+    next_state, _ = states.run_dialog(
+        speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
+        read_customer_input=customer_input.read, cart=cart, think_count=0,
+        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+    )
+    assert cart_module.get_quantity(cart, "冰紅茶") == 40
+    assert cart_module.get_quantity(cart, "刮刮樂") == 30
+    assert any("各選購" in s for s in speaks)
+
+
+def test_scenario3_over_limit_first_then_missing_qty_followup() -> None:
+    """情境3：紅茶刮刮樂33434 → 先重問刮刮樂超量 → 解決 → 再追問紅茶數量。"""
+    speaks: list = []
+    cart = cart_module.new_cart()
+    # 刮刮樂33434 超量 → 重問 → "刮刮樂5" → 解決 → 追問紅茶 → "3" → 加
+    customer_input = FakeCustomerInput(["紅茶刮刮樂33434", "刮刮樂5", "3", None, None, "對"])
+    next_state, _ = states.run_dialog(
+        speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
+        read_customer_input=customer_input.read, cart=cart, think_count=0,
+        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+    )
+    assert cart_module.get_quantity(cart, "刮刮樂") == 5
+    assert cart_module.get_quantity(cart, "冰紅茶") == 3
+
+
+def test_over_limit_reenter_timeout_respeaks_entry() -> None:
+    """超量 → 沉默 timeout → reenter：speak「由於您沒回應…」+ entry，回主迴圈。"""
+    speaks: list = []
+    cart = cart_module.new_cart()
+    # 紅茶100 超量 → 沉默(None)逐步 → reenter_timeout → speak prefix+L2_ENTRY → 之後沉默 → L2 timeout 退
+    customer_input = FakeCustomerInput(["紅茶100", None, None, None, None, None, None])
+    next_state, _ = states.run_dialog(
+        speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
+        read_customer_input=customer_input.read, cart=cart, think_count=0,
+        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+    )
+    assert any("由於您沒回應購買數量" in s for s in speaks)
+    assert cart_module.is_empty(cart)
+
+
+def test_over_limit_exit_returns_to_l1() -> None:
+    """超量 → 否定 → 二選一退出 → 回 L1。"""
+    speaks: list = []
+    cart = cart_module.new_cart()
+    customer_input = FakeCustomerInput(["紅茶100", "不買了", "退出"])
+    next_state, _ = states.run_dialog(
+        speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
+        read_customer_input=customer_input.read, cart=cart, think_count=0,
+        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+    )
+    assert next_state == "L1_via_subroutine_a"
+
+
+def test_over_limit_cancel_overlimit_reenters_with_notice() -> None:
+    """超量 → 否定 → 二選一取消超量繼續 → speak「好的已為您取消超量的商品」+ entry。"""
+    speaks: list = []
+    cart = cart_module.new_cart()
+    customer_input = FakeCustomerInput(["紅茶100", "不買了", "取消超量的商品繼續", None, None])
+    next_state, _ = states.run_dialog(
+        speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
+        read_customer_input=customer_input.read, cart=cart, think_count=0,
+        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+    )
+    assert any("好的已為您取消超量的商品" in s for s in speaks)

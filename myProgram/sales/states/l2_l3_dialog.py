@@ -71,6 +71,8 @@ from myProgram.sales.constants import (
     KEYWORDS_C2_CANCEL_STRICT_SHORT,
     DIALOG_VAGUE_BUY_REASK,
     CANCEL_DECLINED_NOTICE,
+    OVER_LIMIT_TIMEOUT_REENTER_PREFIX,
+    OVER_LIMIT_CANCEL_REENTER_PREFIX,
     ACTION_L2,
     ACTION_L3,
     ACTION_L3_CHECKOUT_GO,
@@ -274,7 +276,7 @@ def _dialog_dispatch_inner_l2(
         return None
     products = parse_products(response)
     if products:
-        added, cancel_notices = resolve_and_add_products(
+        added, cancel_notices, control = resolve_and_add_products(
             products=products,
             cart=cart,
             speak=speak,
@@ -283,6 +285,14 @@ def _dialog_dispatch_inner_l2(
             classify_intent_mode="l2",
             speak_and_wait=speak_and_wait,
         )
+        if control == "exit_l1":
+            return _dialog_exit_a(speak, cart)
+        if control in ("reenter_timeout", "reenter_cancel"):
+            prefix = (OVER_LIMIT_TIMEOUT_REENTER_PREFIX if control == "reenter_timeout"
+                      else OVER_LIMIT_CANCEL_REENTER_PREFIX)
+            entry = L2_ENTRY_PROMPT if cart_module.is_empty(cart) else L3_ENTRY_PROMPT
+            speak(prefix + entry)
+            return None
         if added:
             # cart 從空 → 非空：speak L2_TO_L3_TRANSITION（合成 voice，原 L2_C_ADDED +
             # L3_ENTRY_PROMPT 兩條 speak 合併為一句連貫播報，S4 非阻塞 worker 兩條間
@@ -393,7 +403,7 @@ def _dialog_dispatch_inner_l3(
         return None
     products = parse_products(response)
     if products:
-        _added, cancel_notices = resolve_and_add_products(
+        _added, cancel_notices, control = resolve_and_add_products(
             products=products,
             cart=cart,
             speak=speak,
@@ -402,6 +412,14 @@ def _dialog_dispatch_inner_l3(
             classify_intent_mode="normal",
             speak_and_wait=speak_and_wait,
         )
+        if control == "exit_l1":
+            return _dialog_exit_a(speak, cart)
+        if control in ("reenter_timeout", "reenter_cancel"):
+            prefix = (OVER_LIMIT_TIMEOUT_REENTER_PREFIX if control == "reenter_timeout"
+                      else OVER_LIMIT_CANCEL_REENTER_PREFIX)
+            entry = L2_ENTRY_PROMPT if cart_module.is_empty(cart) else L3_ENTRY_PROMPT
+            speak(prefix + entry)
+            return None
         # 2026-05-30 合成 speak：cancel notices 拼接到 L3_REASK 前
         speak(_prepend_cancel_notices(cancel_notices, L3_REASK))
         return None
@@ -755,7 +773,7 @@ def _dialog_main_loop(
         if products:
             unclear_count = 0
             was_empty = cart_empty
-            added, cancel_notices = resolve_and_add_products(
+            added, cancel_notices, control = resolve_and_add_products(
                 products=products,
                 cart=cart,
                 speak=speak,
@@ -764,6 +782,14 @@ def _dialog_main_loop(
                 classify_intent_mode=nlu_mode,
                 speak_and_wait=speak_and_wait,
             )
+            if control == "exit_l1":
+                return _dialog_exit_a(speak, cart)
+            if control in ("reenter_timeout", "reenter_cancel"):
+                prefix = (OVER_LIMIT_TIMEOUT_REENTER_PREFIX if control == "reenter_timeout"
+                          else OVER_LIMIT_CANCEL_REENTER_PREFIX)
+                entry = L2_ENTRY_PROMPT if cart_module.is_empty(cart) else L3_ENTRY_PROMPT
+                speak(prefix + entry)
+                continue
             if added:
                 # cart 從空 → 非空：speak L2_TO_L3_TRANSITION（合成 voice，原 L2_C_ADDED +
                 # L3_ENTRY_PROMPT 兩條 speak 合併為一句連貫播報，S4 非阻塞 worker 兩條間
