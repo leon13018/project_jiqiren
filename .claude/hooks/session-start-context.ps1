@@ -97,6 +97,15 @@ try {
         }
     }
 
+    # cwd-pinned worktree 偵測（2026-06-09 加）：harness 在 worktree 內啟動 session 時主 agent
+    # cwd 被釘住 → 若再 EnterWorktree 會疊層，收尾 ExitWorktree / git worktree remove 會因
+    # 「刪不掉自己所在目錄」自鎖（Permission denied）。偵測到就提醒走 cwd-pinned 例外流程。
+    $cwdWorktreeNote = ''
+    $cwdNorm = ($cwd -replace '\\', '/')
+    if ($cwdNorm -match '/\.claude/worktrees/') {
+        $cwdWorktreeNote = "`n- ⚠️ 本 session cwd 已釘在 worktree 內（$cwd）：勿用 EnterWorktree（會自鎖）；收尾改用 git -C 主checkout 做 merge / push，且別 remove 自己所在的 worktree（協議見 skill worktree.md『cwd-pinned session 例外』）"
+    }
+
     # 輸出 — 直接 stdout 自動進 Claude context
     $summary = @"
 ## 專案狀態快照（SessionStart hook 注入，source=$source）
@@ -105,7 +114,7 @@ try {
 - 最新 commit：``$lastCommit``
 - 未提交變動：$statusCount 個檔
 $statusPreview
-- sales/ 測試總數：$salesTestCount（會被 Stop hook 守住 — 改了 sales/* 必跑 pytest）$flagNote$modelNote
+- sales/ 測試總數：$salesTestCount（會被 Stop hook 守住 — 改了 sales/* 必跑 pytest）$flagNote$modelNote$cwdWorktreeNote
 
 （本 summary 由 ``.claude/hooks/session-start-context.ps1`` 產生；要關掉編輯 ``.claude/settings.json``。）
 "@
