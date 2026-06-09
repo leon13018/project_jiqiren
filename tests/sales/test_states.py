@@ -6265,7 +6265,7 @@ def test_resolve_and_add_products_multi_product_partial_over_limit() -> None:
     """2026-06-09 超量重問：「紅茶 100 刮刮樂 3」→ 刮刮樂3 即加、紅茶進重問 → 改「紅茶40」→ 40。"""
     speak_calls: list = []
     cart = cart_module.new_cart()
-    # 一次給多商品 → 刮刮樂3 即加（in-range）、紅茶100 收 over_pending → invalid_qty_reask(["冰紅茶"])
+    # 一次給多商品 → 刮刮樂3 即加（in-range）、紅茶100 收 invalid_pending → invalid_qty_reask({"冰紅茶": "over_limit"})
     # → "紅茶40" → 加 40 → added → L3；後續 None None → C-2 silent → confirm；「對」 → L4
     customer_input = FakeCustomerInput(["紅茶 100 刮刮樂 3", "紅茶40", None, None, "對"])
 
@@ -6806,7 +6806,7 @@ def test_qty_followup_read_uses_qty_followup_timeout_constant() -> None:
 
 # ============================================================
 # 無效數量重問狀態鏈 invalid_qty_reask 整合測試（2026-06-09 加；spec invalid_qty_reask）
-# 取代既有「超量自動 cap」行為：超量 → 進重問鏈 → 問到正確數量才加入。
+# 取代既有「超量自動 cap / 0 自動 skip」行為：數量無效（超量 / 為 0）→ 進重問鏈 → 問到合法數量才加入。
 # ============================================================
 
 

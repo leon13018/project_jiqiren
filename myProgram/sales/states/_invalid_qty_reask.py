@@ -2,7 +2,8 @@
 
 數量無效（超量 / 為 0）→ 不自動 cap / skip，進重問 loop 問到合法數量才加入。對齊
 _cancel_confirm / _service_confirm 風格：callback 注入、不 import 廠商 SDK、對 cart
-in-place。即時提交模型——有效數量立即 add_item，pending list 只含仍超量商品名。
+in-place。即時提交模型——有效數量立即 add_item，pending（dict：product→reason，
+reason ∈ {"over_limit","zero"}）只含仍無效商品。
 
 兩 public helper：
     invalid_qty_reask         — 重問主 loop（12s budget + 最多 2 reset）
