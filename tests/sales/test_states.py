@@ -6035,9 +6035,9 @@ def test_qty_followup_single_quantity_exceeds_cap_speaks_remaining_and_retries()
     assert cart_module.get_quantity(cart, "冰紅茶") == 5, (
         f"應加 5 瓶（超量 100 被擋後 follow-up 改 5），實際：{dict(cart)}"
     )
-    # 應有「最多還能點 50」提示（cart 為空，remaining = MAX_QTY_PER_ITEM = 50）
-    assert any("最多還能點" in s and str(MAX_QTY_PER_ITEM) in s for s in speak_calls), (
-        f"預期『最多還能點 {MAX_QTY_PER_ITEM}』提示，實際 speak_calls={speak_calls}"
+    # 2026-06-09 超量重問：新文案「最多只能選購 50」（cart 空，remaining = MAX_QTY_PER_ITEM = 50）
+    assert any("最多只能選購" in s and str(MAX_QTY_PER_ITEM) in s for s in speak_calls), (
+        f"預期『最多只能選購 {MAX_QTY_PER_ITEM}』提示，實際 speak_calls={speak_calls}"
     )
 
 
@@ -6065,9 +6065,9 @@ def test_qty_followup_cumulative_quantity_exceeds_cap_speaks_remaining() -> None
     assert cart_module.get_quantity(cart, "冰紅茶") == 45, (
         f"預期 30 + 15 = 45，實際：{dict(cart)}"
     )
-    # remaining = 50 - 30 = 20
-    assert any("最多還能點" in s and "20" in s for s in speak_calls), (
-        f"預期『最多還能點 20』提示，實際 speak_calls={speak_calls}"
+    # 2026-06-09 超量重問：新文案「最多只能選購 20」（remaining = 50 - 30 = 20）
+    assert any("最多只能選購" in s and "20" in s for s in speak_calls), (
+        f"預期『最多只能選購 20』提示，實際 speak_calls={speak_calls}"
     )
 
 
@@ -6124,9 +6124,9 @@ def test_qty_followup_huge_number_does_not_crash() -> None:
     assert cart_module.get_quantity(cart, "冰紅茶") == 3, (
         f"天文數字被擋後改 3 應加 3 瓶，實際：{dict(cart)}"
     )
-    # 不該 raise AssertionError；應走 speak 提示流程
-    assert any("最多還能點" in s for s in speak_calls), (
-        f"預期『最多還能點』提示，實際 speak_calls={speak_calls}"
+    # 不該 raise AssertionError；應走 speak 提示流程（2026-06-09 超量重問新文案）
+    assert any("最多只能選購" in s for s in speak_calls), (
+        f"預期『最多只能選購』提示，實際 speak_calls={speak_calls}"
     )
 
 
@@ -6145,16 +6145,15 @@ def test_qty_followup_huge_number_does_not_crash() -> None:
 # ============================================================
 
 
-def test_resolve_and_add_products_single_huge_qty_caps_and_speaks() -> None:
-    """顧客一次說「紅茶 100」(超 MAX 50) → cap 加入 50 + speak「達到單筆上限」通知。"""
+def test_resolve_and_add_products_single_huge_qty_reasks_then_adds() -> None:
+    """2026-06-09 超量重問：顧客一次說「紅茶 100」(超 50) → 進重問鏈 → 改 5 → 加 5（非 cap）。"""
     from myProgram.sales.constants import MAX_QTY_PER_ITEM
     speak_calls: list = []
     cart = cart_module.new_cart()
-    # cart 空 → "紅茶 100"（一次給超量）→ cap 50 加入 + speak →
-    # added=True → speak L2_TO_L3_TRANSITION（合成 voice）→ continue 主迴圈 →
-    # 後續 None None → C-2 silent → confirm；「對」 → confirm yes → L4
-    # （2026-05-29 silent timeout 改經 confirm 合流路徑，需 confirm yes 才到 L4 + 保留 cart）
-    customer_input = FakeCustomerInput(["紅茶 100", None, None, "對"])
+    # cart 空 → "紅茶 100"（一次給超量）→ over_limit_reask prompt「最多只能選購 50」→ "5" → 加 5
+    # → added=True → speak L2_TO_L3_TRANSITION → continue → None None → C-2 silent → confirm；
+    # 「對」 → confirm yes → L4（需 confirm yes 才到 L4 + 保留 cart）
+    customer_input = FakeCustomerInput(["紅茶 100", "5", None, None, "對"])
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
@@ -6166,24 +6165,23 @@ def test_resolve_and_add_products_single_huge_qty_caps_and_speaks() -> None:
         do_action=lambda *a, **k: None,
     )
 
-    assert cart_module.get_quantity(cart, "冰紅茶") == MAX_QTY_PER_ITEM, (
-        f"應 cap 為上限 {MAX_QTY_PER_ITEM}，實際：{dict(cart)}"
+    assert cart_module.get_quantity(cart, "冰紅茶") == 5, (
+        f"超量重問後應加 5（非 cap），實際：{dict(cart)}"
     )
-    assert any("達到單筆上限" in s for s in speak_calls), (
-        f"預期『達到單筆上限』提示，實際 speak_calls={speak_calls}"
+    assert any("最多只能選購" in s and str(MAX_QTY_PER_ITEM) in s for s in speak_calls), (
+        f"預期『最多只能選購 {MAX_QTY_PER_ITEM}』提示，實際 speak_calls={speak_calls}"
     )
 
 
-def test_resolve_and_add_products_cumulative_over_cap_caps_to_remaining() -> None:
-    """cart 已有 30 瓶紅茶，再一次說「紅茶 25」(累加 55 > 50) → cap 加 20（remaining）。"""
+def test_resolve_and_add_products_cumulative_over_cap_reasks_remaining() -> None:
+    """2026-06-09 超量重問：cart 已 30 瓶，再說「紅茶 25」(累加 55>50) → 重問「最多只能選購 20」→ 改 10 → 40。"""
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 30)  # 預設 cart 已有 30 瓶
-    # cart 非空 → L3 模式 → "紅茶 25" → cap remaining=20 → add 20 + speak →
-    # added=True → speak L3_REASK → continue → 後續 None None → C-2 silent → confirm；
-    # 「對」 → confirm yes → L4（2026-05-29 silent timeout 改經 confirm 合流路徑，
-    # 需 confirm yes 才到 L4 + 保留 cart）
-    customer_input = FakeCustomerInput(["紅茶 25", None, None, "對"])
+    # cart 非空 → L3 模式 → "紅茶 25"（累加 55>50）→ over_limit_reask prompt「最多只能選購 20」
+    # → "10" → 30+10=40（OK）→ added → speak L3_REASK → continue → None None → C-2 silent → confirm；
+    # 「對」 → confirm yes → L4
+    customer_input = FakeCustomerInput(["紅茶 25", "10", None, None, "對"])
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
@@ -6195,11 +6193,11 @@ def test_resolve_and_add_products_cumulative_over_cap_caps_to_remaining() -> Non
         do_action=lambda *a, **k: None,
     )
 
-    assert cart_module.get_quantity(cart, "冰紅茶") == 50, (
-        f"預期 30 + cap(20) = 50，實際：{dict(cart)}"
+    assert cart_module.get_quantity(cart, "冰紅茶") == 40, (
+        f"預期 30 + 10 = 40，實際：{dict(cart)}"
     )
-    assert any("達到單筆上限" in s for s in speak_calls), (
-        f"預期『達到單筆上限』提示，實際 speak_calls={speak_calls}"
+    assert any("最多只能選購" in s and "20" in s for s in speak_calls), (
+        f"預期『最多只能選購 20』提示，實際 speak_calls={speak_calls}"
     )
 
 
@@ -6240,9 +6238,9 @@ def test_resolve_and_add_products_huge_number_does_not_crash() -> None:
     speak_calls: list = []
     cart = cart_module.new_cart()
     # 完整 Pi 實機輸入；舊代碼會 raise AssertionError 整個程式 crash
+    # 2026-06-09 超量重問：天文數字 → over_limit_reask → "3" → 加 3（非 cap）
     # 後續 None None → C-2 silent → confirm；「對」 → confirm yes → L4
-    # （2026-05-29 silent timeout 改經 confirm 合流路徑，需 confirm yes 才到 L4 + 保留 cart）
-    customer_input = FakeCustomerInput(["紅茶 34435454545454545", None, None, "對"])
+    customer_input = FakeCustomerInput(["紅茶 34435454545454545", "3", None, None, "對"])
 
     # 不該 raise AssertionError
     next_state, _ = states.run_dialog(
@@ -6255,22 +6253,21 @@ def test_resolve_and_add_products_huge_number_does_not_crash() -> None:
         do_action=lambda *a, **k: None,
     )
 
-    assert cart_module.get_quantity(cart, "冰紅茶") == MAX_QTY_PER_ITEM, (
-        f"天文數字應 cap 為上限 {MAX_QTY_PER_ITEM}，實際：{dict(cart)}"
+    assert cart_module.get_quantity(cart, "冰紅茶") == 3, (
+        f"天文數字超量重問後應加 3，實際：{dict(cart)}"
     )
-    assert any("達到單筆上限" in s for s in speak_calls), (
-        f"預期『達到單筆上限』提示，實際 speak_calls={speak_calls}"
+    assert any("最多只能選購" in s for s in speak_calls), (
+        f"預期『最多只能選購』提示，實際 speak_calls={speak_calls}"
     )
 
 
-def test_resolve_and_add_products_multi_product_partial_cap() -> None:
-    """一次說「紅茶 100 刮刮樂 3」→ 紅茶 cap 50 + 刮刮樂 3 正常加（多商品各自獨立處理）。"""
-    from myProgram.sales.constants import MAX_QTY_PER_ITEM
+def test_resolve_and_add_products_multi_product_partial_over_limit() -> None:
+    """2026-06-09 超量重問：「紅茶 100 刮刮樂 3」→ 刮刮樂3 即加、紅茶進重問 → 改「紅茶40」→ 40。"""
     speak_calls: list = []
     cart = cart_module.new_cart()
-    # 一次給多商品 → 加單 L3；後續 None None → C-2 silent → confirm；「對」 → confirm yes → L4
-    # （2026-05-29 silent timeout 改經 confirm 合流路徑，需 confirm yes 才到 L4 + 保留 cart）
-    customer_input = FakeCustomerInput(["紅茶 100 刮刮樂 3", None, None, "對"])
+    # 一次給多商品 → 刮刮樂3 即加（in-range）、紅茶100 收 over_pending → over_limit_reask(["冰紅茶"])
+    # → "紅茶40" → 加 40 → added → L3；後續 None None → C-2 silent → confirm；「對」 → L4
+    customer_input = FakeCustomerInput(["紅茶 100 刮刮樂 3", "紅茶40", None, None, "對"])
 
     next_state, _ = states.run_dialog(
         speak=lambda text: speak_calls.append(text),
@@ -6282,15 +6279,15 @@ def test_resolve_and_add_products_multi_product_partial_cap() -> None:
         do_action=lambda *a, **k: None,
     )
 
-    # 紅茶 cap 為上限 50，刮刮樂正常加 3（兩商品在 for loop 內各自獨立檢查）
-    assert cart_module.get_quantity(cart, "冰紅茶") == MAX_QTY_PER_ITEM, (
-        f"紅茶應 cap 為 {MAX_QTY_PER_ITEM}，實際：{dict(cart)}"
+    # 刮刮樂3 即加（未超量）；紅茶超量進重問 → 改 40（非 cap）
+    assert cart_module.get_quantity(cart, "冰紅茶") == 40, (
+        f"紅茶超量重問後應加 40，實際：{dict(cart)}"
     )
     assert cart_module.get_quantity(cart, "刮刮樂") == 3, (
         f"刮刮樂應正常加 3，實際：{dict(cart)}"
     )
-    assert any("達到單筆上限" in s for s in speak_calls), (
-        f"預期『達到單筆上限』提示，實際 speak_calls={speak_calls}"
+    assert any("最多只能選購" in s for s in speak_calls), (
+        f"預期『最多只能選購』提示，實際 speak_calls={speak_calls}"
     )
 
 
