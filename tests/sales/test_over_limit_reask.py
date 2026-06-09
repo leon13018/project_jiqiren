@@ -135,6 +135,17 @@ def test_reask_gibberish_does_not_reset_and_prompts() -> None:
     assert any("無法判斷" in s for s in speaks)
 
 
+def test_apply_quantities_multi_pending_partial_name_no_leak() -> None:
+    """多 pending 時顧客只報一個商品名 → 不可把該數字誤套到未提及的另一商品。"""
+    from myProgram.sales.states._over_limit_reask import _apply_quantities
+    cart = cart_module.new_cart()
+    pending = ["冰紅茶", "刮刮樂"]
+    _apply_quantities("刮刮樂5", pending, cart)
+    assert cart_module.get_quantity(cart, "刮刮樂") == 5
+    assert cart_module.get_quantity(cart, "冰紅茶") == 0   # 未提及 → 不應被設值
+    assert pending == ["冰紅茶"]                            # 仍待重問
+
+
 def test_reask_service_yes_reprompts_then_resolve() -> None:
     cart = cart_module.new_cart()
     # 客服 → service_confirm YES → 重 prompt → "5" → resolved

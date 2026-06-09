@@ -103,10 +103,11 @@ def _apply_quantities(response: str, pending: list, cart) -> None:
             if 0 < qty <= remaining:
                 cart_module.add_item(cart, product, qty)
                 pending.remove(product)
-    # 單 pending 且顧客報 bare number（response 無提及該商品名 → parse_products 未 cover）。
-    # 若 response 已含商品名（parsed_names 命中），則上方已處理，不可用 parse_quantity
-    # 把句中其他數字（如另一商品的超量值）誤套到 bare-number fallback。
-    if len(pending) == 1 and pending[0] not in parsed_names and has_quantity(response):
+    # bare-number fallback：唯有 parse_products 完全沒命中任何商品名（response 是真
+    # bare number 如「30」）時，才把 response 當數量套到唯一 pending。若 response 含
+    # 任何商品名（parsed_names 非空），上方 loop 已處理；此時不可用 parse_quantity 把
+    # 句中其他數字（如顧客只報「刮刮樂5」時的 5）誤套到未被提及的另一 pending 商品。
+    if len(pending) == 1 and not parsed_names and has_quantity(response):
         product = pending[0]
         qty = parse_quantity(response)
         remaining = MAX_QTY_PER_ITEM - cart_module.get_quantity(cart, product)
