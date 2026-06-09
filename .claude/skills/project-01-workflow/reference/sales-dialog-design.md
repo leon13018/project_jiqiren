@@ -8,7 +8,7 @@
 - 跨層 cancel_confirm 子狀態
 - 服務客服 service_confirm 統一 helper
 - Confirm default 必須保守
-- 超量重問狀態鏈 over_limit_reask
+- 無效數量重問鏈 invalid_qty_reask（超上限 / 數量為 0）
 
 myProgram sales 對話層（L2/L3/L4 + qty followup + 各 confirm 子狀態）的領域設計決策。改 sales code 須對照本檔，避免推翻已對齊的 UX / 錢包保守 / 跨層 confirm 等決定。
 
@@ -150,24 +150,32 @@ def service_confirm(speak, print_terminal, read_customer_input, speak_and_wait=N
 
 ---
 
-## 超量重問狀態鏈 over_limit_reask（2026-06-09 加）
+## 無效數量重問鏈 invalid_qty_reask（2026-06-09 加；2026-06-09 一般化）
 
-**背景**：數量超過 `MAX_QTY_PER_ITEM` 時舊行為直接 cap 成上限加入購物車（顧客「343434」被當 50 瓶），違反顧客本意。重構為**重問鏈**——問到正確數量才加入。
+**背景**：兩類無效數量舊行為各自出錯——
+- **超上限**（> `MAX_QTY_PER_ITEM`）：舊行為直接 cap 成上限加入（顧客「343434」被當 50 瓶），違反本意。
+- **數量為 0**（「紅茶 0 杯」）：`cart.add_item(.,0)` silent skip 但 caller 仍 `added_count+=1` → **假性「已加入購物車」**（cart 沒東西卻播已加入）。
 
-**Helper `myProgram/sales/states/_over_limit_reask.py`**：
+重構為**統一重問鏈**——問到合法數量才加入。原 `over_limit_reask` 一般化為 `invalid_qty_reask`，`pending` 從 `list[str]` 改為 **`dict[str, str]`**（`product → reason`，`reason ∈ {"over_limit", "zero"}`，dict 保插入序）。loop 系統值（12s budget / 最多 2 reset / 客服暫停補償 / 否定→二選一 6s / 控制往上傳）**完全沿用**，唯一差異：**prompt 依 reason 分組** + `_apply_quantities` 重答時重新分類 reason。
+
+**Helper `myProgram/sales/states/_invalid_qty_reask.py`**：
 ```python
-over_limit_reask(pending, cart, speak, print_terminal, read_customer_input, speak_and_wait=None) -> str
+invalid_qty_reask(pending: dict, cart, speak, print_terminal, read_customer_input, speak_and_wait=None) -> str
 #   "resolved" | "reenter_timeout" | "reenter_cancel" | "exit_l1"
-over_limit_cancel_confirm(speak, read_customer_input, speak_and_wait=None) -> str  # "cancel_overlimit" | "exit"
+invalid_qty_cancel_confirm(speak, read_customer_input, speak_and_wait=None) -> str  # "cancel_overlimit" | "exit"
 ```
 
-- **即時提交模型（無 staging）**：有效數量立即 `add_item`，`pending` list 只含仍超量商品名 → 自然達成「保留已 OK、只丟超量」。
-- **12s budget + 最多 2 reset**：答了數量但仍超量 → reset（最多 2 次，總 12×3s）；亂答 / 沉默**不** reset。判定序 否定→客服→數量→亂答。
-- **合併多商品**：多商品同時超量 → 一個 loop 一句列出（`冰紅茶和刮刮樂…各選購 50 瓶、50 張`）；部分修正後只重列仍超量者。
+- **即時提交模型（無 staging）**：有效數量立即 `add_item` + `del pending[product]`，`pending` 只含仍無效商品 → 自然「保留已 OK、只丟無效」。
+- **prompt 依 reason 分組**：zero 句「不接受冰紅茶0瓶這種數量…」+ over 句「…最多只能選購 50 瓶」；混合 reason（同句既有 0 又超量）→ 兩句串接成一個 speak。over 句 single/multi 由 over_products 數量決定（非 total pending）。
+- **重答重新分類**：`_apply_quantities`→`_classify_into_pending`：合法→add+del；仍 0→reason=zero；仍超量→reason=over_limit。任一商品仍 pending → 觸發 reset（最多 2 次）。
+- **12s budget + 最多 2 reset**：亂答 / 沉默**不** reset。判定序 否定→客服→數量→亂答。
 - **客服**：走既有 `_service_confirm`，期間 deadline 暫停 + 補償（對齊 L4 pattern）。
-- **否定 → 二選一 `over_limit_cancel_confirm`（6s）**：CONTINUE（取消超量繼續）**先於** EXIT（退出）check，保守 default `cancel_overlimit`（保 cart）——對齊「confirm ambiguous 保守」鐵則。
-- **編排在 `resolve_and_add_products`（2-pass）**：Pass1 直接數量分類（in-range 即加 / 超量收 over_pending / 缺數量排 missing / at-cap 保留舊 skip）→ Pass1.5 合併超量重問（**先於** missing）→ Pass2 缺數量追問（其超量答案 funnel 進單商品 `over_limit_reask`）。情境3「超量先於缺數量追問」由此序保證。
-- **訊號往上傳**：`resolve_and_add_products` 與 `_qty_follow_up_sub_loop` return 加第 3 元素 `control`；3 個 dialog caller 解 3-tuple——`exit_l1`→`_dialog_exit_a` 退 L1；`reenter_*`→speak「prefix+當前層 entry」continue（prefix = timeout / cancel 兩種）。over-limit reenter **不**觸發 `do_action(L3)` transition（邊緣重入路徑）。
-- **at-cap 例外**：`remaining<=0`（已點滿）保留既有「無法再加」skip，不進重問鏈（重問「選購 0」無意義）。
+- **否定 → 二選一 `invalid_qty_cancel_confirm`（6s）**：CONTINUE（取消這些商品繼續）**先於** EXIT（退出）check，保守 default `cancel_overlimit`（保 cart）——對齊「confirm ambiguous 保守」鐵則。文案已中性化（「取消這些商品」涵蓋 zero+超量，不再只說「超量」）。
+- **偵測點（qty==0 funnel，鏡像超量）**：
+  - **Pass1**（`resolve_and_add_products`）：直接數量分類——in-range 即加 / `qty==0`→`invalid_pending[p]="zero"` / 超量→`"over_limit"` / 缺數量排 missing / at-cap 保留舊 skip → Pass1.5 合併重問（**先於** missing）→ Pass2 缺數量追問（其 0 / 超量答案 funnel 進單商品 `invalid_qty_reask`）。情境3「無效先於缺數量追問」由此序保證。
+  - **`parse_products` 透出明確 0**：`_parse_quantity_in_window` 視窗有阿拉伯數字但全為 0 → 回 `0`（非 `None`「缺數量」），對齊 `nlu.parse_quantity` B16——**否則 Pass1 `qty==0` 偵測點不可達**（「紅茶0」被當缺數量走追問，spec 前提修正 commit f1739ba）。
+- **訊號往上傳**：`resolve_and_add_products` 與 `_qty_follow_up_sub_loop` return 第 3 元素 `control`；3 個 dialog caller 解 3-tuple——`exit_l1`→`_dialog_exit_a` 退 L1；`reenter_*`→speak「prefix+當前層 entry」continue（prefix = timeout / cancel 兩種）。reenter **不**觸發 `do_action(L3)` transition（邊緣重入路徑）。
+- **at-cap 例外**：`remaining<=0`（已點滿）保留既有「無法再加」skip，不進重問鏈。
+- **負數 out-of-scope**：`parse_quantity` 用 `re.findall(r"\d+")`，負號被忽略（「-1瓶」解成 1 正常加入）；STT 亦產不出負號 → 不加負號偵測（YAGNI）。
 
-> 規格：`resources/specs/over_limit_reask_2026-06-09_spec.md` + plan。
+> 規格：`resources/specs/invalid_qty_reask_2026-06-09_spec.md` + plan（base：`over_limit_reask_2026-06-09_spec.md`）。
