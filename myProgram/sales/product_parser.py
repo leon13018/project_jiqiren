@@ -58,13 +58,16 @@ def _parse_quantity_in_window(window: str) -> int | None:
     而非預設 1。B5 / D10：加入複合中文數字解析（十位 / 百位）。
 
     Returns:
-        int qty（>0）或 None（窗內無有效數字）。
+        int qty（>0）；0（視窗有阿拉伯數字但全為 0，明確 0 非缺數量）；
+        或 None（窗內無有效數字 → caller 進追問）。
     """
     arabic_matches = re.findall(r"\d+", window)
-    for m in arabic_matches:
-        n = int(m)
-        if n > 0:
-            return n
+    if arabic_matches:
+        for m in arabic_matches:
+            n = int(m)
+            if n > 0:
+                return n
+        return 0  # 視窗有阿拉伯數字但全為 0 → 明確 0（非缺數量）；對齊 nlu.parse_quantity B16
     # 複合中文數字（十位 / 百位）
     compound = _parse_compound_chinese(window)
     if compound is not None and compound > 0:

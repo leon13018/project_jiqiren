@@ -205,3 +205,21 @@ def test_reask_zero_answer_again_stays_pending_reenter() -> None:
     r = invalid_qty_reask({"冰紅茶": "zero"}, cart, speak=lambda t: None,
                           print_terminal=lambda t: None, read_customer_input=FakeInput(["0"]).read)
     assert r == "reenter_timeout" and cart_module.is_empty(cart)
+
+
+# ============================================================
+# Task 3：混合 reason（zero + over_limit）合併進同一鏈
+# ============================================================
+def test_resolve_mixed_zero_and_overlimit_one_loop() -> None:
+    """直接給『紅茶0刮刮樂9999』→ 合併進同一鏈，混合 reason → 重答全部 → 全加入。"""
+    from myProgram.sales.states._l2_l3_qty_followup import resolve_and_add_products
+    cart = cart_module.new_cart()
+    speaks = []
+    added, _notices, control = resolve_and_add_products(
+        [("冰紅茶", 0), ("刮刮樂", 9999)], cart, speak=speaks.append,
+        print_terminal=lambda t: None, read_customer_input=FakeInput(["紅茶4刮刮樂3"]).read,
+        classify_intent_mode="l2",
+    )
+    assert control is None and added is True
+    assert cart_module.get_quantity(cart, "冰紅茶") == 4
+    assert cart_module.get_quantity(cart, "刮刮樂") == 3

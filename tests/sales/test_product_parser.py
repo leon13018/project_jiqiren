@@ -104,6 +104,17 @@ def test_parse_products_iced_tea_short_word_tea_no_longer_matches() -> None:
     assert product_parser.parse_products("one black tea") == [("冰紅茶", None)]
 
 
+# ============================================================
+# 明確 0 透出（2026-06-09；invalid_qty_reask spec §2.7 前提修正）
+# 視窗有阿拉伯數字但全為 0 → 回 0（非 None「缺數量」），對齊 nlu.parse_quantity B16。
+# 讓 invalid_qty_reask 的 qty==0 偵測點可達。
+# ============================================================
+def test_parse_products_explicit_zero_surfaces_zero() -> None:
+    """「紅茶0」→ qty 為 0（明確 0），非 None；多商品保留各自。"""
+    assert product_parser.parse_products("紅茶0") == [("冰紅茶", 0)]
+    assert product_parser.parse_products("紅茶 刮刮樂0") == [("冰紅茶", None), ("刮刮樂", 0)]
+
+
 def test_parse_products_scratch_letou_and_caijuan_alias() -> None:
     """SCRATCH 補強：「樂透」「彩卷」（錯字）「即時樂」等同義詞能命中刮刮樂。"""
     assert product_parser.parse_products("我要樂透 2 張") == [("刮刮樂", 2)]

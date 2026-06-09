@@ -6895,3 +6895,62 @@ def test_over_limit_cancel_overlimit_reenters_with_notice() -> None:
         opencv_disable=lambda: None, do_action=lambda *a, **k: None,
     )
     assert any("好的已為您取消這些商品" in s for s in speaks)
+
+
+# ============================================================
+# qty==0 無效數量重問（2026-06-09 加；spec invalid_qty_reask Task 3）
+# ============================================================
+def test_zero_qty_scenario1_direct_single() -> None:
+    """情境1：紅茶0杯 → 進重問鏈（不假性加入）→ 重答 5 → 加 5。"""
+    speaks: list = []
+    cart = cart_module.new_cart()
+    customer_input = FakeCustomerInput(["紅茶0", "5", None, None, "對"])
+    next_state, _ = states.run_dialog(
+        speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
+        read_customer_input=customer_input.read, cart=cart, think_count=0,
+        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+    )
+    assert cart_module.get_quantity(cart, "冰紅茶") == 5
+    assert any("不接受" in s and "冰紅茶0瓶" in s for s in speaks)
+
+
+def test_zero_qty_no_false_added_notice() -> None:
+    """回歸：紅茶0 後立即沉默退出 → 不該播『已加入購物車』、cart 空。"""
+    speaks: list = []
+    cart = cart_module.new_cart()
+    customer_input = FakeCustomerInput(["紅茶0", None, None, None, None])
+    states.run_dialog(
+        speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
+        read_customer_input=customer_input.read, cart=cart, think_count=0,
+        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+    )
+    assert cart_module.is_empty(cart)
+    assert not any("已加入購物車" in s for s in speaks)
+
+
+def test_zero_qty_scenario2_followup() -> None:
+    """情境2：紅茶（缺量）→ 追問 → 0瓶 → 進重問鏈 → 5 → 加 5。"""
+    speaks: list = []
+    cart = cart_module.new_cart()
+    customer_input = FakeCustomerInput(["紅茶", "0瓶", "5", None, None, "對"])
+    states.run_dialog(
+        speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
+        read_customer_input=customer_input.read, cart=cart, think_count=0,
+        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+    )
+    assert cart_module.get_quantity(cart, "冰紅茶") == 5
+    assert any("不接受" in s for s in speaks)
+
+
+def test_zero_qty_scenario3_zero_first_then_missing() -> None:
+    """情境3：紅茶 刮刮樂0 → 先重問刮刮樂(0) → 解決 → 再追問紅茶數量。"""
+    speaks: list = []
+    cart = cart_module.new_cart()
+    customer_input = FakeCustomerInput(["紅茶 刮刮樂0", "刮刮樂5", "3", None, None, "對"])
+    states.run_dialog(
+        speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
+        read_customer_input=customer_input.read, cart=cart, think_count=0,
+        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+    )
+    assert cart_module.get_quantity(cart, "刮刮樂") == 5
+    assert cart_module.get_quantity(cart, "冰紅茶") == 3

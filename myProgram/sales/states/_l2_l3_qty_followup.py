@@ -122,6 +122,10 @@ def resolve_and_add_products(
             # cart 內已達上限 → 完全 skip + speak 通知（at-cap 保留既有行為，不進重問鏈）
             speak(f"{product}已經點到單筆上限 {MAX_QTY_PER_ITEM} {unit}，無法再加")
             continue
+        if qty == 0:
+            # 2026-06-09：qty==0 比照超量，收進 invalid_pending 走 Pass 1.5 重問（不假性加入）
+            invalid_pending[product] = "zero"
+            continue
         if qty > remaining:
             # 2026-06-09：不再 cap，收進 invalid_pending 走 Pass 1.5 合併重問
             invalid_pending[product] = "over_limit"
@@ -227,10 +231,11 @@ def _qty_follow_up_sub_loop(
                 # cart 內已達上限 → 無法再加，即時 speak 提示 + skip 此商品（非 cancel UX，不拼接）
                 speak(f"{product}已經點到單筆上限 {MAX_QTY_PER_ITEM} {unit}，無法再加")
                 return False, None, None
-            if qty > remaining:
-                # 2026-06-09：不再 cap，funnel 進 invalid_qty_reask（單商品）
+            if qty == 0 or qty > remaining:
+                # 2026-06-09：qty==0 / 超量皆不 cap，funnel 進 invalid_qty_reask（單商品）
+                reason = "zero" if qty == 0 else "over_limit"
                 control = invalid_qty_reask(
-                    {product: "over_limit"}, cart, speak, print_terminal,
+                    {product: reason}, cart, speak, print_terminal,
                     read_customer_input, speak_and_wait,
                 )
                 if control == "resolved":
