@@ -17,6 +17,7 @@
 - `_cancel_confirm.py` — 取消確認子流程（顧客要取消 → 確認後清 cart 退出）。
 - `_service_confirm.py` — 服務確認子流程。
 - `_l2_l3_qty_followup.py` — L2/L3 數量追問子流程（商品數量釐清）。
+- `_over_limit_reask.py` — 超量重問狀態鏈：重問 loop（12s+2reset）+ 取消超量/退出二選一。
 
 **套件 / 導引**
 - `__init__.py` — 套件標記。
