@@ -29,11 +29,11 @@ EnterWorktree(name="<task-name>")
 ```
 cwd 切到 `.claude/worktrees/<task-name>/`，新分支 `worktree-<task-name>` 從 main 拉出；派發的 subagent 繼承 cwd 自動在內工作。
 
-> **cwd-pinned session 例外（避免 cwd 自鎖）**：若本 session 啟動時 cwd 已被釘在 worktree 內（環境訊息 primary working directory 指向 `.claude/worktrees/...`，且呼叫 ExitWorktree 會被擋「cannot be called from a subagent with a cwd override」）→ **不要用 EnterWorktree**（會再疊一層，收尾時 ExitWorktree 仍被擋 → cwd 留在 worktree 內 → 空目錄自鎖刪不掉）。改用純 git 建立、派 subagent 進去做：
+> **cwd-pinned / isolated session 例外（避免 cwd 自鎖）**：**識別訊號（任一成立即適用，不分 session 啟動位置）**：① 環境 primary working directory 指向 `.claude/worktrees/...`；② 呼叫 ExitWorktree 被擋「cannot be called from a subagent with a cwd override」；③ 本 session 為 isolated / cwd-override agent。**啟動在主 checkout、中途才 EnterWorktree 同樣適用**——一旦 EnterWorktree 即被釘住，收尾時 ExitWorktree 仍被擋 → cwd 留在 worktree 內 → 空目錄自鎖刪不掉。→ **不要用 EnterWorktree**，改用純 git 建立、派 subagent 進去做：
 > ```powershell
 > git -C "<主checkout>" worktree add ".claude/worktrees/<name>" -b worktree-<name>
 > ```
-> 此模式主 agent cwd 留在主 checkout、**不進 worktree 模式** → 失去「擋主 agent 誤改 main checkout tracked 檔」的護欄，故**主 agent 不親自編輯 worktree 檔**，一律派 subagent 並在 prompt 給 worktree 絕對路徑。收尾改用 `git -C "<主checkout>" merge/push/worktree remove`，全程無需 ExitWorktree。
+> 此模式主 agent cwd 留在主 checkout、**不進 worktree 模式** → 失去「擋主 agent 誤改 main checkout tracked 檔」的護欄，故**主 agent 不親自編輯 worktree 檔**，一律派 subagent 並在 prompt 給 worktree 絕對路徑。收尾**全程 `git -C "<主checkout>" merge/push/worktree remove`**、無需 ExitWorktree；**預期 `worktree remove` 因 cwd 自鎖報 Permission denied → 此時 git metadata 已乾淨，留下的 gitignored 空殼延後（離開本 session 後）以新 session `Remove-Item -Recurse -Force` 補刪**（見階段 5「cwd 自鎖 fallback」）。
 
 **階段 2 — 編輯 + commit**
 - **Edit 任何 tracked 檔前先 Read 該 worktree 路徑的副本**——Edit 工具按絕對路徑記讀取狀態，主 checkout 讀過不算（worktree 是另一條路徑，直接 Edit 必被「File must be read first」拒絕、白耗來回）。長檔用 offset/limit 讀目標段即可。
