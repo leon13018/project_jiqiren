@@ -121,6 +121,25 @@ if len(pending) == 1 and not parsed_names and has_quantity(response):
 
 ### 2.7 偵測點（qty==0 funnel 進鏈，鏡像超量）
 
+**前置修正（2026-06-09b，user 核准）— `product_parser._parse_quantity_in_window` 透出明確 0**：原 `if n > 0` 守門使「紅茶0」window「0」回 `None`（被當缺數量 → 走追問，非重問鏈），Pass 1 的 `if qty == 0` 永不可達。改為比照 `nlu.parse_quantity` B16——arabic 全為 0 時回 0（非 None）：
+```python
+arabic_matches = re.findall(r"\d+", window)
+if arabic_matches:
+    for m in arabic_matches:
+        n = int(m)
+        if n > 0:
+            return n
+    return 0          # 明確 0（同 parse_quantity B16）；非「缺數量」
+compound = _parse_compound_chinese(window)
+if compound is not None and compound > 0:
+    return compound
+for char, value in CHINESE_DIGIT_MAP.items():
+    if char in window:
+        return value
+return None
+```
+於是 `parse_products("紅茶0")` → `[(冰紅茶, 0)]`、`parse_products("紅茶 刮刮樂0")` → `[(冰紅茶, None), (刮刮樂, 0)]`，Pass 1 的 `if qty == 0` 可達。`test_product_parser.py` 無任何斷言 X0→None，回歸風險低；修正後與 `parse_quantity` 一致。
+
 **`resolve_and_add_products` Pass 1**（`_l2_l3_qty_followup.py`）：
 ```python
 invalid_pending = {}  # product -> reason（取代原 over_pending list）
@@ -172,6 +191,7 @@ cart_module.add_item(cart, product, qty); return True, None, None
 | `myProgram/sales/constants/timing.py` | 3 常數改名（值不變）+ `__all__` | rename |
 | `myProgram/sales/constants/shared.py` | 6 常數改名 + 2 個內容中性化 + **新增** `INVALID_QTY_ZERO_TEMPLATE` + `__all__` | ~改名+3 行 |
 | `myProgram/sales/constants/keywords.py` | 5 keyword 集改名 + `__all__` | rename |
+| `myProgram/sales/product_parser.py` | `_parse_quantity_in_window` 明確 0 回 0（§2.7 前置修正，2026-06-09b 加） | ~3 行 |
 | `myProgram/sales/states/_over_limit_reask.py` → `_invalid_qty_reask.py` | 改名 + pending→dict + formatter 分組 + `_apply_quantities` 重分類 + zero | 核心 |
 | `myProgram/sales/states/_l2_l3_qty_followup.py` | import 改名 + Pass1 invalid_pending(dict) + funnel reason | ~30 行 |
 | `myProgram/sales/states/l2_l3_dialog.py` | import 改名（reenter prefix）；control 邏輯不變 | rename |

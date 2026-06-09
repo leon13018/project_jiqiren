@@ -153,7 +153,34 @@ git commit -m "refactor(sales): generalize reask pending to per-product reason"
 
 ## Task 3：偵測 qty==0 接入兩路徑（情境1/2/3 + 假性加入回歸）
 
-**Files:** `_l2_l3_qty_followup.py` / `test_states.py` / `test_invalid_qty_reask.py`
+**Files:** `myProgram/sales/product_parser.py` / `_l2_l3_qty_followup.py` / `test_product_parser.py` / `test_states.py` / `test_invalid_qty_reask.py`
+
+> **前置（spec §2.7 前置修正）**：`parse_products` 目前對「紅茶0」回 `(冰紅茶, None)`（`_parse_quantity_in_window` 的 `n > 0` 守門吃掉 0），Pass 1 `if qty == 0` 不可達。本 task 先修 parser 透出明確 0，再接偵測點。
+
+- [ ] **Step 0a：寫 parser failing test（明確 0 應回 0）**
+
+加到 `tests/sales/test_product_parser.py`：
+```python
+def test_parse_products_explicit_zero_surfaces_zero() -> None:
+    """明確的 0 應回 qty=0（非 None），與 nlu.parse_quantity B16 一致。"""
+    assert product_parser.parse_products("紅茶0") == [("冰紅茶", 0)]
+    assert product_parser.parse_products("紅茶0杯") == [("冰紅茶", 0)]
+    assert product_parser.parse_products("紅茶 刮刮樂0") == [("冰紅茶", None), ("刮刮樂", 0)]
+```
+
+- [ ] **Step 0b：跑見 FAIL**
+
+Run: `python -m pytest "tests/sales/test_product_parser.py::test_parse_products_explicit_zero_surfaces_zero" -v`
+Expected: FAIL（現回 `(冰紅茶, None)`）。
+
+- [ ] **Step 0c：修 `_parse_quantity_in_window`（product_parser.py）**
+
+把 arabic 段改為（完整見 spec §2.7 前置修正）：arabic_matches 非空但全為 0 → `return 0`（不再 fall-through 成 None）。其餘（複合中文 / 單字中文 / None）不變。
+
+- [ ] **Step 0d：跑見 PASS（parser test + 既有 parser 測試全綠）**
+
+Run: `python -m pytest tests/sales/test_product_parser.py -v`
+Expected: 全 PASS（既有無 X0→None 斷言，不回歸）。
 
 - [ ] **Step 1：寫 failing tests（情境1/2/3 + 假性加入回歸）**
 
@@ -233,7 +260,7 @@ Expected: `N passed`（含新 5 測試）、0 failed。
 - [ ] **Step 5：Commit**
 
 ```bash
-git add myProgram/sales/states/_l2_l3_qty_followup.py tests/sales/test_states.py tests/sales/test_invalid_qty_reask.py
+git add myProgram/sales/product_parser.py myProgram/sales/states/_l2_l3_qty_followup.py tests/sales/test_product_parser.py tests/sales/test_states.py tests/sales/test_invalid_qty_reask.py
 git commit -m "feat(sales): re-ask on zero quantity across L2/L3 paths"
 ```
 
