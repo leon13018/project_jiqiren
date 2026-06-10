@@ -33,6 +33,7 @@ from myProgram.sales.nlu import (
 )
 from myProgram.sales.product_parser import parse_products
 from myProgram.sales import cart as cart_module
+from myProgram.sales.dialog_io import DialogIO
 from myProgram.sales.states._cancel_confirm import is_cancel_intent
 from myProgram.sales.states._service_confirm import service_confirm
 
@@ -47,22 +48,23 @@ def invalid_qty_cancel_confirm(speak, read_customer_input, speak_and_wait=None) 
     check 順序 CONTINUE 先於 EXIT：保守原則，任何含「取消/繼續」→ 保 cart；
     唯純「退出/離開」才 exit。timeout / silent / 亂答耗盡 → cancel_overlimit（保 cart）。
     """
-    _speak_blocking = speak_and_wait if speak_and_wait is not None else speak
-    _speak_blocking(INVALID_QTY_CANCEL_CONFIRM_PROMPT)
+    # W2：凍結簽名不動，體內建 io 束（fallback 三元式改用 io.speak_blocking）
+    io = DialogIO(speak=speak, read_customer_input=read_customer_input, speak_and_wait=speak_and_wait)
+    io.speak_blocking(INVALID_QTY_CANCEL_CONFIRM_PROMPT)
     deadline = time.monotonic() + INVALID_QTY_CANCEL_CONFIRM_TIMEOUT
 
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             return "cancel_overlimit"
-        response = read_customer_input(timeout=remaining)
+        response = io.read_customer_input(timeout=remaining)
         if response is None:
             return "cancel_overlimit"
         if KG_INVALID_QTY_CONTINUE.matches(response):
             return "cancel_overlimit"
         if KG_INVALID_QTY_EXIT.matches(response):
             return "exit"
-        _speak_blocking(INVALID_QTY_UNCLEAR_PREFIX + INVALID_QTY_CANCEL_CONFIRM_PROMPT)
+        io.speak_blocking(INVALID_QTY_UNCLEAR_PREFIX + INVALID_QTY_CANCEL_CONFIRM_PROMPT)
 
 
 def _join_names(names: list) -> str:
@@ -153,23 +155,27 @@ def invalid_qty_reask(
         "reenter_cancel"  — 否定 → 二選一選「取消這些商品繼續」
         "exit_l1"         — 否定 → 二選一選「退出」（caller 走 _dialog_exit_a）
     """
-    _speak_blocking = speak_and_wait if speak_and_wait is not None else speak
+    # W2：凍結簽名不動，體內建 io 束（含 print_terminal；fallback 三元式改用 io.speak_blocking）
+    io = DialogIO(
+        speak=speak, read_customer_input=read_customer_input,
+        print_terminal=print_terminal, speak_and_wait=speak_and_wait,
+    )
     resets_left = INVALID_QTY_MAX_RESETS
-    _speak_blocking(_format_invalid_qty_prompt(pending, cart))
+    io.speak_blocking(_format_invalid_qty_prompt(pending, cart))
     deadline = time.monotonic() + INVALID_QTY_REASK_TIMEOUT
 
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             return "reenter_timeout"
-        response = read_customer_input(timeout=remaining)
+        response = io.read_customer_input(timeout=remaining)
         if response is None:
             return "reenter_timeout"
 
         # (1) 否定 → 二選一
         if (is_cancel_intent(response)
                 or contains_any(response, KEYWORDS_INVALID_QTY_CANCEL_TRIGGER)):
-            if invalid_qty_cancel_confirm(speak, read_customer_input, speak_and_wait) == "exit":
+            if invalid_qty_cancel_confirm(io.speak, io.read_customer_input, io.speak_and_wait) == "exit":
                 return "exit_l1"
             return "reenter_cancel"
 
@@ -177,13 +183,13 @@ def invalid_qty_reask(
         if classify_intent(response, "normal") == "客服":
             paused = time.monotonic()
             result = service_confirm(
-                speak=speak, print_terminal=print_terminal,
-                read_customer_input=read_customer_input,
-                speak_and_wait=speak_and_wait, allow_scan=False,
+                speak=io.speak, print_terminal=io.print_terminal,
+                read_customer_input=io.read_customer_input,
+                speak_and_wait=io.speak_and_wait, allow_scan=False,
             )
             deadline += time.monotonic() - paused
             if result == "yes":
-                _speak_blocking(_format_invalid_qty_prompt(pending, cart))
+                io.speak_blocking(_format_invalid_qty_prompt(pending, cart))
                 continue
             return "reenter_timeout"
 
@@ -195,8 +201,8 @@ def invalid_qty_reask(
             if resets_left > 0:
                 resets_left -= 1
                 deadline = time.monotonic() + INVALID_QTY_REASK_TIMEOUT
-            _speak_blocking(_format_invalid_qty_prompt(pending, cart))
+            io.speak_blocking(_format_invalid_qty_prompt(pending, cart))
             continue
 
         # (4) 亂答 → 提示，不重置
-        _speak_blocking(INVALID_QTY_UNCLEAR_PREFIX + _format_invalid_qty_prompt(pending, cart))
+        io.speak_blocking(INVALID_QTY_UNCLEAR_PREFIX + _format_invalid_qty_prompt(pending, cart))

@@ -31,6 +31,7 @@ from myProgram.sales.constants import (
     KG_L4_C_CONFIRM_YES,
     KG_L4_C_CONFIRM_NO,
 )
+from myProgram.sales.dialog_io import DialogIO
 
 
 def service_confirm(
@@ -56,11 +57,15 @@ def service_confirm(
         "no"  — 顧客 NO keyword / silent / 24s 耗盡，caller 清 cart 退 L1
         "scan" — 顧客終端 "s"（僅 allow_scan=True 才返回），caller 進 L5 處理
     """
+    # W2：凍結簽名不動，體內建 io 束（含 print_terminal；fallback 三元式改用 io.speak_blocking）
+    io = DialogIO(
+        speak=speak, read_customer_input=read_customer_input,
+        print_terminal=print_terminal, speak_and_wait=speak_and_wait,
+    )
     # print 電話 + speak_and_wait prompt 後算 deadline — 顧客拿到完整 24s budget
     # （不被 TTS 合成 / 播放時間吃掉）
-    print_terminal(SERVICE_PHONE)
-    _speak_blocking = speak_and_wait if speak_and_wait is not None else speak
-    _speak_blocking(L4_C_CONFIRM_PROMPT_TEMPLATE.format(seconds=L4_C_CONFIRM_TIMEOUT))
+    io.print_terminal(SERVICE_PHONE)
+    io.speak_blocking(L4_C_CONFIRM_PROMPT_TEMPLATE.format(seconds=L4_C_CONFIRM_TIMEOUT))
 
     deadline = time.monotonic() + L4_C_CONFIRM_TIMEOUT
     while True:
@@ -68,7 +73,7 @@ def service_confirm(
         if remaining <= 0:
             return "no"
 
-        response = read_customer_input(timeout=remaining)
+        response = io.read_customer_input(timeout=remaining)
         if response is None:
             return "no"
 
@@ -84,4 +89,4 @@ def service_confirm(
             return "yes"
 
         # 亂答 → speak unclear notice + continue（不重置 24s budget，對齊主迴圈設計）
-        speak(L4_UNCLEAR_NOTICE)
+        io.speak(L4_UNCLEAR_NOTICE)

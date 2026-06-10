@@ -39,6 +39,7 @@ from myProgram.sales.constants import (
 )
 from myProgram.sales.nlu import parse_quantity, has_quantity, classify_intent
 from myProgram.sales import cart as cart_module
+from myProgram.sales.dialog_io import DialogIO
 from myProgram.sales.states._service_confirm import service_confirm
 from myProgram.sales.states._invalid_qty_reask import invalid_qty_reask
 
@@ -101,9 +102,14 @@ def resolve_and_add_products(
 
         cancel_notices 順序對應 products 內出現順序；caller 用全形「，」拼成單一 speak。
     """
-    # 2026-05-30 v3：「speak prompt 後接 read」path 走 speak_and_wait — read 從 TTS
-    # 播完才起算 timeout。其他即時通知（cart cap / 已達上限 skip）保持 speak。
-    _speak_blocking = speak_and_wait if speak_and_wait is not None else speak
+    # W2：凍結簽名不動，體內建 io 束（含 print_terminal；fallback 三元式改用 io.speak_blocking）。
+    # 2026-05-30 v3：「speak prompt 後接 read」path 走 speak_blocking（io.speak_and_wait
+    # fallback io.speak）— read 從 TTS 播完才起算 timeout。其他即時通知（cart cap /
+    # 已達上限 skip）保持 io.speak。
+    io = DialogIO(
+        speak=speak, read_customer_input=read_customer_input,
+        print_terminal=print_terminal, speak_and_wait=speak_and_wait,
+    )
 
     added_count = 0
     cancel_notices: list[str] = []
@@ -120,7 +126,7 @@ def resolve_and_add_products(
         unit = PRODUCTS[product]["單位"]
         if remaining <= 0:
             # cart 內已達上限 → 完全 skip + speak 通知（at-cap 保留既有行為，不進重問鏈）
-            speak(f"{product}已經點到單筆上限 {MAX_QTY_PER_ITEM} {unit}，無法再加")
+            io.speak(f"{product}已經點到單筆上限 {MAX_QTY_PER_ITEM} {unit}，無法再加")
             continue
         if qty == 0:
             # 2026-06-09：qty==0 比照超量，收進 invalid_pending 走 Pass 1.5 重問（不假性加入）
@@ -138,8 +144,8 @@ def resolve_and_add_products(
     if invalid_pending:
         n = len(invalid_pending)
         control = invalid_qty_reask(
-            invalid_pending, cart, speak, print_terminal,
-            read_customer_input, speak_and_wait,
+            invalid_pending, cart, io.speak, io.print_terminal,
+            io.read_customer_input, io.speak_and_wait,
         )
         if control == "resolved":
             added_count += n
@@ -151,17 +157,14 @@ def resolve_and_add_products(
     for product in missing:
         unit = PRODUCTS[product]["單位"]
         # 2026-05-30 v3：speak_and_wait — 6s timeout 從 TTS 播完才起算
-        _speak_blocking(QTY_PROMPT_TEMPLATE.format(product=product, unit=unit))
+        io.speak_blocking(QTY_PROMPT_TEMPLATE.format(product=product, unit=unit))
 
         accepted, cancel_notice, control = _qty_follow_up_sub_loop(
             product=product,
             unit=unit,
-            speak=speak,
-            print_terminal=print_terminal,
-            read_customer_input=read_customer_input,
+            io=io,
             classify_intent_mode=classify_intent_mode,
             cart=cart,
-            speak_and_wait=speak_and_wait,
         )
         if control is not None:
             return added_count > 0, cancel_notices, control
@@ -176,12 +179,9 @@ def resolve_and_add_products(
 def _qty_follow_up_sub_loop(
     product: str,
     unit: str,
-    speak,
-    print_terminal,
-    read_customer_input,
+    io,
     classify_intent_mode: str,
     cart,
-    speak_and_wait=None,
 ) -> tuple[bool, str | None, str | None]:
     """QTY 追問 sub-loop（給 resolve_and_add_products 用，每個缺數量商品獨立呼叫）。
 
@@ -198,6 +198,12 @@ def _qty_follow_up_sub_loop(
     （不計 attempts）；NO/silent → skip 該商品（return cancel_notice，對齊既有 skip path）。
     解 Pi demo (2026-05-31) UX 怪：「客服」回「我聽不懂」誤導。
 
+    Args:
+        product, unit: 缺數量商品名與單位
+        io: DialogIO callback 束（W2 oop_w2 收斂；含 speak / print_terminal /
+            read_customer_input / speak_and_wait）
+        classify_intent_mode, cart: 同 caller
+
     Returns（2026-06-09 加第 3 元素 control，超量重問狀態鏈）:
         (accepted: bool, cancel_notice: str | None, control: str | None)
 
@@ -209,11 +215,10 @@ def _qty_follow_up_sub_loop(
         (False, None, control) — 追問內答超量 → funnel 進 invalid_qty_reask；非 resolved 時
                                  control ∈ {"reenter_timeout","reenter_cancel","exit_l1"} 冒泡給 caller。
     """
-    _speak_blocking = speak_and_wait if speak_and_wait is not None else speak
     cancel_notice = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product=product)
     attempts = 0
     while True:
-        follow_up = read_customer_input(timeout=QTY_FOLLOWUP_TIMEOUT)
+        follow_up = io.read_customer_input(timeout=QTY_FOLLOWUP_TIMEOUT)
 
         if follow_up is None:
             # Timeout → skip 該商品（2026-05-29 反轉：原本自動加 1 改成視為顧客不買此商品）
@@ -229,14 +234,14 @@ def _qty_follow_up_sub_loop(
             remaining = MAX_QTY_PER_ITEM - existing
             if remaining <= 0:
                 # cart 內已達上限 → 無法再加，即時 speak 提示 + skip 此商品（非 cancel UX，不拼接）
-                speak(f"{product}已經點到單筆上限 {MAX_QTY_PER_ITEM} {unit}，無法再加")
+                io.speak(f"{product}已經點到單筆上限 {MAX_QTY_PER_ITEM} {unit}，無法再加")
                 return False, None, None
             if qty == 0 or qty > remaining:
                 # 2026-06-09：qty==0 / 超量皆不 cap，funnel 進 invalid_qty_reask（單商品）
                 reason = "zero" if qty == 0 else "over_limit"
                 control = invalid_qty_reask(
-                    {product: reason}, cart, speak, print_terminal,
-                    read_customer_input, speak_and_wait,
+                    {product: reason}, cart, io.speak, io.print_terminal,
+                    io.read_customer_input, io.speak_and_wait,
                 )
                 if control == "resolved":
                     return True, None, None       # 已在 reask loop 內 add_item
@@ -255,14 +260,14 @@ def _qty_follow_up_sub_loop(
             # NO/silent → return (False, cancel_notice) skip 該商品
             #   （對齊既有 timeout / 拒絕 / 結帳-as-skip path）
             result = service_confirm(
-                speak=speak,
-                print_terminal=print_terminal,
-                read_customer_input=read_customer_input,
-                speak_and_wait=speak_and_wait,
+                speak=io.speak,
+                print_terminal=io.print_terminal,
+                read_customer_input=io.read_customer_input,
+                speak_and_wait=io.speak_and_wait,
                 allow_scan=False,
             )
             if result == "yes":
-                _speak_blocking(QTY_PROMPT_TEMPLATE.format(product=product, unit=unit))
+                io.speak_blocking(QTY_PROMPT_TEMPLATE.format(product=product, unit=unit))
                 continue
             # result == "no" → skip 該商品（caller 用 cancel_notice 拼接 reask）
             return False, cancel_notice, None
@@ -282,6 +287,6 @@ def _qty_follow_up_sub_loop(
             # B4：達 attempts cap → notice 不即時 speak，return 給 caller 拼接到 reask
             return False, cancel_notice, None
         # 2026-05-30 v3：speak_and_wait — 6s read timeout 從 TTS 播完才起算
-        _speak_blocking(QTY_CLARIFY_TEMPLATE.format(unit=unit))
+        io.speak_blocking(QTY_CLARIFY_TEMPLATE.format(unit=unit))
 
 

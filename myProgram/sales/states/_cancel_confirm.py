@@ -22,6 +22,7 @@ from myProgram.sales.constants import (
     KG_CANCEL_CONFIRM_YES,
     KG_CANCEL_CONFIRM_NO,
 )
+from myProgram.sales.dialog_io import DialogIO
 from myProgram.sales.nlu import classify_intent
 
 
@@ -46,10 +47,11 @@ def cancel_confirm(speak, read_customer_input, speak_and_wait=None) -> bool:
         - 亂答消耗 budget 不重置（避免無限延長）
         - budget 耗盡 / silent → True（user 字面 promise）
     """
+    # W2：凍結簽名不動，體內建 io 束（fallback 三元式改用 io.speak_blocking）
+    io = DialogIO(speak=speak, read_customer_input=read_customer_input, speak_and_wait=speak_and_wait)
     # 2026-05-30 v2：speak_and_wait CANCEL_CONFIRM_PROMPT 後算 deadline — 顧客拿到
     # 完整 CANCEL_CONFIRM_TIMEOUT (6s) budget，而非「6s 減 prompt 播放時間」
-    _speak_blocking = speak_and_wait if speak_and_wait is not None else speak
-    _speak_blocking(CANCEL_CONFIRM_PROMPT)
+    io.speak_blocking(CANCEL_CONFIRM_PROMPT)
     deadline = time.monotonic() + CANCEL_CONFIRM_TIMEOUT
 
     while True:
@@ -58,7 +60,7 @@ def cancel_confirm(speak, read_customer_input, speak_and_wait=None) -> bool:
             # 倒數歸零（亂答耗盡 budget）→ 取消
             return True
 
-        response = read_customer_input(timeout=remaining)
+        response = io.read_customer_input(timeout=remaining)
         if response is None:
             # silent（read 直接 timeout）→ 取消
             return True
