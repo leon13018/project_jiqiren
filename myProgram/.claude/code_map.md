@@ -8,10 +8,11 @@
 - `.claude/` — 本層 CC 配置（`code_map.md` 本檔）。
 
 ## 檔案
-- `main.py` — 進入點：多線程 + queue 架構、callback wire-up、各 worker 啟動與關閉。
-- `tts.py` — 語音合成 worker（edge-tts 雲端 TTS；計時倒數 / UX 過場）。
-- `action.py` — 機器人動作組 worker（呼叫 vendor SDK 播動作）。
-- `input_reader.py` — 非阻塞鍵盤輸入 worker。
+- `main.py` — 進入點：`TerminalSim` callback 類別（bound methods 餵 `logic.run`）、`_tick_countdown` 倒數 helper、各 worker 啟動與關閉（OOP 重構 W6）。
+- `queue_worker.py` — `QueueWorker(ABC)` FIFO daemon 消費者骨架 + `drain_queue` helper（TtsWorker / ActionWorker 繼承；OOP 重構 W6）。
+- `tts.py` — 語音合成 worker（edge-tts 雲端 TTS；繼承 `QueueWorker`；計時倒數 / UX 過場）。
+- `action.py` — 機器人動作組 worker（呼叫 vendor SDK 播動作；繼承 `QueueWorker`）。
+- `input_reader.py` — 非阻塞鍵盤輸入 worker（producer，不繼承 QueueWorker）。
 - `__init__.py` — 套件標記。
 - `__main__.py` — `python -m myProgram` 進入點。
 - `CLAUDE.md` — 本層導引。

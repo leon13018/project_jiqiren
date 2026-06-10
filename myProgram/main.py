@@ -61,7 +61,7 @@ def _tick_countdown(total: float, label: str, wait_tick):
 
 
 class TerminalSim:
-    """終端模擬 callback 集：13 個 bound methods 餵 logic.run(**callbacks())。
+    """終端模擬 callback 集：14 個 bound methods 餵 logic.run(**callbacks())。
 
     持 _S1State（OpenCV 模擬狀態）；各 method 對應一個對外 callback。method 內的
     lazy import（tts / action / input_reader）原樣保留 — Windows pytest seam。

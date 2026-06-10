@@ -47,6 +47,8 @@ class QueueWorker(ABC):
         threading.Thread(target=self._loop, name=self.thread_name, daemon=True).start()
 
     def submit(self, item) -> None:
+        # TtsWorker 刻意不經此處（say 需在 _cv 臨界區內原子 inc _pending + put，
+        # 改走 submit 會重新引入 R1 race——見 tts.py say docstring）
         self._q.put(item)
 
     def _loop(self) -> None:
