@@ -28,12 +28,9 @@ from myProgram.sales.constants import (
     L4_C_CONFIRM_TIMEOUT,
     L4_C_CONFIRM_PROMPT_TEMPLATE,
     L4_UNCLEAR_NOTICE,
-    KEYWORDS_L4_C_CONFIRM_YES,
-    KEYWORDS_L4_C_CONFIRM_YES_STRICT_SHORT,
-    KEYWORDS_L4_C_CONFIRM_NO,
-    KEYWORDS_L4_C_CONFIRM_NO_STRICT_SHORT,
+    KG_L4_C_CONFIRM_YES,
+    KG_L4_C_CONFIRM_NO,
 )
-from myProgram.sales.nlu import contains_any, equals_strict_short
 
 
 def service_confirm(
@@ -80,16 +77,10 @@ def service_confirm(
             return "scan"
 
         # NO 必須先 check（防「不繼續」substring 含「繼續」strict_short 誤命中 YES）
-        if (
-            contains_any(response, KEYWORDS_L4_C_CONFIRM_NO)
-            or equals_strict_short(response, KEYWORDS_L4_C_CONFIRM_NO_STRICT_SHORT)
-        ):
+        if KG_L4_C_CONFIRM_NO.matches(response):
             return "no"
 
-        if (
-            contains_any(response, KEYWORDS_L4_C_CONFIRM_YES)
-            or equals_strict_short(response, KEYWORDS_L4_C_CONFIRM_YES_STRICT_SHORT)
-        ):
+        if KG_L4_C_CONFIRM_YES.matches(response):
             return "yes"
 
         # 亂答 → speak unclear notice + continue（不重置 24s budget，對齊主迴圈設計）

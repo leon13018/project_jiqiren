@@ -29,6 +29,9 @@ from myProgram.sales.constants import (
     KEYWORDS_SCRATCH,
     CHINESE_DIGIT_MAP,
 )
+# 比對原語本體已搬至 keyword_group.py（W1）；re-export 保既有
+# `from myProgram.sales.nlu import contains_any` 的 caller / 測試相容
+from myProgram.sales.keyword_group import contains_any, equals_strict_short
 
 # ============================================================
 # 關鍵字白名單（依規格書 L0_共通.md）
@@ -105,17 +108,6 @@ _KEYWORDS_SERVICE = ["客服", "聯絡", "聯繫", "contact", "服務"]
 _KEYWORDS_CONTINUE = ["繼續", "接著", "繼續買", "繼續交易", "continue"]
 
 _KEYWORDS_EXIT = ["退出", "取消", "離開", "算了", "不買了", "exit"]
-
-
-def contains_any(text: str, keywords: list) -> bool:
-    """大小寫不敏感 substring match — 任一 keyword 出現在 text 內即命中。"""
-    text_lower = text.lower()
-    return any(kw.lower() in text_lower for kw in keywords)
-
-
-def equals_strict_short(text: str, keywords: list) -> bool:
-    """嚴格相等比對（去頭尾空白 + 大小寫不敏感） — 給短單字 keyword 用，避免 substring 誤命中。"""
-    return text.strip().lower() in [kw.lower() for kw in keywords]
 
 
 def normalize_input(raw: str, max_length: int = 200) -> str:

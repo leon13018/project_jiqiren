@@ -19,12 +19,10 @@ import time
 from myProgram.sales.constants import (
     CANCEL_CONFIRM_TIMEOUT,
     CANCEL_CONFIRM_PROMPT,
-    KEYWORDS_CANCEL_CONFIRM_YES,
-    KEYWORDS_CANCEL_CONFIRM_YES_STRICT_SHORT,
-    KEYWORDS_CANCEL_CONFIRM_NO,
-    KEYWORDS_CANCEL_CONFIRM_NO_STRICT_SHORT,
+    KG_CANCEL_CONFIRM_YES,
+    KG_CANCEL_CONFIRM_NO,
 )
-from myProgram.sales.nlu import contains_any, equals_strict_short, classify_intent
+from myProgram.sales.nlu import classify_intent
 
 
 def cancel_confirm(speak, read_customer_input, speak_and_wait=None) -> bool:
@@ -66,16 +64,10 @@ def cancel_confirm(speak, read_customer_input, speak_and_wait=None) -> bool:
             return True
 
         # NO 先 check（保守：避免「不要取消」誤命中 YES「取消」substring）
-        if (
-            contains_any(response, KEYWORDS_CANCEL_CONFIRM_NO)
-            or equals_strict_short(response, KEYWORDS_CANCEL_CONFIRM_NO_STRICT_SHORT)
-        ):
+        if KG_CANCEL_CONFIRM_NO.matches(response):
             return False
 
-        if (
-            contains_any(response, KEYWORDS_CANCEL_CONFIRM_YES)
-            or equals_strict_short(response, KEYWORDS_CANCEL_CONFIRM_YES_STRICT_SHORT)
-        ):
+        if KG_CANCEL_CONFIRM_YES.matches(response):
             return True
 
         # 亂答 → continue 消耗 budget（不重置 deadline，不 speak 提示）

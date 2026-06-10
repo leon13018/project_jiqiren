@@ -59,16 +59,11 @@ from myProgram.sales.constants import (
     CHECKOUT_CONFIRM_TIMEOUT,
     CHECKOUT_CONFIRM_UNCLEAR_MAX,
     PRODUCTS,
-    KEYWORDS_CONFIRM_YES,
-    KEYWORDS_CONFIRM_NO,
-    KEYWORDS_CONFIRM_YES_STRICT_SHORT,
-    KEYWORDS_CONFIRM_NO_STRICT_SHORT,
-    KEYWORDS_C2_CONTINUE,
-    KEYWORDS_C2_CONTINUE_STRICT_SHORT,
-    KEYWORDS_C2_CHECKOUT,
-    KEYWORDS_C2_CHECKOUT_STRICT_SHORT,
-    KEYWORDS_C2_CANCEL,
-    KEYWORDS_C2_CANCEL_STRICT_SHORT,
+    KG_CONFIRM_YES,
+    KG_CONFIRM_NO,
+    KG_C2_CONTINUE,
+    KG_C2_CHECKOUT,
+    KG_C2_CANCEL,
     DIALOG_VAGUE_BUY_REASK,
     CANCEL_DECLINED_NOTICE,
     INVALID_QTY_TIMEOUT_REENTER_PREFIX,
@@ -77,7 +72,7 @@ from myProgram.sales.constants import (
     ACTION_L3,
     ACTION_L3_CHECKOUT_GO,
 )
-from myProgram.sales.nlu import classify_intent, contains_any, equals_strict_short
+from myProgram.sales.nlu import classify_intent
 from myProgram.sales.product_parser import parse_products
 from myProgram.sales import cart as cart_module
 from myProgram.sales.states._l2_l3_qty_followup import (
@@ -499,19 +494,13 @@ def _dialog_c2_second_stage(
 
         # 三選一 dispatcher（2026-05-28 重構：CANCEL 優先，顧客錢包 conservative）
         # CANCEL：清 cart + 退 L1（reuse _dialog_exit_a：speak L3_REJECT_THANKS + clear cart）
-        if (
-            contains_any(response, KEYWORDS_C2_CANCEL)
-            or equals_strict_short(response, KEYWORDS_C2_CANCEL_STRICT_SHORT)
-        ):
+        if KG_C2_CANCEL.matches(response):
             return _dialog_exit_a(speak, cart)
 
         # CONTINUE：speak ack 後不清 cart，重入 dialog 主迴圈（顧客繼續加單）
         # 2026-05-30 加 ack speak：main loop 不重播 entry prompt，若直接 return
         # 顧客失去對話上下文 → 沉默 → 又被 DYC_TIMEOUT 抓回 C-2（Pi demo 實測 bug）
-        if (
-            contains_any(response, KEYWORDS_C2_CONTINUE)
-            or equals_strict_short(response, KEYWORDS_C2_CONTINUE_STRICT_SHORT)
-        ):
+        if KG_C2_CONTINUE.matches(response):
             speak(L3_C2_CONTINUE_ACK)
             return _dialog_main_loop(
                 speak=speak,
@@ -525,10 +514,7 @@ def _dialog_c2_second_stage(
 
         # CHECKOUT：顧客主動講結帳 → 經 _dialog_checkout_confirm 確認明細
         # （2026-05-29 反轉：timeout path 也合流到此函數，兩條 path 完全一致）
-        if (
-            contains_any(response, KEYWORDS_C2_CHECKOUT)
-            or equals_strict_short(response, KEYWORDS_C2_CHECKOUT_STRICT_SHORT)
-        ):
+        if KG_C2_CHECKOUT.matches(response):
             return _c2_checkout_via_confirm(
                 speak=speak,
                 print_terminal=print_terminal,
@@ -906,9 +892,9 @@ def _dialog_checkout_confirm(
             speak(CANCEL_DECLINED_NOTICE)
             speak(prompt)
             continue
-        if contains_any(response, KEYWORDS_CONFIRM_NO) or equals_strict_short(response, KEYWORDS_CONFIRM_NO_STRICT_SHORT):
+        if KG_CONFIRM_NO.matches(response):
             return "no_explicit"
-        if contains_any(response, KEYWORDS_CONFIRM_YES) or equals_strict_short(response, KEYWORDS_CONFIRM_YES_STRICT_SHORT):
+        if KG_CONFIRM_YES.matches(response):
             return "yes"
         unclear_count += 1
         if unclear_count >= CHECKOUT_CONFIRM_UNCLEAR_MAX:

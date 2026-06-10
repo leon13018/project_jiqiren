@@ -24,14 +24,12 @@ from myProgram.sales.constants import (
     INVALID_QTY_UNCLEAR_PREFIX,
     INVALID_QTY_CANCEL_CONFIRM_PROMPT,
     KEYWORDS_INVALID_QTY_CANCEL_TRIGGER,
-    KEYWORDS_INVALID_QTY_CONTINUE,
-    KEYWORDS_INVALID_QTY_CONTINUE_STRICT_SHORT,
-    KEYWORDS_INVALID_QTY_EXIT,
-    KEYWORDS_INVALID_QTY_EXIT_STRICT_SHORT,
+    KG_INVALID_QTY_CONTINUE,
+    KG_INVALID_QTY_EXIT,
 )
 from myProgram.sales.nlu import (
     has_quantity, parse_quantity, classify_intent,
-    contains_any, equals_strict_short,
+    contains_any,
 )
 from myProgram.sales.product_parser import parse_products
 from myProgram.sales import cart as cart_module
@@ -60,11 +58,9 @@ def invalid_qty_cancel_confirm(speak, read_customer_input, speak_and_wait=None) 
         response = read_customer_input(timeout=remaining)
         if response is None:
             return "cancel_overlimit"
-        if (contains_any(response, KEYWORDS_INVALID_QTY_CONTINUE)
-                or equals_strict_short(response, KEYWORDS_INVALID_QTY_CONTINUE_STRICT_SHORT)):
+        if KG_INVALID_QTY_CONTINUE.matches(response):
             return "cancel_overlimit"
-        if (contains_any(response, KEYWORDS_INVALID_QTY_EXIT)
-                or equals_strict_short(response, KEYWORDS_INVALID_QTY_EXIT_STRICT_SHORT)):
+        if KG_INVALID_QTY_EXIT.matches(response):
             return "exit"
         _speak_blocking(INVALID_QTY_UNCLEAR_PREFIX + INVALID_QTY_CANCEL_CONFIRM_PROMPT)
 

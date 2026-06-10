@@ -11,6 +11,8 @@
 # C17 (2026-05-26 Wave 7a)：HAWK_SLOGANS 含價格 slogan 改 f-string 從 PRODUCTS 取，
 # 避免改價時漏改文案。底線命名（module-private alias）避免 wildcard re-export 污染。
 from myProgram.sales.constants.products import PRODUCTS as _PRODUCTS
+# W1 oop_w1：KeywordGroup 雙集封裝（類別本體在 keyword_group.py，本檔只建配對實例）
+from myProgram.sales.keyword_group import KeywordGroup
 
 __all__ = [
     "HAWK_SLOGANS",
@@ -44,6 +46,18 @@ __all__ = [
     "KEYWORDS_INVALID_QTY_CONTINUE_STRICT_SHORT",
     "KEYWORDS_INVALID_QTY_EXIT",
     "KEYWORDS_INVALID_QTY_EXIT_STRICT_SHORT",
+    # W1 oop_w1：11 個 KeywordGroup 配對實例
+    "KG_CONFIRM_YES",
+    "KG_CONFIRM_NO",
+    "KG_C2_CONTINUE",
+    "KG_C2_CHECKOUT",
+    "KG_C2_CANCEL",
+    "KG_CANCEL_CONFIRM_YES",
+    "KG_CANCEL_CONFIRM_NO",
+    "KG_L4_C_CONFIRM_YES",
+    "KG_L4_C_CONFIRM_NO",
+    "KG_INVALID_QTY_CONTINUE",
+    "KG_INVALID_QTY_EXIT",
 ]
 
 # ============================================================
@@ -369,3 +383,22 @@ KEYWORDS_INVALID_QTY_EXIT: list = [
     "退出", "直接退出", "退出交易", "直接退出交易", "離開", "离开",
 ]
 KEYWORDS_INVALID_QTY_EXIT_STRICT_SHORT: list = ["退出", "離開", "离开"]
+
+# ============================================================
+# KeywordGroup 配對實例（W1 oop_w1）
+# 每個實例封裝既有「substring 集 + strict-short 集」雙集，呼叫點改用 .matches(text)
+# 取代 `contains_any(x, KW) or equals_strict_short(x, KW_STRICT)` 雙呼叫。
+# 既有 list 常數全保留（test_constants 直接驗 list），KG_* 只是組合 view。
+# ============================================================
+
+KG_CONFIRM_YES = KeywordGroup(tuple(KEYWORDS_CONFIRM_YES), tuple(KEYWORDS_CONFIRM_YES_STRICT_SHORT))
+KG_CONFIRM_NO = KeywordGroup(tuple(KEYWORDS_CONFIRM_NO), tuple(KEYWORDS_CONFIRM_NO_STRICT_SHORT))
+KG_C2_CONTINUE = KeywordGroup(tuple(KEYWORDS_C2_CONTINUE), tuple(KEYWORDS_C2_CONTINUE_STRICT_SHORT))
+KG_C2_CHECKOUT = KeywordGroup(tuple(KEYWORDS_C2_CHECKOUT), tuple(KEYWORDS_C2_CHECKOUT_STRICT_SHORT))
+KG_C2_CANCEL = KeywordGroup(tuple(KEYWORDS_C2_CANCEL), tuple(KEYWORDS_C2_CANCEL_STRICT_SHORT))
+KG_CANCEL_CONFIRM_YES = KeywordGroup(tuple(KEYWORDS_CANCEL_CONFIRM_YES), tuple(KEYWORDS_CANCEL_CONFIRM_YES_STRICT_SHORT))
+KG_CANCEL_CONFIRM_NO = KeywordGroup(tuple(KEYWORDS_CANCEL_CONFIRM_NO), tuple(KEYWORDS_CANCEL_CONFIRM_NO_STRICT_SHORT))
+KG_L4_C_CONFIRM_YES = KeywordGroup(tuple(KEYWORDS_L4_C_CONFIRM_YES), tuple(KEYWORDS_L4_C_CONFIRM_YES_STRICT_SHORT))
+KG_L4_C_CONFIRM_NO = KeywordGroup(tuple(KEYWORDS_L4_C_CONFIRM_NO), tuple(KEYWORDS_L4_C_CONFIRM_NO_STRICT_SHORT))
+KG_INVALID_QTY_CONTINUE = KeywordGroup(tuple(KEYWORDS_INVALID_QTY_CONTINUE), tuple(KEYWORDS_INVALID_QTY_CONTINUE_STRICT_SHORT))
+KG_INVALID_QTY_EXIT = KeywordGroup(tuple(KEYWORDS_INVALID_QTY_EXIT), tuple(KEYWORDS_INVALID_QTY_EXIT_STRICT_SHORT))
