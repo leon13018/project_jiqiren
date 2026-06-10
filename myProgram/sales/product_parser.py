@@ -6,8 +6,8 @@
 
 設計原則：
     - 純函式（無 IO / 無 callback）
-    - 從 constants/keywords.py 借用 CHINESE_DIGIT_MAP + KEYWORDS_ICED_TEA / KEYWORDS_SCRATCH
-      （2026-05-26 Wave 6：已從 nlu.py 搬至 constants，資料層歸資料層）
+    - 數量解析委派 nlu.parse_quantity(window, default=None)
+      （W1 oop_w1：原 _parse_quantity_in_window 與 parse_quantity 合併，用 default 區分 fallback）
     - sales/ 內 caller（dialog / qty_followup）由此 import parse_products，
       不再從 nlu 拿
 
@@ -16,10 +16,7 @@
       回傳 (product_name, qty_or_None) 依出現順序排列
 """
 
-import re
-
-from myProgram.sales.nlu import _parse_compound_chinese
-from myProgram.sales.constants import CHINESE_DIGIT_MAP, KEYWORDS_ICED_TEA, KEYWORDS_SCRATCH
+from myProgram.sales.nlu import parse_quantity
 
 # ============================================================
 # 商品 keyword → 標準商品名映射（從 nlu.py 移過來）
@@ -49,34 +46,6 @@ _PRODUCT_KEYWORD_TO_NAME: list = [
     ("scratch", "刮刮樂"),
     ("刮刮", "刮刮樂"),
 ]
-
-
-def _parse_quantity_in_window(window: str) -> int | None:
-    """從一段視窗文字（單一商品的 qty 區間）解析數量。
-
-    跟 parse_quantity 邏輯一致，但**沒命中時返 None**（讓 caller 進追問）
-    而非預設 1。B5 / D10：加入複合中文數字解析（十位 / 百位）。
-
-    Returns:
-        int qty（>0）；0（視窗有阿拉伯數字但全為 0，明確 0 非缺數量）；
-        或 None（窗內無有效數字 → caller 進追問）。
-    """
-    arabic_matches = re.findall(r"\d+", window)
-    if arabic_matches:
-        for m in arabic_matches:
-            n = int(m)
-            if n > 0:
-                return n
-        return 0  # 視窗有阿拉伯數字但全為 0 → 明確 0（非缺數量）；對齊 nlu.parse_quantity B16
-    # 複合中文數字（十位 / 百位）
-    compound = _parse_compound_chinese(window)
-    if compound is not None and compound > 0:
-        return compound
-    # 單字中文數字 fallback
-    for char, value in CHINESE_DIGIT_MAP.items():
-        if char in window:
-            return value
-    return None
 
 
 def parse_products(text: str) -> list:
@@ -148,7 +117,7 @@ def parse_products(text: str) -> list:
     for i, (_start, end, product) in enumerate(found):
         window_end = found[i + 1][0] if i + 1 < len(found) else len(text)
         window = text[end:window_end]
-        qty = _parse_quantity_in_window(window)
+        qty = parse_quantity(window, default=None)
         raw.append((product, qty))
 
     # 4. Per-product dedup pass（見 docstring「Per-product dedup 規則」段）

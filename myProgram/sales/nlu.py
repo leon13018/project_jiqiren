@@ -316,23 +316,29 @@ def has_quantity(text: str) -> bool:
     return any(char in text for char in CHINESE_DIGIT_MAP)
 
 
-def parse_quantity(text: str) -> int:
+def parse_quantity(text: str, default: int | None = 1) -> int | None:
     """從顧客輸入解析商品數量。
 
     判定規則（依優先序）：
         1. 阿拉伯數字優先（re.findall 取第一個非負整數；0 明確回 0）
         2. 複合中文數字（十位 / 百位；如「十二 / 二十 / 一百 / 三十五」）
         3. 單字中文數字 fallback（依 CHINESE_DIGIT_MAP）
-        4. 以上皆無命中 → 預設 1
+        4. 以上皆無命中 → 回 default
 
-    B16 修正（2026-05-26）：顧客明確說「0 瓶」→ 回 0，不 fallback 為 1。
-    若 text 內所有阿拉伯數字皆為 0，視為顧客明確表達「不要」，回 0。
+    B16 修正（2026-05-26）：顧客明確說「0 瓶」→ 回 0，不 fallback。
+    若 text 內所有阿拉伯數字皆為 0，視為顧客明確表達「不要」，回 0
+    （**顯式 0 與 default 無關**：B16 的 0 是明確語意，非「未命中」fallback）。
+
+    W1 oop_w1（2026-06-10）：default 參數合併 _parse_quantity_in_window —
+    既有 caller 不傳 = 1（行為不變）；default=None = 原 _parse_quantity_in_window
+    語意（窗內無有效數字 → caller 進追問）。
 
     Args:
         text: 顧客輸入字串
+        default: 皆未命中時的 fallback 值（預設 1；傳 None 走「缺數量」語意）
 
     Returns:
-        數量整數（含 0）；無數字時預設 1
+        數量整數（含顯式 0）；無數字時回 default
     """
     # 阿拉伯數字優先（B16：顯式 0 回 0，不 fallback）
     arabic_matches = re.findall(r"\d+", text)
@@ -354,6 +360,6 @@ def parse_quantity(text: str) -> int:
         if char in text:
             return value
 
-    # 預設
-    return 1
+    # 皆未命中 → default
+    return default
 
