@@ -45,6 +45,7 @@ from myProgram.sales.constants import (
     ACTION_L4_PAY,
     CANCEL_DECLINED_NOTICE,
 )
+from myProgram.sales.dialog_io import DialogIO
 from myProgram.sales.nlu import classify_intent
 from myProgram.sales import cart as cart_module
 from myProgram.sales.states._cancel_confirm import cancel_confirm
@@ -98,16 +99,24 @@ def run_l4(
         (next_state, 0, 0) — 兩個 0 占位，保留 3-tuple shape 與 logic.py 相容；
         next_state ∈ {"L1_via_subroutine_a", "L5"}
     """
+    # W2：facade 第一步建 io 束（全欄注入）；opencv_disable 不入 io（只在 facade 進場用一次）
+    io = DialogIO(
+        speak=speak,
+        read_customer_input=read_customer_input,
+        print_terminal=print_terminal,
+        do_action=do_action,
+        speak_and_wait=speak_and_wait,
+    )
+
     # 進入 L4 → OpenCV 不需要（顧客已在掃碼），明示關閉（防呆）
     opencv_disable()
 
     # 進入時動作：計算總額、印明細（= 第 1 個循環刷新的視覺面）、speak 總額語音
     total = cart_module.calc_total(cart)
-    _l4_print_entry_detail(cart, total, print_terminal)
+    _l4_print_entry_detail(cart, total, io)
     # v2 起：speak_and_wait 進場 prompt 後算 deadline — 顧客拿到完整 budget，
     # 而非「budget 減 entry prompt 播放時間」
-    _speak_blocking = speak_and_wait if speak_and_wait is not None else speak
-    _speak_blocking(L4_ENTRY_PROMPT_TEMPLATE.format(total=total))
+    io.speak_blocking(L4_ENTRY_PROMPT_TEMPLATE.format(total=total))
 
     # v3 雙計時器：兩個獨立 wall-clock deadline，從 entry prompt 播完起算
     now = time.monotonic()
@@ -122,19 +131,19 @@ def run_l4(
 
         # 1. budget 耗盡 → forced exit（優先於循環刷新，避免在 budget 已耗盡時還刷一輪）
         if budget_remaining <= 0:
-            return _l4_exit_to_l1(speak, cart, L4_D_FORCED_EXIT)
+            return _l4_exit_to_l1(io, cart, L4_D_FORCED_EXIT)
 
         # 2. 循環到期 → 重印 + 重 speak L4_REMIND_PROMPT → 起下一個循環
         #    （不影響 budget_deadline；模擬「QR 每 12s 重新生成」UX）
         if cycle_remaining <= 0:
-            _l4_print_entry_detail(cart, total, print_terminal)
-            speak(L4_REMIND_PROMPT)
+            _l4_print_entry_detail(cart, total, io)
+            io.speak(L4_REMIND_PROMPT)
             cycle_deadline = time.monotonic() + L4_QR_REFRESH_INTERVAL
             continue
 
         # 3. read 顧客回應，timeout 取兩個 deadline 較小者
         #    （避免 read 超過 budget 或超過下個循環邊界）
-        response = read_customer_input(timeout=min(cycle_remaining, budget_remaining))
+        response = io.read_customer_input(timeout=min(cycle_remaining, budget_remaining))
 
         if response is None:
             # silent → 直接 continue（下次 iteration 由 cycle_deadline 判斷是否該刷新）
@@ -145,20 +154,16 @@ def run_l4(
         # 4. 有回應 → dispatch（含 cancel_confirm / service_confirm 暫停補償）
         result, pause_duration = _l4_dispatch_response(
             response=response,
-            speak=speak,
-            print_terminal=print_terminal,
-            read_customer_input=read_customer_input,
+            io=io,
             cart=cart,
-            do_action=do_action,
-            speak_and_wait=speak_and_wait,
         )
         if isinstance(result, tuple):
             return result
         if result == "reset":
             # 客服 yes「繼續」→ 重印明細 + 重 speak entry prompt + reset 兩計時器（fresh start）
             # 對齊 v2 既有「客服繼續 fresh 30s」行為（spec §2.4：reset 而非補償）
-            _l4_print_entry_detail(cart, total, print_terminal)
-            speak(L4_ENTRY_PROMPT_TEMPLATE.format(total=total))
+            _l4_print_entry_detail(cart, total, io)
+            io.speak(L4_ENTRY_PROMPT_TEMPLATE.format(total=total))
             now = time.monotonic()
             budget_deadline = now + L4_TOTAL_BUDGET
             cycle_deadline = now + L4_QR_REFRESH_INTERVAL
@@ -172,7 +177,7 @@ def run_l4(
         continue
 
 
-def _l4_print_entry_detail(cart, total: int, print_terminal) -> None:
+def _l4_print_entry_detail(cart, total: int, io) -> None:
     """印 L4 進入時的金額明細（2026-05-25 加九折計算公式明示）。
 
     格式：
@@ -186,6 +191,11 @@ def _l4_print_entry_detail(cart, total: int, print_terminal) -> None:
         ====================================
 
     Why 寫出 *0.9 公式：使用者要求顯示完整計算，避免被誤認為算錯。
+
+    Args:
+        cart: 購物車 dict
+        total: 訂單總額
+        io: DialogIO callback 束
     """
     lines = [
         "====================================",
@@ -208,29 +218,26 @@ def _l4_print_entry_detail(cart, total: int, print_terminal) -> None:
     # C21 (2026-05-26 Wave 7a)：QR mock 提示抽常數；未來真 QR 接入時只動一處
     lines.append(L4_QR_MOCK_HINT)
     lines.append("====================================")
-    print_terminal("\n".join(lines))
+    io.print_terminal("\n".join(lines))
 
 
-def _l4_exit_to_l1(speak, cart, notice: str) -> tuple:
+def _l4_exit_to_l1(io, cart, notice: str) -> tuple:
     """speak 退場語音、清空 cart，返回 L1（子例程 A）。
 
     W1 oop_w1：合併原 _l4_exit_b（鏈路 B 拒絕）/ _l4_exit_d_forced（budget 耗盡）
     — 兩者只差退場文案，以 notice 參數區分。
+
+    Args:
+        io: DialogIO callback 束
+        cart: 購物車 dict
+        notice: 退場語音文案
     """
-    speak(notice)
+    io.speak(notice)
     cart_module.clear_cart(cart)
     return ("L1_via_subroutine_a", 0, 0)
 
 
-def _l4_dispatch_response(
-    response: str,
-    speak,
-    print_terminal,
-    read_customer_input,
-    cart,
-    do_action,
-    speak_and_wait=None,
-) -> tuple:
+def _l4_dispatch_response(response: str, io, cart) -> tuple:
     """L4 判定優先序 dispatcher（v3 雙計時器設計）。
 
     判定優先序：
@@ -244,6 +251,11 @@ def _l4_dispatch_response(
             scan → 進 L5（鏈路 A）
         5. 其他（想一下 / 結帳 / 商品 / 無法判斷）→ speak L4_UNCLEAR_NOTICE，無 pause
 
+    Args:
+        response: 顧客回應字串
+        io: DialogIO callback 束
+        cart: 購物車 dict
+
     Returns:
         (tuple, pause_duration) → 已決定（退出 L4）；caller 直接 return
         ("reset", 0.0) → 客服 yes「繼續」→ caller 重置兩計時器（不用 pause_duration）
@@ -252,40 +264,33 @@ def _l4_dispatch_response(
     """
     # 優先序 1：終端 s → 鏈路 A（S3：speak 付款成功語音後跑鞠躬動作）
     if response == "s":
-        speak(L4_A_PAY_SUCCESS)
-        do_action(ACTION_L4_PAY)
+        io.speak(L4_A_PAY_SUCCESS)
+        io.do_action(ACTION_L4_PAY)
         return (("L5", 0, 0), 0.0)
 
     intent = classify_intent(response, "l4")
 
     # 優先序 2：等待安撫 → 溫和回應，無 pause
     if intent == "等待安撫":
-        speak(L4_ACK_GENTLE)
+        io.speak(L4_ACK_GENTLE)
         return ("ack", 0.0)
 
     # 優先序 3：拒絕 → cancel_confirm gate（量測耗時補償兩計時器）
     if intent == "拒絕":
         paused_at = time.monotonic()
-        cancelled = cancel_confirm(speak, read_customer_input, speak_and_wait=speak_and_wait)
+        cancelled = cancel_confirm(io.speak, io.read_customer_input, speak_and_wait=io.speak_and_wait)
         pause_duration = time.monotonic() - paused_at
         if cancelled:
             # YES → 退 L1（無需補償，已退出 L4）
-            return (_l4_exit_to_l1(speak, cart, L4_B_CANCEL_THANKS), 0.0)
+            return (_l4_exit_to_l1(io, cart, L4_B_CANCEL_THANKS), 0.0)
         # NO → 繼續交易，補償子狀態凍結時間
-        speak(CANCEL_DECLINED_NOTICE)
+        io.speak(CANCEL_DECLINED_NOTICE)
         return ("ack", pause_duration)
 
     # 優先序 4：客服 → service_confirm（24s 獨立 budget）
     if intent == "客服":
         paused_at = time.monotonic()
-        result = _l4_service_mode(
-            speak=speak,
-            print_terminal=print_terminal,
-            read_customer_input=read_customer_input,
-            cart=cart,
-            do_action=do_action,
-            speak_and_wait=speak_and_wait,
-        )
+        result = _l4_service_mode(io=io, cart=cart)
         pause_duration = time.monotonic() - paused_at
         if isinstance(result, tuple):
             # service_mode 已決定退出（scan → L5 / no → L1），無需補償
@@ -295,18 +300,11 @@ def _l4_dispatch_response(
         return ("reset", 0.0)
 
     # 優先序 5：想一下 / 結帳 / 商品 / 無法判斷 → 印 unclear notice，無 pause
-    speak(L4_UNCLEAR_NOTICE)
+    io.speak(L4_UNCLEAR_NOTICE)
     return ("ack", 0.0)
 
 
-def _l4_service_mode(
-    speak,
-    print_terminal,
-    read_customer_input,
-    cart,
-    do_action,
-    speak_and_wait=None,
-) -> tuple | None:
+def _l4_service_mode(io, cart) -> tuple | None:
     """L4 鏈路 C 客服模式（抽 _service_confirm helper）。
 
     使用共用 helper `service_confirm`（allow_scan=True 啟用終端 "s" fast path）；
@@ -323,22 +321,26 @@ def _l4_service_mode(
         - "scan" → speak L4_A_PAY_SUCCESS + do_action(ACTION_L4_PAY) + 進 L5（鏈路 A）
         - "no" → 清 cart 退 L1
 
+    Args:
+        io: DialogIO callback 束
+        cart: 購物車 dict
+
     Returns:
         tuple → 已決定（退 L1 / 進 L5）
         None  → 顧客選 YES「繼續」→ 回主迴圈（caller reset 兩計時器）
     """
     result = service_confirm(
-        speak=speak,
-        print_terminal=print_terminal,
-        read_customer_input=read_customer_input,
-        speak_and_wait=speak_and_wait,
+        speak=io.speak,
+        print_terminal=io.print_terminal,
+        read_customer_input=io.read_customer_input,
+        speak_and_wait=io.speak_and_wait,
         allow_scan=True,
     )
     if result == "yes":
         return None
     if result == "scan":
-        speak(L4_A_PAY_SUCCESS)
-        do_action(ACTION_L4_PAY)
+        io.speak(L4_A_PAY_SUCCESS)
+        io.do_action(ACTION_L4_PAY)
         return ("L5", 0, 0)
     # result == "no" → 清 cart 退 L1
     cart_module.clear_cart(cart)
