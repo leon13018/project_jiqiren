@@ -11,6 +11,14 @@ cart 狀態決定模式：
 cart 狀態每輪 main loop 迭代都重新判定 — 未來加「刪除商品」功能時若 cart 變空，
 下一輪自然回到 L2 模式詢問需求（不需額外 transition 邏輯）。
 
+W4（oop_w4）統一對話分派：
+    - ModePolicy（Strategy，ABC + L2_POLICY / L3_POLICY 兩單例）集中 L2/L3 模式差異
+      （資料欄位 = class attrs；行為差異 = 5 個 hook：on_timeout / on_think_exhausted /
+       on_checkout_main / on_checkout_inner / on_unclear_exhausted）。
+    - DialogSession 持 io + cart + 計數器（think_count / unclear_count），對話主迴圈
+      與沉默期分派全為其方法；計數器歸 session → 消滅原 tuple|int|None 回傳型手動穿線。
+    - mode 每輪由 session.policy() 依 cart 即時推導、不快取（世界狀態驅動核心）。
+
 callback 集合（W2 oop_w2：束成 DialogIO io 物件，私有函式收 io 單參）：
     speak / print_terminal / read_customer_input / do_action / speak_and_wait
 （do_action 2026-05-27 S3 restore — entry 觸發 ACTION_L2/L3；
@@ -101,7 +109,7 @@ def run_dialog(
 
     speak_and_wait（2026-05-30 v2 加）：同步阻塞 speak callback。為 None 時
     fallback 到 speak（向後兼容既有測試）；production wire-up 必須傳真實 callback，
-    供 wall-clock budget pattern 子函式用（_dialog_c2_second_stage / cancel_confirm
+    供 wall-clock budget pattern 子狀態用（DialogSession.c2_second_stage / cancel_confirm
     從 TTS 播完起算 deadline，不被 synth/play 時間吃掉 budget）。
 
     Args:
@@ -238,15 +246,11 @@ class L3Policy(ModePolicy):
 
     def on_timeout(self, session) -> tuple:
         # L3 模式：6s timeout → C-2 兩段自動結帳
-        return _dialog_c2_second_stage(
-            io=session.io, cart=session.cart, think_count=session.think_count
-        )
+        return session.c2_second_stage()
 
     def on_think_exhausted(self, session) -> tuple:
         # L3 B-4：第 4 次想一下 → C-2 第二段
-        return _dialog_c2_second_stage(
-            io=session.io, cart=session.cart, think_count=session.think_count
-        )
+        return session.c2_second_stage()
 
     def on_checkout_main(self, session):
         # L3 模式：C-1 結帳前 confirm
@@ -303,7 +307,12 @@ class DialogSession:
 
     def exit_a(self) -> tuple:
         """鏈路 A 拒絕退出：cart 空 = L2-A（無清 cart）；cart 非空 = L3-A（清 cart）。"""
-        return _dialog_exit_a(self.io, self.cart)
+        if cart_module.is_empty(self.cart):
+            self.io.speak(L2_REJECT_THANKS)
+        else:
+            self.io.speak(L3_REJECT_THANKS)
+            cart_module.clear_cart(self.cart)
+        return ("L1_via_subroutine_a", 0)
 
     def _reenter_speak(self, control) -> None:
         """invalid-qty 子追問 timeout/cancel 後的 re-prompt：prefix + 當前 cart entry。
@@ -567,126 +576,98 @@ class DialogSession:
                 continue
             self.io.speak(policy.clarify)
 
+    def c2_second_stage(self) -> tuple:
+        """L3 C-2 第二段：三選一子狀態（2026-05-28 重構：二元 yes/no → 繼續/結帳/取消）。
 
-def _dialog_exit_a(io, cart) -> tuple:
-    """鏈路 A 拒絕退出：cart 空 = L2-A（無清 cart）；cart 非空 = L3-A（清 cart）。
+        設計：
+        - speak C-2 三選一警告（L3_C2_WARNING_TEMPLATE）+ wall-clock budget C2_DECISION_TIMEOUT (6s)
+        - 期間 read_customer_input，**亂答忽略不重置計時** — remaining 不斷縮短
+        - Three-way dispatcher（CANCEL 優先：顧客錢包 conservative）：
+            - CANCEL（KEYWORDS_C2_CANCEL + strict-short ["取消"]）→ exit_a：
+              清 cart + speak L3_REJECT_THANKS + return ("L1_via_subroutine_a", 0)
+            - CONTINUE（KEYWORDS_C2_CONTINUE + strict-short ["繼續"]）→ speak L3_C2_CONTINUE_ACK + main_loop：
+              不清 cart，重入 dialog 主迴圈讓顧客繼續加單（ack 維持對話上下文，
+              2026-05-30 加：main loop 不重播 entry prompt，無 ack 顧客失去語音回饋 → 沉默 → 又被 DYC_TIMEOUT 抓回 C-2）
+            - CHECKOUT（KEYWORDS_C2_CHECKOUT + strict-short ["結"]）→ _c2_checkout_via_confirm：
+              經 _dialog_checkout_confirm 確認明細 → "yes" 進 L4；非 yes 清 cart + 重入
+        - 亂答（不在三組 keyword）→ silent 倒數（第一次提示「請說『繼續』、『結賬』或『取消』」，後續 silent）
+        - 倒數歸零 / response is None（silent customer）→ _c2_checkout_via_confirm：進 confirm 子狀態
+          （2026-05-29 反轉：silent timeout 不再直接 L4，與 CHECKOUT keyword path 合流經 confirm）
 
-    Args:
-        io: DialogIO callback 束
-        cart: 購物車 dict
-    """
-    if cart_module.is_empty(cart):
-        io.speak(L2_REJECT_THANKS)
-    else:
-        io.speak(L3_REJECT_THANKS)
-        cart_module.clear_cart(cart)
-    return ("L1_via_subroutine_a", 0)
+        解 Pi demo 2026-05-28 UX bug：舊版「結帳（是）/ 想想（不要）」二元，顧客「不要」歧義
+        （「不要結帳」vs「不要整單」）被當成「拒絕整單」清 cart。新三選一語意明確、無歧義。
 
+        Timeout 行為（2026-05-29 反轉）：
+            silent / 倒數歸零 → 經 _c2_checkout_via_confirm（confirm yes 進 L4；非 yes 清 cart + 重入 dialog）
+            CHECKOUT keyword → 經 _c2_checkout_via_confirm（兩條 path 完全合流）
 
-def _dialog_c2_second_stage(io, cart, think_count: int) -> tuple:
-    """L3 C-2 第二段：三選一子狀態（2026-05-28 重構：二元 yes/no → 繼續/結帳/取消）。
+        字面 promise 寬鬆解讀：新文案「{seconds} 秒後自動結賬」中「自動結賬」可解為
+        「自動啟動結賬流程」（含 confirm 子狀態），不嚴格等於「跳過所有確認直接扣款」。
+        """
+        # 2026-05-30 v2：speak_and_wait warning 後算 deadline — 顧客拿到完整
+        # C2_DECISION_TIMEOUT 秒 budget，而非「budget 減 warning 播放時間」
+        self.io.speak_blocking(L3_C2_WARNING_TEMPLATE.format(seconds=C2_DECISION_TIMEOUT))
 
-    設計：
-    - speak C-2 三選一警告（L3_C2_WARNING_TEMPLATE）+ wall-clock budget C2_DECISION_TIMEOUT (6s)
-    - 期間 read_customer_input，**亂答忽略不重置計時** — remaining 不斷縮短
-    - Three-way dispatcher（CANCEL 優先：顧客錢包 conservative）：
-        - CANCEL（KEYWORDS_C2_CANCEL + strict-short ["取消"]）→ _dialog_exit_a：
-          清 cart + speak L3_REJECT_THANKS + return ("L1_via_subroutine_a", 0)
-        - CONTINUE（KEYWORDS_C2_CONTINUE + strict-short ["繼續"]）→ speak L3_C2_CONTINUE_ACK + DialogSession.main_loop：
-          不清 cart，重入 dialog 主迴圈讓顧客繼續加單（ack 維持對話上下文，
-          2026-05-30 加：main loop 不重播 entry prompt，無 ack 顧客失去語音回饋 → 沉默 → 又被 DYC_TIMEOUT 抓回 C-2）
-        - CHECKOUT（KEYWORDS_C2_CHECKOUT + strict-short ["結"]）→ _c2_checkout_via_confirm：
-          經 _dialog_checkout_confirm 確認明細 → "yes" 進 L4；非 yes 清 cart + 重入
-    - 亂答（不在三組 keyword）→ silent 倒數（第一次提示「請說『繼續』、『結賬』或『取消』」，後續 silent）
-    - 倒數歸零 / response is None（silent customer）→ _c2_checkout_via_confirm：進 confirm 子狀態
-      （2026-05-29 反轉：silent timeout 不再直接 L4，與 CHECKOUT keyword path 合流經 confirm）
+        deadline = time.monotonic() + C2_DECISION_TIMEOUT
+        prompted_once = False  # 第一次亂答才 speak 提示，後續 silent（不重置 deadline）
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                # 倒數歸零（亂答耗盡 budget）→ 進 confirm（與 CHECKOUT keyword path 合流）
+                return self._c2_checkout_via_confirm()
 
-    解 Pi demo 2026-05-28 UX bug：舊版「結帳（是）/ 想想（不要）」二元，顧客「不要」歧義
-    （「不要結帳」vs「不要整單」）被當成「拒絕整單」清 cart。新三選一語意明確、無歧義。
+            response = self.io.read_customer_input(timeout=remaining)
+            if response is None:
+                # read 直接 timeout（顧客全程沒回應）→ 進 confirm（與 CHECKOUT keyword path 合流）
+                return self._c2_checkout_via_confirm()
 
-    Timeout 行為（2026-05-29 反轉）：
-        silent / 倒數歸零 → 經 _c2_checkout_via_confirm（confirm yes 進 L4；非 yes 清 cart + 重入 dialog）
-        CHECKOUT keyword → 經 _c2_checkout_via_confirm（兩條 path 完全合流）
+            # 三選一 dispatcher（2026-05-28 重構：CANCEL 優先，顧客錢包 conservative）
+            # CANCEL：清 cart + 退 L1（reuse exit_a：speak L3_REJECT_THANKS + clear cart）
+            if KG_C2_CANCEL.matches(response):
+                return self.exit_a()
 
-    字面 promise 寬鬆解讀：新文案「{seconds} 秒後自動結賬」中「自動結賬」可解為
-    「自動啟動結賬流程」（含 confirm 子狀態），不嚴格等於「跳過所有確認直接扣款」。
+            # CONTINUE：speak ack 後不清 cart，重入 dialog 主迴圈（顧客繼續加單）
+            # 2026-05-30 加 ack speak：main loop 不重播 entry prompt，若直接 return
+            # 顧客失去對話上下文 → 沉默 → 又被 DYC_TIMEOUT 抓回 C-2（Pi demo 實測 bug）
+            if KG_C2_CONTINUE.matches(response):
+                self.io.speak(L3_C2_CONTINUE_ACK)
+                return self.main_loop()
 
-    Args:
-        io: DialogIO callback 束
-        cart: 購物車 dict
-        think_count: 想一下次數
-    """
-    # 2026-05-30 v2：speak_and_wait warning 後算 deadline — 顧客拿到完整
-    # C2_DECISION_TIMEOUT 秒 budget，而非「budget 減 warning 播放時間」
-    io.speak_blocking(L3_C2_WARNING_TEMPLATE.format(seconds=C2_DECISION_TIMEOUT))
+            # CHECKOUT：顧客主動講結帳 → 經 _dialog_checkout_confirm 確認明細
+            # （2026-05-29 反轉：timeout path 也合流到此函數，兩條 path 完全一致）
+            if KG_C2_CHECKOUT.matches(response):
+                return self._c2_checkout_via_confirm()
 
-    deadline = time.monotonic() + C2_DECISION_TIMEOUT
-    prompted_once = False  # 第一次亂答才 speak 提示，後續 silent（不重置 deadline）
-    while True:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            # 倒數歸零（亂答耗盡 budget）→ 進 confirm（與 CHECKOUT keyword path 合流）
-            return _c2_checkout_via_confirm(io=io, cart=cart, think_count=think_count)
+            # 其他（不在三組 keyword 內）— 視為亂答
+            # 第一次亂答 speak 一次提示，後續 silent；不重置 deadline
+            if not prompted_once:
+                self.io.speak(L3_C2_GIBBERISH_HINT)
+                prompted_once = True
+            continue
 
-        response = io.read_customer_input(timeout=remaining)
-        if response is None:
-            # read 直接 timeout（顧客全程沒回應）→ 進 confirm（與 CHECKOUT keyword path 合流）
-            return _c2_checkout_via_confirm(io=io, cart=cart, think_count=think_count)
+    def _c2_checkout_via_confirm(self) -> tuple:
+        """C-2 結賬 path（合流：CHECKOUT keyword + silent timeout 都走這裡）。
 
-        # 三選一 dispatcher（2026-05-28 重構：CANCEL 優先，顧客錢包 conservative）
-        # CANCEL：清 cart + 退 L1（reuse _dialog_exit_a：speak L3_REJECT_THANKS + clear cart）
-        if KG_C2_CANCEL.matches(response):
-            return _dialog_exit_a(io, cart)
+        經 _dialog_checkout_confirm 確認明細 → "yes" 進 L4；非 yes 清 cart + 重入 dialog 主迴圈。
 
-        # CONTINUE：speak ack 後不清 cart，重入 dialog 主迴圈（顧客繼續加單）
-        # 2026-05-30 加 ack speak：main loop 不重播 entry prompt，若直接 return
-        # 顧客失去對話上下文 → 沉默 → 又被 DYC_TIMEOUT 抓回 C-2（Pi demo 實測 bug）
-        if KG_C2_CONTINUE.matches(response):
-            io.speak(L3_C2_CONTINUE_ACK)
-            return DialogSession(io, cart, think_count).main_loop()
+        對齊既有 L3 C-1 結帳 path（_dispatch_inner / checkout_flow 結帳分支）— 共用 confirm 子狀態。
 
-        # CHECKOUT：顧客主動講結帳 → 經 _dialog_checkout_confirm 確認明細
-        # （2026-05-29 反轉：timeout path 也合流到此函數，兩條 path 完全一致）
-        if KG_C2_CHECKOUT.matches(response):
-            return _c2_checkout_via_confirm(io=io, cart=cart, think_count=think_count)
-
-        # 其他（不在三組 keyword 內）— 視為亂答
-        # 第一次亂答 speak 一次提示，後續 silent；不重置 deadline
-        if not prompted_once:
-            io.speak(L3_C2_GIBBERISH_HINT)
-            prompted_once = True
-        continue
-
-
-def _c2_checkout_via_confirm(io, cart, think_count: int) -> tuple:
-    """C-2 結賬 path（合流：CHECKOUT keyword + silent timeout 都走這裡）。
-
-    經 _dialog_checkout_confirm 確認明細 → "yes" 進 L4；非 yes 清 cart + 重入 dialog 主迴圈。
-
-    對齊既有 L3 C-1 結帳 path（DialogSession._dispatch_inner / DialogSession.checkout_flow 結帳分支）
-    — 共用 confirm 子狀態。
-
-    2026-05-29 反轉：silent timeout 不再走 _c2_direct_checkout 直接 L4,
-    合流到此函數經 confirm（與 CHECKOUT keyword path 完全一致）。新文案
-    「{seconds} 秒後自動結賬」字面 promise 寬鬆解讀為「自動啟動結賬流程」
-    （含 confirm 子狀態保護顧客錢包）。
-
-    Args:
-        io: DialogIO callback 束
-        cart: 購物車 dict
-        think_count: 想一下次數
-    """
-    result = _dialog_checkout_confirm(io=io, cart=cart)
-    if result == "yes":
-        io.speak(L3_C1_CHECKOUT_GO)
-        io.do_action(ACTION_L3_CHECKOUT_GO)
-        return ("L4", 0)
-    if result == "cancel_to_l1":
-        # 2026-05-30 加：cancel_confirm YES → 直退 L1（不重入 main loop）
-        return _dialog_exit_a(io, cart)
-    # 非 yes → 清 cart + speak 通知 + 重入 dialog 主迴圈
-    _handle_checkout_confirm_result(result, cart, io)
-    return DialogSession(io, cart, think_count).main_loop()
+        2026-05-29 反轉：silent timeout 不再走 _c2_direct_checkout 直接 L4,
+        合流到此函數經 confirm（與 CHECKOUT keyword path 完全一致）。新文案
+        「{seconds} 秒後自動結賬」字面 promise 寬鬆解讀為「自動啟動結賬流程」
+        （含 confirm 子狀態保護顧客錢包）。
+        """
+        result = _dialog_checkout_confirm(io=self.io, cart=self.cart)
+        if result == "yes":
+            self.io.speak(L3_C1_CHECKOUT_GO)
+            self.io.do_action(ACTION_L3_CHECKOUT_GO)
+            return ("L4", 0)
+        if result == "cancel_to_l1":
+            # 2026-05-30 加：cancel_confirm YES → 直退 L1（不重入 main loop）
+            return self.exit_a()
+        # 非 yes → 清 cart + speak 通知 + 重入 dialog 主迴圈
+        _handle_checkout_confirm_result(result, self.cart, self.io)
+        return self.main_loop()
 
 
 def _dialog_checkout_confirm(io, cart) -> bool:
@@ -714,8 +695,8 @@ def _dialog_checkout_confirm(io, cart) -> bool:
         "no_unclear_exhausted" — 顧客亂答 CHECKOUT_CONFIRM_UNCLEAR_MAX 次達上限
         "timeout" — 顧客 CHECKOUT_CONFIRM_TIMEOUT 秒無回應
         "cancel_to_l1" — 顧客在 confirm 內講 cancel intent 且 cancel_confirm YES（2026-05-30 加）；
-                         caller 必須走 _dialog_exit_a 直退 L1，不可進 _handle_checkout_confirm_result
-                         （此路徑跳過 clear cart 通知 + L2 entry 重啟，由 _dialog_exit_a
+                         caller 必須走 exit_a 直退 L1，不可進 _handle_checkout_confirm_result
+                         （此路徑跳過 clear cart 通知 + L2 entry 重啟，由 exit_a
                           統一 speak L3_REJECT_THANKS。修 Pi demo 兩輪 YES 才退 L1 bug）
     """
     summary = _build_order_summary(cart)
@@ -732,7 +713,7 @@ def _dialog_checkout_confirm(io, cart) -> bool:
         if response == "2":
             return "no_explicit"
         # 2026-05-29 cross-L cancel：confirm 子狀態內偵測 cancel intent → 經 cancel_confirm gate
-        # YES → return "cancel_to_l1"（caller 走 _dialog_exit_a 直退 L1）
+        # YES → return "cancel_to_l1"（caller 走 exit_a 直退 L1）
         # NO → speak DECLINED 後 continue（不計入 unclear_count，這是顧客明確意圖溝通）
         # 2026-05-30 改：YES 從 "no_explicit" 改為新 sentinel "cancel_to_l1"。舊 path
         # 經 _handle_checkout_confirm_result clear cart + speak L3_CHECKOUT_REJECT_CLEAR_NOTICE
@@ -778,10 +759,10 @@ def _handle_checkout_confirm_result(result: str, cart, io) -> None:
         io.speak(L3_CHECKOUT_REJECT_CLEAR_NOTICE)
     elif result == "cancel_to_l1":
         # 2026-05-30 加：防呆 assertion。caller 必須在傳入此 helper 前識別
-        # "cancel_to_l1" 並走 _dialog_exit_a 直退 L1，不該走到這裡（會誤
+        # "cancel_to_l1" 並走 exit_a 直退 L1，不該走到這裡（會誤
         # speak clear-cart 通知 + L2 entry → 兩輪拒絕 bug 重現）。
         raise AssertionError(
-            "cancel_to_l1 應由 caller 直接走 _dialog_exit_a，"
+            "cancel_to_l1 應由 caller 直接走 exit_a，"
             "不該傳入 _handle_checkout_confirm_result（會誤 speak clear-cart 通知）"
         )
     else:
@@ -807,9 +788,9 @@ def _dialog_unclear_final_confirmation(io, cart) -> tuple | None:
     while True:
         response = io.read_customer_input(timeout=WAIT_NO_RESPONSE)
         if response is None:
-            return _dialog_exit_a(io, cart)
+            return DialogSession(io, cart).exit_a()
         if response == "1":
-            return _dialog_exit_a(io, cart)
+            return DialogSession(io, cart).exit_a()
         if response == "2":
             return None
         intent = classify_intent(response, "l4_service")
@@ -817,7 +798,7 @@ def _dialog_unclear_final_confirmation(io, cart) -> tuple | None:
             # 2026-05-29 cross-L cancel：unclear final 內語音退出 intent → 先過 cancel_confirm gate
             # （終端 "1" / silent timeout / unclear exhausted 仍直接退，不 gate — 那些是介面操作非 cancel intent）
             if CANCEL_CONFIRM.run(io):
-                return _dialog_exit_a(io, cart)
+                return DialogSession(io, cart).exit_a()
             # NO → speak DECLINED + 重 prompt unclear final + continue（不計 unclear_count）
             io.speak(CANCEL_DECLINED_NOTICE)
             io.speak(L3_UNCLEAR_FINAL_PROMPT)
@@ -826,7 +807,7 @@ def _dialog_unclear_final_confirmation(io, cart) -> tuple | None:
             return None
         unclear_count += 1
         if unclear_count >= UNCLEAR_MAX:
-            return _dialog_exit_a(io, cart)
+            return DialogSession(io, cart).exit_a()
         io.speak(L3_UNCLEAR_FINAL_PROMPT)
 
 

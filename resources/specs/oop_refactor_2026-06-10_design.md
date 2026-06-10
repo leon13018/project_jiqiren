@@ -110,26 +110,34 @@ class TimedConfirm(ABC):
 
 ```python
 class ModePolicy(ABC):
-    """L2/L3 差異點全集中（Strategy）。"""
-    nlu_mode: str        # "l2" / "normal"
+    """L2/L3 差異點全集中（Strategy）。資料欄 = class attrs；行為差異 = 5 hook。"""
+    nlu_mode: str                  # "l2" / "normal"
+    read_timeout: float            # DNC / DYC
     entry_prompt: str
-    clarify: str         # B-1 文案
-    reask: str           # 沉默重問文案
-    think_limit: int     # L2=3 / L3=4
+    clarify: str                   # B-1 文案
+    reask: str                     # 沉默重問 / 商品全 skip 重問文案
+    cancel_declined_resume: str    # cancel_confirm NO 後合成 voice
+    think_limit: int               # L2=3 / L3=4
+    service_yes_prompt: str        # service_confirm YES 後重啟文案
+    silence_think_writeback: bool  # 沉默鏈 think 增量是否回寫主迴圈（L2 False / L3 True；quirk Q1）
+    @abstractmethod
+    def on_timeout(self, session): ...           # L2 hawk voice 退 L1 / L3 進 C-2
     @abstractmethod
     def on_think_exhausted(self, session): ...   # L2 退場 / L3 進 C-2
     @abstractmethod
-    def on_checkout_intent(self, session): ...   # L2 當 unclear / L3 進 C-1 confirm
+    def on_checkout_main(self, session): ...     # 主迴圈語境（碰 unclear）
+    @abstractmethod
+    def on_checkout_inner(self, session): ...    # 沉默期語境（不碰 unclear；quirk Q2）
     @abstractmethod
     def on_unclear_exhausted(self, session): ... # L2 退場 / L3 最終確認子狀態
 
 class DialogSession:
-    """持 io + cart + 計數器；統一意圖分派迴圈（取代三胞胎）。"""
+    """持 io + cart + 計數器（think_count / unclear_count）；統一意圖分派迴圈（取代三胞胎）。"""
     def policy(self) -> ModePolicy:
         return L2_POLICY if cart_module.is_empty(self.cart) else L3_POLICY
 ```
 
-**policy 每輪迴圈從 cart 即時推導、不存放**——保住「世界狀態驅動、非動作歷史驅動」核心決定。統一 dispatch 優先序（拒絕→想一下→結帳→客服→想買無商品→商品→unclear）只寫一次，差異下放 policy。
+**policy 每輪迴圈從 cart 即時推導、不存放**——保住「世界狀態驅動、非動作歷史驅動」核心決定。統一 dispatch 優先序（拒絕→想一下→結帳→客服→想買無商品→商品→unclear）只寫一次，差異下放 policy。checkout 拆成 `on_checkout_main` / `on_checkout_inner` 兩 hook——保留沉默期語境不碰 unclear 的既有不對稱（主迴圈 L2 結帳 unclear++，inner L2 結帳不動）。
 
 ### 4-5. State / SalesMachine（W5，新檔 `sales/states/machine.py`）
 
