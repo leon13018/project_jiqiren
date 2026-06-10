@@ -8,7 +8,7 @@
 - `.claude/` — 本層 CC 配置（`code_map.md` 本檔）。
 
 ## 檔案
-- `logic.py` — 主控狀態機：驅動 L0–L5 流程、調度各 state、串接 NLU / 購物車 / callback。
+- `logic.py` — `run` facade：組 callbacks + 建 `SalesMachine`（主迴圈本體在 `states/machine.py`，OOP 重構 W5）。
 - `nlu.py` — 意圖辨識（規則匹配，純函式；比對原語自 `keyword_group.py` re-export）。
 - `keyword_group.py` — `KeywordGroup` 雙集封裝（substring + strict-short）+ 比對原語 `contains_any` / `equals_strict_short` 本體（OOP 重構 W1）。
 - `dialog_io.py` — `DialogIO` callback 束（speak / read / print / act + `speak_blocking`；states 私有函式統一收 io 單參，OOP 重構 W2）。
