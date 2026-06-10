@@ -65,17 +65,19 @@ class KeywordGroup:
 ### 4-2. DialogIO（W2，新檔 `sales/dialog_io.py`）
 
 ```python
-@dataclass
+@dataclass(frozen=True)
 class DialogIO:
     """對話層 IO callback 束。只裝 IO，不裝業務狀態（cart / 計數器仍獨立傳）。"""
     speak: Callable
     read_customer_input: Callable
-    print_terminal: Callable
-    do_action: Callable
+    print_terminal: Callable = None   # 部分注入：confirm 類子狀態僅持有部分 callback
+    do_action: Callable = None        # （如 cancel_confirm 無 print_terminal），缺欄位者不得使用
     speak_and_wait: Callable = None   # production 必傳；None fallback 給測試
     def speak_blocking(self, text: str):
-        (self.speak_and_wait or self.speak)(text)
+        (self.speak_and_wait if self.speak_and_wait is not None else self.speak)(text)
 ```
+
+> W2 修正：`print_terminal` / `do_action` 加 `= None` 預設（部分注入需求，理由如上註解）；`speak_blocking` 用 `is not None` 判斷（保留 8 處 fallback 三元式語意一字不差，非 truthiness）。
 
 公開 `run_*` 簽名不變，facade 內建 `DialogIO`；私有函式收 `io` 一參取代 5-6 個 callback 參數。**cart 與計數器不進 IO**（避免 God Object）。
 
