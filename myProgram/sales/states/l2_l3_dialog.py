@@ -17,7 +17,7 @@ callback 集合（W2 oop_w2：束成 DialogIO io 物件，私有函式收 io 單
  2026-05-27 修：cart empty → non-empty transition 也要觸發 ACTION_L3
  — Pi 實機驗證發現「L2 加單成功進 L3」只有 entry 觸發點不夠，因為 dispatcher
  不重新進入 run_dialog 直接 speak L3_ENTRY_PROMPT；修補：兩處 transition 點補上
- do_action(ACTION_L3) — _dialog_dispatch_inner_l2 added 後 / _dialog_main_loop
+ do_action(ACTION_L3) — DialogSession._dispatch_inner added 後 / DialogSession.main_loop
  was_empty 分支。L3 內後續加單仍不重跑動作 — 符合「每層只 entry 一次」精神）
 
 Return shape：(next_state, next_think_count)
@@ -26,6 +26,7 @@ Return shape：(next_state, next_think_count)
 """
 
 import time
+from abc import ABC, abstractmethod
 
 from myProgram.sales.constants import (
     WAIT_NO_RESPONSE,
@@ -115,7 +116,7 @@ def run_dialog(
         do_action: callback(name: str) — 同步阻塞跑廠商動作組（S3 加，2026-05-27；
             同日修：cart empty→non-empty transition 也觸發 ACTION_L3）。
             觸發點：(1) entry — cart 空 → ACTION_L2；cart 非空 → ACTION_L3；
-            (2) L2→L3 transition — _dialog_dispatch_inner_l2 / _dialog_main_loop
+            (2) L2→L3 transition — DialogSession._dispatch_inner / DialogSession.main_loop
             內顧客加單使 cart 從空變非空時 → ACTION_L3。
             L3 內後續加單不跑動作（避免每次加單都動，servo 過熱風險）。
 
@@ -143,7 +144,428 @@ def run_dialog(
     # Entry prompt 按 cart 狀態決定
     io.speak(L2_ENTRY_PROMPT if cart_module.is_empty(cart) else L3_ENTRY_PROMPT)
 
-    return _dialog_main_loop(io=io, cart=cart, think_count=think_count)
+    return DialogSession(io, cart, think_count).main_loop()
+
+
+# ============================================================
+# W4：ModePolicy（Strategy）— L2/L3 模式差異集中點
+# 資料欄位 = class attrs（import 時捕值）；行為差異 = hook 方法。
+# 兩單例 L2_POLICY / L3_POLICY 無可變狀態；session.policy() 每輪由 cart 推導。
+# ============================================================
+
+
+class ModePolicy(ABC):
+    """L2/L3 模式差異集中點（Strategy）。資料欄位 = 子類別 class attrs；行為差異 = hook。"""
+
+    nlu_mode: str                  # classify_intent / resolve 的 mode
+    read_timeout: float            # 主迴圈 read timeout
+    entry_prompt: str
+    clarify: str                   # B-1 文案
+    reask: str                     # 沉默重問 / 商品全 skip 重問文案
+    cancel_declined_resume: str    # cancel_confirm NO 後合成 voice
+    think_limit: int
+    service_yes_prompt: str        # service_confirm YES 後重啟文案
+    silence_think_writeback: bool  # 沉默鏈 think 增量是否回寫主迴圈（quirk Q1）
+
+    @abstractmethod
+    def on_timeout(self, session) -> tuple: ...
+    @abstractmethod
+    def on_think_exhausted(self, session) -> tuple: ...
+    @abstractmethod
+    def on_checkout_main(self, session): ...     # 主迴圈語境（碰 unclear）
+    @abstractmethod
+    def on_checkout_inner(self, session): ...    # 沉默期語境（不碰 unclear；quirk Q2）
+    @abstractmethod
+    def on_unclear_exhausted(self, session): ...
+
+
+class L2Policy(ModePolicy):
+    """cart 空模式：未加單、問需求；timeout = 鏈路 A 拒絕退；結帳意圖視為 B-1 無法判斷。"""
+
+    nlu_mode = "l2"
+    read_timeout = DNC_TIMEOUT
+    entry_prompt = L2_ENTRY_PROMPT
+    clarify = L2_B1_CLARIFY
+    reask = L2_B3_REASK
+    cancel_declined_resume = L2_CANCEL_DECLINED_RESUME
+    think_limit = 3
+    service_yes_prompt = L2_ENTRY_PROMPT
+    silence_think_writeback = False
+
+    def on_timeout(self, session) -> tuple:
+        # L2 模式：timeout 不算「拒絕」而是「無回應」→ 中性提示後回 L1 叫賣
+        # （speak L2_REJECT_THANKS=「謝謝光臨」會誤導旁人；保留給明確拒絕意圖用）
+        session.io.speak(L2_TIMEOUT_TO_HAWK_VOICE)
+        return ("L1_via_subroutine_a", 0)
+
+    def on_think_exhausted(self, session) -> tuple:
+        # L2 B-3：第 3 次想一下 → 鏈路 A
+        session.io.speak(L2_B3_THIRD_REJECT)
+        return session.exit_a()
+
+    def on_checkout_main(self, session):
+        # L2 模式：結帳意圖無意義 → 當 B-1 unclear 處理
+        session.unclear_count += 1
+        if session.unclear_count >= UNCLEAR_MAX:
+            session.io.speak(L2_UNCLEAR_REJECT_VOICE)
+            return session.exit_a()
+        session.io.speak(self.clarify)
+        return None
+
+    def on_checkout_inner(self, session):
+        # L2 沉默期：結帳意圖當 B-1 unclear → speak clarify 回主等待（Q2：不動 unclear）
+        session.io.speak(L2_B1_CLARIFY)
+        return None
+
+    def on_unclear_exhausted(self, session):
+        # L2: 直接走鏈路 A
+        session.io.speak(L2_UNCLEAR_REJECT_VOICE)
+        return session.exit_a()
+
+
+class L3Policy(ModePolicy):
+    """cart 非空模式：已有訂單、問加單 / 結帳；timeout = C-2 兩段自動結帳；結帳前 confirm。"""
+
+    nlu_mode = "normal"
+    read_timeout = DYC_TIMEOUT
+    entry_prompt = L3_ENTRY_PROMPT
+    clarify = L3_B1_CLARIFY
+    reask = L3_REASK
+    cancel_declined_resume = L3_CANCEL_DECLINED_RESUME
+    think_limit = 4               # C13：L3 想一下觸發 C-2 條件 3 → 4
+    service_yes_prompt = L3_REASK
+    silence_think_writeback = True
+
+    def on_timeout(self, session) -> tuple:
+        # L3 模式：6s timeout → C-2 兩段自動結帳
+        return _dialog_c2_second_stage(
+            io=session.io, cart=session.cart, think_count=session.think_count
+        )
+
+    def on_think_exhausted(self, session) -> tuple:
+        # L3 B-4：第 4 次想一下 → C-2 第二段
+        return _dialog_c2_second_stage(
+            io=session.io, cart=session.cart, think_count=session.think_count
+        )
+
+    def on_checkout_main(self, session):
+        # L3 模式：C-1 結帳前 confirm
+        session.unclear_count = 0
+        return session.checkout_flow()
+
+    def on_checkout_inner(self, session):
+        # L3 沉默期：結帳 → C-1 confirm（Q2：不 reset unclear）
+        return session.checkout_flow()
+
+    def on_unclear_exhausted(self, session):
+        # L3: 進最終確認子狀態（有 cart 要保護）
+        final = _dialog_unclear_final_confirmation(io=session.io, cart=session.cart)
+        if final is not None:
+            return final
+        # 顧客選繼續 → reset 所有 counter + 重播 L3 entry + 回主等待
+        # think_count 也歸零：unclear final「繼續」= 重啟對話，不只清 unclear；
+        # 若只 reset unclear 而保留 think_count，顧客返回後多想一次就可能誤觸 C-2
+        # （2026-05-26 P3.C 加：修 think_count 跨 C-2/continue 累積 bug）
+        session.unclear_count = 0
+        session.think_count = 0
+        session.io.speak(L3_ENTRY_PROMPT)
+        return None
+
+
+L2_POLICY = L2Policy()
+L3_POLICY = L3Policy()
+
+
+# ============================================================
+# W4：DialogSession — 持 io + cart + 計數器；對話主迴圈與沉默期分派。
+# 計數器歸 session 所有 → 消滅原 tuple|int|None 回傳型手動狀態穿線。
+# mode 每輪由 cart 即時推導（不變式 #8），不快取。
+# ============================================================
+
+
+class DialogSession:
+    """持 io + cart + 計數器；對話主迴圈與沉默期分派。
+
+    計數器歸 session 所有 → 消滅原 tuple|int|None 回傳型手動狀態穿線。
+    """
+
+    def __init__(self, io, cart, think_count: int = 0):
+        self.io = io
+        self.cart = cart
+        self.think_count = think_count
+        self.unclear_count = 0
+
+    def policy(self) -> ModePolicy:
+        # 每次呼叫由 cart 即時推導，不快取——「世界狀態驅動」核心決定（不變式 #8）：
+        # cart 狀態每輪 main loop 迭代都重新判定 — 未來加「刪除商品」功能時若 cart 變空，
+        # 下一輪自然回到 L2 模式詢問需求（不需額外 transition 邏輯）。
+        return L2_POLICY if cart_module.is_empty(self.cart) else L3_POLICY
+
+    def exit_a(self) -> tuple:
+        """鏈路 A 拒絕退出：cart 空 = L2-A（無清 cart）；cart 非空 = L3-A（清 cart）。"""
+        return _dialog_exit_a(self.io, self.cart)
+
+    def _reenter_speak(self, control) -> None:
+        """invalid-qty 子追問 timeout/cancel 後的 re-prompt：prefix + 當前 cart entry。
+
+        entry 依 resolve **後**的當前 cart 即時判定（cart_module.is_empty 重算）。
+        """
+        prefix = (INVALID_QTY_TIMEOUT_REENTER_PREFIX if control == "reenter_timeout"
+                  else INVALID_QTY_CANCEL_REENTER_PREFIX)
+        entry = L2_ENTRY_PROMPT if cart_module.is_empty(self.cart) else L3_ENTRY_PROMPT
+        self.io.speak(prefix + entry)
+
+    def checkout_flow(self):
+        """L3 結帳共用體（主迴圈 L3 結帳 / inner L3 結帳 / 略）：confirm → 三路分流。
+
+        "yes" → speak GO + do_action(GO) + ("L4", 0)
+        "cancel_to_l1" → exit_a（cancel_confirm YES 直退 L1，不回 main loop）
+        其他 → _handle_checkout_confirm_result（清 cart + 通知）+ None
+        """
+        result = _dialog_checkout_confirm(io=self.io, cart=self.cart)
+        if result == "yes":
+            self.io.speak(L3_C1_CHECKOUT_GO)
+            # S3 L3→L4 transition 動作（2026-05-28 加）：指向螢幕引導顧客掃碼視線
+            # 先 speak 再動作 — 跟 L4_PAY / L5_FAREWELL 一致 pattern（聽到語音 → 注意力對齊 → 視線跟指向）
+            self.io.do_action(ACTION_L3_CHECKOUT_GO)
+            return ("L4", 0)
+        if result == "cancel_to_l1":
+            # 2026-05-30 加：cancel_confirm YES → 直退 L1（不回 main loop）
+            return self.exit_a()
+        # 否認 / timeout / 亂答上限 → 清空 cart + 對應通知
+        _handle_checkout_confirm_result(result, self.cart, self.io)
+        return None
+
+    def _dispatch_inner(self, response: str):
+        """沉默期 / C-2 第二段內顧客有回應 → 重跑當前 mode 判定。
+
+        統一原 _dialog_dispatch_inner_l2 / _l3 雙胞胎：mode 差異全走 self.policy()。
+        Q2：inner 語境完全不碰 unclear_count；Q3：inner 商品 added 不 reset think_count。
+        """
+        policy = self.policy()
+        intent = classify_intent(response, policy.nlu_mode)
+        if intent == "拒絕":
+            # 2026-05-29 cross-L cancel：拒絕意圖 → 先過 cancel_confirm gate
+            if CANCEL_CONFIRM.run(self.io):
+                return self.exit_a()
+            # 顧客 NO「不要取消」→ speak 合成 voice（DECLINED + 對應 mode entry 重啟），
+            # 主迴圈進入不重播 entry → 一次 speak cover 兩件事，顧客不失去上下文
+            # （2026-05-30 改：從 CANCEL_DECLINED_NOTICE 替換為合成版）
+            self.io.speak(policy.cancel_declined_resume)
+            return None
+        if intent == "想一下":
+            # 沉默期內又說想一下 → 遞增 think_count + 再走沉默鏈（互遞迴，原樣）
+            self.think_count += 1
+            if self.think_count >= policy.think_limit:
+                return policy.on_think_exhausted(self)
+            return self._think_silence()
+        if intent == "結帳":
+            # Q2：inner 結帳由 policy 分流（L2 當 B-1 clarify / L3 走 checkout_flow），不碰 unclear
+            return policy.on_checkout_inner(self)
+        if intent == "客服":
+            # 2026-05-31 對齊 L4 service mode pattern：印電話 + 24s confirm gate
+            # YES → 回主迴圈當下層 entry/reask 重啟；NO/silent → exit_a 退 L1
+            result = SERVICE_CONFIRM.run(self.io)
+            if result == "yes":
+                self.io.speak(policy.service_yes_prompt)
+                return None
+            # result == "no" → 清 cart（若有）+ 退 L1
+            return self.exit_a()
+        # 2026-05-26 加：沉默期內「想買無商品」溫和引導（不 ++unclear / 不 ++think_count）
+        if intent == "想買無商品":
+            self.io.speak(DIALOG_VAGUE_BUY_REASK)
+            return None
+        products = parse_products(response)
+        if products:
+            was_empty = cart_module.is_empty(self.cart)
+            added, cancel_notices, control = resolve_and_add_products(
+                products=products,
+                cart=self.cart,
+                speak=self.io.speak,
+                print_terminal=self.io.print_terminal,
+                read_customer_input=self.io.read_customer_input,
+                classify_intent_mode=policy.nlu_mode,
+                speak_and_wait=self.io.speak_and_wait,
+            )
+            if control == "exit_l1":
+                return self.exit_a()
+            if control in ("reenter_timeout", "reenter_cancel"):
+                self._reenter_speak(control)
+                return None
+            if added and was_empty:
+                # cart 從空 → 非空：speak L2_TO_L3_TRANSITION（合成 voice，原 L2_C_ADDED +
+                # L3_ENTRY_PROMPT 兩條 speak 合併為一句連貫播報，S4 非阻塞 worker 兩條間
+                # 「synth + ALSA drain 0.3s」停頓問題解除；見規格書 L2.md 鏈路 C「進 L3」）
+                # B11：沉默期內加單同樣是 L2→L3 切換點，think_count 交由主迴圈 caller 處理
+                # （inner 不直接改 think_count；回 None 後主迴圈下一輪 was_empty 已為 False，
+                #  think_count reset 在主迴圈 was_empty 分支已處理）
+                # S3 同步動作（2026-05-27 fix）：L2→L3 transition 觸發 ACTION_L3，跟主迴圈一致
+                self.io.do_action(ACTION_L3)
+                # 2026-05-30 合成 speak：部分 skip 的 cancel notice 拼接到 transition 前
+                self.io.speak(_prepend_cancel_notices(cancel_notices, L2_TO_L3_TRANSITION))
+                return None
+            if added:
+                # cart 已非空語境（原 inner_l3 不分 added 一律 reask，等價）
+                # 2026-05-30 合成 speak：cancel notices 拼接到 L3_REASK 前
+                self.io.speak(_prepend_cancel_notices(cancel_notices, L3_REASK))
+                return None
+            # 全 skip → 拼接 cancel notices 與當前 mode reask 為單一 speak
+            self.io.speak(_prepend_cancel_notices(cancel_notices, policy.reask))
+            return None
+        self.io.speak(policy.clarify)
+        return None
+
+    def _think_silence(self):
+        """想一下沉默期：等 WAIT_NO_RESPONSE 秒，有回應重 dispatch；無回應 → 重問。
+
+        統一原 _dialog_think_silence_l2 / _l3 雙胞胎（reask 用 self.policy().reask）。
+        計數穿線消失：think_count 歸 session，不再回傳 int（Q1 由主迴圈 writeback flag 控）。
+        """
+        inner = self.io.read_customer_input(timeout=WAIT_NO_RESPONSE)
+        if inner is None:
+            self.io.speak(self.policy().reask)
+            return None
+        return self._dispatch_inner(inner)
+
+    def main_loop(self) -> tuple:
+        """dialog 主迴圈 core — 由 run_dialog 與 c2 重入共用。
+
+        進入前的準備（opencv_disable / entry prompt speak）由 caller 負責；
+        本函式直接進主等待迴圈（入口 unclear_count 歸 0：每次（重）入主迴圈
+        unclear 從 0 起算，含 c2 CONTINUE 重入）。
+
+        Returns:
+            (next_state, next_think_count)；next_state ∈ {"L4", "L1_via_subroutine_a"}
+
+        無 wall-clock budget 是設計選擇（INTENTIONAL，2026-05-26 review B22）：
+            - 跟 L4 (60s) 不同，dialog 沒有整體 wall-clock 上限
+            - 理由：顧客主動加單 / 想一下 / 修改 cart 沒道理限時 — 對話越長代表
+              顧客投入越多，業務上希望成交，限時反而趕走客人
+            - 各「不互動」分支（think_count / unclear_count）有獨立計數器保護
+              避免無限循環；read_customer_input 也有 WAIT_NO_RESPONSE 單輪 timeout
+            - 若未來 demo 場景需要「整體 5 分鐘上限」可加 DIALOG_TOTAL_BUDGET，
+              但目前無需求
+        """
+        self.unclear_count = 0
+
+        while True:
+            policy = self.policy()  # 每輪由 cart 推導（不變式 #8）
+
+            # DnC（cart 空）/ DyC（cart 非空）皆給較長 timeout — 顧客可能還在挑商品 / 考慮加單
+            response = self.io.read_customer_input(timeout=policy.read_timeout)
+
+            # === Timeout 分流（policy 決定）===
+            if response is None:
+                return policy.on_timeout(self)
+
+            # === 判定優先序（policy 決定 NLU mode + 行為）===
+            intent = classify_intent(response, policy.nlu_mode)
+
+            # 拒絕意圖 → 先過 cancel_confirm gate（2026-05-29 cross-L cancel）
+            # True → 鏈路 A（依 cart 狀態決定是否清 cart）；False → speak 合成 voice 後 continue 重 prompt
+            if intent == "拒絕":
+                if CANCEL_CONFIRM.run(self.io):
+                    return self.exit_a()
+                # cancel_confirm NO → speak 合成 voice（DECLINED + 對應 mode entry 重啟）
+                # （2026-05-30 改：從 CANCEL_DECLINED_NOTICE 替換為 mode-aware 合成版）
+                self.io.speak(policy.cancel_declined_resume)
+                continue
+
+            # 想一下意圖 → B-3/B-4（行為依 policy）
+            if intent == "想一下":
+                self.unclear_count = 0
+                self.think_count += 1
+                if self.think_count >= policy.think_limit:
+                    return policy.on_think_exhausted(self)
+                saved = self.think_count
+                result = self._think_silence()
+                if isinstance(result, tuple):
+                    return result
+                if not policy.silence_think_writeback:
+                    # Q1：L2 沉默鏈的 think 增量不回寫主迴圈（原 _dialog_think_silence_l2
+                    # 回 None 不回 int；L3 版回 int 回寫）
+                    self.think_count = saved
+                    # B11：沉默期內顧客加單使 cart 從空變非空（L2→L3 切換）→ reset think_count
+                    if not cart_module.is_empty(self.cart):
+                        self.think_count = 0
+                continue
+
+            # 結帳意圖 → policy 分流（L2 當 B-1 unclear；L3 走 C-1 confirm）
+            if intent == "結帳":
+                result = policy.on_checkout_main(self)
+                if isinstance(result, tuple):
+                    return result
+                continue
+
+            # 客服 → B-2（2026-05-31 對齊 L4 service mode pattern：24s confirm gate）
+            if intent == "客服":
+                self.unclear_count = 0
+                result = SERVICE_CONFIRM.run(self.io)
+                if result == "yes":
+                    # 回主迴圈當下層 entry prompt 重啟（cart 空 L2 entry / cart 非空 L3 reask）
+                    self.io.speak(policy.service_yes_prompt)
+                    continue
+                # result == "no" → exit_a（cart 空 = L2 thanks 不清 cart；
+                # cart 非空 = L3 thanks 清 cart）
+                return self.exit_a()
+
+            # 商品 → C / B-3（多商品 parser + 各自缺數量追問）
+            products = parse_products(response)
+            if products:
+                self.unclear_count = 0
+                was_empty = cart_module.is_empty(self.cart)
+                added, cancel_notices, control = resolve_and_add_products(
+                    products=products,
+                    cart=self.cart,
+                    speak=self.io.speak,
+                    print_terminal=self.io.print_terminal,
+                    read_customer_input=self.io.read_customer_input,
+                    classify_intent_mode=policy.nlu_mode,
+                    speak_and_wait=self.io.speak_and_wait,
+                )
+                if control == "exit_l1":
+                    return self.exit_a()
+                if control in ("reenter_timeout", "reenter_cancel"):
+                    self._reenter_speak(control)
+                    continue
+                if added:
+                    # cart 從空 → 非空：speak L2_TO_L3_TRANSITION（合成 voice，原 L2_C_ADDED +
+                    # L3_ENTRY_PROMPT 兩條 speak 合併為一句連貫播報，S4 非阻塞 worker 兩條間
+                    # 「synth + ALSA drain 0.3s」停頓問題解除；見規格書 L2.md 鏈路 C「進 L3」+ L3.md 進入時動作；
+                    # 漏播會讓顧客以為對話結束、6s timeout 直接觸發 C-2 自動結帳）
+                    # cart 已非空：speak L3_REASK（額外加單後重問）
+                    # 2026-05-30 合成 speak：cancel notices 拼接到 transition / reask 前
+                    if was_empty:
+                        # B11：L2→L3 cart-state 切換點 reset think_count
+                        # 各 mode 獨立計數：L2 think_count 不應污染 L3；否則顧客在 L2 想一下兩次
+                        # 加單進 L3 後再想一下就誤觸 C-2 自動結帳
+                        self.think_count = 0
+                        # S3 同步動作（2026-05-27 fix）：L2→L3 transition 觸發 ACTION_L3
+                        # — 修補「只在 run_dialog entry 跑」漏洞（Pi demo 實測 L2 加單後沒跑動作）
+                        self.io.do_action(ACTION_L3)
+                        self.io.speak(_prepend_cancel_notices(cancel_notices, L2_TO_L3_TRANSITION))
+                    else:
+                        self.io.speak(_prepend_cancel_notices(cancel_notices, L3_REASK))
+                    continue
+                # 全部商品在追問內取消 → re-prompt 依當前 cart 狀態
+                # 2026-05-30 合成 speak：cancel notices 拼接到 reask 前
+                self.io.speak(_prepend_cancel_notices(cancel_notices, policy.reask))
+                continue
+
+            # 2026-05-26 加：L2/L3 通用「想買無商品」溫和引導（與 L4「等待安撫」pattern 一致）
+            # 不 ++unclear_count、不 ++think_count；主迴圈 continue 等下一輪
+            if intent == "想買無商品":
+                self.io.speak(DIALOG_VAGUE_BUY_REASK)
+                continue
+
+            # 都沒命中 → B-1（unclear_count++）
+            self.unclear_count += 1
+            if self.unclear_count >= UNCLEAR_MAX:
+                result = policy.on_unclear_exhausted(self)
+                if isinstance(result, tuple):
+                    return result
+                continue
+            self.io.speak(policy.clarify)
 
 
 def _dialog_exit_a(io, cart) -> tuple:
@@ -161,216 +583,6 @@ def _dialog_exit_a(io, cart) -> tuple:
     return ("L1_via_subroutine_a", 0)
 
 
-def _dialog_think_silence_l2(io, cart, think_count: int) -> tuple | None:
-    """L2 B-3 想一下沉默期（think_count < 3）：等 6s，有回應重 dispatch；無回應 → 重問。
-
-    Args:
-        io: DialogIO callback 束
-        cart: 購物車 dict
-        think_count: 想一下次數
-    """
-    inner = io.read_customer_input(timeout=WAIT_NO_RESPONSE)
-    if inner is None:
-        io.speak(L2_B3_REASK)
-        return None
-    return _dialog_dispatch_inner_l2(
-        response=inner,
-        io=io,
-        cart=cart,
-        think_count=think_count,
-    )
-
-
-def _dialog_think_silence_l3(io, cart, think_count: int) -> tuple | int | None:
-    """L3 B-4 想一下沉默期（think_count < 3）：等 6s，有回應重 dispatch；無回應 → 重問。
-
-    Args:
-        io: DialogIO callback 束
-        cart: 購物車 dict
-        think_count: 想一下次數
-    """
-    inner = io.read_customer_input(timeout=WAIT_NO_RESPONSE)
-    if inner is None:
-        io.speak(L3_REASK)
-        return think_count
-    return _dialog_dispatch_inner_l3(
-        response=inner,
-        io=io,
-        cart=cart,
-        think_count=think_count,
-    )
-
-
-def _dialog_dispatch_inner_l2(response: str, io, cart, think_count: int) -> tuple | None:
-    """L2 B-3 沉默期內顧客有回應 → 重跑 L2 mode 判定（cart 仍空假設）。
-
-    本函式只在 L2 mode（cart 空）的 B-3 沉默期內被呼叫。若顧客回應加了商品，
-    cart 會在 resolve_and_add_products 內變非空，但此 helper 不需要切 mode —
-    回到主迴圈下一輪自動 re-evaluate cart 狀態。
-
-    Args:
-        response: 顧客回應字串
-        io: DialogIO callback 束
-        cart: 購物車 dict
-        think_count: 想一下次數
-    """
-    intent = classify_intent(response, "l2")
-    if intent == "拒絕":
-        # 2026-05-29 cross-L cancel：拒絕意圖 → 先過 cancel_confirm gate
-        if CANCEL_CONFIRM.run(io):
-            return _dialog_exit_a(io, cart)
-        # 顧客 NO「不要取消」→ speak 合成 voice（DECLINED + L2 entry 重啟），
-        # 主迴圈進入不重播 entry → 一次 speak cover 兩件事，顧客不失去上下文
-        # （2026-05-30 改：從 CANCEL_DECLINED_NOTICE 替換為合成版）
-        io.speak(L2_CANCEL_DECLINED_RESUME)
-        return None
-    if intent == "想一下":
-        # 沉默期內又說想一下 → 遞增 think_count + 再走 B-3
-        think_count += 1
-        if think_count >= 3:
-            io.speak(L2_B3_THIRD_REJECT)
-            return _dialog_exit_a(io, cart)
-        return _dialog_think_silence_l2(io=io, cart=cart, think_count=think_count)
-    if intent == "結帳":
-        # L2 結帳當 B-1 unclear → speak clarify 回主等待
-        io.speak(L2_B1_CLARIFY)
-        return None
-    if intent == "客服":
-        # 2026-05-31 對齊 L4 service mode pattern：印電話 + 24s confirm gate
-        # YES → 回主迴圈當下層 entry prompt 重啟；NO/silent → _dialog_exit_a 退 L1
-        result = SERVICE_CONFIRM.run(io)
-        if result == "yes":
-            io.speak(L2_ENTRY_PROMPT)
-            return None
-        # result == "no" → 清 cart（若有）+ 退 L1
-        return _dialog_exit_a(io, cart)
-    # 2026-05-26 加：L2 沉默期內「想買無商品」溫和引導（不 ++unclear / 不 ++think_count）
-    if intent == "想買無商品":
-        io.speak(DIALOG_VAGUE_BUY_REASK)
-        return None
-    products = parse_products(response)
-    if products:
-        added, cancel_notices, control = resolve_and_add_products(
-            products=products,
-            cart=cart,
-            speak=io.speak,
-            print_terminal=io.print_terminal,
-            read_customer_input=io.read_customer_input,
-            classify_intent_mode="l2",
-            speak_and_wait=io.speak_and_wait,
-        )
-        if control == "exit_l1":
-            return _dialog_exit_a(io, cart)
-        if control in ("reenter_timeout", "reenter_cancel"):
-            prefix = (INVALID_QTY_TIMEOUT_REENTER_PREFIX if control == "reenter_timeout"
-                      else INVALID_QTY_CANCEL_REENTER_PREFIX)
-            entry = L2_ENTRY_PROMPT if cart_module.is_empty(cart) else L3_ENTRY_PROMPT
-            io.speak(prefix + entry)
-            return None
-        if added:
-            # cart 從空 → 非空：speak L2_TO_L3_TRANSITION（合成 voice，原 L2_C_ADDED +
-            # L3_ENTRY_PROMPT 兩條 speak 合併為一句連貫播報，S4 非阻塞 worker 兩條間
-            # 「synth + ALSA drain 0.3s」停頓問題解除；見規格書 L2.md 鏈路 C「進 L3」）
-            # B11：沉默期內加單同樣是 L2→L3 切換點，think_count 交由主迴圈 caller 處理
-            # （_dialog_dispatch_inner_l2 不直接改 think_count；回 None 後主迴圈
-            #  下一輪 was_empty 已為 False，think_count reset 在主迴圈 was_empty 分支已處理）
-            # S3 同步動作（2026-05-27 fix）：L2→L3 transition 觸發 ACTION_L3，跟主迴圈一致
-            io.do_action(ACTION_L3)
-            # 2026-05-30 合成 speak：部分 skip 的 cancel notice 拼接到 transition 前
-            io.speak(_prepend_cancel_notices(cancel_notices, L2_TO_L3_TRANSITION))
-            return None
-        # 全 skip → 拼接 cancel notices 與 L2_B3_REASK 為單一 speak
-        io.speak(_prepend_cancel_notices(cancel_notices, L2_B3_REASK))
-        return None
-    io.speak(L2_B1_CLARIFY)
-    return None
-
-
-def _dialog_dispatch_inner_l3(response: str, io, cart, think_count: int) -> tuple | int | None:
-    """L3 B-4 沉默期 / C-2 第二段內顧客有回應 → 重跑 L3 mode 判定。
-
-    Args:
-        response: 顧客回應字串
-        io: DialogIO callback 束
-        cart: 購物車 dict
-        think_count: 想一下次數
-
-    Returns:
-        tuple → final decision
-        int → think_count 更新值（caller 回主等待）
-        None → 已 speak 完，回主等待
-    """
-    intent = classify_intent(response, "normal")
-    if intent == "拒絕":
-        # 2026-05-29 cross-L cancel：拒絕意圖 → 先過 cancel_confirm gate
-        if CANCEL_CONFIRM.run(io):
-            return _dialog_exit_a(io, cart)
-        # 顧客 NO「不要取消」→ speak 合成 voice（DECLINED + L3 entry 重啟），
-        # 主迴圈進入不重播 entry → 一次 speak cover 兩件事，顧客不失去上下文
-        # （2026-05-30 改：從 CANCEL_DECLINED_NOTICE 替換為合成版）
-        io.speak(L3_CANCEL_DECLINED_RESUME)
-        return None
-    if intent == "想一下":
-        think_count += 1
-        # C13 (2026-05-26 Wave 7a)：L3 模式 think_count 觸發 C-2 條件 3 → 4
-        # 顧客在 L3 想了 3 次就直接結帳偏粗暴；第 4 次才觸發更貼近實際 UX
-        # （L2 退出條件保留 3 — 那是 cart 空時的明確拒絕路徑，不是 C-2 觸發）
-        if think_count >= 4:
-            return _dialog_c2_second_stage(io=io, cart=cart, think_count=think_count)
-        return _dialog_think_silence_l3(io=io, cart=cart, think_count=think_count)
-    if intent == "結帳":
-        # L3 結帳 → C-1 confirm
-        result = _dialog_checkout_confirm(io=io, cart=cart)
-        if result == "yes":
-            io.speak(L3_C1_CHECKOUT_GO)
-            # S3 L3→L4 transition 動作（2026-05-28 加）：指向螢幕引導顧客掃碼視線
-            # 先 speak 再動作 — 跟 L4_PAY / L5_FAREWELL 一致 pattern（聽到語音 → 注意力對齊 → 視線跟指向）
-            io.do_action(ACTION_L3_CHECKOUT_GO)
-            return ("L4", 0)
-        if result == "cancel_to_l1":
-            # 2026-05-30 加：cancel_confirm YES → 直退 L1（不回 main loop）
-            return _dialog_exit_a(io, cart)
-        _handle_checkout_confirm_result(result, cart, io)
-        return None
-    if intent == "客服":
-        # 2026-05-31 對齊 L4 service mode pattern：印電話 + 24s confirm gate
-        # YES → 回主迴圈當下層 reask 重啟；NO/silent → _dialog_exit_a 退 L1
-        result = SERVICE_CONFIRM.run(io)
-        if result == "yes":
-            io.speak(L3_REASK)
-            return None
-        # result == "no" → 清 cart + 退 L1
-        return _dialog_exit_a(io, cart)
-    # 2026-05-26 加：L3 沉默期內「想買無商品」溫和引導（不 ++unclear / 不 ++think_count）
-    if intent == "想買無商品":
-        io.speak(DIALOG_VAGUE_BUY_REASK)
-        return None
-    products = parse_products(response)
-    if products:
-        _added, cancel_notices, control = resolve_and_add_products(
-            products=products,
-            cart=cart,
-            speak=io.speak,
-            print_terminal=io.print_terminal,
-            read_customer_input=io.read_customer_input,
-            classify_intent_mode="normal",
-            speak_and_wait=io.speak_and_wait,
-        )
-        if control == "exit_l1":
-            return _dialog_exit_a(io, cart)
-        if control in ("reenter_timeout", "reenter_cancel"):
-            prefix = (INVALID_QTY_TIMEOUT_REENTER_PREFIX if control == "reenter_timeout"
-                      else INVALID_QTY_CANCEL_REENTER_PREFIX)
-            entry = L2_ENTRY_PROMPT if cart_module.is_empty(cart) else L3_ENTRY_PROMPT
-            io.speak(prefix + entry)
-            return None
-        # 2026-05-30 合成 speak：cancel notices 拼接到 L3_REASK 前
-        io.speak(_prepend_cancel_notices(cancel_notices, L3_REASK))
-        return None
-    io.speak(L3_B1_CLARIFY)
-    return None
-
-
 def _dialog_c2_second_stage(io, cart, think_count: int) -> tuple:
     """L3 C-2 第二段：三選一子狀態（2026-05-28 重構：二元 yes/no → 繼續/結帳/取消）。
 
@@ -380,7 +592,7 @@ def _dialog_c2_second_stage(io, cart, think_count: int) -> tuple:
     - Three-way dispatcher（CANCEL 優先：顧客錢包 conservative）：
         - CANCEL（KEYWORDS_C2_CANCEL + strict-short ["取消"]）→ _dialog_exit_a：
           清 cart + speak L3_REJECT_THANKS + return ("L1_via_subroutine_a", 0)
-        - CONTINUE（KEYWORDS_C2_CONTINUE + strict-short ["繼續"]）→ speak L3_C2_CONTINUE_ACK + _dialog_main_loop：
+        - CONTINUE（KEYWORDS_C2_CONTINUE + strict-short ["繼續"]）→ speak L3_C2_CONTINUE_ACK + DialogSession.main_loop：
           不清 cart，重入 dialog 主迴圈讓顧客繼續加單（ack 維持對話上下文，
           2026-05-30 加：main loop 不重播 entry prompt，無 ack 顧客失去語音回饋 → 沉默 → 又被 DYC_TIMEOUT 抓回 C-2）
         - CHECKOUT（KEYWORDS_C2_CHECKOUT + strict-short ["結"]）→ _c2_checkout_via_confirm：
@@ -431,7 +643,7 @@ def _dialog_c2_second_stage(io, cart, think_count: int) -> tuple:
         # 顧客失去對話上下文 → 沉默 → 又被 DYC_TIMEOUT 抓回 C-2（Pi demo 實測 bug）
         if KG_C2_CONTINUE.matches(response):
             io.speak(L3_C2_CONTINUE_ACK)
-            return _dialog_main_loop(io=io, cart=cart, think_count=think_count)
+            return DialogSession(io, cart, think_count).main_loop()
 
         # CHECKOUT：顧客主動講結帳 → 經 _dialog_checkout_confirm 確認明細
         # （2026-05-29 反轉：timeout path 也合流到此函數，兩條 path 完全一致）
@@ -451,7 +663,7 @@ def _c2_checkout_via_confirm(io, cart, think_count: int) -> tuple:
 
     經 _dialog_checkout_confirm 確認明細 → "yes" 進 L4；非 yes 清 cart + 重入 dialog 主迴圈。
 
-    對齊既有 L3 C-1 結帳 path（_dialog_dispatch_inner_l3 / _dialog_main_loop 結帳分支）
+    對齊既有 L3 C-1 結帳 path（DialogSession._dispatch_inner / DialogSession.checkout_flow 結帳分支）
     — 共用 confirm 子狀態。
 
     2026-05-29 反轉：silent timeout 不再走 _c2_direct_checkout 直接 L4,
@@ -474,208 +686,7 @@ def _c2_checkout_via_confirm(io, cart, think_count: int) -> tuple:
         return _dialog_exit_a(io, cart)
     # 非 yes → 清 cart + speak 通知 + 重入 dialog 主迴圈
     _handle_checkout_confirm_result(result, cart, io)
-    return _dialog_main_loop(io=io, cart=cart, think_count=think_count)
-
-
-def _dialog_main_loop(io, cart, think_count: int) -> tuple:
-    """dialog 主迴圈 core — 由 run_dialog 與 _dialog_continue_after_c2_inner 共用。
-
-    進入前的準備（opencv_disable / entry prompt speak）由 caller 負責；
-    本函式直接進主等待迴圈（unclear_count 從 0 起算）。
-
-    Args:
-        io: DialogIO callback 束
-        cart: 購物車 dict
-        think_count: 想一下次數
-
-    Returns:
-        (next_state, next_think_count)
-        next_state ∈ {"L4", "L1_via_subroutine_a"}
-
-    無 wall-clock budget 是設計選擇（INTENTIONAL，2026-05-26 review B22）：
-        - 跟 L4 (60s) 不同，dialog 沒有整體 wall-clock 上限
-        - 理由：顧客主動加單 / 想一下 / 修改 cart 沒道理限時 — 對話越長代表
-          顧客投入越多，業務上希望成交，限時反而趕走客人
-        - 各「不互動」分支（think_count / unclear_count）有獨立計數器保護
-          避免無限循環；read_customer_input 也有 WAIT_NO_RESPONSE 單輪 timeout
-        - 若未來 demo 場景需要「整體 5 分鐘上限」可加 DIALOG_TOTAL_BUDGET，
-          但目前無需求
-    """
-    unclear_count = 0
-
-    while True:
-        cart_empty = cart_module.is_empty(cart)
-
-        # DnC（cart 空）/ DyC（cart 非空）皆給較長 timeout — 顧客可能還在挑商品 / 考慮加單
-        timeout = DNC_TIMEOUT if cart_empty else DYC_TIMEOUT
-        response = io.read_customer_input(timeout=timeout)
-
-        # === Timeout 分流（cart 狀態決定）===
-        if response is None:
-            if cart_empty:
-                # L2 模式：timeout 不算「拒絕」而是「無回應」→ 中性提示後回 L1 叫賣
-                # （speak L2_REJECT_THANKS=「謝謝光臨」會誤導旁人；保留給明確拒絕意圖用）
-                io.speak(L2_TIMEOUT_TO_HAWK_VOICE)
-                return ("L1_via_subroutine_a", 0)
-            # L3 模式：6s timeout → C-2 兩段自動結帳
-            return _dialog_c2_second_stage(io=io, cart=cart, think_count=think_count)
-
-        # === 判定優先序（cart 狀態決定 NLU mode + 行為）===
-        nlu_mode = "l2" if cart_empty else "normal"
-        intent = classify_intent(response, nlu_mode)
-
-        # 拒絕意圖 → 先過 cancel_confirm gate（2026-05-29 cross-L cancel）
-        # True → 鏈路 A（依 cart 狀態決定是否清 cart）；False → speak 合成 voice 後 continue 重 prompt
-        if intent == "拒絕":
-            if CANCEL_CONFIRM.run(io):
-                return _dialog_exit_a(io, cart)
-            # cancel_confirm NO → speak 合成 voice（DECLINED + 對應 mode entry 重啟）
-            # cart_empty 已在迴圈頂端算過；mode 一致：cart 空 L2 / cart 非空 L3
-            # （2026-05-30 改：從 CANCEL_DECLINED_NOTICE 替換為 mode-aware 合成版）
-            io.speak(L2_CANCEL_DECLINED_RESUME if cart_empty else L3_CANCEL_DECLINED_RESUME)
-            continue
-
-        # 想一下意圖 → B-3/B-4（行為依 cart 狀態）
-        if intent == "想一下":
-            unclear_count = 0
-            think_count += 1
-            if cart_empty:
-                # L2 B-3：第 3 次 → 鏈路 A
-                if think_count >= 3:
-                    io.speak(L2_B3_THIRD_REJECT)
-                    return _dialog_exit_a(io, cart)
-                result = _dialog_think_silence_l2(io=io, cart=cart, think_count=think_count)
-                if isinstance(result, tuple):
-                    return result
-                # B11：沉默期內顧客加單使 cart 從空變非空（L2→L3 切換）→ reset think_count
-                if not cart_module.is_empty(cart):
-                    think_count = 0
-                continue
-            # L3 B-4：第 4 次 → C-2 第二段
-            # C13 (2026-05-26 Wave 7a)：3 → 4，讓顧客多一次想一下空間
-            if think_count >= 4:
-                return _dialog_c2_second_stage(io=io, cart=cart, think_count=think_count)
-            result = _dialog_think_silence_l3(io=io, cart=cart, think_count=think_count)
-            if isinstance(result, tuple):
-                return result
-            if isinstance(result, int):
-                think_count = result
-            continue
-
-        # 結帳意圖 → cart 空時視為 B-1 unclear；cart 非空時走 C-1 confirm
-        if intent == "結帳":
-            if cart_empty:
-                # L2 模式：結帳意圖無意義 → 當 B-1 unclear 處理
-                unclear_count += 1
-                if unclear_count >= UNCLEAR_MAX:
-                    io.speak(L2_UNCLEAR_REJECT_VOICE)
-                    return _dialog_exit_a(io, cart)
-                io.speak(L2_B1_CLARIFY)
-                continue
-            # L3 模式：C-1 結帳前 confirm
-            unclear_count = 0
-            result = _dialog_checkout_confirm(io=io, cart=cart)
-            if result == "yes":
-                io.speak(L3_C1_CHECKOUT_GO)
-                # S3 L3→L4 transition 動作（2026-05-28 加）：指向螢幕引導顧客掃碼視線
-                io.do_action(ACTION_L3_CHECKOUT_GO)
-                return ("L4", 0)
-            if result == "cancel_to_l1":
-                # 2026-05-30 加：cancel_confirm YES → 直退 L1
-                # （_dialog_exit_a 處理 clear cart + speak L3_REJECT_THANKS）
-                return _dialog_exit_a(io, cart)
-            # 否認 / timeout / 亂答上限 → 清空 cart + 對應通知；下一輪 cart 空 → l2 mode → DnC
-            _handle_checkout_confirm_result(result, cart, io)
-            continue
-
-        # 客服 → B-2（2026-05-31 對齊 L4 service mode pattern：24s confirm gate）
-        if intent == "客服":
-            unclear_count = 0
-            result = SERVICE_CONFIRM.run(io)
-            if result == "yes":
-                # 回主迴圈當下層 entry prompt 重啟（cart 空 L2 / cart 非空 L3 reask）
-                if cart_empty:
-                    io.speak(L2_ENTRY_PROMPT)
-                else:
-                    io.speak(L3_REASK)
-                continue
-            # result == "no" → _dialog_exit_a（cart 空 = L2 thanks 不清 cart；
-            # cart 非空 = L3 thanks 清 cart）
-            return _dialog_exit_a(io, cart)
-
-        # 商品 → C / B-3（多商品 parser + 各自缺數量追問）
-        products = parse_products(response)
-        if products:
-            unclear_count = 0
-            was_empty = cart_empty
-            added, cancel_notices, control = resolve_and_add_products(
-                products=products,
-                cart=cart,
-                speak=io.speak,
-                print_terminal=io.print_terminal,
-                read_customer_input=io.read_customer_input,
-                classify_intent_mode=nlu_mode,
-                speak_and_wait=io.speak_and_wait,
-            )
-            if control == "exit_l1":
-                return _dialog_exit_a(io, cart)
-            if control in ("reenter_timeout", "reenter_cancel"):
-                prefix = (INVALID_QTY_TIMEOUT_REENTER_PREFIX if control == "reenter_timeout"
-                          else INVALID_QTY_CANCEL_REENTER_PREFIX)
-                entry = L2_ENTRY_PROMPT if cart_module.is_empty(cart) else L3_ENTRY_PROMPT
-                io.speak(prefix + entry)
-                continue
-            if added:
-                # cart 從空 → 非空：speak L2_TO_L3_TRANSITION（合成 voice，原 L2_C_ADDED +
-                # L3_ENTRY_PROMPT 兩條 speak 合併為一句連貫播報，S4 非阻塞 worker 兩條間
-                # 「synth + ALSA drain 0.3s」停頓問題解除；見規格書 L2.md 鏈路 C「進 L3」+ L3.md 進入時動作；
-                # 漏播會讓顧客以為對話結束、6s timeout 直接觸發 C-2 自動結帳）
-                # cart 已非空：speak L3_REASK（額外加單後重問）
-                # 2026-05-30 合成 speak：cancel notices 拼接到 transition / reask 前
-                if was_empty:
-                    # B11：L2→L3 cart-state 切換點 reset think_count
-                    # 各 mode 獨立計數：L2 think_count 不應污染 L3；否則顧客在 L2 想一下兩次
-                    # 加單進 L3 後再想一下就誤觸 C-2 自動結帳
-                    think_count = 0
-                    # S3 同步動作（2026-05-27 fix）：L2→L3 transition 觸發 ACTION_L3
-                    # — 修補「只在 run_dialog entry 跑」漏洞（Pi demo 實測 L2 加單後沒跑動作）
-                    io.do_action(ACTION_L3)
-                    io.speak(_prepend_cancel_notices(cancel_notices, L2_TO_L3_TRANSITION))
-                else:
-                    io.speak(_prepend_cancel_notices(cancel_notices, L3_REASK))
-                continue
-            # 全部商品在追問內取消 → re-prompt 依當前 cart 狀態
-            # 2026-05-30 合成 speak：cancel notices 拼接到 reask 前
-            reask = L2_B3_REASK if cart_empty else L3_REASK
-            io.speak(_prepend_cancel_notices(cancel_notices, reask))
-            continue
-
-        # 2026-05-26 加：L2/L3 通用「想買無商品」溫和引導（與 L4「等待安撫」pattern 一致）
-        # 不 ++unclear_count、不 ++think_count；主迴圈 continue 等下一輪
-        if intent == "想買無商品":
-            io.speak(DIALOG_VAGUE_BUY_REASK)
-            continue
-
-        # 都沒命中 → B-1（unclear_count++）
-        unclear_count += 1
-        if unclear_count >= UNCLEAR_MAX:
-            if cart_empty:
-                # L2: 直接走 A
-                io.speak(L2_UNCLEAR_REJECT_VOICE)
-                return _dialog_exit_a(io, cart)
-            # L3: 進最終確認子狀態（有 cart 要保護）
-            final = _dialog_unclear_final_confirmation(io=io, cart=cart)
-            if final is not None:
-                return final
-            # 顧客選繼續 → reset 所有 counter + 重播 L3 entry + 回主等待
-            # think_count 也歸零：unclear final「繼續」= 重啟對話，不只清 unclear；
-            # 若只 reset unclear 而保留 think_count，顧客返回後多想一次就可能誤觸 C-2
-            # （2026-05-26 P3.C 加：修 think_count 跨 C-2/continue 累積 bug）
-            unclear_count = 0
-            think_count = 0
-            io.speak(L3_ENTRY_PROMPT)
-            continue
-        io.speak(L2_B1_CLARIFY if cart_empty else L3_B1_CLARIFY)
+    return DialogSession(io, cart, think_count).main_loop()
 
 
 def _dialog_checkout_confirm(io, cart) -> bool:
