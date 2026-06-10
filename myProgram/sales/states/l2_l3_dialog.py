@@ -81,8 +81,8 @@ from myProgram.sales.states._l2_l3_qty_followup import (
     resolve_and_add_products,
     format_cancel_prefix,
 )
-from myProgram.sales.states._cancel_confirm import cancel_confirm, is_cancel_intent
-from myProgram.sales.states._service_confirm import service_confirm
+from myProgram.sales.states._cancel_confirm import is_cancel_intent
+from myProgram.sales.states._timed_confirm import CANCEL_CONFIRM, SERVICE_CONFIRM
 
 
 def run_dialog(
@@ -217,7 +217,7 @@ def _dialog_dispatch_inner_l2(response: str, io, cart, think_count: int) -> tupl
     intent = classify_intent(response, "l2")
     if intent == "拒絕":
         # 2026-05-29 cross-L cancel：拒絕意圖 → 先過 cancel_confirm gate
-        if cancel_confirm(io.speak, io.read_customer_input, speak_and_wait=io.speak_and_wait):
+        if CANCEL_CONFIRM.run(io):
             return _dialog_exit_a(io, cart)
         # 顧客 NO「不要取消」→ speak 合成 voice（DECLINED + L2 entry 重啟），
         # 主迴圈進入不重播 entry → 一次 speak cover 兩件事，顧客不失去上下文
@@ -238,13 +238,7 @@ def _dialog_dispatch_inner_l2(response: str, io, cart, think_count: int) -> tupl
     if intent == "客服":
         # 2026-05-31 對齊 L4 service mode pattern：印電話 + 24s confirm gate
         # YES → 回主迴圈當下層 entry prompt 重啟；NO/silent → _dialog_exit_a 退 L1
-        result = service_confirm(
-            speak=io.speak,
-            print_terminal=io.print_terminal,
-            read_customer_input=io.read_customer_input,
-            speak_and_wait=io.speak_and_wait,
-            allow_scan=False,
-        )
+        result = SERVICE_CONFIRM.run(io)
         if result == "yes":
             io.speak(L2_ENTRY_PROMPT)
             return None
@@ -309,7 +303,7 @@ def _dialog_dispatch_inner_l3(response: str, io, cart, think_count: int) -> tupl
     intent = classify_intent(response, "normal")
     if intent == "拒絕":
         # 2026-05-29 cross-L cancel：拒絕意圖 → 先過 cancel_confirm gate
-        if cancel_confirm(io.speak, io.read_customer_input, speak_and_wait=io.speak_and_wait):
+        if CANCEL_CONFIRM.run(io):
             return _dialog_exit_a(io, cart)
         # 顧客 NO「不要取消」→ speak 合成 voice（DECLINED + L3 entry 重啟），
         # 主迴圈進入不重播 entry → 一次 speak cover 兩件事，顧客不失去上下文
@@ -341,13 +335,7 @@ def _dialog_dispatch_inner_l3(response: str, io, cart, think_count: int) -> tupl
     if intent == "客服":
         # 2026-05-31 對齊 L4 service mode pattern：印電話 + 24s confirm gate
         # YES → 回主迴圈當下層 reask 重啟；NO/silent → _dialog_exit_a 退 L1
-        result = service_confirm(
-            speak=io.speak,
-            print_terminal=io.print_terminal,
-            read_customer_input=io.read_customer_input,
-            speak_and_wait=io.speak_and_wait,
-            allow_scan=False,
-        )
+        result = SERVICE_CONFIRM.run(io)
         if result == "yes":
             io.speak(L3_REASK)
             return None
@@ -539,7 +527,7 @@ def _dialog_main_loop(io, cart, think_count: int) -> tuple:
         # 拒絕意圖 → 先過 cancel_confirm gate（2026-05-29 cross-L cancel）
         # True → 鏈路 A（依 cart 狀態決定是否清 cart）；False → speak 合成 voice 後 continue 重 prompt
         if intent == "拒絕":
-            if cancel_confirm(io.speak, io.read_customer_input, speak_and_wait=io.speak_and_wait):
+            if CANCEL_CONFIRM.run(io):
                 return _dialog_exit_a(io, cart)
             # cancel_confirm NO → speak 合成 voice（DECLINED + 對應 mode entry 重啟）
             # cart_empty 已在迴圈頂端算過；mode 一致：cart 空 L2 / cart 非空 L3
@@ -603,13 +591,7 @@ def _dialog_main_loop(io, cart, think_count: int) -> tuple:
         # 客服 → B-2（2026-05-31 對齊 L4 service mode pattern：24s confirm gate）
         if intent == "客服":
             unclear_count = 0
-            result = service_confirm(
-                speak=io.speak,
-                print_terminal=io.print_terminal,
-                read_customer_input=io.read_customer_input,
-                speak_and_wait=io.speak_and_wait,
-                allow_scan=False,
-            )
+            result = SERVICE_CONFIRM.run(io)
             if result == "yes":
                 # 回主迴圈當下層 entry prompt 重啟（cart 空 L2 / cart 非空 L3 reask）
                 if cart_empty:
@@ -746,7 +728,7 @@ def _dialog_checkout_confirm(io, cart) -> bool:
         # （含「請告訴我您想買什麼」L2 entry 內容）→ 回 main loop → cart 空 L2 mode →
         # 顧客再拒絕又 cancel_confirm → 兩輪 YES 才退 L1（Pi demo 實機踩過）。
         if is_cancel_intent(response):
-            if cancel_confirm(io.speak, io.read_customer_input, speak_and_wait=io.speak_and_wait):
+            if CANCEL_CONFIRM.run(io):
                 return "cancel_to_l1"
             io.speak(CANCEL_DECLINED_NOTICE)
             io.speak(prompt)
@@ -823,7 +805,7 @@ def _dialog_unclear_final_confirmation(io, cart) -> tuple | None:
         if intent == "退出交易":
             # 2026-05-29 cross-L cancel：unclear final 內語音退出 intent → 先過 cancel_confirm gate
             # （終端 "1" / silent timeout / unclear exhausted 仍直接退，不 gate — 那些是介面操作非 cancel intent）
-            if cancel_confirm(io.speak, io.read_customer_input, speak_and_wait=io.speak_and_wait):
+            if CANCEL_CONFIRM.run(io):
                 return _dialog_exit_a(io, cart)
             # NO → speak DECLINED + 重 prompt unclear final + continue（不計 unclear_count）
             io.speak(CANCEL_DECLINED_NOTICE)

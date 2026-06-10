@@ -31,8 +31,7 @@ from myProgram.sales.product_parser import parse_products
 from myProgram.sales import cart as cart_module
 from myProgram.sales.dialog_io import DialogIO
 from myProgram.sales.states._cancel_confirm import is_cancel_intent
-from myProgram.sales.states._service_confirm import service_confirm
-from myProgram.sales.states._timed_confirm import INVALID_QTY_CANCEL_CONFIRM
+from myProgram.sales.states._timed_confirm import SERVICE_CONFIRM, INVALID_QTY_CANCEL_CONFIRM
 
 
 def invalid_qty_cancel_confirm(speak, read_customer_input, speak_and_wait=None) -> str:
@@ -157,18 +156,14 @@ def invalid_qty_reask(
         # (1) 否定 → 二選一
         if (is_cancel_intent(response)
                 or contains_any(response, KEYWORDS_INVALID_QTY_CANCEL_TRIGGER)):
-            if invalid_qty_cancel_confirm(io.speak, io.read_customer_input, io.speak_and_wait) == "exit":
+            if INVALID_QTY_CANCEL_CONFIRM.run(io) == "exit":
                 return "exit_l1"
             return "reenter_cancel"
 
         # (2) 客服 → service_confirm（暫停 + 補償）
         if classify_intent(response, "normal") == "客服":
             paused = time.monotonic()
-            result = service_confirm(
-                speak=io.speak, print_terminal=io.print_terminal,
-                read_customer_input=io.read_customer_input,
-                speak_and_wait=io.speak_and_wait, allow_scan=False,
-            )
+            result = SERVICE_CONFIRM.run(io)
             deadline += time.monotonic() - paused
             if result == "yes":
                 io.speak_blocking(_format_invalid_qty_prompt(pending, cart))

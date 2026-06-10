@@ -1,8 +1,8 @@
-"""DialogIO — 對話層 IO callback 束物件（W2 oop_w2）。
+"""DialogIO — 對話層 IO callback 束物件。
 
-sales 對話側私有函式原本各自手傳 5-8 個 IO callback；本物件把它們束成單一 io，
-私有函式一律收 io 單參。speak_blocking 取代 8 處 `_speak_blocking = ... if ... else ...`
-fallback 三元式，語意一字不差。
+sales 對話側私有函式 / 子狀態把 5-8 個 IO callback 束成單一 io，收 io 單參。
+speak_blocking 提供阻塞 speak（speak_and_wait 缺時 fallback speak），供 wall-clock
+budget 子狀態（_timed_confirm 家族等）從 TTS 播完才起算 timeout。
 """
 
 from dataclasses import dataclass

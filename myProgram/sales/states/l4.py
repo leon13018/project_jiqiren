@@ -276,6 +276,7 @@ def _l4_dispatch_response(response: str, io, cart) -> tuple:
         return ("ack", 0.0)
 
     # 優先序 3：拒絕 → cancel_confirm gate（量測耗時補償兩計時器）
+    # l4 經 facade 呼叫（非 CANCEL_CONFIRM.run 實例）——既有測試以模組名 mock 此 seam（test_states 5697）
     if intent == "拒絕":
         paused_at = time.monotonic()
         cancelled = cancel_confirm(io.speak, io.read_customer_input, speak_and_wait=io.speak_and_wait)
@@ -329,6 +330,7 @@ def _l4_service_mode(io, cart) -> tuple | None:
         tuple → 已決定（退 L1 / 進 L5）
         None  → 顧客選 YES「繼續」→ 回主迴圈（caller reset 兩計時器）
     """
+    # l4 經 facade 呼叫（非 SERVICE_CONFIRM_SCAN.run 實例）——既有測試以模組名 mock 此 seam（test_states 5734/5774）
     result = service_confirm(
         speak=io.speak,
         print_terminal=io.print_terminal,

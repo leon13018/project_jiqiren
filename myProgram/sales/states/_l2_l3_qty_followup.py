@@ -40,7 +40,7 @@ from myProgram.sales.constants import (
 from myProgram.sales.nlu import parse_quantity, has_quantity, classify_intent
 from myProgram.sales import cart as cart_module
 from myProgram.sales.dialog_io import DialogIO
-from myProgram.sales.states._service_confirm import service_confirm
+from myProgram.sales.states._timed_confirm import SERVICE_CONFIRM
 from myProgram.sales.states._invalid_qty_reask import invalid_qty_reask
 
 
@@ -259,13 +259,7 @@ def _qty_follow_up_sub_loop(
             # YES → 回到 qty 追問鏈路 + speak QTY_PROMPT_TEMPLATE（鏈路初始提示，不計 attempts）
             # NO/silent → return (False, cancel_notice) skip 該商品
             #   （對齊既有 timeout / 拒絕 / 結帳-as-skip path）
-            result = service_confirm(
-                speak=io.speak,
-                print_terminal=io.print_terminal,
-                read_customer_input=io.read_customer_input,
-                speak_and_wait=io.speak_and_wait,
-                allow_scan=False,
-            )
+            result = SERVICE_CONFIRM.run(io)
             if result == "yes":
                 io.speak_blocking(QTY_PROMPT_TEMPLATE.format(product=product, unit=unit))
                 continue
