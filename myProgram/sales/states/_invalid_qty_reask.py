@@ -136,7 +136,7 @@ def invalid_qty_reask(
         "reenter_cancel"  — 否定 → 二選一選「取消這些商品繼續」
         "exit_l1"         — 否定 → 二選一選「退出」（caller 走 _dialog_exit_a）
     """
-    # W2：凍結簽名不動，體內建 io 束（含 print_terminal；fallback 三元式改用 io.speak_blocking）
+    # 體內建 io 束（含 print_terminal）：本函式是公開簽名（測試直接呼叫），io 在此收束後使用。
     io = DialogIO(
         speak=speak, read_customer_input=read_customer_input,
         print_terminal=print_terminal, speak_and_wait=speak_and_wait,

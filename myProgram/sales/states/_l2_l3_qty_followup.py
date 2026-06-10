@@ -102,7 +102,7 @@ def resolve_and_add_products(
 
         cancel_notices 順序對應 products 內出現順序；caller 用全形「，」拼成單一 speak。
     """
-    # W2：凍結簽名不動，體內建 io 束（含 print_terminal；fallback 三元式改用 io.speak_blocking）。
+    # 體內建 io 束（含 print_terminal）：本函式是公開簽名（測試直接呼叫），io 在此收束後下傳。
     # 2026-05-30 v3：「speak prompt 後接 read」path 走 speak_blocking（io.speak_and_wait
     # fallback io.speak）— read 從 TTS 播完才起算 timeout。其他即時通知（cart cap /
     # 已達上限 skip）保持 io.speak。
