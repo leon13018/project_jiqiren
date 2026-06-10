@@ -149,15 +149,16 @@ class Transition:
     via_subroutine_a: bool = False
 
 class State(ABC):
-    cart_invariant: str        # "empty" / "nonempty"（machine 進場前驗，A4-c）
+    entry_invariant: str       # "empty" / "nonempty"（machine 進場前驗，A4-c）
+    entry_ctx: str             # assert 訊息語境字串（原樣保留）
     @abstractmethod
-    def run(self, machine) -> Transition: ...
+    def run(self, machine) -> "Transition | None": ...   # None = 程式終止（run_l1 的 None）
 
 class SalesMachine:
-    """L1→dialog→L4→L5 主迴圈；持 cart；每次轉移先驗 cart invariant。"""
+    """L1→dialog→L4→L5 主迴圈；持 cart；每次進狀態先驗 cart invariant。"""
 ```
 
-W5 初版各 State 子類別薄包既有 `run_*`（tuple ↔ Transition 轉換），`logic.run` 變 facade；tuple 魔法值死在 machine 內部，對外測試照舊。
+W5 初版各 State 子類別薄包既有 `run_*`（tuple ↔ Transition 轉換），`logic.run` 變 facade；tuple 魔法值死在 machine 內部，對外測試照舊。machine 持 callbacks dict（L1 callback 集與 dialog 側不同構，不入 DialogIO）。
 
 ### 4-6. QueueWorker（W6，新檔 `myProgram/queue_worker.py`）+ TerminalSim（main.py）
 
