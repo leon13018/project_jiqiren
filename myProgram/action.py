@@ -33,26 +33,30 @@ caller（main.py 的 do_action callback / main 函式）使用方式：
     >>> action.shutdown()  # 程式退出前 cleanup（守衛 stopAction + 清 queue）
 """
 
-import queue
-import threading
+from myProgram.queue_worker import QueueWorker
 
 
-class ActionWorker:
+class ActionWorker(QueueWorker):
     """非阻塞動作 daemon worker：FIFO queue + lazy vendor import + sticky 旗號守衛。
 
     Thread model（依 [[threading-conventions]] 推薦：blocking 任務全推背景）：
         - 主線程：呼叫 do(name)（非阻塞 put queue）+ shutdown()（cleanup）
-        - 背景 daemon thread：跑 _loop() 依序消費 queue（阻塞 Act.runAction）
+        - 背景 daemon thread：依序消費 queue（阻塞 Act.runAction）
+
+    骨架（FIFO queue + daemon thread + get→_process→on_done 迴圈）在 QueueWorker
+    基底；本子類別覆寫 on_thread_start（worker thread 內 lazy import vendor）+
+    _process（Act.runAction + 失敗兜底）。
     """
 
+    thread_name = "ActionWorker"
+
     def __init__(self) -> None:
-        # type hint 用 queue.Queue[str]：對齊 tts.py 的 string annotation pattern
-        # （Python 3.7 string annotation 不會 runtime evaluate，OK）
-        self._q: "queue.Queue[str]" = queue.Queue()
-        # daemon=True：主程式退出時這個 thread 自動 die（不會卡住整個程序退出）
-        # 跟 tts.py 不同：vendor SDK 沒有 subprocess 可被「殺」— 中斷靠 vendor
-        # 內部 stop_action 旗號，daemon die 不會自動 reset 旗號 → 仍需顯式 shutdown()
-        threading.Thread(target=self._loop, name="ActionWorker", daemon=True).start()
+        # 無自有欄位需先於 thread 啟動 → 直接 super().__init__()（基底建 _q +
+        # 啟動 daemon thread。daemon=True：主程式退出時自動 die，不卡住整個程序
+        # 退出；跟 tts.py 不同：vendor SDK 沒有 subprocess 可被「殺」— 中斷靠
+        # vendor 內部 stop_action 旗號，daemon die 不會自動 reset → 仍需顯式
+        # shutdown()）。
+        super().__init__()
 
     def do(self, name: str) -> None:
         """非阻塞 producer：name 入 queue 立即 return。FIFO 順序消費（不中斷）。
@@ -60,36 +64,36 @@ class ActionWorker:
         預設不中斷：name 入 queue 排隊；當前動作播完才播下一個。中斷邏輯
         （新任務覆蓋舊）是 S7 的選擇性升級，S5 不做。
         """
-        self._q.put(name)
+        self.submit(name)
 
-    def _loop(self) -> None:
-        """Daemon worker：get name → Act.runAction → 下一輪（無限迴圈）。
+    def on_thread_start(self) -> None:
+        """基底 _loop 啟動後、首次 get 前的回調：lazy import vendor SDK。
 
-        queue 空就 block 在 self._q.get() 等待新任務。daemon=True 主程式退出時
-        自動死亡（即使 thread 卡在 get() 也會被 Python runtime 清掉）。
-
-        Lazy import：worker thread 啟動後第一次 dispatch 才 import vendor。
-        對齊 main.py do_action callback 的 lazy import pattern；Windows pytest
-        環境若意外 import action 模組，啟動 worker thread 但仍卡在 q.get() blocking
-        — 第一次 do() 才會觸發 vendor import 失敗。
+        Lazy import：worker thread 啟動後（首次 _process 前）才 import vendor。
+        對齊 main.py do_action callback 的 lazy import pattern；模組層仍零 vendor
+        import → Windows pytest 環境 import action 模組本身不觸發 vendor ImportError
+        （但 module-level singleton 啟動的 worker thread 進 on_thread_start 會 import
+        vendor → Windows 上該 daemon thread 因 ImportError 死掉，主流程不受影響 —
+        對齊現行 _loop 頂端先 import 的等價行為）。
         """
         from myProgram.vendor import ActionGroupControl as Act
-        while True:
-            # blocking get：queue 空就等到有任務（無 timeout，等到天荒地老）
-            name = self._q.get()
-            try:
-                # 阻塞至動作播完（典型 2-5 秒）。vendor runAction 內建重入保護：
-                # 一進入 check `runningAction is False` 才執行；又因本 worker
-                # 是單線程 FIFO 消費，不會有並發 runAction 呼叫。
-                Act.runAction(name)
-            except Exception as e:
-                # vendor runAction 罕見 raise（sqlite 連結錯 / setBusServoPulse
-                # 拋錯等），但 .d6a 不存在是 silent print 不 raise。兜底 catch
-                # Exception 確保 worker 不被單次失敗炸死、繼續消費下一輪。
-                print(f"[動作] ⚠️ runAction 失敗")
-                print(f"[動作]   exception = {type(e).__name__}: {e!r}")
-                print(f"[動作]   name      = {name!r}")
-                print(f"[動作] 此動作略過，繼續下一輪")
+        self._act = Act
+
+    def _process(self, name: str) -> None:
+        """處理單一動作：Act.runAction（阻塞至播完）+ 失敗兜底（基底 _loop 每輪呼叫一次）。"""
+        try:
+            # 阻塞至動作播完（典型 2-5 秒）。vendor runAction 內建重入保護：
+            # 一進入 check `runningAction is False` 才執行；又因本 worker
+            # 是單線程 FIFO 消費，不會有並發 runAction 呼叫。
+            self._act.runAction(name)
+        except Exception as e:
+            # vendor runAction 罕見 raise（sqlite 連結錯 / setBusServoPulse
+            # 拋錯等），但 .d6a 不存在是 silent print 不 raise。兜底 catch
+            # Exception 確保 worker 不被單次失敗炸死、繼續消費下一輪。
+            print(f"[動作] ⚠️ runAction 失敗")
+            print(f"[動作]   exception = {type(e).__name__}: {e!r}")
+            print(f"[動作]   name      = {name!r}")
+            print(f"[動作] 此動作略過，繼續下一輪")
 
     def shutdown(self) -> None:
         """程式退出 cleanup：清 queue + 守衛 stopAction。
@@ -106,12 +110,8 @@ class ActionWorker:
         daemon thread 隨主程式退出自動 die，不需 join。
         """
         from myProgram.vendor import ActionGroupControl as Act
-        # 1. 清 queue（避免 daemon die 前消費剩餘任務）
-        while not self._q.empty():
-            try:
-                self._q.get_nowait()
-            except queue.Empty:
-                break
+        # 1. 清 queue（避免 daemon die 前消費剩餘任務；共用 drain_queue helper）
+        self.drain()
         # 2. 守衛呼叫 stopAction：只在 vendor 正在跑 runAction 時才設旗號，
         # 空轉時呼叫會污染下次 runAction（sticky 旗號 reset 只發生在 runAction
         # 內部 loop 內，空轉時沒人消費 → 設了就一直 True）。

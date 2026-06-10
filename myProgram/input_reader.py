@@ -55,6 +55,8 @@ import sys
 import threading
 from typing import Optional
 
+from myProgram.queue_worker import drain_queue
+
 
 class InputReader:
     """非阻塞 stdin reader：daemon thread + queue.Queue + bytes-level decode。
@@ -163,13 +165,10 @@ class InputReader:
         讓 cleanup 語義跟 tts.shutdown / action.shutdown 一致比較好維護。
 
         無 subprocess 可 terminate / 無 vendor sticky 旗號可守衛 — 純 stdlib
-        queue 操作。
+        queue 操作（共用 drain_queue helper；read() 的 latest-wins drain 語意
+        不同，**不**改用此 helper）。
         """
-        while not self._q.empty():
-            try:
-                self._q.get_nowait()
-            except queue.Empty:
-                break
+        drain_queue(self._q)
 
 
 # Module-level singleton：import 時自動啟動 daemon reader thread。

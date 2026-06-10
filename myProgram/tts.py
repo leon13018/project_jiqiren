@@ -41,12 +41,13 @@ deadline 從 TTS 結束起算 → 顧客拿到完整 6s budget。
 """
 
 import asyncio
-import queue
 import subprocess
 import threading
 import time
 
 import edge_tts  # fail-fast：缺套件直接 ImportError；S2+ demo 環境是 Pi，必須有
+
+from myProgram.queue_worker import QueueWorker
 
 VOICE = "zh-TW-HsiaoChenNeural"  # 台灣女聲
 TMP_MP3 = "/tmp/last_tts.mp3"  # Linux 絕對路徑（path-conventions 規範）
@@ -86,7 +87,7 @@ async def _synthesize(text: str, out_path: str) -> None:
     await edge_tts.Communicate(text=text, voice=VOICE, rate=_pick_rate(text)).save(out_path)
 
 
-class TtsWorker:
+class TtsWorker(QueueWorker):
     """同步 TTS daemon worker：FIFO queue + lock-protected current Popen。
 
     主線程 say(text) 立即返回；worker 從 queue 依序取 text → synth → play。
@@ -94,31 +95,37 @@ class TtsWorker:
 
     Thread model（依 [[threading-conventions]] 推薦：blocking 任務全推背景）：
         - 主線程：呼叫 say(text)（非阻塞 put queue）+ shutdown()（cleanup）
-        - 背景 daemon thread：跑 _loop() 依序消費 queue（同步 synth + play）
+        - 背景 daemon thread：依序消費 queue（同步 synth + play）
+
+    骨架（FIFO queue + daemon thread + get→_process→on_done 迴圈）在 QueueWorker
+    基底；本子類別覆寫 _process（synth+play）+ on_done（dec _pending + notify），
+    並另持 _pending/_cv 計數（wait_idle 用）與 _proc/_lock（subprocess 中斷用）。
 
     Lock 保護範圍：`self._proc`（worker 寫、main read+terminate 之間 race window）。
     Lock **不**包 `_proc.wait()` — wait 會 block 2-5s,期間 shutdown 拿不到 lock
     就 defeat 了 shutdown 的目的。改在 spawn / 清 None 兩個短瞬間獨立加 lock。
     """
 
+    thread_name = "TtsWorker"
+
     def __init__(self) -> None:
-        # type hint 用 queue.Queue[str]：Python 3.9+ 支援 generic alias（Pi 是 3.7
-        # 但 string annotation 不會 runtime evaluate，OK）
-        self._q: "queue.Queue[str]" = queue.Queue()
+        # ⚠️ 欄位先設、super().__init__() 後呼叫：基底 __init__ 立即啟動 daemon
+        # thread，thread 第一時間（on_done）即可能觸碰 _cv / _pending。
         self._proc: "subprocess.Popen | None" = None
         self._lock = threading.Lock()  # 既有 _proc 保護 — 不動
-        # 2026-05-30 v2 加：Condition + _pending counter 同步 say + worker finally + wait_idle
-        # 取代 reverted v1 (8e3aa67) 的 _active bool — 後者有 R1 race window：
+        # Condition + _pending counter 同步 say + worker on_done + wait_idle。
+        # _active bool 設計曾有 R1 race window：
         #   worker:  text = q.get()      # 此瞬間 q.empty()=True 但 _active 仍 False
         #   main:    wait_idle()          # q.empty() && !_active → 誤判 idle 立即返回
         #   worker:  _active = True       # 太晚
-        # v2 fix：say() 原子 inc _pending + put queue，worker finally dec _pending。
+        # fix：say() 原子 inc _pending + put queue，worker on_done dec _pending。
         # q.get() 後 _pending 仍 > 0，wait_idle 阻塞至 worker 真完成才返回。
         self._cv = threading.Condition()
-        self._pending = 0  # queued + processing 的 text 數量（say inc / worker finally dec）
-        # daemon=True：主程式退出時這個 thread 自動 die（不會卡住整個程序退出）
-        # 但 daemon die 不會自動 terminate 當前 mpg123 子程序 → 仍需顯式 shutdown()
-        threading.Thread(target=self._loop, name="TtsWorker", daemon=True).start()
+        self._pending = 0  # queued + processing 的 text 數量（say inc / worker on_done dec）
+        # 基底建 _q + 啟動 daemon thread（daemon=True：主程式退出時自動 die，不會
+        # 卡住整個程序退出；但 daemon die 不會自動 terminate 當前 mpg123 子程序 →
+        # 仍需顯式 shutdown()）。
+        super().__init__()
 
     def say(self, text: str) -> None:
         """非阻塞 producer：原子 inc _pending + put queue。FIFO 順序消費（不中斷）。
@@ -134,30 +141,23 @@ class TtsWorker:
             self._pending += 1
             self._q.put(text)
 
-    def _loop(self) -> None:
-        """Daemon worker：get text → _process_text → finally dec _pending（無限迴圈）。
+    def on_done(self, text: str) -> None:
+        """基底 _loop finally 回調：dec _pending + 歸 0 時 notify_all（無論成功 / 失敗）。
 
-        queue 空就 block 在 self._q.get() 等待新任務。daemon=True 主程式退出時
-        自動死亡（即使 thread 卡在 get() 也會被 Python runtime 清掉）。
-
-        2026-05-30 v2：用 try/finally 包 _process_text，無論成功 / 失敗 path
-        都 dec _pending + notify_all，防止 wait_idle 永久阻塞。
+        基底 _loop 以 try/finally 包 _process，無論成功 / 失敗 path 都呼叫 on_done →
+        dec _pending + notify_all，防止 wait_idle 永久阻塞。
         """
-        while True:
-            text = self._q.get()
-            try:
-                self._process_text(text)
-            finally:
-                with self._cv:
-                    self._pending -= 1
-                    if self._pending == 0:
-                        self._cv.notify_all()
+        with self._cv:
+            self._pending -= 1
+            if self._pending == 0:
+                self._cv.notify_all()
 
-    def _process_text(self, text: str) -> None:
+    def _process(self, text: str) -> None:
         """處理單一 text：synth → play → drain。各失敗分支用 return 結束（替代舊 continue）。
 
-        對比舊 _loop：本函式是 single-iteration body，失敗分支 return 而非 continue
-        — caller (`_loop`) 的 try/finally 才負責 _pending dec + notify_all + 下一輪 get。
+        本函式是 single-iteration body（基底 _loop 每輪 get 一筆即呼叫一次），失敗
+        分支 return 而非 continue — 基底 _loop 的 try/finally 才負責 on_done（_pending
+        dec + notify_all）+ 下一輪 get。
         """
         # 階段 1：合成 mp3
         try:
@@ -292,12 +292,8 @@ class TtsWorker:
                     # 子程序剛好同時自然結束 → terminate 對已退出 proc 在某些
                     # 平台 raise OSError（Linux 通常 silent）。安全 swallow。
                     pass
-            # 清 queue：把剩餘任務全丟掉
-            while not self._q.empty():
-                try:
-                    self._q.get_nowait()
-                except queue.Empty:
-                    break
+            # 清 queue：把剩餘任務全丟掉（共用 drain_queue helper，原手寫迴圈收基底）
+            self.drain()
 
 
 # Module-level singleton：import 時自動啟動 daemon thread。
