@@ -9,7 +9,8 @@
 
 ## 檔案
 - `logic.py` — 主控狀態機：驅動 L0–L5 流程、調度各 state、串接 NLU / 購物車 / callback。
-- `nlu.py` — 意圖辨識（規則匹配，純函式）。
+- `nlu.py` — 意圖辨識（規則匹配，純函式；比對原語自 `keyword_group.py` re-export）。
+- `keyword_group.py` — `KeywordGroup` 雙集封裝（substring + strict-short）+ 比對原語 `contains_any` / `equals_strict_short` 本體（OOP 重構 W1）。
 - `product_parser.py` — 商品與數量解析。
 - `cart.py` — 購物車（加 / 減 / 清空 / 結算，純函式）。
 - `__init__.py` — 套件標記。

@@ -14,7 +14,7 @@
 - `l5_text.py` — L5 文案（致謝 `L5_THANKS` 等）。
 
 **其他常數**
-- `keywords.py` — NLU 規則匹配關鍵字（`KEYWORDS_C2_*` / `KEYWORDS_CONFIRM_*` / strict-short 等）。
+- `keywords.py` — NLU 規則匹配關鍵字（`KEYWORDS_C2_*` / `KEYWORDS_CONFIRM_*` / strict-short 等）+ `KG_*` KeywordGroup 配對實例（類別在 `sales/keyword_group.py`）。
 - `products.py` — 商品清單與價格。
 - `actions.py` — 機器人動作組常數（動作組名稱，如 `ACTION_L5_FAREWELL`）。
 - `timing.py` — 計時 / budget 常數（`HAWK_INTERVAL` / `L4_TOTAL_BUDGET` / `THANK_DELAY` 等秒數）。
