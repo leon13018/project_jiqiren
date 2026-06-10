@@ -9,7 +9,7 @@
 **層狀態（L0–L5）**
 - `l0_subroutine_a.py` — L0 共通子例程 A「交易完緩衝」：mute 12s、不自動叫賣（下一步去哪由 `logic.py` 決定）。
 - `l1.py` — L1 商家模式選擇層：叫賣（hawk 輪播）/ 待機 / 客服。
-- `l2_l3_dialog.py` — L2/L3 統一對話層（**cart 狀態驅動**）：cart 空=L2 問需求；cart 非空=L3 問加單 / 結帳（含 C-2 兩段結帳）。
+- `l2_l3_dialog.py` — L2/L3 統一對話層（**cart 狀態驅動**）：cart 空=L2 問需求；cart 非空=L3 問加單 / 結帳（含 C-2 兩段結帳）。OOP 重構 W4：`ModePolicy`（Strategy，L2/L3 差異集中）+ `DialogSession`（持 io / cart / 計數器，主迴圈與沉默期分派）。
 - `l4.py` — L4 結帳層：印金額 + 等掃碼；v3 雙計時器（36s 總 budget + 12s QR 刷新循環）。
 - `l5.py` — L5 致謝層：純序列 speak → clear_cart → sleep（無互動 / 無分支）。
 
