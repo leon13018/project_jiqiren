@@ -134,7 +134,7 @@ def invalid_qty_reask(
         "resolved"        — pending 全部進範圍（皆已 add_item 進 cart）
         "reenter_timeout" — 倒數歸零 / silent / 客服 NO（caller 重 speak entry + continue）
         "reenter_cancel"  — 否定 → 二選一選「取消這些商品繼續」
-        "exit_l1"         — 否定 → 二選一選「退出」（caller 走 _dialog_exit_a）
+        "exit_l1"         — 否定 → 二選一選「退出」（caller 走 DialogSession.exit_a()）
     """
     # 體內建 io 束（含 print_terminal）：本函式是公開簽名（測試直接呼叫），io 在此收束後使用。
     io = DialogIO(

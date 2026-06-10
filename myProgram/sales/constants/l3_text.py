@@ -91,7 +91,7 @@ L3_C2_WARNING_TEMPLATE: str = (
 L3_C2_GIBBERISH_HINT: str = '請說"繼續"、"結賬"或"取消"'
 
 # L3 鏈路 C-2 第二段「繼續選購」分支 ack 語音（2026-05-30 加；Pi demo UX 修補）
-# 顧客在 C-2 三選一講「繼續」命中 KEYWORDS_C2_CONTINUE → 回 _dialog_main_loop。
+# 顧客在 C-2 三選一講「繼續」命中 KEYWORDS_C2_CONTINUE → 回 DialogSession.main_loop()。
 # 主迴圈不重播 entry prompt → 若只 speak「好的，請繼續選購」顧客仍失去上下文
 # （不知道該講商品名 / 沉默 → 又被 DYC_TIMEOUT 抓回 C-2）。
 # 合成 voice 一次 speak 帶 ack + L3 reask 重啟，跟 L2_TO_L3_TRANSITION /

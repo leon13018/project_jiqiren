@@ -98,7 +98,7 @@ def resolve_and_add_products(
             None             — 正常完成（既有行為）。added / cancel_notices 同舊語意。
             "reenter_timeout" / "reenter_cancel" — 超量重問鏈逾時 / 取消超量繼續，
                                 caller 重 speak prefix+entry 回主迴圈；超量商品已丟棄。
-            "exit_l1"        — 超量重問鏈選擇退出，caller 走 _dialog_exit_a 退 L1。
+            "exit_l1"        — 超量重問鏈選擇退出，caller 走 DialogSession.exit_a() 退 L1。
 
         cancel_notices 順序對應 products 內出現順序；caller 用全形「，」拼成單一 speak。
     """

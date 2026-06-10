@@ -171,13 +171,13 @@ KEYWORDS_C2_CHECKOUT: list = [
 ]
 KEYWORDS_C2_CHECKOUT_STRICT_SHORT: list = ["結"]
 
-# 取消購買 — 顧客想離開，清 cart + 退 L1 hawk（reuse _dialog_exit_a 既有 helper）
+# 取消購買 — 顧客想離開，清 cart + 退 L1 hawk（reuse DialogSession.exit_a() 既有 helper）
 #
 # 2026-05-30 擴 substring（Pi demo「繼續購買」 fall-through 同類 sweep）：
 # 補既有缺漏 — 顧客常講「取消購買」/「我要取消」/「想取消」/「我想取消」
 # /「不想要了」這些都 miss（strict_short ["取消"] 純字 equals 不命中複合詞）。
 # 既有 dispatch 順序 CANCEL → CONTINUE → CHECKOUT，CANCEL 排第一，
-# 新加 substring 命中即刻走 _dialog_exit_a（清 cart 退 L1），不會 fall through。
+# 新加 substring 命中即刻走 DialogSession.exit_a()（清 cart 退 L1），不會 fall through。
 KEYWORDS_C2_CANCEL: list = [
     # 繁體 — 既有
     "幫我取消購買", "幫我取消", "取消吧", "那就取消吧", "取消它",

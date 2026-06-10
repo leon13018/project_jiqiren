@@ -42,7 +42,7 @@ from myProgram.sales.keyword_group import contains_any, equals_strict_short
 # HP-1 / C5：「沒有 / 沒了 / 不了 / 没有」從 substring 集移出，改 strict-short
 # 2026-05-29 加：cross-L cancel 意圖明確 phrase（user 列表擴充）
 #   「我想取消交易」「取消交易」「我要取消交易」「退出交易」
-#   會被 _dialog_main_loop / _dialog_dispatch_inner_l2 偵測到後，
+#   會被 DialogSession.main_loop() / DialogSession._dispatch_inner() 偵測到後，
 #   經 cancel_confirm gate 才真正退 L1
 _KEYWORDS_REJECT = [
     "不要", "不用", "不想", "不買", "不買了",
