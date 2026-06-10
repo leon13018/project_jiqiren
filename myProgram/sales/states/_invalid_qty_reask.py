@@ -17,15 +17,11 @@ from myProgram.sales.constants import (
     MAX_QTY_PER_ITEM,
     INVALID_QTY_REASK_TIMEOUT,
     INVALID_QTY_MAX_RESETS,
-    INVALID_QTY_CANCEL_CONFIRM_TIMEOUT,
     INVALID_QTY_OVERLIMIT_SINGLE_TEMPLATE,
     INVALID_QTY_OVERLIMIT_MULTI_TEMPLATE,
     INVALID_QTY_ZERO_TEMPLATE,
     INVALID_QTY_UNCLEAR_PREFIX,
-    INVALID_QTY_CANCEL_CONFIRM_PROMPT,
     KEYWORDS_INVALID_QTY_CANCEL_TRIGGER,
-    KG_INVALID_QTY_CONTINUE,
-    KG_INVALID_QTY_EXIT,
 )
 from myProgram.sales.nlu import (
     has_quantity, parse_quantity, classify_intent,
@@ -36,35 +32,21 @@ from myProgram.sales import cart as cart_module
 from myProgram.sales.dialog_io import DialogIO
 from myProgram.sales.states._cancel_confirm import is_cancel_intent
 from myProgram.sales.states._service_confirm import service_confirm
+from myProgram.sales.states._timed_confirm import INVALID_QTY_CANCEL_CONFIRM
 
 
 def invalid_qty_cancel_confirm(speak, read_customer_input, speak_and_wait=None) -> str:
-    """「取消這些商品繼續 vs 退出交易」二選一 6s 子狀態。
+    """「取消這些商品繼續 vs 退出交易」二選一 6s 子狀態（facade，委派 INVALID_QTY_CANCEL_CONFIRM 單例）。
 
     Returns:
         "cancel_overlimit" — 取消無效數量商品、保留其他、繼續（CONTINUE keyword / silent / 亂答耗盡）
         "exit"             — 退出交易（純 EXIT keyword）
 
-    check 順序 CONTINUE 先於 EXIT：保守原則，任何含「取消/繼續」→ 保 cart；
-    唯純「退出/離開」才 exit。timeout / silent / 亂答耗盡 → cancel_overlimit（保 cart）。
+    行為規約見 _timed_confirm.InvalidQtyCancelConfirm（CONTINUE 先於 EXIT、亂答帶前綴重播、
+    timeout/silent→cancel_overlimit 保 cart）。
     """
-    # W2：凍結簽名不動，體內建 io 束（fallback 三元式改用 io.speak_blocking）
     io = DialogIO(speak=speak, read_customer_input=read_customer_input, speak_and_wait=speak_and_wait)
-    io.speak_blocking(INVALID_QTY_CANCEL_CONFIRM_PROMPT)
-    deadline = time.monotonic() + INVALID_QTY_CANCEL_CONFIRM_TIMEOUT
-
-    while True:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            return "cancel_overlimit"
-        response = io.read_customer_input(timeout=remaining)
-        if response is None:
-            return "cancel_overlimit"
-        if KG_INVALID_QTY_CONTINUE.matches(response):
-            return "cancel_overlimit"
-        if KG_INVALID_QTY_EXIT.matches(response):
-            return "exit"
-        io.speak_blocking(INVALID_QTY_UNCLEAR_PREFIX + INVALID_QTY_CANCEL_CONFIRM_PROMPT)
+    return INVALID_QTY_CANCEL_CONFIRM.run(io)
 
 
 def _join_names(names: list) -> str:

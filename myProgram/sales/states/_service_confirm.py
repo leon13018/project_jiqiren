@@ -1,37 +1,18 @@
-"""跨 L2/L3/L4 通用「客服進入點」確認 24s 子狀態 helper（2026-05-31 加；對齊 _cancel_confirm.py 對稱）。
+"""跨 L2/L3/L4 通用「客服進入點」確認 24s 子狀態 helper（2026-05-31 加；W3 facade 化）。
 
-User 要求 L4 客服 confirm pattern 推廣到 L2/L3 — 顧客講「客服」不再直接「印電話 + 重 speak entry」，
-改為一次性 24s 決策子狀態：
+User 要求 L4 客服 confirm pattern 推廣到 L2/L3 — 顧客講「客服」改為一次性 24s 決策子狀態。
+service_confirm 現為 facade，依 allow_scan 委派 _timed_confirm.SERVICE_CONFIRM_SCAN（L4）/
+SERVICE_CONFIRM（L2/L3）單例執行 wall-clock 骨架（行為規約：scan 最先、NO 先於 YES、
+亂答 speak L4_UNCLEAR_NOTICE 不重置、timeout/silent→"no"，見 _timed_confirm）。
 
-    - print SERVICE_PHONE（終端顯示客服電話）
-    - speak L4_C_CONFIRM_PROMPT_TEMPLATE「請問是否繼續交易？{seconds}秒後將自動取消交易。」
-    - 一次性 L4_C_CONFIRM_TIMEOUT=24s wall-clock 決策
-    - YES keyword → return "yes"（caller 回主迴圈）
-    - NO keyword / silent / 24s 耗盡 → return "no"（caller 清 cart 退 L1）
-    - 終端 "s"（僅 L4 caller 開 allow_scan=True）→ return "scan"（caller 進 L5）
-    - 亂答 → speak L4_UNCLEAR_NOTICE + continue（不重置 24s budget，對齊主迴圈設計）
-
-設計沿革：上輪 L4 二次重構（commit 2141e7e）建立 _l4_service_mode pattern；本輪抽 helper 讓
-L2/L3 三個客服進入點（_dialog_main_loop / _dialog_dispatch_inner_l2 / _dialog_dispatch_inner_l3）
-也用同一機制（user 反饋「L2/L3 客服都改和 L4 相同」）。
-
-跟 _cancel_confirm.py 對稱（語意 inverse）：
-    - cancel_confirm 問「是否取消」silent=取消（保守 default）
-    - service_confirm 問「是否繼續」silent=取消（保守 default）
-    - 兩者都「保守 default 取消」— UX 一致
+跟 _cancel_confirm.py 對稱（語意 inverse）：兩者都「保守 default 取消」— UX 一致。
 """
 
-import time
+# 保留 import time：既有測試（SERVICE-CONFIRM-008）經本模組屬性 patch 全域時鐘；迴圈本體已搬 _timed_confirm
+import time  # noqa: F401
 
-from myProgram.sales.constants import (
-    SERVICE_PHONE,
-    L4_C_CONFIRM_TIMEOUT,
-    L4_C_CONFIRM_PROMPT_TEMPLATE,
-    L4_UNCLEAR_NOTICE,
-    KG_L4_C_CONFIRM_YES,
-    KG_L4_C_CONFIRM_NO,
-)
 from myProgram.sales.dialog_io import DialogIO
+from myProgram.sales.states._timed_confirm import SERVICE_CONFIRM, SERVICE_CONFIRM_SCAN
 
 
 def service_confirm(
@@ -42,7 +23,7 @@ def service_confirm(
     *,
     allow_scan: bool = False,
 ) -> str:
-    """共用客服 confirm 24s 子狀態。
+    """共用客服 confirm 24s 子狀態（facade，依 allow_scan 委派對應單例）。
 
     Args:
         speak: callback(text: str) — 語音播放（非阻塞）
@@ -57,36 +38,8 @@ def service_confirm(
         "no"  — 顧客 NO keyword / silent / 24s 耗盡，caller 清 cart 退 L1
         "scan" — 顧客終端 "s"（僅 allow_scan=True 才返回），caller 進 L5 處理
     """
-    # W2：凍結簽名不動，體內建 io 束（含 print_terminal；fallback 三元式改用 io.speak_blocking）
     io = DialogIO(
         speak=speak, read_customer_input=read_customer_input,
         print_terminal=print_terminal, speak_and_wait=speak_and_wait,
     )
-    # print 電話 + speak_and_wait prompt 後算 deadline — 顧客拿到完整 24s budget
-    # （不被 TTS 合成 / 播放時間吃掉）
-    io.print_terminal(SERVICE_PHONE)
-    io.speak_blocking(L4_C_CONFIRM_PROMPT_TEMPLATE.format(seconds=L4_C_CONFIRM_TIMEOUT))
-
-    deadline = time.monotonic() + L4_C_CONFIRM_TIMEOUT
-    while True:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            return "no"
-
-        response = io.read_customer_input(timeout=remaining)
-        if response is None:
-            return "no"
-
-        # 終端 "s" fast path（僅 L4 caller 啟用）
-        if allow_scan and response == "s":
-            return "scan"
-
-        # NO 必須先 check（防「不繼續」substring 含「繼續」strict_short 誤命中 YES）
-        if KG_L4_C_CONFIRM_NO.matches(response):
-            return "no"
-
-        if KG_L4_C_CONFIRM_YES.matches(response):
-            return "yes"
-
-        # 亂答 → speak unclear notice + continue（不重置 24s budget，對齊主迴圈設計）
-        io.speak(L4_UNCLEAR_NOTICE)
+    return (SERVICE_CONFIRM_SCAN if allow_scan else SERVICE_CONFIRM).run(io)
