@@ -122,7 +122,7 @@ def run_l4(
 
         # 1. budget 耗盡 → forced exit（優先於循環刷新，避免在 budget 已耗盡時還刷一輪）
         if budget_remaining <= 0:
-            return _l4_exit_d_forced(speak, cart)
+            return _l4_exit_to_l1(speak, cart, L4_D_FORCED_EXIT)
 
         # 2. 循環到期 → 重印 + 重 speak L4_REMIND_PROMPT → 起下一個循環
         #    （不影響 budget_deadline；模擬「QR 每 12s 重新生成」UX）
@@ -211,16 +211,13 @@ def _l4_print_entry_detail(cart, total: int, print_terminal) -> None:
     print_terminal("\n".join(lines))
 
 
-def _l4_exit_b(speak, cart) -> tuple:
-    """鏈路 B 退出：speak 取消語音、清空 cart，返回 L1（子例程 A）。"""
-    speak(L4_B_CANCEL_THANKS)
-    cart_module.clear_cart(cart)
-    return ("L1_via_subroutine_a", 0, 0)
+def _l4_exit_to_l1(speak, cart, notice: str) -> tuple:
+    """speak 退場語音、清空 cart，返回 L1（子例程 A）。
 
-
-def _l4_exit_d_forced(speak, cart) -> tuple:
-    """budget 耗盡強制退：speak 取消語音、清空 cart，返回 L1（子例程 A）。"""
-    speak(L4_D_FORCED_EXIT)
+    W1 oop_w1：合併原 _l4_exit_b（鏈路 B 拒絕）/ _l4_exit_d_forced（budget 耗盡）
+    — 兩者只差退場文案，以 notice 參數區分。
+    """
+    speak(notice)
     cart_module.clear_cart(cart)
     return ("L1_via_subroutine_a", 0, 0)
 
@@ -273,7 +270,7 @@ def _l4_dispatch_response(
         pause_duration = time.monotonic() - paused_at
         if cancelled:
             # YES → 退 L1（無需補償，已退出 L4）
-            return (_l4_exit_b(speak, cart), 0.0)
+            return (_l4_exit_to_l1(speak, cart, L4_B_CANCEL_THANKS), 0.0)
         # NO → 繼續交易，補償子狀態凍結時間
         speak(CANCEL_DECLINED_NOTICE)
         return ("ack", pause_duration)

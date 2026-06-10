@@ -31,7 +31,8 @@ myProgram（vendor 除外，約 3,900 行）存在系統性重複，依影響排
 myProgram/
 ├── sales/
 │   ├── dialog_io.py（新）        DialogIO — callback 束（W2）
-│   ├── constants/keywords.py     KeywordGroup + 組合實例（W1；既有 list 常數全保留）
+│   ├── keyword_group.py（新）     KeywordGroup 類別 + 比對原語（W1）
+│   ├── constants/keywords.py     KG_* 組合實例（W1；既有 list 常數全保留）
 │   ├── states/
 │   │   ├── _timed_confirm.py（新）TimedConfirm(ABC) Template Method（W3）
 │   │   │     ├── CancelConfirm(6s) / ServiceConfirm(24s+scan) / InvalidQtyCancelConfirm(6s)
@@ -47,7 +48,7 @@ myProgram/
 
 ## 4. 核心類別介面
 
-### 4-1. KeywordGroup（W1）
+### 4-1. KeywordGroup（W1；類別與比對原語在新檔 `sales/keyword_group.py`、組合實例在 `constants/keywords.py`、`nlu.py` re-export 原語保 caller 相容）
 
 ```python
 @dataclass(frozen=True)
