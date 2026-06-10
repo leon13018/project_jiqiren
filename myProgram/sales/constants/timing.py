@@ -120,7 +120,7 @@ L4_C_CONFIRM_TIMEOUT: int = 24
 # Cross-L cancel confirm 子狀態 wall-clock 預算（2026-05-29 加）
 # 跨 L2/L3/L4 任何 read 點偵測到 cancel intent 後進此確認狀態。
 # 與 C2_DECISION_TIMEOUT 對齊（6s）— 都是「已警告倒數中」的緊湊子狀態，避免顧客等太久。
-# silent / 倒數歸零 → 視為 YES（取消），跟 _dialog_c2_second_stage 同樣 wall-clock 行為。
+# silent / 倒數歸零 → 視為 YES（取消），跟 DialogSession.c2_second_stage() 同樣 wall-clock 行為。
 CANCEL_CONFIRM_TIMEOUT: float = 6.0
 
 # 無效數量重問狀態鏈（2026-06-09 加；spec invalid_qty_reask）

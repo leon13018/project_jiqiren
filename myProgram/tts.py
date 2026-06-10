@@ -322,7 +322,7 @@ def speak(text: str) -> None:
 def speak_and_wait(text: str, max_wait: float = 30.0) -> bool:
     """同步阻塞 speak — say + wait_idle 連續 call。2026-05-30 v2 加。
 
-    給 wall-clock budget pattern caller 用（_cancel_confirm / _dialog_c2_second_stage
+    給 wall-clock budget pattern caller 用（_cancel_confirm / DialogSession.c2_second_stage()
     / l4 entry）：先讓 TTS 完整播完，再算 deadline = monotonic + N → 顧客拿到
     完整 N 秒 budget，而非「N 秒減 TTS 播放時間」。
 

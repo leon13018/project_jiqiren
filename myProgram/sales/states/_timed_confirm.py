@@ -6,7 +6,7 @@ cancel_confirm（6s）/ service_confirm（24s）/ invalid_qty_cancel_confirm（6
 （classify / on_timeout / on_enter / on_unclear）。三個對外 facade（_cancel_confirm /
 _service_confirm / _invalid_qty_reask）委派給對應模組級單例。
 
-不入家族（傘狀 §9 既定）：invalid_qty_reask 主迴圈、_dialog_c2_second_stage、
+不入家族（傘狀 §9 既定）：invalid_qty_reask 主迴圈、DialogSession.c2_second_stage()、
 _dialog_checkout_confirm、_dialog_unclear_final_confirmation — 形狀不同（reset 鏈 /
 每次重 prompt 重置 timeout / 多元終端分支），硬塞會讓基底長滿 if。
 """

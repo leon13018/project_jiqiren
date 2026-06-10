@@ -227,7 +227,7 @@ def _build_callbacks(state: _S1State) -> dict:
 
         Wire-up 範圍（grep 過 wall-clock budget pattern 共 3 處）：
             - sales/states/_cancel_confirm.py: speak CANCEL_CONFIRM_PROMPT
-            - sales/states/l2_l3_dialog.py: _dialog_c2_second_stage speak warning
+            - sales/states/l2_l3_dialog.py: DialogSession.c2_second_stage() speak warning
             - sales/states/l4.py: run_l4 entry speak total prompt
 
         Lazy import 對齊既有 speak callback pattern。
