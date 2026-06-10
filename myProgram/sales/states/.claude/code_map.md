@@ -14,8 +14,9 @@
 - `l5.py` — L5 致謝層：純序列 speak → clear_cart → sleep（無互動 / 無分支）。
 
 **跨層流程子模組（`_` 前綴）**
-- `_cancel_confirm.py` — 取消確認子流程（顧客要取消 → 確認後清 cart 退出）。
-- `_service_confirm.py` — 服務確認子流程。
+- `_timed_confirm.py` — `TimedConfirm(ABC)` 計時確認 Template Method：基底骨架 + `CancelConfirm`(6s) / `ServiceConfirm`(24s+scan) / `InvalidQtyCancelConfirm`(6s) 子類別 + 4 模組級單例（OOP 重構 W3）。
+- `_cancel_confirm.py` — 取消確認 facade（委派 `CANCEL_CONFIRM.run`）+ `is_cancel_intent`。
+- `_service_confirm.py` — 服務確認 facade（委派 `SERVICE_CONFIRM[_SCAN].run`）。
 - `_l2_l3_qty_followup.py` — L2/L3 數量追問子流程（商品數量釐清）。
 - `_invalid_qty_reask.py` — 無效數量重問狀態鏈：超上限 / 數量為 0 統一重問 loop（12s+2reset，pending 帶 per-product reason）+ 取消這些商品/退出二選一。
 
