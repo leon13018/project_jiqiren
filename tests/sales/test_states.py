@@ -1105,7 +1105,7 @@ def test_l2_b2_service_keyword_enters_confirm_yes_returns_to_l2_loop() -> None:
 # ============================================================
 
 def test_l2_b2_service_keyword_silent_exits_l1() -> None:
-    """L2 main loop 「客服」 → confirm silent → _dialog_exit_a（cart 空 → L2 thanks 不清 cart）。"""
+    """L2 main loop 「客服」 → confirm silent → DialogSession.exit_a()（cart 空 → L2 thanks 不清 cart）。"""
     # Arrange
     speak_calls: list = []
     cart = cart_module.new_cart()
@@ -1123,7 +1123,7 @@ def test_l2_b2_service_keyword_silent_exits_l1() -> None:
         do_action=lambda *a, **k: None,
     )
 
-    # Assert：cart 空 → L2_REJECT_THANKS（_dialog_exit_a L2 path 不清 cart）+ 退 L1
+    # Assert：cart 空 → L2_REJECT_THANKS（DialogSession.exit_a() L2 path 不清 cart）+ 退 L1
     assert L2_REJECT_THANKS in speak_calls, (
         f"L2 客服 silent 應 speak L2_REJECT_THANKS，實際:{speak_calls}"
     )
@@ -1178,7 +1178,7 @@ def test_l2_b3_silence_service_intent_enters_confirm_yes_respeaks_prompt() -> No
 # ============================================================
 
 def test_l2_b3_silence_service_intent_silent_exits_l1() -> None:
-    """L2 沉默期 → 「客服」 → confirm silent → _dialog_exit_a（cart 空 → L2 thanks 不清 cart）。"""
+    """L2 沉默期 → 「客服」 → confirm silent → DialogSession.exit_a()（cart 空 → L2 thanks 不清 cart）。"""
     # Arrange
     speak_calls: list = []
     cart = cart_module.new_cart()
@@ -1196,7 +1196,7 @@ def test_l2_b3_silence_service_intent_silent_exits_l1() -> None:
         do_action=lambda *a, **k: None,
     )
 
-    # Assert：cart 空 → L2_REJECT_THANKS（_dialog_exit_a 內走 L2 path）+ 退 L1
+    # Assert：cart 空 → L2_REJECT_THANKS（DialogSession.exit_a() 內走 L2 path）+ 退 L1
     assert L2_REJECT_THANKS in speak_calls, (
         f"L2 客服 silent 應 speak L2_REJECT_THANKS，實際:{speak_calls}"
     )
@@ -2243,7 +2243,7 @@ def test_l3_b4_silence_service_intent_enters_confirm_yes_respeaks_reask() -> Non
 # ============================================================
 
 def test_l3_b4_silence_service_intent_silent_clears_cart_exits_l1() -> None:
-    """L3 沉默期 → 「客服」 → confirm silent → _dialog_exit_a（cart 非空 → 清 cart + L3 thanks）。"""
+    """L3 沉默期 → 「客服」 → confirm silent → DialogSession.exit_a()（cart 非空 → 清 cart + L3 thanks）。"""
     # Arrange
     speak_calls: list = []
     cart = cart_module.new_cart()
@@ -2262,7 +2262,7 @@ def test_l3_b4_silence_service_intent_silent_clears_cart_exits_l1() -> None:
         do_action=lambda *a, **k: None,
     )
 
-    # Assert：cart 非空 → L3_REJECT_THANKS（_dialog_exit_a L3 path）+ 清 cart + 退 L1
+    # Assert：cart 非空 → L3_REJECT_THANKS（DialogSession.exit_a() L3 path）+ 清 cart + 退 L1
     assert L3_REJECT_THANKS in speak_calls, (
         f"L3 客服 silent 應 speak L3_REJECT_THANKS，實際:{speak_calls}"
     )
@@ -2357,7 +2357,7 @@ def test_l3_b2_service_keyword_enters_confirm_yes_returns_to_l3_loop() -> None:
 # ============================================================
 
 def test_l3_b2_service_keyword_silent_clears_cart_exits_l1() -> None:
-    """L3 main loop 「客服」 → confirm silent → _dialog_exit_a（cart 非空 → 清 cart + L3 thanks）。"""
+    """L3 main loop 「客服」 → confirm silent → DialogSession.exit_a()（cart 非空 → 清 cart + L3 thanks）。"""
     # Arrange
     speak_calls: list = []
     cart = cart_module.new_cart()
@@ -3204,7 +3204,7 @@ def test_l3_c2_second_stage_expanded_continue_keywords_hit_and_resume_dialog(
 ### Scenario: C-2 第二段擴展 CANCEL keyword 命中 → 清 cart 退 L1
 ### Given L3 C-2 第二段等待中（已 speak warning），cart 含商品
 ### When 顧客輸入新加 CANCEL keyword family 內任一詞（如「取消購買」/「我想取消」）
-### Then 命中 KEYWORDS_C2_CANCEL → _dialog_exit_a → clear cart + 退 L1
+### Then 命中 KEYWORDS_C2_CANCEL → DialogSession.exit_a() → clear cart + 退 L1
 ### Note 2026-05-30 加：同類 sweep —「取消購買」等口語原本被 strict_short ["取消"] equals 漏掉
 # ============================================================
 
@@ -3226,7 +3226,7 @@ def test_l3_c2_second_stage_expanded_cancel_keywords_hit_and_exit_l1(
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # None → C-2 第一段；cancel_keyword → CANCEL 命中 → _dialog_exit_a：
+    # None → C-2 第一段；cancel_keyword → CANCEL 命中 → DialogSession.exit_a()：
     # speak L3_REJECT_THANKS + clear cart + 退 L1
     customer_input = FakeCustomerInput([None, cancel_keyword])
 
@@ -3240,7 +3240,7 @@ def test_l3_c2_second_stage_expanded_cancel_keywords_hit_and_exit_l1(
         do_action=lambda *a, **k: None,
     )
 
-    # _dialog_exit_a：speak L3_REJECT_THANKS + clear cart + 退 L1
+    # DialogSession.exit_a()：speak L3_REJECT_THANKS + clear cart + 退 L1
     assert L3_REJECT_THANKS in speak_calls, (
         f"擴 CANCEL keyword「{cancel_keyword}」應命中並 speak L3_REJECT_THANKS，實際：{speak_calls}"
     )
@@ -3518,7 +3518,7 @@ def test_l4_reject_then_cancel_confirm_no_continues_payment() -> None:
 def test_l2_b3_silence_reject_then_cancel_confirm_no_continues() -> None:
     """L2 B-3 沉默期內顧客講拒絕 → cancel_confirm gate → NO → 繼續對話。
 
-    對應 _dialog_dispatch_inner_l2 內的 reject path（非主迴圈 reject path）。
+    對應 DialogSession._dispatch_inner（L2 mode） 內的 reject path（非主迴圈 reject path）。
     """
     speak_calls: list = []
     cart = cart_module.new_cart()
@@ -3548,9 +3548,9 @@ def test_l2_b3_silence_reject_then_cancel_confirm_no_continues() -> None:
 def test_l3_b4_silence_reject_then_cancel_confirm_no_continues() -> None:
     """L3 B-4 沉默期內顧客講拒絕 → cancel_confirm gate → NO → speak L3_CANCEL_DECLINED_RESUME 繼續對話。
 
-    對應 _dialog_dispatch_inner_l3 內的 reject path（非主迴圈 reject path）。
+    對應 DialogSession._dispatch_inner（L3 mode） 內的 reject path（非主迴圈 reject path）。
     既有 L2 版（test_l2_b3_silence_reject_then_cancel_confirm_no_continues）已 cover L2 沉默期；
-    本 test 補 L3 對稱 path，避免 _dialog_dispatch_inner_l3 reject 分支無 regression 守護。
+    本 test 補 L3 對稱 path，避免 DialogSession._dispatch_inner（L3 mode） reject 分支無 regression 守護。
     """
     speak_calls: list = []
     cart = cart_module.new_cart()
@@ -3587,7 +3587,7 @@ def test_checkout_confirm_cancel_intent_triggers_cancel_confirm_gate() -> None:
     """checkout_confirm 內顧客講「取消交易」→ 經 cancel_confirm gate → 直退 L1。
 
     對應 _dialog_checkout_confirm 內 is_cancel_intent gate（2026-05-29 加 gate；
-    2026-05-30 強化：YES path 直退 L1 走 _dialog_exit_a，不走
+    2026-05-30 強化：YES path 直退 L1 走 DialogSession.exit_a()，不走
     _handle_checkout_confirm_result + L2 entry → 兩輪拒絕 bug path）。
     """
     speak_calls: list = []
@@ -3608,9 +3608,9 @@ def test_checkout_confirm_cancel_intent_triggers_cancel_confirm_gate() -> None:
 
     # Assert：cancel_confirm prompt 有 speak、退 L1、cart 清空
     assert CANCEL_CONFIRM_PROMPT in speak_calls
-    # 2026-05-30 強化：新 path 走 _dialog_exit_a → speak L3_REJECT_THANKS
+    # 2026-05-30 強化：新 path 走 DialogSession.exit_a() → speak L3_REJECT_THANKS
     assert L3_REJECT_THANKS in speak_calls, (
-        f"cancel YES 應走 _dialog_exit_a speak L3_REJECT_THANKS，實際：{speak_calls}"
+        f"cancel YES 應走 DialogSession.exit_a() speak L3_REJECT_THANKS，實際：{speak_calls}"
     )
     # 不該走舊 bug path：_handle_checkout_confirm_result speak「請告訴我您想買什麼」(L2 entry 內容)
     assert L3_CHECKOUT_REJECT_CLEAR_NOTICE not in speak_calls, (
@@ -3628,7 +3628,7 @@ def test_checkout_confirm_cancel_intent_triggers_cancel_confirm_gate() -> None:
 
 # ============================================================
 # L3-CANCEL-CHECKOUT-001
-### Scenario: _dialog_main_loop 結帳分支 confirm 內 cancel_confirm YES → 直退 L1 不需第二輪拒絕
+### Scenario: DialogSession.main_loop() 結帳分支 confirm 內 cancel_confirm YES → 直退 L1 不需第二輪拒絕
 ### Given L3 主迴圈內顧客「結帳」進 C-1 confirm，cart 含商品
 ### When 顧客在 confirm 講 cancel intent → cancel_confirm「是」YES
 ### Then 直接退 L1（speak L3_REJECT_THANKS + clear cart），不再 speak「請告訴我您想買什麼」
@@ -3656,7 +3656,7 @@ def test_l3_main_checkout_confirm_cancel_yes_direct_exits_l1() -> None:
     )
 
     assert L3_REJECT_THANKS in speak_calls, (
-        f"cancel YES 應走 _dialog_exit_a speak L3_REJECT_THANKS，實際：{speak_calls}"
+        f"cancel YES 應走 DialogSession.exit_a() speak L3_REJECT_THANKS，實際：{speak_calls}"
     )
     assert L3_CHECKOUT_REJECT_CLEAR_NOTICE not in speak_calls, (
         f"cancel YES 不該走 clear-cart helper（舊 bug path），實際：{speak_calls}"
@@ -3702,8 +3702,8 @@ def test_l3_c2_checkout_via_confirm_cancel_yes_direct_exits_l1() -> None:
 
 # ============================================================
 # L3-CANCEL-CHECKOUT-003
-### Scenario: _dialog_dispatch_inner_l3 結帳分支進 confirm 內 cancel YES → 直退 L1
-### Given L3 B-4 沉默期內顧客講「結帳」進 _dialog_dispatch_inner_l3 結帳分支
+### Scenario: DialogSession._dispatch_inner（L3 mode） 結帳分支進 confirm 內 cancel YES → 直退 L1
+### Given L3 B-4 沉默期內顧客講「結帳」進 DialogSession._dispatch_inner（L3 mode） 結帳分支
 ### When 顧客在 confirm 講 cancel intent → cancel_confirm YES
 ### Then 直退 L1（不回 main loop）
 # ============================================================
@@ -3713,7 +3713,7 @@ def test_l3_b4_silence_checkout_confirm_cancel_yes_direct_exits_l1() -> None:
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # 「想一下」→ B-4 沉默期；「結帳」→ 沉默期內走 _dialog_dispatch_inner_l3 結帳分支
+    # 「想一下」→ B-4 沉默期；「結帳」→ 沉默期內走 DialogSession._dispatch_inner（L3 mode） 結帳分支
     # 「不買了」→ confirm 內 cancel；「是」→ YES → 直退 L1
     customer_input = FakeCustomerInput(["想一下", "結帳", "不買了", "是"])
 
@@ -4782,12 +4782,12 @@ def test_l3_c2_cancel_keyword_returns_to_l1_via_subroutine_a() -> None:
 
     替代舊版「test_l3_c2_first_stage_no_keyword_cancels_order」：舊版「不要」誤判
     為「拒絕整單」清 cart bug 已修；新版必須講明確「取消 / 取消吧 / 幫我取消」等
-    keyword 才 trigger cancel path（走 _dialog_exit_a：清 cart + speak L3_REJECT_THANKS）。
+    keyword 才 trigger cancel path（走 DialogSession.exit_a()：清 cart + speak L3_REJECT_THANKS）。
     """
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # None → C-2 第二段；「取消」strict-short → CANCEL → _dialog_exit_a → L1
+    # None → C-2 第二段；「取消」strict-short → CANCEL → DialogSession.exit_a() → L1
     customer_input = FakeCustomerInput([None, "取消"])
 
     next_state, _ = states.run_dialog(
@@ -4801,12 +4801,12 @@ def test_l3_c2_cancel_keyword_returns_to_l1_via_subroutine_a() -> None:
         do_action=lambda *a, **k: None,
     )
 
-    # 「取消」keyword → 走 _dialog_exit_a：清 cart + L3_REJECT_THANKS + 退 L1
+    # 「取消」keyword → 走 DialogSession.exit_a()：清 cart + L3_REJECT_THANKS + 退 L1
     assert next_state == "L1_via_subroutine_a"
     assert cart_module.is_empty(cart), f"取消應清 cart，實際：{cart}"
-    # _dialog_exit_a 在 cart 非空時 speak L3_REJECT_THANKS（「好的，取消這次購物，謝謝光臨」）
+    # DialogSession.exit_a() 在 cart 非空時 speak L3_REJECT_THANKS（「好的，取消這次購物，謝謝光臨」）
     assert L3_REJECT_THANKS in speak_calls, (
-        f"CANCEL path 應 speak L3_REJECT_THANKS（_dialog_exit_a path），實際：{speak_calls}"
+        f"CANCEL path 應 speak L3_REJECT_THANKS（DialogSession.exit_a() path），實際：{speak_calls}"
     )
     # 不應走 confirm（顧客明確 cancel，不需 confirm）
     assert not any("正確嗎" in s for s in speak_calls), (
@@ -4860,7 +4860,7 @@ def test_l3_c2_continue_keyword_returns_to_dialog_main_loop_preserving_cart() ->
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # None → C-2 第二段；「繼續」strict-short → CONTINUE → _dialog_main_loop 重入
+    # None → C-2 第二段；「繼續」strict-short → CONTINUE → DialogSession.main_loop() 重入
     # → cart 仍非空 → DyC timeout (None) → c2 second stage 再次 → None → silent → confirm；
     # 「對」 → confirm yes → L4（2026-05-29 silent timeout 改經 confirm 合流路徑）
     customer_input = FakeCustomerInput([None, "繼續", None, None, "對"])
@@ -5259,7 +5259,7 @@ def test_l4_wallclock_budget_ack_spam_eventually_forced_exit() -> None:
     """L4 顧客 spam ack 詞超過 L4_TOTAL_BUDGET 預算後應強制 exit（單一 budget 防 spam）。
 
     核心：ack 路徑 continue 不重設 deadline；預算耗盡（remaining <= 0）
-    → _l4_exit_d_forced（speak L4_D_FORCED_EXIT + clear cart + return L1）。
+    → _l4_exit_to_l1（speak L4_D_FORCED_EXIT + clear cart + return L1）。
 
     fake time 機制：patch time.monotonic 讓每次呼叫回傳的值快速推進。
     第 1 次呼叫：0.0（設定 deadline = 0 + L4_TOTAL_BUDGET）
@@ -5344,7 +5344,7 @@ def test_l4_normal_scan_within_budget_succeeds() -> None:
 def test_l4_silence_full_budget_forces_exit_clears_cart() -> None:
     """L4 全程沒回應 → budget 耗盡 → forced exit + clear cart + 退 L1。
 
-    新設計：每 12s 重 prompt → 達到 36s budget → _l4_exit_d_forced。
+    新設計：每 12s 重 prompt → 達到 36s budget → _l4_exit_to_l1。
     對應規格：「budget 耗盡 → forced exit（speak L4_D_FORCED_EXIT + clear cart）」。
 
     用 fake_monotonic 跳過真實等待（避免測試跑 36 秒）：第 1 次回 0.0 設定 deadline，
@@ -6570,7 +6570,7 @@ def test_dialog_l3_action_triggered_on_main_loop_transition() -> None:
 def test_dialog_l3_action_triggered_on_silence_transition() -> None:
     """L2→L3 transition（silence 路徑）：顧客在 B-3 沉默期內加單 → 觸發 ACTION_L3。
 
-    覆蓋 _dialog_dispatch_inner_l2 內 added 分支的 do_action 插入點（main_loop 是另一條路徑）。
+    覆蓋 DialogSession._dispatch_inner（L2 mode） 內 added 分支的 do_action 插入點（main_loop 是另一條路徑）。
     """
     do_action_calls: list = []
     cart = cart_module.new_cart()
@@ -6659,7 +6659,7 @@ def test_dialog_l3_checkout_go_action_triggered_via_main_loop() -> None:
 def test_dialog_l3_checkout_go_action_triggered_via_silence_period() -> None:
     """L3 → L4 transition（silence path）：silence 期內結帳 + confirm yes → ACTION_L3_CHECKOUT_GO。
 
-    覆蓋 _dialog_dispatch_inner_l3 內結帳 path 的 do_action 插入點（main_loop 是另一條）。
+    覆蓋 DialogSession._dispatch_inner（L3 mode） 內結帳 path 的 do_action 插入點（main_loop 是另一條）。
     """
     do_action_calls: list = []
     cart = cart_module.new_cart()
@@ -6689,7 +6689,7 @@ def test_dialog_l3_checkout_go_action_triggered_via_silence_period() -> None:
 # 2026-05-30 v3 — qty followup 也用 speak_and_wait（接續 c418004 v2）
 #
 # 背景：v2 commit c418004 把 wall-clock budget 用的 callers（cancel_confirm /
-# _dialog_c2_second_stage / run_l4 entry）改用 speak_and_wait — deadline 從 TTS
+# DialogSession.c2_second_stage() / run_l4 entry）改用 speak_and_wait — deadline 從 TTS
 # 播完才起算。User Pi demo 發現 qty followup「請問冰紅茶要幾瓶？」也踩同樣 UX
 # bug：speak 非阻塞 + read_customer_input(timeout=WAIT_NO_RESPONSE=6s) 立即倒數，
 # 2-3s 語音吃掉一半預算 → 顧客真正可回應只剩 ~3s。

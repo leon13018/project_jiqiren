@@ -40,7 +40,6 @@ from myProgram.sales.constants import (
     WAIT_NO_RESPONSE,
     DNC_TIMEOUT,
     DYC_TIMEOUT,
-    AUTO_CHECKOUT_NOTICE,
     C2_DECISION_TIMEOUT,
     UNCLEAR_MAX,
     L2_ENTRY_PROMPT,

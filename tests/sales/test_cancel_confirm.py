@@ -2,7 +2,7 @@
 
 2026-05-29 加：cross-cutting cancel intent + 6s confirm 子狀態 helper。
 
-設計（跟 _dialog_c2_second_stage 一致 wall-clock pattern）：
+設計（跟 DialogSession.c2_second_stage() 一致 wall-clock pattern）：
     - speak CANCEL_CONFIRM_PROMPT，6s budget
     - YES keyword 命中 → return True（取消）
     - NO keyword 命中 → return False（不取消）
