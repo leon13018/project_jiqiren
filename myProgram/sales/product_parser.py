@@ -47,6 +47,13 @@ _PRODUCT_KEYWORD_TO_NAME: list = [
     ("刮刮", "刮刮樂"),
 ]
 
+# 預算 (kw_lower, kw_len, product)（perf_w1 F-3）：keyword 為 frozen 常數，
+# 每呼叫重算 lower / len 是浪費。原表保留為單一事實來源。
+_PRODUCT_KEYWORDS_PRE: list = [
+    (keyword.lower(), len(keyword), product)
+    for keyword, product in _PRODUCT_KEYWORD_TO_NAME
+]
+
 
 def parse_products(text: str) -> list:
     """多商品解析（B 方案 — 2026-05-25 加；2026-05-26 P7 移至 product_parser）。
@@ -91,14 +98,13 @@ def parse_products(text: str) -> list:
     found: list = []  # (start, end, product_name)
     occupied: list = []  # 已被佔據的字元位置區間 [(start, end), ...]
 
-    for keyword, product in _PRODUCT_KEYWORD_TO_NAME:
-        kw_lower = keyword.lower()
+    for kw_lower, kw_len, product in _PRODUCT_KEYWORDS_PRE:
         pos = 0
         while True:
             idx = text_lower.find(kw_lower, pos)
             if idx == -1:
                 break
-            end = idx + len(keyword)
+            end = idx + kw_len
             # 若此區間與既有 occupied 重疊 → 跳過（避免「冰紅茶」被「紅茶」二度算）
             overlaps = any(not (end <= os or idx >= oe) for os, oe in occupied)
             if not overlaps:
