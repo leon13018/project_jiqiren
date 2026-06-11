@@ -119,9 +119,7 @@ def run_l4(
     io.speak_blocking(L4_ENTRY_PROMPT_TEMPLATE.format(total=total))
 
     # v3 雙計時器：兩個獨立 wall-clock deadline，從 entry prompt 播完起算
-    now = time.monotonic()
-    budget_deadline = now + L4_TOTAL_BUDGET
-    cycle_deadline = now + L4_QR_REFRESH_INTERVAL
+    budget_deadline, cycle_deadline = _l4_fresh_deadlines()
 
     # 主等待迴圈
     while True:
@@ -164,9 +162,7 @@ def run_l4(
             # 對齊 v2 既有「客服繼續 fresh 30s」行為（spec §2.4：reset 而非補償）
             _l4_print_entry_detail(cart, total, io)
             io.speak(L4_ENTRY_PROMPT_TEMPLATE.format(total=total))
-            now = time.monotonic()
-            budget_deadline = now + L4_TOTAL_BUDGET
-            cycle_deadline = now + L4_QR_REFRESH_INTERVAL
+            budget_deadline, cycle_deadline = _l4_fresh_deadlines()
             continue
         # result == "ack"
         # 若子狀態有耗時（cancel_confirm 進過子狀態）→ 補償兩個 deadline（時間「回補」）
@@ -175,6 +171,16 @@ def run_l4(
             budget_deadline += pause_duration
             cycle_deadline += pause_duration
         continue
+
+
+def _l4_fresh_deadlines() -> tuple:
+    """回傳 (budget_deadline, cycle_deadline)——自此刻起算。
+
+    entry 與客服 reset 兩處共用：兩計時器起算點必須同步（36 = 12 × 3 不變量，
+    見 L4_v3_dual_timer_spec），抽單點避免雙處漂移。
+    """
+    now = time.monotonic()
+    return now + L4_TOTAL_BUDGET, now + L4_QR_REFRESH_INTERVAL
 
 
 def _l4_print_entry_detail(cart, total: int, io) -> None:
@@ -237,6 +243,13 @@ def _l4_exit_to_l1(io, cart, notice: str) -> tuple:
     return ("L1_via_subroutine_a", 0, 0)
 
 
+def _l4_pay_success(io) -> tuple:
+    """鏈路 A 共同體：付款成功 speak + 鞠躬動作 + 進 L5（終端 "s" 與客服 "scan" 共用）。"""
+    io.speak(L4_A_PAY_SUCCESS)
+    io.do_action(ACTION_L4_PAY)
+    return ("L5", 0, 0)
+
+
 def _l4_dispatch_response(response: str, io, cart) -> tuple:
     """L4 判定優先序 dispatcher（v3 雙計時器設計）。
 
@@ -264,9 +277,7 @@ def _l4_dispatch_response(response: str, io, cart) -> tuple:
     """
     # 優先序 1：終端 s → 鏈路 A（S3：speak 付款成功語音後跑鞠躬動作）
     if response == "s":
-        io.speak(L4_A_PAY_SUCCESS)
-        io.do_action(ACTION_L4_PAY)
-        return (("L5", 0, 0), 0.0)
+        return (_l4_pay_success(io), 0.0)
 
     intent = classify_intent(response, "l4")
 
@@ -339,9 +350,7 @@ def _l4_service_mode(io, cart) -> tuple | None:
     if result == "yes":
         return None
     if result == "scan":
-        io.speak(L4_A_PAY_SUCCESS)
-        io.do_action(ACTION_L4_PAY)
-        return ("L5", 0, 0)
+        return _l4_pay_success(io)
     # result == "no" → 清 cart 退 L1
     cart_module.clear_cart(cart)
     return ("L1_via_subroutine_a", 0, 0)
