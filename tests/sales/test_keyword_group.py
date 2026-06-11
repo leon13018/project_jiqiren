@@ -160,3 +160,35 @@ def test_kg_cancel_confirm_no_behavior_spot_check() -> None:
 def test_kg_confirm_yes_behavior_spot_check() -> None:
     """「沒有錯」應命中 YES（substring「沒有錯」）。"""
     assert KG_CONFIRM_YES.matches("沒有錯") is True
+
+
+# ============================================================
+# 守則：strict_short 成員不得被自家 substring 集成員包含（死配置防呆）
+# equals_strict_short 命中（text ≈ kw）時，若存在 substring 成員 sub ⊆ kw，
+# contains_any 必同時命中 → 該 strict_short 成員零行為效果。
+# quality_fix_w4（a0d1163）曾刪除兩組整組死配置；本守則防未來新增 KG 配對再犯。
+# ============================================================
+
+def test_no_kg_strict_short_member_subsumed_by_substrings() -> None:
+    """掃全部 KG_* 實例：任何 strict_short 成員不得含有自家 substring 集的成員。"""
+    all_kgs = {
+        "KG_CONFIRM_YES": KG_CONFIRM_YES,
+        "KG_CONFIRM_NO": KG_CONFIRM_NO,
+        "KG_C2_CONTINUE": KG_C2_CONTINUE,
+        "KG_C2_CHECKOUT": KG_C2_CHECKOUT,
+        "KG_C2_CANCEL": KG_C2_CANCEL,
+        "KG_CANCEL_CONFIRM_YES": KG_CANCEL_CONFIRM_YES,
+        "KG_CANCEL_CONFIRM_NO": KG_CANCEL_CONFIRM_NO,
+        "KG_L4_C_CONFIRM_YES": KG_L4_C_CONFIRM_YES,
+        "KG_L4_C_CONFIRM_NO": KG_L4_C_CONFIRM_NO,
+        "KG_INVALID_QTY_CONTINUE": KG_INVALID_QTY_CONTINUE,
+        "KG_INVALID_QTY_EXIT": KG_INVALID_QTY_EXIT,
+    }
+    for name, kg in all_kgs.items():
+        for kw in kg.strict_short:
+            subsumed_by = [sub for sub in kg.substrings if sub.lower() in kw.lower()]
+            assert not subsumed_by, (
+                f"{name} 的 strict_short 成員 {kw!r} 含有 substring 成員 {subsumed_by}"
+                f"——equals 命中必蘊含 contains 命中，該成員為零行為效果的死配置；"
+                f"請自 strict_short 移除（或檢討兩集分工）"
+            )
