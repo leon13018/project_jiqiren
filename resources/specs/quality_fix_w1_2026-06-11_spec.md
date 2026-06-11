@@ -10,7 +10,7 @@
 
 ## 2. 設計核心 + 行為規約
 
-**鐵則：行為零改變（純重構）**——speak / print 字面一字不變；既有測試零修改；`tests/sales/` 460 passed 前後不變是第一道等價證據。
+**鐵則：行為零改變（純重構）**——speak / print 字面一字不變；既有測試零修改；`tests/sales/` 502 passed 前後不變是第一道等價證據。
 
 ### 改動 1（#1）：`_c2_checkout_via_confirm` 委派 `checkout_flow`
 
@@ -92,7 +92,8 @@ step-by-step 見 `resources/plans/quality_fix_w1_2026-06-11_plan.md`。
 
 ## 6. 測試指令 + 預期結果
 
-每 commit 後跑：`python -m pytest tests/sales/` → **460 passed**（數量不變）。
+每 commit 後跑：`python -m pytest tests/sales/` → **502 passed**（數量不變）。
+（2026-06-11 實作期修正：原誤植 460——SessionStart hook 快照陳舊值；spec commit `1b5920c` 當下 pytest 實收即為 502。）
 無新增測試：純重構不加測試；at-cap 字面已被 `test_states.py:6098/6230` substring assert 釘住。
 
 ## 7. Commit 規範（3 個獨立 commit，依序）
@@ -113,7 +114,7 @@ worktree quality-fix-w1（branch worktree-quality-fix-w1）
   ├ 主 agent：spec + plan commit（首 commit）
   ├ sales-coder：baseline pytest → #1 → pytest → commit
   │             → #3 → pytest → commit → #4 → pytest → commit → 回報 4-status
-  ├ 主 agent：Iron Law（pytest 460 + git branch --contains + diff --stat 對照 §3）
+  ├ 主 agent：Iron Law（pytest 502 + git branch --contains + diff --stat 對照 §3）
   ├ spec-reviewer（sonnet）→ code-quality-reviewer（opus）
   └ ExitWorktree(keep) → ff-merge → push（Stop hook 自動 sync Pi）→ worktree cleanup
 ```

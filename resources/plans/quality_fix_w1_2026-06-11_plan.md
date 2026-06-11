@@ -1,7 +1,8 @@
 # quality_fix_w1 實作計畫（plan — HOW）
 
 > **執行者**：sales-coder（SDD 階段 2）。對應 spec：`resources/specs/quality_fix_w1_2026-06-11_spec.md`（WHAT，行為規約與等價論證以 spec 為準）。
-> 純重構 TDD 規約：**綠 → 改 → 綠 → commit**；每 task 一個 commit；任一步 pytest 不是 460 passed 即停下回報。
+> 純重構 TDD 規約：**綠 → 改 → 綠 → commit**；每 task 一個 commit；任一步 pytest 不是 502 passed 即停下回報。
+（2026-06-11 實作期修正：原誤植 460——hook 快照陳舊值；實收 502。）
 
 **Goal**：消除 #1（C-2 checkout 分流重複）/ #3（tts play 錯誤處理重複）/ #4（at-cap 文案重複），行為零改變。
 
@@ -14,7 +15,7 @@
 - [ ] **Step 0.1：跑全套測試確認綠基線**
 
 執行：`python -m pytest tests/sales/`
-預期：`460 passed`。不是 → 停下回報（基線即壞，不開工）。
+預期：`502 passed`。不是 → 停下回報（基線即壞，不開工）。
 
 ---
 
@@ -78,7 +79,7 @@
 - [ ] **Step 1.3：跑全套測試**
 
 執行：`python -m pytest tests/sales/`
-預期：`460 passed`
+預期：`502 passed`
 
 - [ ] **Step 1.4：commit + branch 自驗**
 
@@ -220,7 +221,7 @@ def _print_failure(stage: str, detail_lines: list) -> None:
 - [ ] **Step 2.5：跑全套測試**
 
 執行：`python -m pytest tests/sales/`
-預期：`460 passed`（`test_tts_worker.py` 全綠——`_pending` 計數走基底 `_loop` try/finally，本改動不碰）
+預期：`502 passed`（`test_tts_worker.py` 全綠——`_pending` 計數走基底 `_loop` try/finally，本改動不碰）
 
 - [ ] **Step 2.6：commit + branch 自驗**
 
@@ -271,7 +272,7 @@ io.speak(AT_CAP_NOTICE_TEMPLATE.format(product=product, max_qty=MAX_QTY_PER_ITEM
 - [ ] **Step 3.4：跑全套測試**
 
 執行：`python -m pytest tests/sales/`
-預期：`460 passed`（`test_states.py:6098/6230` substring assert 字面相同仍綠）
+預期：`502 passed`（`test_states.py:6098/6230` substring assert 字面相同仍綠）
 
 - [ ] **Step 3.5：commit + branch 自驗**
 
