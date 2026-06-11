@@ -3518,7 +3518,8 @@ def test_l4_reject_then_cancel_confirm_no_continues_payment() -> None:
 def test_l2_b3_silence_reject_then_cancel_confirm_no_continues() -> None:
     """L2 B-3 沉默期內顧客講拒絕 → cancel_confirm gate → NO → 繼續對話。
 
-    對應 DialogSession._dispatch_inner（L2 mode） 內的 reject path（非主迴圈 reject path）。
+    對應 DialogSession._dispatch 沉默期語境（in_main_loop=False，L2 mode）的 reject path
+    （非主迴圈 reject path）。
     """
     speak_calls: list = []
     cart = cart_module.new_cart()
@@ -3548,9 +3549,10 @@ def test_l2_b3_silence_reject_then_cancel_confirm_no_continues() -> None:
 def test_l3_b4_silence_reject_then_cancel_confirm_no_continues() -> None:
     """L3 B-4 沉默期內顧客講拒絕 → cancel_confirm gate → NO → speak L3_CANCEL_DECLINED_RESUME 繼續對話。
 
-    對應 DialogSession._dispatch_inner（L3 mode） 內的 reject path（非主迴圈 reject path）。
+    對應 DialogSession._dispatch 沉默期語境（in_main_loop=False，L3 mode）的 reject path
+    （非主迴圈 reject path）。
     既有 L2 版（test_l2_b3_silence_reject_then_cancel_confirm_no_continues）已 cover L2 沉默期；
-    本 test 補 L3 對稱 path，避免 DialogSession._dispatch_inner（L3 mode） reject 分支無 regression 守護。
+    本 test 補 L3 對稱 path，避免 _dispatch 沉默期語境（L3 mode）reject 分支無 regression 守護。
     """
     speak_calls: list = []
     cart = cart_module.new_cart()
@@ -3702,18 +3704,18 @@ def test_l3_c2_checkout_via_confirm_cancel_yes_direct_exits_l1() -> None:
 
 # ============================================================
 # L3-CANCEL-CHECKOUT-003
-### Scenario: DialogSession._dispatch_inner（L3 mode） 結帳分支進 confirm 內 cancel YES → 直退 L1
-### Given L3 B-4 沉默期內顧客講「結帳」進 DialogSession._dispatch_inner（L3 mode） 結帳分支
+### Scenario: DialogSession._dispatch 沉默期語境（L3 mode）結帳分支進 confirm 內 cancel YES → 直退 L1
+### Given L3 B-4 沉默期內顧客講「結帳」進 _dispatch 沉默期語境（L3 mode）結帳分支
 ### When 顧客在 confirm 講 cancel intent → cancel_confirm YES
 ### Then 直退 L1（不回 main loop）
 # ============================================================
 
 def test_l3_b4_silence_checkout_confirm_cancel_yes_direct_exits_l1() -> None:
-    """L3 沉默期 dispatch_inner_l3 結帳分支 confirm 內 cancel YES → 直退 L1。"""
+    """L3 沉默期 _dispatch（沉默期語境）結帳分支 confirm 內 cancel YES → 直退 L1。"""
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
-    # 「想一下」→ B-4 沉默期；「結帳」→ 沉默期內走 DialogSession._dispatch_inner（L3 mode） 結帳分支
+    # 「想一下」→ B-4 沉默期；「結帳」→ 沉默期內走 _dispatch 沉默期語境（L3 mode）結帳分支
     # 「不買了」→ confirm 內 cancel；「是」→ YES → 直退 L1
     customer_input = FakeCustomerInput(["想一下", "結帳", "不買了", "是"])
 
@@ -6570,7 +6572,7 @@ def test_dialog_l3_action_triggered_on_main_loop_transition() -> None:
 def test_dialog_l3_action_triggered_on_silence_transition() -> None:
     """L2→L3 transition（silence 路徑）：顧客在 B-3 沉默期內加單 → 觸發 ACTION_L3。
 
-    覆蓋 DialogSession._dispatch_inner（L2 mode） 內 added 分支的 do_action 插入點（main_loop 是另一條路徑）。
+    覆蓋 DialogSession._dispatch 沉默期語境（L2 mode）added 分支的 do_action 插入點（主迴圈語境是另一條路徑）。
     """
     do_action_calls: list = []
     cart = cart_module.new_cart()
@@ -6659,7 +6661,7 @@ def test_dialog_l3_checkout_go_action_triggered_via_main_loop() -> None:
 def test_dialog_l3_checkout_go_action_triggered_via_silence_period() -> None:
     """L3 → L4 transition（silence path）：silence 期內結帳 + confirm yes → ACTION_L3_CHECKOUT_GO。
 
-    覆蓋 DialogSession._dispatch_inner（L3 mode） 內結帳 path 的 do_action 插入點（main_loop 是另一條）。
+    覆蓋 DialogSession._dispatch 沉默期語境（L3 mode）結帳 path 的 do_action 插入點（主迴圈語境是另一條）。
     """
     do_action_calls: list = []
     cart = cart_module.new_cart()
