@@ -1,7 +1,11 @@
-﻿# PostToolUse hook (Bash)：偵測 pytest 跑過 → 清 flag
+﻿# PostToolUse hook (Bash|PowerShell)：偵測 pytest 跑過 → 清 flag
 #
 # 跟 state-mark-sales-dirty.ps1 + stop-check-sales-pytest.ps1 三方協作。
 # 跑過 pytest（不論 PASS / FAIL）就清 flag，由 Claude 看 pytest 輸出自行判斷是否要再改。
+#
+# matcher 必須含 PowerShell（2026-06-11 修誤報）：兩個 shell 工具的 tool_input 都用
+# `command` 欄位，script 本體共用；原只掛 Bash → 用 PowerShell 工具跑 pytest 時
+# 本 hook 不 fire、flag 清不掉 → Stop hook 誤報「沒跑過 pytest」。
 
 $ErrorActionPreference = 'Continue'
 

@@ -20,7 +20,7 @@
 | `block-windows-install.ps1` | PreToolUse | Bash\|PowerShell | 擋本機 `pip` / `npm` / `apt` install（pytest 例外） |
 | `block-vendor-edit.ps1` | PreToolUse | Edit\|Write | 擋廠商 SDK 檔（ActionGroupControl/Board.py） |
 | `state-mark-sales-dirty.ps1` | PostToolUse | Edit\|Write | 編 sales/* 時寫 flag |
-| `state-clear-on-pytest.ps1` | PostToolUse | Bash | pytest 跑過清 flag |
+| `state-clear-on-pytest.ps1` | PostToolUse | Bash\|PowerShell | pytest 跑過清 flag（兩 shell 工具都要掛——只掛 Bash 曾致 PowerShell 跑 pytest 後 Stop 誤報） |
 | `check-traditional-chinese.ps1` | PostToolUse | Edit\|Write | 掃剛寫入檔的常見簡體字 → 純警示 |
 | `stop-check-sales-pytest.ps1` | Stop | — | flag pending → block 一次（pending→reminded，不無限擋） |
 | `stop-sync-pi.ps1` | Stop | — | origin/main 比 marker 落後 → sync Pi + 清 pycache，成功才前移 marker |
