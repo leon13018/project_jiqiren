@@ -340,8 +340,7 @@ def speak_and_wait(text: str, max_wait: float = 30.0) -> bool:
     Returns:
         True if TTS 完整播完；False if max_wait timeout（caller 仍 continue 不卡）
     """
-    print(f"[語音] {text}")
-    _worker.say(text)
+    speak(text)
     return _worker.wait_idle(max_wait=max_wait)
 
 
