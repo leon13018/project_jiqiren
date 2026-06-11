@@ -45,7 +45,8 @@ Stop hook 輸入 JSON **沒有本輪 tool 歷史**（官方確認）→ 跨 hook
 - 觸發：T1 = 本 turn 有 git 變動 → 素材 = diff（cap 400 行、`-c core.quotePath=false` 保中文檔名）；T2 = 連續 20 輪無反思 → transcript 尾段（30 條 / 8KB cap）。
 - 引擎：Start-Process 背景拋 `reflect-worker.ps1` → `claude -p`（**Sonnet**——2026-06-07 自 Haiku 升級，實證誤報率 2/5；fresh context、prompt 經 stdin 餵入、禁工具）→ 提議 append `resources/reflections/proposals.md`（gitignored）。**只提議、絕不自動寫入規範檔。**
 - marker **成功後**才前移（失敗 / 逾時不前移 → 下輪重審同素材）。
-- 防迴圈：`CLAUDE_REFLECT_CHILD=1` 旗標（三支 Stop hook 開頭早退）+ worker cwd 移出專案｜每日保險絲 100 呼叫｜語意去重（既有 slug 清單餵 prompt + 字串比對保底）｜lock 防並發（10 分鐘殭屍自清）。
+- 逾時防連環（2026-06-11 修）：`claude -p` timeout 300s（原 120s 統計 19% 逾時，叢發於主 session 重度用量時段）；**逾時後 lock 保留並 touch = 10 分鐘冷卻**——`Stop-Job` 殺不掉孤兒 claude 行程，立即釋放 lock 會讓下輪再 spawn 與孤兒並發 → 連環逾時。
+- 防迴圈：`CLAUDE_REFLECT_CHILD=1` 旗標（三支 Stop hook 開頭早退）+ worker cwd 移出專案｜每日保險絲 100 呼叫｜語意去重（既有 slug 清單餵 prompt + 字串比對保底）｜lock 防並發（10 分鐘殭屍自清，兼作逾時冷卻）。
 - 未讀提示：pending 數增加 → 下次 Stop 輸出**純 systemMessage**（Stop 無 hookSpecificOutput，見不可行清單）。
 - state：`state/reflect/`；log：`reflect.log`（>1MB 輪轉 `.1`，stop-sync-pi.log 同）。關閉：settings 移除或 `$DAILY_CAP` 設 0。
 - spec：`resources/specs/reflective_stop_hook_2026-06-04_spec.md`、`reflect_hardening_2026-06-05_spec.md`。

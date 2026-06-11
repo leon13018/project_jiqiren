@@ -18,7 +18,10 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 # 官方 security-guidance 用 opus-4-7 賭精確度，我們有人工把關取 sonnet 折衷（背景 ~20 turns 一次，成本增量小）
 $REFLECT_MODEL = 'claude-sonnet-4-6'
 $PROPOSAL_MAX  = 3
-$CALL_TIMEOUT_S = 120
+# 2026-06-11 120 → 300：log 統計 20/107 次逾時，叢發於主 session 重度用量時段（API 排隊
+# 變慢）；背景 worker 無人等待，放寬到 5 分鐘吃掉排隊延遲（仍 < LOCK_ZOMBIE_MIN=10 分鐘）
+$CALL_TIMEOUT_S = 300
+$keepLock = $false   # 逾時路徑設 true：保留 lock 當冷卻（見 timeout 區塊註解）
 
 $stateDir  = Join-Path $MainCheckout '.claude/hooks/state/reflect'
 $lockFile  = Join-Path $stateDir 'lock'
@@ -90,7 +93,14 @@ BODY: <≤3 行繁體中文，說清楚踩了什麼、建議固化什麼>
     } -ArgumentList $prompt, $REFLECT_MODEL
     if (-not (Wait-Job $job -Timeout $CALL_TIMEOUT_S)) {
         Stop-Job $job -ErrorAction SilentlyContinue
-        Write-Log ('claude -p 逾時（>{0}s），放棄本次' -f $CALL_TIMEOUT_S)
+        # Stop-Job 殺的是 job host，孤兒 claude 行程會繼續跑到自然結束；若此刻立即釋放
+        # lock，下一輪 Stop 馬上 spawn 新 claude 與孤兒並發 → API 更慢 → 連環逾時
+        # （2026-06-09 晚 15 分鐘內 4 連逾時實證）。改：lock 保留並 touch —— 自逾時起算
+        # 10 分鐘冷卻（由 stop-reflect 的 LOCK_ZOMBIE_MIN 殭屍清理自然解鎖），孤兒有時間
+        # 退場；material 照刪、marker 未動 → 素材下輪 T1 自動重生重審。
+        $keepLock = $true
+        if (Test-Path $lockFile) { (Get-Item $lockFile).LastWriteTime = Get-Date }
+        Write-Log ('claude -p 逾時（>{0}s），放棄本次（prompt {1} 字；lock 保留 10 分鐘冷卻）' -f $CALL_TIMEOUT_S, $prompt.Length)
         exit 0
     }
     $res = Receive-Job $job
@@ -139,7 +149,8 @@ BODY: <≤3 行繁體中文，說清楚踩了什麼、建議固化什麼>
 } catch {
     Write-Log ("worker 例外：{0}" -f $_.Exception.Message)
 } finally {
-    Remove-Item $lockFile -Force -ErrorAction SilentlyContinue
+    # 逾時路徑保留 lock 當 10 分鐘冷卻（$keepLock=true）；其餘路徑照常釋放
+    if (-not $keepLock) { Remove-Item $lockFile -Force -ErrorAction SilentlyContinue }
     Remove-Item $MaterialFile -Force -ErrorAction SilentlyContinue
 }
 exit 0

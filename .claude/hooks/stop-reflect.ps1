@@ -61,7 +61,10 @@ try {
     # ── 未讀提議提示（每次 Stop 重算，天然防 resume stale）──
     $hint = $null
     if (Test-Path $proposals) {
-        $pending = @(Select-String -Path $proposals -Pattern 'status: pending' -SimpleMatch -ErrorAction SilentlyContinue).Count
+        # 不用 Select-String -Path（hooks-gotchas #4：PS 5.1 對無 BOM UTF-8 檔以 cp936 誤解碼；
+        # 本 pattern 雖純 ASCII 僥倖可用，仍統一走 ReadAllText UTF8 防未來改 pattern 踩雷）
+        $propText = [System.IO.File]::ReadAllText($proposals, [System.Text.Encoding]::UTF8)
+        $pending = [regex]::Matches($propText, 'status: pending').Count
         $notifiedFile = Join-Path $stateDir 'last-notified.txt'
         $lastNotified = 0
         if (Test-Path $notifiedFile) { $lastNotified = [int](Get-Content $notifiedFile -ErrorAction SilentlyContinue | Select-Object -First 1) }
