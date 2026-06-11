@@ -250,6 +250,19 @@ _CHINESE_TENS = {"十": 10, "拾": 10, "百": 100, "佰": 100}
 _CHINESE_UNIT_CHARS = "一壹兩二貳三參四肆五伍六陸七柒八捌九玖"
 
 
+def _match_tens(text: str) -> int | None:
+    """匹配「[X]十Y」十位 pattern；命中回 tens*10+units，未命中回 None。
+
+    共用：_parse_compound_chinese 十位分支 / _parse_tens_part（原兩份相同 regex + 計算）。
+    """
+    m = re.search(rf"([{_CHINESE_UNIT_CHARS}])?[十拾]([{_CHINESE_UNIT_CHARS}])?", text)
+    if m is None:
+        return None
+    tens = CHINESE_DIGIT_MAP.get(m.group(1), 1)
+    units_val = CHINESE_DIGIT_MAP.get(m.group(2), 0)
+    return tens * 10 + units_val
+
+
 def _parse_compound_chinese(text: str) -> int | None:
     """解析複合中文數字（「十二 / 二十 / 二十一 / 一百 / 三十五」等）。
 
@@ -270,16 +283,8 @@ def _parse_compound_chinese(text: str) -> int | None:
         rest_val = _parse_tens_part(rest)
         return hundreds * 100 + rest_val
 
-    # 「十」位
-    m = re.search(rf"([{units}])?[十拾]([{units}])?", text)
-    if m:
-        tens_char = m.group(1)
-        units_char = m.group(2)
-        tens = CHINESE_DIGIT_MAP.get(tens_char, 1)
-        units_val = CHINESE_DIGIT_MAP.get(units_char, 0)
-        return tens * 10 + units_val
-
-    return None
+    # 「十」位（共用 _match_tens）
+    return _match_tens(text)
 
 
 def _parse_tens_part(text: str) -> int:
@@ -289,12 +294,9 @@ def _parse_tens_part(text: str) -> int:
     """
     if not text:
         return 0
-    units = _CHINESE_UNIT_CHARS
-    m = re.search(rf"([{units}])?[十拾]([{units}])?", text)
-    if m:
-        tens = CHINESE_DIGIT_MAP.get(m.group(1), 1)
-        u = CHINESE_DIGIT_MAP.get(m.group(2), 0)
-        return tens * 10 + u
+    tens_val = _match_tens(text)
+    if tens_val is not None:
+        return tens_val
     # 純個位
     for char, value in CHINESE_DIGIT_MAP.items():
         if char in text:
