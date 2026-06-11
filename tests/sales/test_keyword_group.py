@@ -1,4 +1,4 @@
-"""test_keyword_group.py — 測試 myProgram/sales/keyword_group.py（W1 oop_w1）。
+"""test_keyword_group.py — 測試 myProgram/sales/constants/keyword_group.py（W1 oop_w1）。
 
 對應 spec：resources/specs/oop_w1_2026-06-10_spec.md §2-1 / §2-2。
 
