@@ -24,9 +24,24 @@ def equals_strict_short(text: str, keywords: list) -> bool:
 
 @dataclass(frozen=True)
 class KeywordGroup:
-    """keyword 雙集封裝：substring 比對集 + 嚴格相等集（防短詞 substring 誤命中）。"""
+    """keyword 雙集封裝：substring 比對集 + 嚴格相等集（防短詞 substring 誤命中）。
+
+    perf_w1 F-1：keyword 為 frozen 常數，建構時預先小寫化（tuple / frozenset），
+    熱路徑 matches 不再每呼叫重算 kw.lower() 或重建 list。
+    等價性：text.strip().lower() == text.lower().strip()（lower 不增減空白）；
+    eq / repr 只看 dataclass 欄位，預算屬性不影響既有斷言。
+    """
     substrings: tuple
     strict_short: tuple = ()
 
+    def __post_init__(self):
+        # frozen dataclass 加非欄位屬性須走 object.__setattr__
+        object.__setattr__(self, "_substrings_lower",
+                           tuple(kw.lower() for kw in self.substrings))
+        object.__setattr__(self, "_strict_short_lower",
+                           frozenset(kw.lower() for kw in self.strict_short))
+
     def matches(self, text: str) -> bool:
-        return contains_any(text, self.substrings) or equals_strict_short(text, self.strict_short)
+        text_lower = text.lower()
+        return (any(kw in text_lower for kw in self._substrings_lower)
+                or text_lower.strip() in self._strict_short_lower)
