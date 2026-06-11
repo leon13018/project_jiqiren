@@ -124,6 +124,15 @@ _KG_L4_ACK = KeywordGroup(tuple(KEYWORDS_L4_ACK_OR_WAIT), tuple(KEYWORDS_L4_ACK_
 _KG_WANT_TO_BUY = KeywordGroup(tuple(KEYWORDS_WANT_TO_BUY_VAGUE), tuple(KEYWORDS_WANT_TO_BUY_SHORT))
 _KG_NO_NOPE = KeywordGroup((), ("no", "nope"))
 
+# ============================================================
+# 預編譯 regex / translate table（perf_w1 F-2）：pattern 內容恆定，
+# 模組載入算一次；省每呼叫 f-string 插值＋re cache lookup＋maketrans 重建。
+# ============================================================
+_CTRL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_FULLWIDTH_DIGIT_TABLE = str.maketrans("０１２３４５６７８９", "0123456789")
+_NEG_CONTINUE_RE = re.compile(r"[不別沒休][一-龥]{0,5}繼續")
+_ARABIC_DIGITS_RE = re.compile(r"\d+")
+
 
 def normalize_input(raw: str, max_length: int = 200) -> str:
     """IO 邊界統一 normalize — 對顧客語音 / 商家鍵盤輸入做最小消毒。
@@ -149,9 +158,9 @@ def normalize_input(raw: str, max_length: int = 200) -> str:
     # 1. 截斷
     text = raw[:max_length]
     # 2. 移除控制字元（保留 \t \n \r — 對話本身可能含換行）
-    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
+    text = _CTRL_CHARS_RE.sub("", text)
     # 3. 全形數字 → 半形
-    text = text.translate(str.maketrans("０１２３４５６７８９", "0123456789"))
+    text = text.translate(_FULLWIDTH_DIGIT_TABLE)
     return text
 
 
@@ -196,7 +205,7 @@ def classify_intent(text: str, mode: str = "normal") -> Intent:
         # substring 誤命中「繼續」→ 繼續交易。
         # HP-2：擴充涵蓋「不|別|沒|休 + 0-5 中文字 + 繼續」pattern。
         # 例：「我不想繼續」「沒打算繼續」「不準備繼續了」
-        if re.search(r"[不別沒休][一-龥]{0,5}繼續", text):
+        if _NEG_CONTINUE_RE.search(text):
             return "退出交易"
         if "停止" in text:
             return "退出交易"
@@ -260,13 +269,17 @@ _CHINESE_TENS = {"十": 10, "拾": 10, "百": 100, "佰": 100}
 # 個位字元集（供複合數字 regex 用）
 _CHINESE_UNIT_CHARS = "一壹兩二貳三參四肆五伍六陸七柒八捌九玖"
 
+# 複合中文數字 regex（perf_w1 F-2 預編譯；pattern 與原 f-string 逐字相同）
+_TENS_RE = re.compile(rf"([{_CHINESE_UNIT_CHARS}])?[十拾]([{_CHINESE_UNIT_CHARS}])?")
+_HUNDREDS_RE = re.compile(rf"([{_CHINESE_UNIT_CHARS}])[百佰]([{_CHINESE_UNIT_CHARS}十拾]*)?")
+
 
 def _match_tens(text: str) -> int | None:
     """匹配「[X]十Y」十位 pattern；命中回 tens*10+units，未命中回 None。
 
     共用：_parse_compound_chinese 十位分支 / _parse_tens_part（原兩份相同 regex + 計算）。
     """
-    m = re.search(rf"([{_CHINESE_UNIT_CHARS}])?[十拾]([{_CHINESE_UNIT_CHARS}])?", text)
+    m = _TENS_RE.search(text)
     if m is None:
         return None
     tens = CHINESE_DIGIT_MAP.get(m.group(1), 1)
@@ -284,10 +297,8 @@ def _parse_compound_chinese(text: str) -> int | None:
     Returns:
         int 或 None（未命中複合 pattern）。
     """
-    units = _CHINESE_UNIT_CHARS
-
     # 「百」位優先
-    m = re.search(rf"([{units}])[百佰]([{units}十拾]*)?", text)
+    m = _HUNDREDS_RE.search(text)
     if m:
         hundreds = CHINESE_DIGIT_MAP.get(m.group(1), 1)
         rest = m.group(2) or ""
@@ -324,7 +335,7 @@ def has_quantity(text: str) -> bool:
     Returns:
         True 含數量；False 無。
     """
-    if re.search(r"\d+", text):
+    if _ARABIC_DIGITS_RE.search(text):
         return True
     return any(char in text for char in CHINESE_DIGIT_MAP)
 
@@ -354,7 +365,7 @@ def parse_quantity(text: str, default: int | None = 1) -> int | None:
         數量整數（含顯式 0）；無數字時回 default
     """
     # 阿拉伯數字優先（B16：顯式 0 回 0，不 fallback）
-    arabic_matches = re.findall(r"\d+", text)
+    arabic_matches = _ARABIC_DIGITS_RE.findall(text)
     if arabic_matches:
         for m in arabic_matches:
             n = int(m)
