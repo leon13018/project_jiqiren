@@ -726,15 +726,16 @@ def _dialog_unclear_final_confirmation(io, cart) -> tuple | None:
 
     Returns tuple = caller 直接 return；None = 顧客選繼續，caller reset unclear 回主等待。
     """
+    session = DialogSession(io, cart)  # exit_a 共用（原 4 處拋棄式建構收一）
     io.speak(L3_UNCLEAR_FINAL_PROMPT)
     unclear_count = 0
 
     while True:
         response = io.read_customer_input(timeout=WAIT_NO_RESPONSE)
         if response is None:
-            return DialogSession(io, cart).exit_a()
+            return session.exit_a()
         if response == "1":
-            return DialogSession(io, cart).exit_a()
+            return session.exit_a()
         if response == "2":
             return None
         intent = classify_intent(response, "l4_service")
@@ -742,7 +743,7 @@ def _dialog_unclear_final_confirmation(io, cart) -> tuple | None:
             # 2026-05-29 cross-L cancel：unclear final 內語音退出 intent → 先過 cancel_confirm gate
             # （終端 "1" / silent timeout / unclear exhausted 仍直接退，不 gate — 那些是介面操作非 cancel intent）
             if CANCEL_CONFIRM.run(io):
-                return DialogSession(io, cart).exit_a()
+                return session.exit_a()
             # NO → speak DECLINED + 重 prompt unclear final + continue（不計 unclear_count）
             io.speak(CANCEL_DECLINED_NOTICE)
             io.speak(L3_UNCLEAR_FINAL_PROMPT)
@@ -751,7 +752,7 @@ def _dialog_unclear_final_confirmation(io, cart) -> tuple | None:
             return None
         unclear_count += 1
         if unclear_count >= UNCLEAR_MAX:
-            return DialogSession(io, cart).exit_a()
+            return session.exit_a()
         io.speak(L3_UNCLEAR_FINAL_PROMPT)
 
 
