@@ -71,6 +71,26 @@ def remaining_capacity(cart: Cart, product: str) -> int:
     return MAX_QTY_PER_ITEM - get_quantity(cart, product)
 
 
+def classify_qty(cart: Cart, product: str, qty: int) -> str:
+    """數量四分類（perf_w3 F-6 收斂三處手寫副本）。
+
+    判定順序即優先序（對齊 Pass 1 既有行序）：
+        "at_cap"     — 該商品 cart 內已達單筆上限（remaining <= 0），與 qty 無關
+        "zero"       — qty == 0（顧客明確說 0）
+        "over_limit" — qty > 剩餘可加量
+        "ok"         — 0 < qty <= 剩餘可加量
+    純分類不動 cart；動作（add / pending / funnel / speak）由 caller 決定。
+    """
+    remaining = remaining_capacity(cart, product)
+    if remaining <= 0:
+        return "at_cap"
+    if qty == 0:
+        return "zero"
+    if qty > remaining:
+        return "over_limit"
+    return "ok"
+
+
 def calc_total(cart: Cart) -> int:
     """計算購物車總額（依各商品實際價相加）。
 

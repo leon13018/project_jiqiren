@@ -197,3 +197,46 @@ def test_remaining_capacity_tracks_max_qty_per_item() -> None:
     assert remaining_capacity(cart, "冰紅茶") == MAX_QTY_PER_ITEM - 3
     add_item(cart, "冰紅茶", MAX_QTY_PER_ITEM - 3)
     assert remaining_capacity(cart, "冰紅茶") == 0
+
+
+# ============================================================
+# perf_w3 F-6：classify_qty 四分類（收斂三處手寫副本的新 helper）
+# ============================================================
+
+## CART-CQ-001
+### Scenario: 空 cart、合法數量 → "ok"
+def test_classify_qty_ok() -> None:
+    c = new_cart()
+    assert cart_module.classify_qty(c, "冰紅茶", 3) == "ok"
+
+
+## CART-CQ-002
+### Scenario: qty == 0 → "zero"（顧客明確說 0）
+def test_classify_qty_zero() -> None:
+    c = new_cart()
+    assert cart_module.classify_qty(c, "冰紅茶", 0) == "zero"
+
+
+## CART-CQ-003
+### Scenario: qty 超過剩餘容量 → "over_limit"
+def test_classify_qty_over_limit() -> None:
+    c = new_cart()
+    add_item(c, "冰紅茶", MAX_QTY_PER_ITEM - 2)
+    assert cart_module.classify_qty(c, "冰紅茶", 3) == "over_limit"
+
+
+## CART-CQ-004
+### Scenario: cart 已達上限 → "at_cap" 最高優先（與 qty 無關，含 qty==0）
+def test_classify_qty_at_cap_overrides_zero() -> None:
+    c = new_cart()
+    add_item(c, "冰紅茶", MAX_QTY_PER_ITEM)
+    assert cart_module.classify_qty(c, "冰紅茶", 0) == "at_cap"
+    assert cart_module.classify_qty(c, "冰紅茶", 1) == "at_cap"
+
+
+## CART-CQ-005
+### Scenario: 邊界 — qty 恰等於剩餘容量 → "ok"
+def test_classify_qty_boundary_exact_remaining() -> None:
+    c = new_cart()
+    add_item(c, "冰紅茶", MAX_QTY_PER_ITEM - 5)
+    assert cart_module.classify_qty(c, "冰紅茶", 5) == "ok"

@@ -83,14 +83,15 @@ def _format_invalid_qty_prompt(pending: dict, cart) -> str:
 
 def _classify_into_pending(product: str, qty: int, pending: dict, cart) -> None:
     """重答後重新分類單一商品：合法→add+del；仍 0→reason=zero；仍超量→reason=over_limit。"""
-    remaining = cart_module.remaining_capacity(cart, product)
-    if 0 < qty <= remaining:
+    verdict = cart_module.classify_qty(cart, product, qty)
+    if verdict == "ok":
         cart_module.add_item(cart, product, qty)
         del pending[product]
-    elif qty == 0:
-        pending[product] = "zero"
-    else:  # qty > remaining
-        pending[product] = "over_limit"
+        return
+    # "at_cap" 在 reask 語境不可達（pending 商品於 Pass 1 已保證 remaining>0，
+    # 重問期間該商品唯一加量路徑是成功 add — 隨即移出 pending）；
+    # 防禦性映射為 "over_limit" 對齊舊 else 分支，不可達態也不改行為
+    pending[product] = "over_limit" if verdict == "at_cap" else verdict
 
 
 def _apply_quantities(response: str, pending: dict, cart) -> None:

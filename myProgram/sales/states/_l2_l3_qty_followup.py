@@ -122,19 +122,16 @@ def resolve_and_add_products(
         if qty is None:
             missing.append(product)
             continue
-        remaining = cart_module.remaining_capacity(cart, product)
+        verdict = cart_module.classify_qty(cart, product, qty)
         unit = PRODUCTS[product]["單位"]
-        if remaining <= 0:
+        if verdict == "at_cap":
             # cart 內已達上限 → 完全 skip + speak 通知（at-cap 保留既有行為，不進重問鏈）
             io.speak(AT_CAP_NOTICE_TEMPLATE.format(product=product, max_qty=MAX_QTY_PER_ITEM, unit=unit))
             continue
-        if qty == 0:
-            # 2026-06-09：qty==0 比照超量，收進 invalid_pending 走 Pass 1.5 重問（不假性加入）
-            invalid_pending[product] = "zero"
-            continue
-        if qty > remaining:
-            # 2026-06-09：不再 cap，收進 invalid_pending 走 Pass 1.5 合併重問
-            invalid_pending[product] = "over_limit"
+        if verdict != "ok":
+            # 2026-06-09：qty==0（"zero"）/ 超量（"over_limit"）皆不 cap，
+            # verdict 字面即 pending reason，收進 invalid_pending 走 Pass 1.5 合併重問
+            invalid_pending[product] = verdict
             continue
         # 正常加入
         cart_module.add_item(cart, product, qty)
@@ -230,16 +227,16 @@ def _qty_follow_up_sub_loop(
             # Wave 4 hotfix（2026-05-26）— caller 端 cart cap 業務檢查
             # 修 Pi 實機踩坑：顧客輸入「34435454545454545」→ parse_quantity 解析
             # 為天文數字 → cart.add_item assert raise → 程式 crash。
-            remaining = cart_module.remaining_capacity(cart, product)
-            if remaining <= 0:
+            verdict = cart_module.classify_qty(cart, product, qty)
+            if verdict == "at_cap":
                 # cart 內已達上限 → 無法再加，即時 speak 提示 + skip 此商品（非 cancel UX，不拼接）
                 io.speak(AT_CAP_NOTICE_TEMPLATE.format(product=product, max_qty=MAX_QTY_PER_ITEM, unit=unit))
                 return False, None, None
-            if qty == 0 or qty > remaining:
-                # 2026-06-09：qty==0 / 超量皆不 cap，funnel 進 invalid_qty_reask（單商品）
-                reason = "zero" if qty == 0 else "over_limit"
+            if verdict != "ok":
+                # 2026-06-09：qty==0 / 超量皆不 cap，funnel 進 invalid_qty_reask（單商品；
+                # verdict 字面即 reason）
                 control = invalid_qty_reask(
-                    {product: reason}, cart, io.speak, io.print_terminal,
+                    {product: verdict}, cart, io.speak, io.print_terminal,
                     io.read_customer_input, io.speak_and_wait,
                 )
                 if control == "resolved":
