@@ -71,7 +71,7 @@
 - Python **3.11.9**（source build 在 `~/Python-3.11.9/`；系統內建 3.7 不足、edge-tts 強制依賴）。
 - 雲端 TTS：edge-tts（pip）+ mpg123（apt）。
 - **跑法**：`python3.11 -m myProgram`（推薦，透過 `__main__.py`）或 `python3.11 -m myProgram.main`。舊 `myProgram.myProgram` 已失效（檔名改 main.py）。
-- **.gitignore 排除**：`.claude/settings.local.json` / `.claude/worktrees/` / `sync_pi.ps1` / `resources/presentation/` / `resources/userPrompt/`；其餘 `resources/*` 已 tracked。`CLAUDE.md` 在 root、tracked 並 push。
+- **.gitignore 排除**（完整清單以 repo 根 `.gitignore` 為準，文件勿複寫全表）：`resources/` 下排除 `presentation/`、`userPrompt/`、`reflections/`，其餘已 tracked；另排除 `sync_pi.ps1`、`.claude/` 局部（`settings.local.json` / `worktrees/` / hooks `*.log` + `state/`）與 Python 副產物。`CLAUDE.md` 在 root、tracked 並 push。
 
 ---
 

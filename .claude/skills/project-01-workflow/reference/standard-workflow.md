@@ -19,7 +19,7 @@
 ## 觸發 / 不觸發
 
 - **觸發**：本輪有 `.gitignore` 之外的檔 modified/new/deleted（`git status` 有 diff）。
-- **不觸發**（直接結束本輪）：純聊天 / 解答 / 查資料｜plan mode 還沒動手｜變更全在 ignored 路徑（`resources/presentation/`、`resources/userPrompt/`、`sync_pi.ps1`、`.claude/settings.local.json`、`.claude/worktrees/`）→ `git status` 乾淨｜完全沒改檔。
+- **不觸發**（直接結束本輪）：純聊天 / 解答 / 查資料｜plan mode 還沒動手｜變更全在 ignored 路徑（如 `resources/presentation|userPrompt|reflections/`、`sync_pi.ps1`、`.claude/settings.local.json`，完整清單以 `.gitignore` 為準）→ `git status` 乾淨｜完全沒改檔。
   > 變更只影響 ignored 路徑 → 仍**告知使用者**「只動了 ignored 檔，沒有 git 變動可同步」。
 
 ---

@@ -78,7 +78,7 @@ git worktree prune
 ## 例外狀況
 
 - **A. Merge 非 FF / 衝突**：`--ff-only` 失敗 → **不要 force**，保留 worktree、跟使用者討論 rebase/reset/手動解。
-- **B. 只涉 gitignored 檔**（`resources/userPrompt/` / `resources/presentation/` / `sync_pi.ps1` / `.claude/settings.local.json` / `.claude/worktrees/`）：subagent 不受 worktree 隔離、可直接編主 checkout 的 gitignored 檔；主 agent 在 worktree mode 寫主 checkout 會被 harness 擋。→ 純 gitignored 任務直接派 subagent，**主 agent 不必進 worktree**。
+- **B. 只涉 gitignored 檔**（如 `resources/{userPrompt,presentation,reflections}/` / `sync_pi.ps1` / `.claude/settings.local.json`，完整清單以 `.gitignore` 為準）：subagent 不受 worktree 隔離、可直接編主 checkout 的 gitignored 檔；主 agent 在 worktree mode 寫主 checkout 會被 harness 擋。→ 純 gitignored 任務直接派 subagent，**主 agent 不必進 worktree**。
 - **C. Bootstrap（gitignored→tracked）**：新 worktree 不 checkout gitignored 內容 → 看不到要 add 的檔。解法：bootstrap 任務不進 worktree，subagent 直接在主 checkout 工作（一次性例外）。
 
 ---
