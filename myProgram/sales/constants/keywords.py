@@ -11,8 +11,8 @@
 # C17 (2026-05-26 Wave 7a)：HAWK_SLOGANS 含價格 slogan 改 f-string 從 PRODUCTS 取，
 # 避免改價時漏改文案。底線命名（module-private alias）避免 wildcard re-export 污染。
 from myProgram.sales.constants.products import PRODUCTS as _PRODUCTS
-# W1 oop_w1：KeywordGroup 雙集封裝（類別本體在 keyword_group.py，本檔只建配對實例）
-from myProgram.sales.keyword_group import KeywordGroup
+# W1 oop_w1：KeywordGroup 雙集封裝（類別本體在本層 keyword_group.py，本檔只建配對實例）
+from myProgram.sales.constants.keyword_group import KeywordGroup
 
 __all__ = [
     "HAWK_SLOGANS",

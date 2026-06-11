@@ -7,14 +7,15 @@
 
 ## 檔案
 **各層文案（TTS / 顯示字串）**
-- `l1_text.py` — L1 文案（叫賣標語 `HAWK_SLOGANS` 等）。
+- `l1_text.py` — L1 文案（選單 / 進入提示）。
 - `l2_text.py` — L2 文案（問需求等）。
 - `l3_text.py` — L3 文案（加單 / C-2 結帳提示 `L3_C2_WARNING_TEMPLATE` 等）。
 - `l4_text.py` — L4 文案（金額 / 掃碼提示 `L4_REMIND_PROMPT` 等）。
 - `l5_text.py` — L5 文案（致謝 `L5_THANKS` 等）。
 
 **其他常數**
-- `keywords.py` — NLU 規則匹配關鍵字（`KEYWORDS_C2_*` / `KEYWORDS_CONFIRM_*` / strict-short 等）+ `KG_*` KeywordGroup 配對實例（類別在 `sales/keyword_group.py`）。
+- `keywords.py` — NLU 規則匹配關鍵字（`KEYWORDS_C2_*` / `KEYWORDS_CONFIRM_*` / strict-short ＋HAWK_SLOGANS 叫賣標語 等）+ `KG_*` KeywordGroup 配對實例（類別在本層 `keyword_group.py`）。
+- `keyword_group.py` — `KeywordGroup` 雙集封裝＋比對原語 `contains_any`/`equals_strict_short`（純值原語，只 import stdlib；2026-06-12 perf_w1 自 sales/ 搬入）。
 - `products.py` — 商品清單與價格。
 - `actions.py` — 機器人動作組常數（動作組名稱，如 `ACTION_L5_FAREWELL`）。
 - `timing.py` — 計時 / budget 常數（`HAWK_INTERVAL` / `L4_TOTAL_BUDGET` / `THANK_DELAY` 等秒數）。

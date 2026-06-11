@@ -7,7 +7,7 @@
     2. 11 個 KG_* 配對實例接線（substrings / strict_short 對齊既有 list 常數）
 """
 
-from myProgram.sales.keyword_group import KeywordGroup
+from myProgram.sales.constants.keyword_group import KeywordGroup
 from myProgram.sales.constants import (
     KG_CONFIRM_YES,
     KG_CONFIRM_NO,

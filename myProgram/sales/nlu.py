@@ -29,9 +29,7 @@ from myProgram.sales.constants import (
     KEYWORDS_SCRATCH,
     CHINESE_DIGIT_MAP,
 )
-# 比對原語本體已搬至 keyword_group.py（W1）；re-export 保既有
-# `from myProgram.sales.nlu import contains_any` 的 caller / 測試相容
-from myProgram.sales.keyword_group import KeywordGroup, contains_any, equals_strict_short
+from myProgram.sales.constants.keyword_group import KeywordGroup, contains_any, equals_strict_short
 
 # ============================================================
 # 關鍵字白名單（依規格書 L0_共通.md）

@@ -1,14 +1,11 @@
-"""KeywordGroup — keyword 雙集封裝（W1 oop_w1 第一個 OOP 構件）。
+"""KeywordGroup — keyword 雙集封裝＋比對原語（W1 oop_w1；2026-06-12 perf_w1 搬入 constants/）。
 
-動機：sales/ 各 confirm 子狀態 dispatch 普遍出現
-    `contains_any(x, KW) or equals_strict_short(x, KW_STRICT)` 雙呼叫 pattern——
-substring 比對集負責長詞安全命中，嚴格相等集（strict-short）負責短單字（如「好/取消/繼續」），
-**防短詞 substring 誤命中**（如「好」會中「好亂」、「取消」會中「取消會議」）。
-本檔把比對原語（contains_any / equals_strict_short）與雙集封裝（KeywordGroup）集中，
-讓 11 個呼叫點改用 `KG_X.matches(text)` 單一語意。
+substring 比對集負責長詞安全命中，嚴格相等集（strict-short）負責短單字
+（如「好/取消/繼續」），**防短詞 substring 誤命中**（「好」中「好亂」、「取消」中「取消會議」）。
 
-import 鏈（無循環）：keyword_group 只 import stdlib →
-constants/keywords.py import KeywordGroup 建實例 → nlu.py re-export 原語。
+定位：純值原語（只 import stdlib），屬資料層——本層 keywords.py 以 KeywordGroup
+建 KG_* 配對實例；nlu / states 經 `.matches` 消費。搬入理由：消除
+constants（資料層）→ sales/（邏輯層）的唯一反向 import（findings F-9a）。
 """
 
 from dataclasses import dataclass
