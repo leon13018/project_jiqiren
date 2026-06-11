@@ -6,7 +6,7 @@
 
 - 編碼（#1-6：BOM / stdout / stdin / Select-String / Start-Job / marker）
 - 背景行程 / CLI 呼叫（#7-12、21）
-- Regex / matcher（#13-15：一寬一嚴 + 4 case 測試法）
+- Regex / matcher（#13-15、22：一寬一嚴 + 4 case 測試法 + matcher 漏 shell 工具）
 - 事件行為（#16-20）
 - 設計原則（fail-open / -NoProfile / 一次性提醒）
 
@@ -37,6 +37,7 @@
 13. **太寬誤抓**：`git add -A` 的 regex 掃整段 command 會誤擋「commit message 內含該字面」。根治：settings 該 hook entry 加 `"if": "Bash(git add *)"` gate——permission-rule 語法逐 subcommand 比對、引號內不解析 → 字面提及不 spawn、真 bulk add 照擋。
 14. **太嚴漏抓**：`\bgit\s+push\b` 漏掉 `git -C "..." push`。修：`\bgit\b[^;&|\r\n]*?\bpush\s+origin\s+main\b`（容 git options、`[^;&|]` 擋跨 separator 誤匹配）。
 15. **新 hook regex 必測 4 種 case**：simple form / `-C` form / `&&` chain / commit message 內含字面。
+22. **matcher 漏 shell 工具**：攔截 shell 命令的 Pre/PostToolUse hook，matcher 只寫 `Bash` 會漏掉 PowerShell 工具跑的同一命令（hook 不 fire → flag 清不掉 → Stop 誤報；2026-06-11 state-clear-on-pytest 實踩）。一律 `Bash|PowerShell`——兩工具 `tool_input` 同用 `command` 欄位，script 本體共用免改。
 
 ## 事件行為（官方語義，影響設計）
 
