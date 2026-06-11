@@ -5,6 +5,7 @@
 ## 子目錄
 - `sales/` — sales 業務邏輯的 pytest 回歸網（對應 `myProgram/sales/`，數百個測試；改 sales prod code 必跑）。
 - `spec/` — spec / 行為層測試。
+- `perf/` — 效能基線量測（`bench_sales.py`：micro 熱函式 / scenario 劇本 / import 冷啟動；`python -m tests.perf.bench_sales` 執行，非 pytest 收集）。
 - `.claude/` — 本層 CC 配置（`code_map.md` 本檔）。
 
 ## 檔案
