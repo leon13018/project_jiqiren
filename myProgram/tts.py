@@ -53,8 +53,8 @@ VOICE = "zh-TW-HsiaoChenNeural"  # 台灣女聲
 TMP_MP3 = "/tmp/last_tts.mp3"  # Linux 絕對路徑（path-conventions 規範）
 
 # mpg123 退出時 ALSA buffer 仍可能有未播完的尾巴音訊（~200-400ms）。下一個 speak
-# 立刻啟動新 mpg123 開 ALSA device 會把舊 buffer 沖掉,造成上一句末尾被截斷。
-# 故在 Popen.wait() 成功 return 後加此 drain 等待。0.3s 是 Pi 上經驗值,
+# 立刻啟動新 mpg123 開 ALSA device 會把舊 buffer 沖掉，造成上一句末尾被截斷。
+# 故在 Popen.wait() 成功 return 後加此 drain 等待。0.3s 是 Pi 上經驗值，
 # 短句子尾巴 (~200ms) + 安全餘裕 (~100ms)。
 ALSA_DRAIN_SEC: float = 0.3
 
@@ -96,7 +96,7 @@ def _print_failure(stage: str, detail_lines: list) -> None:
     print(f"[語音] ⚠️ TTS 失敗（階段={stage}）")
     for line in detail_lines:
         print(f"[語音]   {line}")
-    print(f"[語音] 此字略過,繼續下一字")
+    print(f"[語音] 此字略過，繼續下一字")
 
 
 class TtsWorker(QueueWorker):
@@ -187,7 +187,7 @@ class TtsWorker(QueueWorker):
         # 對比 S2 同步版用 subprocess.run：S4 改 Popen + wait 兩段是為了讓
         # shutdown() 可在播放期間呼叫 _proc.terminate()。
         #
-        # stdin=DEVNULL（commit f7dab09 加,S2 Pi 實機踩坑）：mpg123 預設讀父
+        # stdin=DEVNULL（commit f7dab09 加，S2 Pi 實機踩坑）：mpg123 預設讀父
         # 程序 stdin 接收 control characters（q/s/p/+/- 等）。不設 DEVNULL 時：
         #   1. 播放期間 user 在 dialog 打的字會被 mpg123 偷走 → 無法進
         #      Python input() → 顧客以為打了字結果機器人沒反應
@@ -245,7 +245,7 @@ class TtsWorker(QueueWorker):
                 self._proc = None
 
         # 播放成功（returncode==0）：drain ALSA
-        # 給 ALSA buffer 完成尾巴音訊播放的時間,避免下一個 speak() 立刻啟動
+        # 給 ALSA buffer 完成尾巴音訊播放的時間，避免下一個 speak() 立刻啟動
         # 新 mpg123 沖掉舊 buffer（症狀：「付款成功」尾巴被截）。失敗 path
         # 不到這裡因 mpg123 沒真播完 = 無 buffer 殘留 = 不需 drain。
         time.sleep(ALSA_DRAIN_SEC)
