@@ -614,6 +614,22 @@ class DialogSession:
         return self.main_loop()
 
 
+def _cancel_gate(io, reprompt: str) -> bool:
+    """確認子狀態共用 cancel gate（perf_w3 F-7 收斂兩處逐行重複）。
+
+    跑 CANCEL_CONFIRM 單例：
+        True  — 顧客確認取消；caller 自行退出（checkout_confirm 回 "cancel_to_l1"、
+                unclear_final 走 session.exit_a()——兩者退出語意不同，不入 helper）
+        False — 拒絕取消；已 speak CANCEL_DECLINED_NOTICE＋重 prompt，
+                caller 直接 continue（不計 unclear_count——顧客明確意圖溝通）
+    """
+    if CANCEL_CONFIRM.run(io):
+        return True
+    io.speak(CANCEL_DECLINED_NOTICE)
+    io.speak(reprompt)
+    return False
+
+
 def _dialog_checkout_confirm(io, cart) -> bool:
     """L3 C-1 結帳前 confirm 子狀態（每次重 prompt 重置 timeout + unclear 上限）。
 
@@ -664,10 +680,8 @@ def _dialog_checkout_confirm(io, cart) -> bool:
         # （含「請告訴我您想買什麼」L2 entry 內容）→ 回 main loop → cart 空 L2 mode →
         # 顧客再拒絕又 cancel_confirm → 兩輪 YES 才退 L1（Pi demo 實機踩過）。
         if is_cancel_intent(response):
-            if CANCEL_CONFIRM.run(io):
+            if _cancel_gate(io, prompt):
                 return "cancel_to_l1"
-            io.speak(CANCEL_DECLINED_NOTICE)
-            io.speak(prompt)
             continue
         if KG_CONFIRM_NO.matches(response):
             return "no_explicit"
@@ -742,11 +756,8 @@ def _dialog_unclear_final_confirmation(io, cart) -> tuple | None:
         if intent == "退出交易":
             # 2026-05-29 cross-L cancel：unclear final 內語音退出 intent → 先過 cancel_confirm gate
             # （終端 "1" / silent timeout / unclear exhausted 仍直接退，不 gate — 那些是介面操作非 cancel intent）
-            if CANCEL_CONFIRM.run(io):
+            if _cancel_gate(io, L3_UNCLEAR_FINAL_PROMPT):
                 return session.exit_a()
-            # NO → speak DECLINED + 重 prompt unclear final + continue（不計 unclear_count）
-            io.speak(CANCEL_DECLINED_NOTICE)
-            io.speak(L3_UNCLEAR_FINAL_PROMPT)
             continue
         if intent == "繼續交易":
             return None
