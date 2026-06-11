@@ -96,7 +96,8 @@ def run_l1(
     """
     if enter_hawk_immediately:
         # subroutine_a 後續路徑：跳過主選單，直接進 hawk（連續叫賣不中斷）
-        result = _run_l1_hawk(
+        # _run_l1_hawk 回傳域 = {"L2", None}，直接透傳（原恆等映射移除）
+        return _run_l1_hawk(
             print_terminal=print_terminal,
             read_terminal_key=read_terminal_key,
             opencv_dwell_seconds=opencv_dwell_seconds,
@@ -107,9 +108,6 @@ def run_l1(
             schedule=schedule,
             show_hawk_help=show_hawk_help,
         )
-        if result == "L2":
-            return "L2"
-        return None
 
     while True:
         # 防呆：主選單 / 客服都不該偵測 OpenCV（待機鏈路自己會 disable）
@@ -154,7 +152,8 @@ def run_l1(
             # result == 'menu' → 回選單
             continue
         elif key == "1":
-            result = _run_l1_hawk(
+            # _run_l1_hawk 回傳域 = {"L2", None}，直接透傳（原恆等映射移除）
+            return _run_l1_hawk(
                 print_terminal=print_terminal,
                 read_terminal_key=read_terminal_key,
                 opencv_dwell_seconds=opencv_dwell_seconds,
@@ -165,9 +164,6 @@ def run_l1(
                 schedule=schedule,
                 show_hawk_help=show_hawk_help,
             )
-            if result == "L2":
-                return "L2"
-            return None
         # 其他鍵：重印選單（q / 1 / 2 / 3 已在上面處理；非 q 鍵已 reset confirm）
 
 
