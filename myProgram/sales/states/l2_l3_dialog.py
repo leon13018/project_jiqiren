@@ -647,25 +647,18 @@ class DialogSession:
     def _c2_checkout_via_confirm(self) -> tuple:
         """C-2 結賬 path（合流：CHECKOUT keyword + silent timeout 都走這裡）。
 
-        經 _dialog_checkout_confirm 確認明細 → "yes" 進 L4；非 yes 清 cart + 重入 dialog 主迴圈。
-
-        對齊既有 L3 C-1 結帳 path（_dispatch_inner / checkout_flow 結帳分支）— 共用 confirm 子狀態。
+        分流本體共用 checkout_flow（confirm → "yes" 進 L4 / "cancel_to_l1" 直退 L1 /
+        其他清 cart + 通知）；與主迴圈結帳 path 唯一差異 = 非 yes 後重入 main_loop
+        （主迴圈語境為 continue 當輪迴圈）。
 
         2026-05-29 反轉：silent timeout 不再走 _c2_direct_checkout 直接 L4,
         合流到此函數經 confirm（與 CHECKOUT keyword path 完全一致）。新文案
         「{seconds} 秒後自動結賬」字面 promise 寬鬆解讀為「自動啟動結賬流程」
         （含 confirm 子狀態保護顧客錢包）。
         """
-        result = _dialog_checkout_confirm(io=self.io, cart=self.cart)
-        if result == "yes":
-            self.io.speak(L3_C1_CHECKOUT_GO)
-            self.io.do_action(ACTION_L3_CHECKOUT_GO)
-            return ("L4", 0)
-        if result == "cancel_to_l1":
-            # 2026-05-30 加：cancel_confirm YES → 直退 L1（不重入 main loop）
-            return self.exit_a()
-        # 非 yes → 清 cart + speak 通知 + 重入 dialog 主迴圈
-        _handle_checkout_confirm_result(result, self.cart, self.io)
+        result = self.checkout_flow()
+        if result is not None:
+            return result
         return self.main_loop()
 
 
