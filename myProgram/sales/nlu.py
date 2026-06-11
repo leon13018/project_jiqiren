@@ -31,19 +31,25 @@ from myProgram.sales.constants import (
 )
 # 比對原語本體已搬至 keyword_group.py（W1）；re-export 保既有
 # `from myProgram.sales.nlu import contains_any` 的 caller / 測試相容
-from myProgram.sales.keyword_group import contains_any, equals_strict_short
+from myProgram.sales.keyword_group import KeywordGroup, contains_any, equals_strict_short
 
 # ============================================================
 # 關鍵字白名單（依規格書 L0_共通.md）
 # ============================================================
 
+# 2026-05-29 cross-L cancel 意圖明確 phrase（user 列表擴充）——
+# _KEYWORDS_REJECT 與 _KEYWORDS_REJECT_L3_STRICT 共用（雙清單平行維護收斂）。
+# 會被 DialogSession._dispatch()（主迴圈與沉默期語境共用）偵測到後，
+# 經 cancel_confirm gate 才真正退 L1
+_KEYWORDS_CROSS_L_CANCEL = [
+    "取消交易", "退出交易", "我想取消交易", "我要取消交易",
+    "取消交易吧", "我想要取消交易",
+    "取消这次交易", "退出这次交易",  # 簡體
+]
+
 # REJECT substring 集（移除「沒/没」單字、「沒有/沒了/不了/没有」→ 移到 strict-short，
 # 避免「沒有問題」「等不了」「受不了」等口語被 substring 誤命中）
 # HP-1 / C5：「沒有 / 沒了 / 不了 / 没有」從 substring 集移出，改 strict-short
-# 2026-05-29 加：cross-L cancel 意圖明確 phrase（user 列表擴充）
-#   「我想取消交易」「取消交易」「我要取消交易」「退出交易」
-#   會被 DialogSession._dispatch()（主迴圈與沉默期語境共用）偵測到後，
-#   經 cancel_confirm gate 才真正退 L1
 _KEYWORDS_REJECT = [
     "不要", "不用", "不想", "不買", "不買了",
     # 2026-05-30 加（Pi demo L3「請問還有額外需要購買的嗎？」NLU gap 修補）
@@ -54,15 +60,14 @@ _KEYWORDS_REJECT = [
     "不需要", "沒有額外",
     "不买", "不想买", "不买了",  # 簡體變體
     "没有额外",                    # 簡體變體（「不需要」繁簡同字不另列）
-    # 2026-05-29 cross-L cancel 擴充
-    "取消交易", "退出交易", "我想取消交易", "我要取消交易",
-    "取消交易吧", "我想要取消交易",
-    "取消这次交易", "退出这次交易",  # 簡體
-]
+] + _KEYWORDS_CROSS_L_CANCEL  # cross-L cancel 擴充（共享清單）
 
 # REJECT strict-short 集（只在 text.strip() 完全等於時命中，避免 substring 誤命中）
 # HP-1：加入「沒有 / 沒了 / 不了 / 没有」— 僅完整詞才觸發 reject，不影響複合口語
 _KEYWORDS_REJECT_STRICT_SHORT = ["沒", "没", "沒有", "沒了", "不了", "没有"]
+
+# REJECT 雙集配對（兩處判定式共用；對齊 W1 oop_w1 KG_* 慣例）
+_KG_REJECT = KeywordGroup(tuple(_KEYWORDS_REJECT), tuple(_KEYWORDS_REJECT_STRICT_SHORT))
 
 # L3 嚴格 reject 詞：L3 (normal mode) 中只有命中這幾個明確「整單作廢」意圖才視為拒絕
 # 短詞 _KEYWORDS_REJECT (「不要」/「不用」/「不想」/「不買」) 在 L3 視為「不追加」→ 結帳
@@ -83,12 +88,7 @@ _KEYWORDS_REJECT_L3_STRICT = [
     # 補入 L3_STRICT → 視為「拒絕」→ 進 cancel_confirm gate 由 user 確認意圖
     "不要買了", "不想買",
     "不要买了", "不想买",  # 簡體
-    # 2026-05-29 cross-L cancel 擴充（user 列表）— 明確「取消交易 / 退出交易」phrase
-    # 在 L3 strict reject 也應命中（雖然「取消」substring 已命中，明示 phrase 提升可讀性）
-    "取消交易", "退出交易", "我想取消交易", "我要取消交易",
-    "取消交易吧", "我想要取消交易",
-    "取消这次交易", "退出这次交易",  # 簡體
-]
+] + _KEYWORDS_CROSS_L_CANCEL  # cross-L 明確 phrase（「取消/退出」substring 已涵蓋，明示共享清單提升可讀性）
 
 _KEYWORDS_THINK = ["等等", "等一下", "稍等", "想想", "考慮", "想一下", "hold on", "wait"]
 
@@ -213,11 +213,11 @@ def classify_intent(text: str, mode: str = "normal") -> Intent:
     if mode == "normal":
         if contains_any(text, _KEYWORDS_REJECT_L3_STRICT):
             return "拒絕"
-        if contains_any(text, _KEYWORDS_REJECT) or equals_strict_short(text, _KEYWORDS_REJECT_STRICT_SHORT):
+        if _KG_REJECT.matches(text):
             return "結帳"
 
     # 通用優先序（L2/L4 走這 — L3 已在上面 early return）
-    if contains_any(text, _KEYWORDS_REJECT) or equals_strict_short(text, _KEYWORDS_REJECT_STRICT_SHORT):
+    if _KG_REJECT.matches(text):
         return "拒絕"
     if contains_any(text, _KEYWORDS_THINK):
         return "想一下"
