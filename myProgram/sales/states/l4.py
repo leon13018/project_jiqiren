@@ -245,8 +245,8 @@ def _l4_dispatch_response(response: str, io, cart) -> tuple:
         2. 等待安撫意圖 → speak 溫和回應，無 pause（兩計時器不動）
         3. 拒絕意圖 → cancel_confirm gate（量測耗時 → 補償）
             YES → 退 L1；NO → speak DECLINED + 回報 pause_duration
-        4. 客服意圖 → service_confirm（量測耗時）
-            yes → "reset"（主迴圈重置兩計時器，不用 pause_duration）
+        4. 客服意圖 → service_confirm（不量測耗時——reset 覆蓋補償）
+            yes → "reset"（主迴圈重置兩計時器）
             no → 清 cart 退 L1
             scan → 進 L5（鏈路 A）
         5. 其他（想一下 / 結帳 / 商品 / 無法判斷）→ speak L4_UNCLEAR_NOTICE，無 pause
@@ -288,16 +288,14 @@ def _l4_dispatch_response(response: str, io, cart) -> tuple:
         io.speak(CANCEL_DECLINED_NOTICE)
         return ("ack", pause_duration)
 
-    # 優先序 4：客服 → service_confirm（24s 獨立 budget）
+    # 優先序 4：客服 → service_confirm（24s 獨立 budget；不量測耗時——
+    # 兩出口不是退出就是 reset，reset 覆蓋補償（spec §2.4），補償永不適用）
     if intent == "客服":
-        paused_at = time.monotonic()
         result = _l4_service_mode(io=io, cart=cart)
-        pause_duration = time.monotonic() - paused_at
         if isinstance(result, tuple):
             # service_mode 已決定退出（scan → L5 / no → L1），無需補償
             return (result, 0.0)
         # result is None → 客服 yes「繼續」→ caller 重置兩計時器（fresh start）
-        # 不用 pause_duration（reset 覆蓋補償，spec §2.4 對齊 v2 行為）
         return ("reset", 0.0)
 
     # 優先序 5：想一下 / 結帳 / 商品 / 無法判斷 → 印 unclear notice，無 pause
