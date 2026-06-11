@@ -24,3 +24,8 @@
 - **Why**：反思 `entry-invariant-else-branch-silent-mismatch`（2026-06-10）採納——現行 else 分支讓任何非 `"empty"` 值（含 typo）靜默走 nonempty 檢查，cart 恰非空時錯誤檢查靜默通過；改 fail-fast 與本檔 A4-c 哲學一致，合法值（`"empty"`/`"nonempty"`）零行為變更。
 - **Out of scope**：不加 `__init_subclass__` / abstract property 強制 class attr（同批反思 `state-abc-class-attr-not-enforced` 已否決——封閉狀態集 + 缺屬性本就 AttributeError loud fail）。
 - **驗證**：`python -m pytest tests/sales/` 全綠（459 既有 + 1 新測 = 460 passed）。
+
+---
+
+## 變更記錄
+- 2026-06-11 落實（696b8ac）：§驗證 之「459 既有」沿用 session 快照計數，與 pytest 實測有差——實測基線 501 → 落實後 **502 passed**。invariant（新增恰 1 測、全綠）不變。
