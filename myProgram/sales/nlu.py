@@ -29,7 +29,7 @@ from myProgram.sales.constants import (
     KEYWORDS_SCRATCH,
     CHINESE_DIGIT_MAP,
 )
-from myProgram.sales.constants.keyword_group import KeywordGroup, contains_any, equals_strict_short
+from myProgram.sales.constants.keyword_group import KeywordGroup
 
 # ============================================================
 # 關鍵字白名單（依規格書 L0_共通.md）
@@ -107,6 +107,23 @@ _KEYWORDS_CONTINUE = ["繼續", "接著", "繼續買", "繼續交易", "continue
 
 _KEYWORDS_EXIT = ["退出", "取消", "離開", "算了", "不買了", "exit"]
 
+# ============================================================
+# 模組級 KG 實例（perf_w1 F-1b）：classify_intent 熱路徑統一走預 lower 的
+# KeywordGroup.matches；list 常數保留為單一事實來源（測試直接驗 list）。
+# 單集者另一側留空：純 substring → strict_short 預設 ()；純 strict → substrings=()。
+# ============================================================
+_KG_REJECT_L3_STRICT = KeywordGroup(tuple(_KEYWORDS_REJECT_L3_STRICT))
+_KG_THINK = KeywordGroup(tuple(_KEYWORDS_THINK))
+_KG_CHECKOUT = KeywordGroup(tuple(_KEYWORDS_CHECKOUT))
+_KG_SERVICE = KeywordGroup(tuple(_KEYWORDS_SERVICE))
+_KG_CONTINUE = KeywordGroup(tuple(_KEYWORDS_CONTINUE))
+_KG_EXIT = KeywordGroup(tuple(_KEYWORDS_EXIT))
+_KG_ICED_TEA = KeywordGroup(tuple(KEYWORDS_ICED_TEA))
+_KG_SCRATCH = KeywordGroup(tuple(KEYWORDS_SCRATCH))
+_KG_L4_ACK = KeywordGroup(tuple(KEYWORDS_L4_ACK_OR_WAIT), tuple(KEYWORDS_L4_ACK_SHORT))
+_KG_WANT_TO_BUY = KeywordGroup(tuple(KEYWORDS_WANT_TO_BUY_VAGUE), tuple(KEYWORDS_WANT_TO_BUY_SHORT))
+_KG_NO_NOPE = KeywordGroup((), ("no", "nope"))
+
 
 def normalize_input(raw: str, max_length: int = 200) -> str:
     """IO 邊界統一 normalize — 對顧客語音 / 商家鍵盤輸入做最小消毒。
@@ -183,33 +200,31 @@ def classify_intent(text: str, mode: str = "normal") -> Intent:
             return "退出交易"
         if "停止" in text:
             return "退出交易"
-        if contains_any(text, _KEYWORDS_CONTINUE):
+        if _KG_CONTINUE.matches(text):
             return "繼續交易"
-        if contains_any(text, _KEYWORDS_EXIT):
+        if _KG_EXIT.matches(text):
             return "退出交易"
-        if equals_strict_short(text, ["no", "nope"]):
+        if _KG_NO_NOPE.matches(text):
             return "退出交易"
 
     # L4 mode 專屬：等待安撫 → 顧客禮貌肯定 / 找手機掃碼（2026-05-26 加；使用者實機 UX 修補）
     # 必須先於 L2/L4 共用的 no/nope 拒絕判定，因為「好/嗯/ok」strict-short 不應被
     # 任何其他分支吃掉；其他 mode 不命中，避免污染 L2 詢問需求 / L3 confirm context 的「好」語意
     if mode == "l4":
-        if equals_strict_short(text, KEYWORDS_L4_ACK_SHORT):
-            return "等待安撫"
-        if contains_any(text, KEYWORDS_L4_ACK_OR_WAIT):
+        if _KG_L4_ACK.matches(text):
             return "等待安撫"
 
     # L2 / L4 模式：no / nope 強制視為拒絕（覆寫 _KEYWORDS_CHECKOUT 內的預設）
     # 2026-05-25 使用者實測層別語意：L2「沒需求」/ L4「不要了」皆是拒絕，只 L3「沒了」是結帳
     if mode in ("l2", "l4"):
-        if equals_strict_short(text, ["no", "nope"]):
+        if _KG_NO_NOPE.matches(text):
             return "拒絕"
 
     # L3 (normal mode) 嚴格 reject 判定：只有命中 _KEYWORDS_REJECT_L3_STRICT 才視為拒絕
     # 一般 _KEYWORDS_REJECT 短詞「不要 / 不用 / 不想 / 不買」在 L3 視為「不追加」→ 結帳
     # 2026-05-25 加：使用者實測 L3 顧客講「不用」本意「不需要加購」（同 no/nope 在 L3 的處理）
     if mode == "normal":
-        if contains_any(text, _KEYWORDS_REJECT_L3_STRICT):
+        if _KG_REJECT_L3_STRICT.matches(text):
             return "拒絕"
         if _KG_REJECT.matches(text):
             return "結帳"
@@ -217,15 +232,15 @@ def classify_intent(text: str, mode: str = "normal") -> Intent:
     # 通用優先序（L2/L4 走這 — L3 已在上面 early return）
     if _KG_REJECT.matches(text):
         return "拒絕"
-    if contains_any(text, _KEYWORDS_THINK):
+    if _KG_THINK.matches(text):
         return "想一下"
-    if contains_any(text, _KEYWORDS_CHECKOUT):
+    if _KG_CHECKOUT.matches(text):
         return "結帳"
-    if contains_any(text, _KEYWORDS_SERVICE):
+    if _KG_SERVICE.matches(text):
         return "客服"
-    if contains_any(text, KEYWORDS_ICED_TEA):
+    if _KG_ICED_TEA.matches(text):
         return "商品:冰紅茶"
-    if contains_any(text, KEYWORDS_SCRATCH):
+    if _KG_SCRATCH.matches(text):
         return "商品:刮刮樂"
 
     # 2026-05-26 加：L2 (DnC) / L3 (DyC) normal mode 顧客講肯定詞但無具體商品名
@@ -233,9 +248,7 @@ def classify_intent(text: str, mode: str = "normal") -> Intent:
     # 等先決判定。strict-short「有/要」防 substring 誤命中「沒有」「不要」
     # （後者已在上方 REJECT / CHECKOUT 分支被攔截）
     if mode in ("l2", "normal"):
-        if equals_strict_short(text, KEYWORDS_WANT_TO_BUY_SHORT):
-            return "想買無商品"
-        if contains_any(text, KEYWORDS_WANT_TO_BUY_VAGUE):
+        if _KG_WANT_TO_BUY.matches(text):
             return "想買無商品"
 
     return "無法判斷"

@@ -22,10 +22,8 @@ from myProgram.sales.constants import (
     INVALID_QTY_UNCLEAR_PREFIX,
     KEYWORDS_INVALID_QTY_CANCEL_TRIGGER,
 )
-from myProgram.sales.nlu import (
-    has_quantity, parse_quantity, classify_intent,
-    contains_any,
-)
+from myProgram.sales.nlu import has_quantity, parse_quantity, classify_intent
+from myProgram.sales.constants.keyword_group import contains_any
 from myProgram.sales.product_parser import parse_products
 from myProgram.sales import cart as cart_module
 from myProgram.sales.dialog_io import DialogIO
