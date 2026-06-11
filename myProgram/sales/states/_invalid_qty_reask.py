@@ -14,7 +14,6 @@ import time
 
 from myProgram.sales.constants import (
     PRODUCTS,
-    MAX_QTY_PER_ITEM,
     INVALID_QTY_REASK_TIMEOUT,
     INVALID_QTY_MAX_RESETS,
     INVALID_QTY_OVERLIMIT_SINGLE_TEMPLATE,
@@ -72,12 +71,12 @@ def _format_invalid_qty_prompt(pending: dict, cart) -> str:
         if len(over_products) == 1:
             p = over_products[0]
             unit = PRODUCTS[p]["單位"]
-            remaining = MAX_QTY_PER_ITEM - cart_module.get_quantity(cart, p)
+            remaining = cart_module.remaining_capacity(cart, p)
             parts.append(INVALID_QTY_OVERLIMIT_SINGLE_TEMPLATE.format(product=p, remaining=remaining, unit=unit))
         else:
             products = _join_names(over_products)
             details = "、".join(
-                f"{MAX_QTY_PER_ITEM - cart_module.get_quantity(cart, p)} {PRODUCTS[p]['單位']}"
+                f"{cart_module.remaining_capacity(cart, p)} {PRODUCTS[p]['單位']}"
                 for p in over_products
             )
             parts.append(INVALID_QTY_OVERLIMIT_MULTI_TEMPLATE.format(products=products, details=details))
@@ -86,7 +85,7 @@ def _format_invalid_qty_prompt(pending: dict, cart) -> str:
 
 def _classify_into_pending(product: str, qty: int, pending: dict, cart) -> None:
     """重答後重新分類單一商品：合法→add+del；仍 0→reason=zero；仍超量→reason=over_limit。"""
-    remaining = MAX_QTY_PER_ITEM - cart_module.get_quantity(cart, product)
+    remaining = cart_module.remaining_capacity(cart, product)
     if 0 < qty <= remaining:
         cart_module.add_item(cart, product, qty)
         del pending[product]

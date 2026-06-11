@@ -58,6 +58,19 @@ def get_quantity(cart: Cart, product: str) -> int:
     return cart.get(product, 0)
 
 
+def remaining_capacity(cart: Cart, product: str) -> int:
+    """回傳該商品距單筆上限（MAX_QTY_PER_ITEM）的剩餘可加數量。
+
+    Args:
+        cart: 購物車 dict
+        product: 商品名稱
+
+    Returns:
+        MAX_QTY_PER_ITEM - 既有數量（商品不存在時既有量為 0，即回上限值）
+    """
+    return MAX_QTY_PER_ITEM - get_quantity(cart, product)
+
+
 def calc_total(cart: Cart) -> int:
     """計算購物車總額（依各商品實際價相加）。
 

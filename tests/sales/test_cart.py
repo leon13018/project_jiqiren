@@ -19,7 +19,8 @@ Wave 4 cart 邊界防護（B6 / B20 / C11）：
 import pytest
 
 import myProgram.sales.cart as cart_module
-from myProgram.sales.cart import new_cart, add_item
+from myProgram.sales.cart import new_cart, add_item, remaining_capacity
+from myProgram.sales.constants import MAX_QTY_PER_ITEM
 
 
 # ============================================================
@@ -177,3 +178,22 @@ def test_add_item_qty_負數_silent_skip() -> None:
     c = new_cart()
     add_item(c, "冰紅茶", -1)
     assert c == {}
+
+
+# ============================================================
+# remaining_capacity（quality_fix_w3 #9）
+# ============================================================
+
+## CART-REMCAP-001
+### Scenario: remaining_capacity = MAX_QTY_PER_ITEM - 既有量
+### Given 一個 cart
+### When 查詢某商品距單筆上限的剩餘可加數量
+### Then 空 cart 回上限值、加量後遞減、達上限回 0
+def test_remaining_capacity_tracks_max_qty_per_item() -> None:
+    """remaining_capacity = MAX_QTY_PER_ITEM - 既有量；空 cart 回上限、達上限回 0。"""
+    cart = new_cart()
+    assert remaining_capacity(cart, "冰紅茶") == MAX_QTY_PER_ITEM
+    add_item(cart, "冰紅茶", 3)
+    assert remaining_capacity(cart, "冰紅茶") == MAX_QTY_PER_ITEM - 3
+    add_item(cart, "冰紅茶", MAX_QTY_PER_ITEM - 3)
+    assert remaining_capacity(cart, "冰紅茶") == 0

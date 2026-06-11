@@ -122,8 +122,7 @@ def resolve_and_add_products(
         if qty is None:
             missing.append(product)
             continue
-        existing = cart_module.get_quantity(cart, product)
-        remaining = MAX_QTY_PER_ITEM - existing
+        remaining = cart_module.remaining_capacity(cart, product)
         unit = PRODUCTS[product]["單位"]
         if remaining <= 0:
             # cart 內已達上限 → 完全 skip + speak 通知（at-cap 保留既有行為，不進重問鏈）
@@ -231,8 +230,7 @@ def _qty_follow_up_sub_loop(
             # Wave 4 hotfix（2026-05-26）— caller 端 cart cap 業務檢查
             # 修 Pi 實機踩坑：顧客輸入「34435454545454545」→ parse_quantity 解析
             # 為天文數字 → cart.add_item assert raise → 程式 crash。
-            existing = cart_module.get_quantity(cart, product)
-            remaining = MAX_QTY_PER_ITEM - existing
+            remaining = cart_module.remaining_capacity(cart, product)
             if remaining <= 0:
                 # cart 內已達上限 → 無法再加，即時 speak 提示 + skip 此商品（非 cancel UX，不拼接）
                 io.speak(AT_CAP_NOTICE_TEMPLATE.format(product=product, max_qty=MAX_QTY_PER_ITEM, unit=unit))
