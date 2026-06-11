@@ -24,9 +24,9 @@ callback 集合（W2 oop_w2：束成 DialogIO io 物件，私有函式收 io 單
 （do_action 2026-05-27 S3 restore — entry 觸發 ACTION_L2/L3；
  2026-05-27 修：cart empty → non-empty transition 也要觸發 ACTION_L3
  — Pi 實機驗證發現「L2 加單成功進 L3」只有 entry 觸發點不夠，因為 dispatcher
- 不重新進入 run_dialog 直接 speak L3_ENTRY_PROMPT；修補：兩處 transition 點補上
- do_action(ACTION_L3) — DialogSession._dispatch_inner added 後 / DialogSession.main_loop
- was_empty 分支。L3 內後續加單仍不重跑動作 — 符合「每層只 entry 一次」精神）
+ 不重新進入 run_dialog 直接 speak L3_ENTRY_PROMPT；修補：transition 點補上
+ do_action(ACTION_L3) — 現統一於 DialogSession._dispatch added+was_empty 分支
+ （quality_fix_w2 後單點）。L3 內後續加單仍不重跑動作 — 符合「每層只 entry 一次」精神）
 
 Return shape：(next_state, next_think_count)
     next_state ∈ {"L4", "L1_via_subroutine_a"}
@@ -123,8 +123,8 @@ def run_dialog(
         do_action: callback(name: str) — 同步阻塞跑廠商動作組（S3 加，2026-05-27；
             同日修：cart empty→non-empty transition 也觸發 ACTION_L3）。
             觸發點：(1) entry — cart 空 → ACTION_L2；cart 非空 → ACTION_L3；
-            (2) L2→L3 transition — DialogSession._dispatch_inner / DialogSession.main_loop
-            內顧客加單使 cart 從空變非空時 → ACTION_L3。
+            (2) L2→L3 transition — DialogSession._dispatch 內顧客加單使 cart
+            從空變非空時 → ACTION_L3（兩語境共用，quality_fix_w2 統一）。
             L3 內後續加單不跑動作（避免每次加單都動，servo 過熱風險）。
 
     Returns:
