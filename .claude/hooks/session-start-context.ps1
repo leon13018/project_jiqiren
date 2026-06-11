@@ -60,12 +60,26 @@ try {
     $lastCommit = (git log --oneline -1 2>$null)
     if (-not $lastCommit) { $lastCommit = '(無 commit)' }
 
-    # 數 sales/ tests
-    $salesTestCount = 0
-    $testFiles = Get-ChildItem -Path 'tests/sales/test_*.py' -ErrorAction SilentlyContinue
-    foreach ($f in $testFiles) {
-        $matches = Select-String -Path $f.FullName -Pattern '^def test_' -ErrorAction SilentlyContinue
-        $salesTestCount += @($matches).Count
+    # 數 sales/ tests：pytest --collect-only 取實收數（含 parametrize 展開，與
+    # `python -m pytest tests/sales/` 綠燈報數一致）。靜態數 `^def test_` 會低估——
+    # 曾致 SDD spec 基線誤植 460 vs 實收 502（quality_fix_w1 實作期才發現）。
+    # 約 +1s（實測 collect 0.09s + interpreter 啟動 ~1s）；失敗 fallback 靜態函式數。
+    $salesTestCount = $null
+    $collectLast = (python -m pytest tests/sales/ --collect-only -q 2>$null | Select-Object -Last 1)
+    if ($collectLast -match '(\d+)\s+tests?\s+collected') {
+        $salesTestCount = $Matches[1]
+    }
+    if (-not $salesTestCount) {
+        # fallback（無 python/pytest 或 collect 失敗）：靜態數 def test_，標明低估性質。
+        # 不用 Select-String -Path（hooks-gotchas #4：cp936 誤解碼），改 ReadAllText UTF8。
+        $fnCount = 0
+        foreach ($f in (Get-ChildItem -Path 'tests/sales/test_*.py' -ErrorAction SilentlyContinue)) {
+            try {
+                $text = [System.IO.File]::ReadAllText($f.FullName, [System.Text.Encoding]::UTF8)
+                $fnCount += ([regex]::Matches($text, '(?m)^def test_')).Count
+            } catch {}
+        }
+        $salesTestCount = "$fnCount+（靜態函式數，pytest 不可用；實收含 parametrize 會更多）"
     }
 
     # 動到 sales/ 但沒跑 pytest 的 flag 狀態
@@ -114,7 +128,7 @@ try {
 - 最新 commit：``$lastCommit``
 - 未提交變動：$statusCount 個檔
 $statusPreview
-- sales/ 測試總數：$salesTestCount（會被 Stop hook 守住 — 改了 sales/* 必跑 pytest）$flagNote$modelNote$cwdWorktreeNote
+- sales/ 測試總數：$salesTestCount（pytest 實收；會被 Stop hook 守住 — 改了 sales/* 必跑 pytest）$flagNote$modelNote$cwdWorktreeNote
 
 （本 summary 由 ``.claude/hooks/session-start-context.ps1`` 產生；要關掉編輯 ``.claude/settings.json``。）
 "@
