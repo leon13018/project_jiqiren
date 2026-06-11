@@ -11,6 +11,7 @@ __all__ = [
     "MAX_QTY_PER_ITEM",
     "QTY_PROMPT_TEMPLATE",
     "QTY_CLARIFY_TEMPLATE",
+    "AT_CAP_NOTICE_TEMPLATE",
 ]
 
 # ============================================================
@@ -33,3 +34,7 @@ QTY_PROMPT_TEMPLATE: str = "請問{product}要幾{unit}？"
 # QTY 追問子迴圈內，顧客亂說 / 客服回來時的 clarify 語音（2026-05-25 加）
 # 同 L2/L3 B-1 風格：「不好意思我聽不太懂...或者您想聯繫客服？」
 QTY_CLARIFY_TEMPLATE: str = "不好意思我聽不太懂，請問您要幾{unit}，或者您想聯繫客服？"
+
+# L2 / L3 加單時 cart 已達單筆上限的即時通知（2026-06-11 抽常數；
+# 原 inline 於 _l2_l3_qty_followup.py 兩處逐字重複）
+AT_CAP_NOTICE_TEMPLATE: str = "{product}已經點到單筆上限 {max_qty} {unit}，無法再加"

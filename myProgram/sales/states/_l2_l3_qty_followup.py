@@ -31,6 +31,7 @@ caller 將 notice 與後續 reask text 用全形「，」拼成單一 speak — 
 from myProgram.sales.constants import (
     PRODUCTS,
     MAX_QTY_PER_ITEM,
+    AT_CAP_NOTICE_TEMPLATE,
     QTY_PROMPT_TEMPLATE,
     QTY_CLARIFY_TEMPLATE,
     QTY_FOLLOWUP_TIMEOUT,
@@ -126,7 +127,7 @@ def resolve_and_add_products(
         unit = PRODUCTS[product]["單位"]
         if remaining <= 0:
             # cart 內已達上限 → 完全 skip + speak 通知（at-cap 保留既有行為，不進重問鏈）
-            io.speak(f"{product}已經點到單筆上限 {MAX_QTY_PER_ITEM} {unit}，無法再加")
+            io.speak(AT_CAP_NOTICE_TEMPLATE.format(product=product, max_qty=MAX_QTY_PER_ITEM, unit=unit))
             continue
         if qty == 0:
             # 2026-06-09：qty==0 比照超量，收進 invalid_pending 走 Pass 1.5 重問（不假性加入）
@@ -234,7 +235,7 @@ def _qty_follow_up_sub_loop(
             remaining = MAX_QTY_PER_ITEM - existing
             if remaining <= 0:
                 # cart 內已達上限 → 無法再加，即時 speak 提示 + skip 此商品（非 cancel UX，不拼接）
-                io.speak(f"{product}已經點到單筆上限 {MAX_QTY_PER_ITEM} {unit}，無法再加")
+                io.speak(AT_CAP_NOTICE_TEMPLATE.format(product=product, max_qty=MAX_QTY_PER_ITEM, unit=unit))
                 return False, None, None
             if qty == 0 or qty > remaining:
                 # 2026-06-09：qty==0 / 超量皆不 cap，funnel 進 invalid_qty_reask（單商品）
