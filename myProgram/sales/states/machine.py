@@ -182,8 +182,13 @@ class SalesMachine:
             state = self._states[current]
             if state.entry_invariant == "empty":
                 _assert_cart_empty(self.cart, state.entry_ctx)
-            else:
+            elif state.entry_invariant == "nonempty":
                 _assert_cart_nonempty(self.cart, state.entry_ctx)
+            else:
+                raise ValueError(
+                    f"未知 entry_invariant：{state.entry_invariant!r}"
+                    f"（state={type(state).__name__}）"
+                )
             result = state.run(self)
             if result is None:
                 return None

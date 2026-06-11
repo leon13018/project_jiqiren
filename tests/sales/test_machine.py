@@ -19,6 +19,7 @@ import myProgram.sales.states as states_module
 import myProgram.sales.cart as cart_module
 from myProgram.sales.states.machine import (
     Transition,
+    State,
     L1State,
     DialogState,
     L4State,
@@ -219,4 +220,21 @@ def test_machine_run_l1_entry_ctx_mentions_進l1(monkeypatch):
     machine = _make_machine(cart=cart)
 
     with pytest.raises(AssertionError, match="進 L1"):
+        machine.run()
+
+
+def test_machine_run_raises_on_unknown_entry_invariant():
+    """machine.run() 進場時遇非法 entry_invariant（typo "Nonempty"）→ ValueError，
+    fail-fast 而非靜默走錯誤 cart 檢查。raise 發生在 state.run 之前，不需 stub run_*。"""
+    class BadState(State):
+        entry_invariant = "Nonempty"  # 非法值（大寫 typo）
+        entry_ctx = "進 Bad"
+
+        def run(self, machine):  # 不該被呼到——進場 assert 先炸
+            raise AssertionError("state.run 不應被呼叫")
+
+    machine = _make_machine()
+    machine._states["l1"] = BadState()
+
+    with pytest.raises(ValueError, match="entry_invariant"):
         machine.run()
