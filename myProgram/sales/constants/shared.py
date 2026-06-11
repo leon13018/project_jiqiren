@@ -8,7 +8,6 @@ __all__ = [
     "SERVICE_PHONE",
     "DIALOG_VAGUE_BUY_REASK",
     "CANCEL_CONFIRM_PROMPT",
-    "CANCEL_CONFIRMED_NOTICE",
     "CANCEL_DECLINED_NOTICE",
     "PRODUCT_CANCELLED_NOTICE_TEMPLATE",
     "MULTI_PRODUCT_CANCELLED_NOTICE_TEMPLATE",
@@ -33,7 +32,6 @@ DIALOG_VAGUE_BUY_REASK: str = "好的，請告訴我您想買的商品。"
 # Cross-L cancel confirm 子狀態文案（2026-05-29 加）
 # 跨 L2/L3/L4 任何 read 點偵測 cancel intent 後進 6s confirm
 CANCEL_CONFIRM_PROMPT: str = "您是否想取消這次交易？6 秒後系統將自動取消"
-CANCEL_CONFIRMED_NOTICE: str = "好的，已為您取消這次交易"
 CANCEL_DECLINED_NOTICE: str = "好的，繼續為您服務"
 
 # qty_followup 4 個 skip 分支統一通知文案（2026-05-29 加）
