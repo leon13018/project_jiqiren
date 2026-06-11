@@ -87,6 +87,18 @@ async def _synthesize(text: str, out_path: str) -> None:
     await edge_tts.Communicate(text=text, voice=VOICE, rate=_pick_rate(text)).save(out_path)
 
 
+def _print_failure(stage: str, detail_lines: list) -> None:
+    """TTS 失敗訊息統一印製（synth / play 兩階段共用；字面與舊版逐行一致）。
+
+    detail_lines 每行自帶「key = value」格式，由 caller 依舊版順序排列
+    （play FileNotFoundError 的 text 在 hint 前；CalledProcessError 的 cmd 在 text 前）。
+    """
+    print(f"[語音] ⚠️ TTS 失敗（階段={stage}）")
+    for line in detail_lines:
+        print(f"[語音]   {line}")
+    print(f"[語音] 此字略過,繼續下一字")
+
+
 class TtsWorker(QueueWorker):
     """同步 TTS daemon worker：FIFO queue + lock-protected current Popen。
 
@@ -165,10 +177,10 @@ class TtsWorker(QueueWorker):
         except Exception as e:
             # edge_tts 可能 raise NoAudioReceived / WebSocketException / asyncio 相關錯
             # 不確定具體類型 → 統一 catch Exception，但訊息要詳細
-            print(f"[語音] ⚠️ TTS 失敗（階段=synth）")
-            print(f"[語音]   exception = {type(e).__name__}: {e!r}")
-            print(f"[語音]   text      = {text!r}")
-            print(f"[語音] 此字略過,繼續下一字")
+            _print_failure("synth", [
+                f"exception = {type(e).__name__}: {e!r}",
+                f"text      = {text!r}",
+            ])
             return
 
         # 階段 2：播放 mp3（subprocess.Popen → 保留 reference 給 shutdown 用）
@@ -182,6 +194,10 @@ class TtsWorker(QueueWorker):
         #   2. user 不小心打到 'q' / 's' → mpg123「Stopped.」+ quit 退出碼非 0
         #      → CalledProcessError → 整段 dialog flow 中斷
         # mpg123 從 mp3 路徑參數讀資料、不從 stdin 讀資料 → DEVNULL 不影響播放。
+        #
+        # finally 統一清 _proc（取代原 3 except + 成功路徑共 4 處重複）：
+        # 成功 = try 正常結束 → finally 清 → drain；失敗 = except 印完 → finally 清
+        # → return 生效 — 兩種時序皆與舊版「印完才清 / 清完才 drain」一致。
         try:
             with self._lock:
                 # 短臨界區：spawn + 存 ref，不包 wait（避免 shutdown 拿不到 lock）
@@ -203,37 +219,32 @@ class TtsWorker(QueueWorker):
                 )
         except FileNotFoundError as e:
             # mpg123 binary 不存在（Pi 未 apt install mpg123）
-            print(f"[語音] ⚠️ TTS 失敗（階段=play）")
-            print(f"[語音]   exception = FileNotFoundError: {e!r}")
-            print(f"[語音]   text      = {text!r}")
-            print(f"[語音]   hint      = 請在 Pi 上執行 `sudo apt install mpg123`")
-            print(f"[語音] 此字略過,繼續下一字")
-            with self._lock:
-                self._proc = None
+            _print_failure("play", [
+                f"exception = FileNotFoundError: {e!r}",
+                f"text      = {text!r}",
+                f"hint      = 請在 Pi 上執行 `sudo apt install mpg123`",
+            ])
             return
         except subprocess.CalledProcessError as e:
             # mpg123 退出碼非 0（檔案損毀 / 音訊裝置忙 / shutdown SIGTERM 等）
-            print(f"[語音] ⚠️ TTS 失敗（階段=play）")
-            print(f"[語音]   exception = subprocess.CalledProcessError: returncode={e.returncode}")
-            print(f"[語音]   cmd       = {e.cmd}")
-            print(f"[語音]   text      = {text!r}")
-            print(f"[語音] 此字略過,繼續下一字")
-            with self._lock:
-                self._proc = None
+            _print_failure("play", [
+                f"exception = subprocess.CalledProcessError: returncode={e.returncode}",
+                f"cmd       = {e.cmd}",
+                f"text      = {text!r}",
+            ])
             return
         except Exception as e:
             # 兜底 — 不明錯誤也要詳細印
-            print(f"[語音] ⚠️ TTS 失敗（階段=play）")
-            print(f"[語音]   exception = {type(e).__name__}: {e!r}")
-            print(f"[語音]   text      = {text!r}")
-            print(f"[語音] 此字略過,繼續下一字")
+            _print_failure("play", [
+                f"exception = {type(e).__name__}: {e!r}",
+                f"text      = {text!r}",
+            ])
+            return
+        finally:
             with self._lock:
                 self._proc = None
-            return
 
-        # 播放成功（returncode==0）：清 _proc + drain ALSA
-        with self._lock:
-            self._proc = None
+        # 播放成功（returncode==0）：drain ALSA
         # 給 ALSA buffer 完成尾巴音訊播放的時間,避免下一個 speak() 立刻啟動
         # 新 mpg123 沖掉舊 buffer（症狀：「付款成功」尾巴被截）。失敗 path
         # 不到這裡因 mpg123 沒真播完 = 無 buffer 殘留 = 不需 drain。
