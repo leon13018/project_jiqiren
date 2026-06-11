@@ -43,9 +43,7 @@ __all__ = [
     "KEYWORDS_L4_C_CONFIRM_NO_STRICT_SHORT",
     "KEYWORDS_INVALID_QTY_CANCEL_TRIGGER",
     "KEYWORDS_INVALID_QTY_CONTINUE",
-    "KEYWORDS_INVALID_QTY_CONTINUE_STRICT_SHORT",
     "KEYWORDS_INVALID_QTY_EXIT",
-    "KEYWORDS_INVALID_QTY_EXIT_STRICT_SHORT",
     # W1 oop_w1：11 個 KeywordGroup 配對實例
     "KG_CONFIRM_YES",
     "KG_CONFIRM_NO",
@@ -377,12 +375,10 @@ KEYWORDS_INVALID_QTY_CONTINUE: list = [
     "繼續交易", "繼續購買", "繼續", "取消",
     "继续交易", "继续",
 ]
-KEYWORDS_INVALID_QTY_CONTINUE_STRICT_SHORT: list = ["繼續", "取消", "继续"]
 # 二選一 EXIT（退出交易）— caller 後 check（純 退出/離開 才退）
 KEYWORDS_INVALID_QTY_EXIT: list = [
     "退出", "直接退出", "退出交易", "直接退出交易", "離開", "离开",
 ]
-KEYWORDS_INVALID_QTY_EXIT_STRICT_SHORT: list = ["退出", "離開", "离开"]
 
 # ============================================================
 # KeywordGroup 配對實例（W1 oop_w1）
@@ -400,5 +396,7 @@ KG_CANCEL_CONFIRM_YES = KeywordGroup(tuple(KEYWORDS_CANCEL_CONFIRM_YES), tuple(K
 KG_CANCEL_CONFIRM_NO = KeywordGroup(tuple(KEYWORDS_CANCEL_CONFIRM_NO), tuple(KEYWORDS_CANCEL_CONFIRM_NO_STRICT_SHORT))
 KG_L4_C_CONFIRM_YES = KeywordGroup(tuple(KEYWORDS_L4_C_CONFIRM_YES), tuple(KEYWORDS_L4_C_CONFIRM_YES_STRICT_SHORT))
 KG_L4_C_CONFIRM_NO = KeywordGroup(tuple(KEYWORDS_L4_C_CONFIRM_NO), tuple(KEYWORDS_L4_C_CONFIRM_NO_STRICT_SHORT))
-KG_INVALID_QTY_CONTINUE = KeywordGroup(tuple(KEYWORDS_INVALID_QTY_CONTINUE), tuple(KEYWORDS_INVALID_QTY_CONTINUE_STRICT_SHORT))
-KG_INVALID_QTY_EXIT = KeywordGroup(tuple(KEYWORDS_INVALID_QTY_EXIT), tuple(KEYWORDS_INVALID_QTY_EXIT_STRICT_SHORT))
+# strict_short 省略：原兩集（繼續/取消/继续、退出/離開/离开）全為對應 substring 集子集，
+# equals_strict_short 命中必蘊含 contains_any 命中 → 零行為效果（quality_fix_w4 移除）
+KG_INVALID_QTY_CONTINUE = KeywordGroup(tuple(KEYWORDS_INVALID_QTY_CONTINUE))
+KG_INVALID_QTY_EXIT = KeywordGroup(tuple(KEYWORDS_INVALID_QTY_EXIT))

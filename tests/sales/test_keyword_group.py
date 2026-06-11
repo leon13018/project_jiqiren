@@ -39,9 +39,7 @@ from myProgram.sales.constants import (
     KEYWORDS_L4_C_CONFIRM_NO,
     KEYWORDS_L4_C_CONFIRM_NO_STRICT_SHORT,
     KEYWORDS_INVALID_QTY_CONTINUE,
-    KEYWORDS_INVALID_QTY_CONTINUE_STRICT_SHORT,
     KEYWORDS_INVALID_QTY_EXIT,
-    KEYWORDS_INVALID_QTY_EXIT_STRICT_SHORT,
 )
 
 
@@ -140,12 +138,14 @@ def test_kg_l4_c_confirm_no_wired() -> None:
 
 def test_kg_invalid_qty_continue_wired() -> None:
     assert KG_INVALID_QTY_CONTINUE.substrings == tuple(KEYWORDS_INVALID_QTY_CONTINUE)
-    assert KG_INVALID_QTY_CONTINUE.strict_short == tuple(KEYWORDS_INVALID_QTY_CONTINUE_STRICT_SHORT)
+    # strict_short 已移除（原集全為 substring 子集，零行為效果，quality_fix_w4）
+    assert KG_INVALID_QTY_CONTINUE.strict_short == ()
 
 
 def test_kg_invalid_qty_exit_wired() -> None:
     assert KG_INVALID_QTY_EXIT.substrings == tuple(KEYWORDS_INVALID_QTY_EXIT)
-    assert KG_INVALID_QTY_EXIT.strict_short == tuple(KEYWORDS_INVALID_QTY_EXIT_STRICT_SHORT)
+    # strict_short 已移除（原集全為 substring 子集，零行為效果，quality_fix_w4）
+    assert KG_INVALID_QTY_EXIT.strict_short == ()
 
 
 # ============================================================
