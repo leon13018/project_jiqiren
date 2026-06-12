@@ -139,6 +139,16 @@ class TtsWorker(QueueWorker):
         # 仍需顯式 shutdown()）。
         super().__init__()
 
+    def on_thread_start(self) -> None:
+        # perf_w2 F-5：worker thread 常駐 event loop（取代每句 asyncio.run 建拆）。
+        # 顯式 new_event_loop（worker thread 無預設 loop，get_event_loop 會炸——
+        # threading reference Part A 地雷區）；set_event_loop 讓 edge-tts 內部
+        # get_event_loop 類呼叫也拿到同一顆。
+        # 不在 shutdown close：daemon thread 與 loop 同壽命，main.py 以 os._exit(0)
+        # 強退（S6 教訓 3/4），跨 thread close 反引入 race。
+        self._loop_obj = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop_obj)
+
     def say(self, text: str) -> None:
         """非阻塞 producer：原子 inc _pending + put queue。FIFO 順序消費（不中斷）。
 
@@ -173,7 +183,7 @@ class TtsWorker(QueueWorker):
         """
         # 階段 1：合成 mp3
         try:
-            asyncio.run(_synthesize(text, TMP_MP3))
+            self._loop_obj.run_until_complete(_synthesize(text, TMP_MP3))
         except Exception as e:
             # edge_tts 可能 raise NoAudioReceived / WebSocketException / asyncio 相關錯
             # 不確定具體類型 → 統一 catch Exception，但訊息要詳細
