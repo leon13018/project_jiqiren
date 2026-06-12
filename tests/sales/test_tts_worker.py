@@ -447,8 +447,10 @@ def test_cache_hit_skips_synth_and_plays_cached_file(monkeypatch, tmp_path):
     worker = TtsWorker()
     worker.say("固定句")
     assert worker.wait_idle(max_wait=5.0) is True
-    assert synth_calls == [], f"快取命中不得合成，實際 {synth_calls}"
-    assert popen_cmds and popen_cmds[0][2] == cached, (
+    # 斷言以「本句」為錨——前一測試殘留的 daemon worker 可能在 monkeypatch 生效後
+    # 才呼叫到本 test 的 fake（污染清單開頭），故不用 [0] 索引、不斷言全空
+    assert "固定句" not in synth_calls, f"快取命中不得合成本句，實際 {synth_calls}"
+    assert any(cmd[2] == cached for cmd in popen_cmds), (
         f"mpg123 應播快取檔 {cached}，實際 {popen_cmds}"
     )
 
