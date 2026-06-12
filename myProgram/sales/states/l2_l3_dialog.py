@@ -93,6 +93,11 @@ from myProgram.sales.states._cancel_confirm import is_cancel_intent
 from myProgram.sales.states._timed_confirm import CANCEL_CONFIRM, SERVICE_CONFIRM
 
 
+def _entry_prompt_for(cart) -> str:
+    """cart 世界狀態 → entry prompt（空 → L2、非空 → L3）；進場與 reenter 共用。"""
+    return L2_ENTRY_PROMPT if cart_module.is_empty(cart) else L3_ENTRY_PROMPT
+
+
 def run_dialog(
     speak,
     print_terminal,
@@ -149,7 +154,7 @@ def run_dialog(
     io.do_action(ACTION_L2 if cart_module.is_empty(cart) else ACTION_L3)
 
     # Entry prompt 按 cart 狀態決定
-    io.speak(L2_ENTRY_PROMPT if cart_module.is_empty(cart) else L3_ENTRY_PROMPT)
+    io.speak(_entry_prompt_for(cart))
 
     return DialogSession(io, cart, think_count).main_loop()
 
@@ -320,7 +325,7 @@ class DialogSession:
         """
         prefix = (INVALID_QTY_TIMEOUT_REENTER_PREFIX if control == "reenter_timeout"
                   else INVALID_QTY_CANCEL_REENTER_PREFIX)
-        entry = L2_ENTRY_PROMPT if cart_module.is_empty(self.cart) else L3_ENTRY_PROMPT
+        entry = _entry_prompt_for(self.cart)
         self.io.speak(prefix + entry)
 
     def checkout_flow(self):
