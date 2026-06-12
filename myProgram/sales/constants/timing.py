@@ -2,7 +2,7 @@
 
 包含所有與時間（秒）或循環次數相關的常數：
     WAIT_NO_RESPONSE / DNC_TIMEOUT / DYC_TIMEOUT / HAWK_INTERVAL / OPENCV_MUTE /
-    THANK_DELAY / AUTO_CHECKOUT_NOTICE / UNCLEAR_MAX / OPENCV_DWELL /
+    THANK_DELAY / UNCLEAR_MAX / OPENCV_DWELL /
     CHECKOUT_CONFIRM_TIMEOUT / CHECKOUT_CONFIRM_UNCLEAR_MAX /
     L4_TOTAL_BUDGET / L4_QR_REFRESH_INTERVAL / L4_C_CONFIRM_TIMEOUT /
     CANCEL_CONFIRM_TIMEOUT
@@ -16,7 +16,6 @@ __all__ = [
     "HAWK_INTERVAL",
     "OPENCV_MUTE",
     "THANK_DELAY",
-    "AUTO_CHECKOUT_NOTICE",
     "C2_DECISION_TIMEOUT",
     "UNCLEAR_MAX",
     "OPENCV_DWELL",
@@ -65,12 +64,7 @@ OPENCV_MUTE: int = 6
 # L5 致謝完成後等待時長
 THANK_DELAY: int = 3
 
-# L3 鏈路 C-2「請問是否要結帳？」嚴格 yes/no 子狀態的 wall-clock 倒數秒數
-# （2026-05-26 從 10 → 12：跟 DnC/DyC/checkout-confirm 對齊；同時改嚴格 yes/no
-#   倒數不重置 — 亂答忽略不重置計時器，只認 CONFIRM_YES / CONFIRM_NO + 終端 1/2）
-AUTO_CHECKOUT_NOTICE: int = 12
-
-# L3 C-2 第二段三選一倒數秒數（2026-05-28 加；新設計從 AUTO_CHECKOUT_NOTICE=12 縮短為 6）
+# L3 C-2 第二段三選一倒數秒數（2026-05-28 加；自原 C-2 嚴格 yes/no 12s 設計縮短為 6）
 # wall-clock budget — 亂答消耗 budget 防無限拖延；倒數歸零視為「結賬」path
 # 直接進 L4（跳過 _dialog_checkout_confirm），符合 user prompt 字面 promise
 # 「如 6 秒內未答復將進行結賬」— silent customer 預期被結帳而非清 cart 退。

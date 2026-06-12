@@ -26,7 +26,6 @@ from myProgram.sales.constants import (
     OPENCV_MUTE,
     OPENCV_DWELL,
     WAIT_NO_RESPONSE,
-    AUTO_CHECKOUT_NOTICE,
     C2_DECISION_TIMEOUT,
     SERVICE_PHONE,
     L2_ENTRY_PROMPT,
@@ -2862,7 +2861,7 @@ def test_l3_c1_checkout_keyword_speaks_and_goes_l4() -> None:
 ### Scenario: 6 秒無回應觸發 C-2 第一段語音並進入第二段 10 秒等待
 ### Given L3 進入時動作完成，等待顧客回應中
 ### When 經過 WAIT_NO_RESPONSE（6）秒仍無任何顧客輸入
-### Then 系統 speak C-2 第一段語音，進入第二段等待 AUTO_CHECKOUT_NOTICE（10）秒
+### Then 系統 speak C-2 第一段語音，進入第二段等待 C2_DECISION_TIMEOUT（6）秒
 # ============================================================
 
 def test_l3_c2_first_timeout_speaks_warning_and_enters_second_stage() -> None:
