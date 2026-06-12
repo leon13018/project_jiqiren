@@ -2858,7 +2858,7 @@ def test_l3_c1_checkout_keyword_speaks_and_goes_l4() -> None:
 
 # ============================================================
 # L3-C-2-001
-### Scenario: 6 秒無回應觸發 C-2 第一段語音並進入第二段 10 秒等待
+### Scenario: 6 秒無回應觸發 C-2 第一段語音並進入第二段 6 秒等待
 ### Given L3 進入時動作完成，等待顧客回應中
 ### When 經過 WAIT_NO_RESPONSE（6）秒仍無任何顧客輸入
 ### Then 系統 speak C-2 第一段語音，進入第二段等待 C2_DECISION_TIMEOUT（6）秒
