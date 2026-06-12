@@ -140,7 +140,24 @@ class SttWorker:
                 print(f"[語音辨識] ⚠️ 串流中斷（{type(e).__name__}），本輪改用鍵盤")
 
     def disarm(self) -> None:
-        pass  # Task 5 實作
+        """冪等收麥：stop → 殺音源（sender 讀到 EOF 止）→ 關 ws（解 receiver 阻塞）。
+
+        join(timeout=1) 讓 session 結束具確定性（測試 / re-arm 安全）；threads 為
+        daemon，極端卡住也不擋程式退出（對齊 S6 教訓：不嘗試強解 blocking IO）。
+        """
+        with self._lock:
+            if self._session is None:
+                return
+            stop, audio, ws, receiver, sender = self._session
+            self._session = None
+            stop.set()
+            audio.close()
+            try:
+                ws.close()
+            except Exception:
+                pass  # 已斷線的 ws close 可能 raise——cleanup 路徑安全吞掉
+        for th in (receiver, sender):
+            th.join(timeout=1.0)
 
     def shutdown(self) -> None:
         self.disarm()

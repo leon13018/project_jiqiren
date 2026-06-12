@@ -66,3 +66,46 @@ def test_sender_streams_audio_chunks():
     worker.arm()
     assert wait_until(lambda: ws.sent == [b"\x01\x02", b"\x03\x04"])
     worker.disarm()
+
+
+def test_arm_idempotent_single_session():
+    factory_calls = []
+    def ws_factory(key):
+        factory_calls.append(key)
+        return FakeWs()
+    worker, _, _ = _make_worker([], ws_factory=ws_factory)
+    worker.arm()
+    worker.arm()  # 已 armed → no-op
+    assert factory_calls == ["test-key"]
+    worker.disarm()
+
+
+def test_disarm_closes_audio_and_allows_rearm():
+    audios = []
+    def audio_factory():
+        a = FakeAudioSource()
+        audios.append(a)
+        return a
+    wss = []
+    def ws_factory(key):
+        w = FakeWs()
+        wss.append(w)
+        return w
+    worker = SttWorker(sink=lambda t: None, api_key="test-key",
+                       ws_factory=ws_factory, audio_factory=audio_factory)
+    worker.arm()
+    assert worker.is_armed()
+    worker.disarm()
+    assert not worker.is_armed()
+    assert audios[0].closed            # arecord 已 terminate
+    worker.disarm()                    # 冪等：重複 disarm no-op
+    worker.arm()                       # re-arm 起全新 session
+    assert worker.is_armed() and len(wss) == 2 and len(audios) == 2
+    worker.disarm()
+
+
+def test_shutdown_equals_disarm():
+    worker, _, _ = _make_worker([])
+    worker.arm()
+    worker.shutdown()
+    assert not worker.is_armed()
