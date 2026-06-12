@@ -6,6 +6,7 @@
 - 輸出語言（繁中）+ 繁簡對照表
 - 開發環境 quirk（Windows cp936）
 - 工作原則：修 bug 掃同類全修
+- 工作原則：grep import 殘留展開多行括號 import
 
 ---
 
@@ -45,3 +46,11 @@
 **Why**（連續踩過）：L4 客服 timeout 回主選單→隱含 dialog/L5 也要；L4 有 mute 訊息但 dialog 沒有→期待所有 L1 重進路徑統一；DnC 12s 改→DyC 也要對稱。每次「修一條、使用者拉回補三條」，同類掃過比 ping-pong 省 round-trip。
 
 **How**：收到「X 路徑有 bug」→ 動手前先 grep 同 return 值 / 同 callback 簽名 / 同 subroutine 入口 → 一次修完、報告明列順帶掃的 sibling；同類語意實際應不同（少數例外）則明說「為何只修這條」。適用：sales/ 狀態機分支、wire-up callback、NLU keyword 同義詞、constants timeout 對稱組。（與 step-by-step pace 不衝突：同類掃描算當前任務範圍，非預先推測。）
+
+---
+
+## 工作原則：grep import 殘留必展開多行括號 import
+
+宣稱「無 caller 使用 X」前，注意 `from <module> import` 的 grep 命中**只顯示首行**——多行括號 import 的成員名單在後續行，必須用 `-A` 展開或 Read 該段逐一確認，再下「零 caller」結論。
+
+**Why**：perf_w1 spec 曾據未展開的 grep 寫下「原語零 caller」前提，sales-coder 實作到一半 BLOCKED 才發現 `_invalid_qty_reask.py` 的括號 import 內含 `contains_any`（spec 前提修正 `9579a5a`），多耗一輪往返。
