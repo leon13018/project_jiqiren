@@ -481,3 +481,16 @@ def test_cache_miss_stores_result_and_reuses_on_second_say(monkeypatch, tmp_path
     worker.say("動態句")
     assert worker.wait_idle(max_wait=5.0) is True
     assert synth_calls == ["動態句"], f"第二次應走快取不再合成，實際 {synth_calls}"
+
+
+def test_prewarm_texts_cover_fixed_and_variants():
+    """預熱清單：含已知固定句與商品變體、全部非模板（無 '{'）、無重複。"""
+    from myProgram.tts_prewarm import _prewarm_texts
+    from myProgram.sales.constants import L5_THANKS, QTY_PROMPT_TEMPLATE
+
+    texts = _prewarm_texts()
+    assert texts, "預熱清單不得為空"
+    assert all("{" not in t for t in texts), "模板必須先插值才進預熱清單"
+    assert L5_THANKS in texts
+    assert QTY_PROMPT_TEMPLATE.format(product="冰紅茶", unit="瓶") in texts
+    assert len(texts) == len(set(texts)), "清單不得重複"
