@@ -11,7 +11,7 @@
 ## 檔案
 - `main.py` — 進入點：`TerminalSim` callback 類別（bound methods 餵 `logic.run`）、`_tick_countdown` 倒數 helper、各 worker 啟動與關閉（OOP 重構 W6）。
 - `queue_worker.py` — `QueueWorker(ABC)` FIFO daemon 消費者骨架 + `drain_queue` helper（TtsWorker / ActionWorker 繼承；OOP 重構 W6）。
-- `tts.py` — 語音合成 worker（edge-tts 雲端 TTS；繼承 `QueueWorker`；計時倒數 / UX 過場）。
+- `tts.py` — 語音合成 worker（edge-tts；繼承 `QueueWorker`；內容定址快取 → prefetch → 合成三層管線＋常駐 event loop，perf_w2/w5；計時倒數 / UX 過場）。
 - `tts_prewarm.py` — TTS 預熱腳本（固定文案一次合成進 tts_cache；Pi 端 `python3.11 -m myProgram.tts_prewarm`）。
 - `action.py` — 機器人動作組 worker（呼叫 vendor SDK 播動作；繼承 `QueueWorker`）。
 - `input_reader.py` — 非阻塞鍵盤輸入 worker（producer，不繼承 QueueWorker）。

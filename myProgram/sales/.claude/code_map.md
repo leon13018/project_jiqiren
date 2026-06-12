@@ -12,6 +12,6 @@
 - `nlu.py` — 意圖辨識（規則匹配，純函式；比對經 `constants/keyword_group.py` 的 `KeywordGroup`）。
 - `dialog_io.py` — `DialogIO` callback 束（speak / read / print / act + `speak_blocking`；states 私有函式統一收 io 單參，OOP 重構 W2）。
 - `product_parser.py` — 商品與數量解析。
-- `cart.py` — 購物車（加 / 減 / 清空 / 結算，純函式）。
+- `cart.py` — 購物車（加 / 減 / 清空 / 結算 / `classify_qty` 數量四分類，純函式）。
 - `__init__.py` — 套件標記。
 - `CLAUDE.md` — 本層導引。
