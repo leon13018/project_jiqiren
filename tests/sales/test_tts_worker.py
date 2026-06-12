@@ -327,6 +327,7 @@ def test_prefetch_synthesizes_next_during_playback(monkeypatch):
 
     async def recording_synth(text, out_path):
         if text == "A":
+            # 同步 Event 刻意阻塞整個 loop thread：gate 住 A 直到 B 入 queue（非 async bug）
             a_may_proceed.wait()
         synth_calls.append(text)
         if text == "B":
@@ -363,6 +364,7 @@ def test_prefetch_failure_falls_back_to_inline_synth(monkeypatch):
 
     async def flaky_synth(text, out_path):
         if text == "A":
+            # 同步 Event 刻意阻塞整個 loop thread：gate 住 A 直到 B 入 queue（非 async bug）
             a_may_proceed.wait()
         if text == "B":
             b_calls["n"] += 1
