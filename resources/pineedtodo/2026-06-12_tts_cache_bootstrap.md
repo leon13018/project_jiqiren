@@ -10,7 +10,8 @@
 
 1. 確認 Pi 已同步到含上述 commit 的 main：
    `cd /home/pi/Desktop/project_jiqiren && git log --oneline -3`
-2. 跑預熱（需網路，約 1–3 分鐘，逐句印結果）：
+2. 跑預熱（需網路，約 1–3 分鐘，逐句印結果）；**demo 必須是關閉狀態**
+   （prewarm 與 demo 同時跑會互踩同句的 .tmp 暫存檔）：
    `python3.11 -m myProgram.tts_prewarm`
    結尾應印 `[預熱] 完成：N 句新合成 / 0 句已存在 / 0 句失敗`（首跑 N 估 60–100）。
    若有失敗句：通常是網路抖動，**重跑同指令**即可（已存在的會 skip、只補失敗的）。

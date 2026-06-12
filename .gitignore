@@ -11,3 +11,6 @@ resources/reflections/
 # Python / pytest 副產物（2026-05-24 L0 TDD 第一輪後加入；曾擋住 worktree cleanup）
 __pycache__/
 .pytest_cache/
+
+# TTS 快取半成品（perf_w5）：合成中斷殘留的暫存檔，防 bootstrap 的 git add 誤掃
+myProgram/tts_cache/*.tmp

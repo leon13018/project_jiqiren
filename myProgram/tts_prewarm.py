@@ -4,6 +4,9 @@
     python3.11 -m myProgram.tts_prewarm
 產物：myProgram/tts_cache/<hash>.mp3——commit 進 git 後 demo 斷網也能播全部固定語音。
 
+⚠️ 勿與 demo 同時跑——同句的 .tmp 路徑相同，並發合成會互踩寫壞檔；
+本腳本是一次性 bootstrap，跑完再啟動 demo。
+
 枚舉範圍：
     1. 自動：l1_text～l5_text、shared 六個文案模組的公開 str 常數（排除含 "{" 的模板；
        少數 print 專用文案被多錄屬無害的幾百 KB，換取枚舉邏輯零維護）
