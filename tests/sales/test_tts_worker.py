@@ -13,6 +13,7 @@
     - 直接建 TtsWorker 實例（不用 module-level singleton）方便每 test 獨立
 """
 
+import os
 import sys
 import threading
 import time
@@ -391,8 +392,8 @@ def test_prefetch_failure_falls_back_to_inline_synth(monkeypatch):
     )
 
 
-def test_consecutive_synth_paths_alternate_buffers(monkeypatch):
-    """相鄰兩次 synth 的 out_path 必不同（_next_buf 輪替——防播放中的檔被覆寫）。
+def test_distinct_texts_synthesize_to_distinct_paths(monkeypatch):
+    """相鄰兩次 synth 的 out_path 必不同（內容定址：異文字必異檔——防播放中的檔被覆寫）。
     此性質與 prefetch 是否命中無關，對任何時序皆成立（確定性斷言）。"""
     paths: list = []
 
@@ -414,3 +415,69 @@ def test_consecutive_synth_paths_alternate_buffers(monkeypatch):
     assert len(paths) == 3, f"每句恰合成一次，實際 {paths}"
     for i in range(len(paths) - 1):
         assert paths[i] != paths[i + 1], f"相鄰 synth 不得同檔：{paths}"
+
+
+# ============================================================
+# perf_w5：內容定址快取
+# ============================================================
+
+
+def test_cache_hit_skips_synth_and_plays_cached_file(monkeypatch, tmp_path):
+    """快取命中：synth 零呼叫，mpg123 直接播快取檔（固定句零合成零網路的根基）。"""
+    monkeypatch.setattr(tts_module, "_CACHE_DIR", str(tmp_path))
+    synth_calls: list = []
+
+    async def recording_synth(text, out_path):
+        synth_calls.append(text)
+
+    popen_cmds: list = []
+
+    def recording_popen(cmd, **kw):
+        popen_cmds.append(cmd)
+        return _FakePopen(returncode=0)
+
+    monkeypatch.setattr(tts_module, "_synthesize", recording_synth)
+    monkeypatch.setattr(tts_module.subprocess, "Popen", recording_popen)
+    monkeypatch.setattr(tts_module.time, "sleep", lambda s: None)
+
+    cached = tts_module._cache_path_for("固定句")
+    with open(cached, "wb") as f:
+        f.write(b"fake-mp3")
+
+    worker = TtsWorker()
+    worker.say("固定句")
+    assert worker.wait_idle(max_wait=5.0) is True
+    assert synth_calls == [], f"快取命中不得合成，實際 {synth_calls}"
+    assert popen_cmds and popen_cmds[0][2] == cached, (
+        f"mpg123 應播快取檔 {cached}，實際 {popen_cmds}"
+    )
+
+
+def test_cache_miss_stores_result_and_reuses_on_second_say(monkeypatch, tmp_path):
+    """快取 miss：合成結果原子入快取；同句第二次 say 不再合成（執行期自我增長）。"""
+    monkeypatch.setattr(tts_module, "_CACHE_DIR", str(tmp_path))
+    synth_calls: list = []
+
+    async def writing_synth(text, out_path):
+        # 本測試自備會寫檔的 fake——驗證 tmp → cache 原子搬移鏈
+        synth_calls.append(text)
+        with open(out_path, "wb") as f:
+            f.write(b"fake-mp3")
+
+    monkeypatch.setattr(tts_module, "_synthesize", writing_synth)
+    monkeypatch.setattr(
+        tts_module.subprocess, "Popen",
+        lambda *a, **kw: _FakePopen(returncode=0),
+    )
+    monkeypatch.setattr(tts_module.time, "sleep", lambda s: None)
+
+    worker = TtsWorker()
+    worker.say("動態句")
+    assert worker.wait_idle(max_wait=5.0) is True
+    cache_path = tts_module._cache_path_for("動態句")
+    assert os.path.exists(cache_path), "合成結果應已原子搬移入快取"
+    assert not os.path.exists(cache_path + ".tmp"), "tmp 檔應已被 os.replace 消耗"
+
+    worker.say("動態句")
+    assert worker.wait_idle(max_wait=5.0) is True
+    assert synth_calls == ["動態句"], f"第二次應走快取不再合成，實際 {synth_calls}"

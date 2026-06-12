@@ -41,6 +41,8 @@ deadline 從 TTS 結束起算 → 顧客拿到完整 6s budget。
 """
 
 import asyncio
+import hashlib
+import os
 import subprocess
 import threading
 import time
@@ -50,9 +52,10 @@ import edge_tts  # fail-fast：缺套件直接 ImportError；S2+ demo 環境是 
 from myProgram.queue_worker import QueueWorker
 
 VOICE = "zh-TW-HsiaoChenNeural"  # 台灣女聲
-# 雙 buffer（perf_w2 F-4）：當前句播放中預合成下一句到另一檔，避免覆寫播放中的檔。
-# Linux 絕對路徑（path-conventions 規範）。
-_TTS_BUF_PATHS: tuple = ("/tmp/last_tts_0.mp3", "/tmp/last_tts_1.mp3")
+# perf_w5：內容定址快取目錄——package-anchored（非 cwd 依賴），Pi 上隨 git pull 取得
+# 預熱資產；執行期合成的動態句也存入此處自我增長（重啟後仍有效，SD 卡非 tmpfs）。
+# 模組變數＝測試 seam（monkeypatch 指到 tmp_path）。
+_CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tts_cache")
 
 # mpg123 退出時 ALSA buffer 仍可能有未播完的尾巴音訊（~200-400ms）。下一個 speak
 # 立刻啟動新 mpg123 開 ALSA device 會把舊 buffer 沖掉，造成上一句末尾被截斷。
@@ -82,6 +85,19 @@ def _pick_rate(text: str) -> str:
     if len(text) >= MEDIUM_THRESHOLD:
         return RATE_MEDIUM
     return RATE_SHORT
+
+
+def _cache_path_for(text: str) -> str:
+    """內容定址：同文字（同 VOICE＋rate）永遠同檔名。任一合成參數改變 → key 變 → 自然失效。"""
+    key = f"{VOICE}|{_pick_rate(text)}|{text}".encode("utf-8")
+    return os.path.join(_CACHE_DIR, hashlib.sha1(key).hexdigest() + ".mp3")
+
+
+def _store_into_cache(tmp_path: str, cache_path: str) -> None:
+    """tmp → cache 原子搬移（防中斷殘留半寫檔進快取）。tmp 缺失時 no-op——
+    測試以不寫檔的 fake _synthesize 注入，此 seam 讓既有 fake 全數免改。"""
+    if os.path.exists(tmp_path):
+        os.replace(tmp_path, cache_path)
 
 
 async def _synthesize(text: str, out_path: str) -> None:
@@ -136,9 +152,8 @@ class TtsWorker(QueueWorker):
         # q.get() 後 _pending 仍 > 0，wait_idle 阻塞至 worker 真完成才返回。
         self._cv = threading.Condition()
         self._pending = 0  # queued + processing 的 text 數量（say inc / worker on_done dec）
-        # perf_w2 F-4：1-deep prefetch 狀態（僅 worker thread 觸碰，不需鎖）
-        self._buf_idx = 0                                      # 雙 buffer 輪替指標
-        self._prefetched: "tuple[str, str] | None" = None      # (text, mp3_path)
+        # perf_w2 F-4／w5：1-deep prefetch 標記（僅 worker thread 觸碰，不需鎖）
+        self._prefetched: "tuple[str, str] | None" = None      # (text, cache_path)
         # 基底建 _q + 啟動 daemon thread（daemon=True：主程式退出時自動 die，不會
         # 卡住整個程序退出；但 daemon die 不會自動 terminate 當前 mpg123 子程序 →
         # 仍需顯式 shutdown()）。
@@ -153,11 +168,8 @@ class TtsWorker(QueueWorker):
         # 強退（S6 教訓 3/4），跨 thread close 反引入 race。
         self._loop_obj = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop_obj)
-
-    def _next_buf(self) -> str:
-        """輪替取下一個 buffer 路徑（每次 synth 前呼叫 → 連續兩次 synth 必異檔）。"""
-        self._buf_idx ^= 1
-        return _TTS_BUF_PATHS[self._buf_idx]
+        # perf_w5：快取目錄就緒（冪等；Pi 上通常已隨 git pull 存在）
+        os.makedirs(_CACHE_DIR, exist_ok=True)
 
     def _peek_next(self) -> "str | None":
         """偷看 queue 下一筆（不取出）。安全性：本 thread 是唯一消費者（唯一會移除
@@ -197,21 +209,26 @@ class TtsWorker(QueueWorker):
         分支用 return 結束 — 基底 _loop 的 try/finally 才負責 on_done（_pending
         dec + notify_all）+ 下一輪 get。
 
-        perf_w2 F-4：播放等待期間（Popen 後、wait() 前）預合成 queue 下一句到另一
-        buffer——句間靜默從一次 synth round-trip 降到接近 0。單 thread 內重疊，
-        零新鎖、零新 race 面（_buf_idx / _prefetched 只被本 thread 觸碰）。
+        perf_w2 F-4／w5：播放等待期間（Popen 後、wait() 前）確保 queue 下一句已在
+        內容定址快取——句間靜默從一次 synth round-trip 降到接近 0。單 thread 內重疊，
+        零新鎖、零新 race 面（_prefetched 只被本 thread 觸碰；各句快取檔名互異）。
         """
-        # 階段 1：合成 mp3（prefetch 命中則直接用已合成檔，跳過 synth）
+        # 階段 1：取得 mp3——prefetch 標記 → 內容定址快取 → 現場合成（三層 fallback）
+        cache_path = _cache_path_for(text)
         if self._prefetched is not None and self._prefetched[0] == text:
             mp3_path = self._prefetched[1]
             self._prefetched = None
+        elif os.path.exists(cache_path):
+            # perf_w5：快取命中——零合成零網路（固定文案預熱後 demo 斷網也能播）
+            self._prefetched = None
+            mp3_path = cache_path
         else:
             # 防禦：FIFO 單消費者下 prefetch 內容必等於下一句，mismatch 理論不可達；
             # 若出現（未來改動引入）丟棄重合成即可，行為仍正確
             self._prefetched = None
-            mp3_path = self._next_buf()
+            tmp_path = cache_path + ".tmp"
             try:
-                self._loop_obj.run_until_complete(_synthesize(text, mp3_path))
+                self._loop_obj.run_until_complete(_synthesize(text, tmp_path))
             except Exception as e:
                 # edge_tts 可能 raise NoAudioReceived / WebSocketException / asyncio 相關錯
                 # 不確定具體類型 → 統一 catch Exception，但訊息要詳細
@@ -220,6 +237,9 @@ class TtsWorker(QueueWorker):
                     f"text      = {text!r}",
                 ])
                 return
+            # 原子入快取（執行期自我增長：動態句首播後永久免合成）
+            _store_into_cache(tmp_path, cache_path)
+            mp3_path = cache_path
 
         # 階段 2：播放 mp3（subprocess.Popen → 保留 reference 給 shutdown 用）
         # 對比 S2 同步版用 subprocess.run：S4 改 Popen + wait 兩段是為了讓
@@ -243,18 +263,24 @@ class TtsWorker(QueueWorker):
                     ["mpg123", "-q", mp3_path],
                     stdin=subprocess.DEVNULL,
                 )
-            # 階段 2.5（perf_w2 F-4）：播放等待前預合成下一句——本 thread 反正要
-            # 阻塞等播放，把閒置時間拿來 synth；寫另一 buffer，不碰播放中的檔。
+            # 階段 2.5（perf_w2 F-4／perf_w5 快取版）：播放等待前確保下一句已在快取
+            # ——本 thread 反正要阻塞等播放，把閒置時間拿來 synth；內容定址檔名
+            # 各句互異，不存在互踩。
             nxt = self._peek_next()
             if nxt is not None:
-                buf = self._next_buf()
-                try:
-                    self._loop_obj.run_until_complete(_synthesize(nxt, buf))
-                    self._prefetched = (nxt, buf)
-                except Exception:
-                    self._prefetched = None
-                    # 預取失敗刻意靜默：該句輪到自己的 _process 會重試 synth，
-                    # 屆時才走既有 noisy 失敗 path——避免同一句印兩次失敗訊息
+                nxt_cache = _cache_path_for(nxt)
+                if os.path.exists(nxt_cache):
+                    self._prefetched = (nxt, nxt_cache)   # 已在快取＝瞬時預取
+                else:
+                    nxt_tmp = nxt_cache + ".tmp"
+                    try:
+                        self._loop_obj.run_until_complete(_synthesize(nxt, nxt_tmp))
+                        _store_into_cache(nxt_tmp, nxt_cache)
+                        self._prefetched = (nxt, nxt_cache)
+                    except Exception:
+                        self._prefetched = None
+                        # 預取失敗刻意靜默：該句輪到自己的 _process 會重試 synth，
+                        # 屆時才走既有 noisy 失敗 path——避免同一句印兩次失敗訊息
             # 等播完（不持 lock — shutdown 可在此期間 terminate）。terminate
             # 觸發時 wait 返回非 0 returncode（Linux 上 SIGTERM 是 -15）。
             returncode = self._proc.wait()
