@@ -168,3 +168,39 @@ def test_stream_interruption_warns(capsys):
     time.sleep(0.2)                    # receiver 反應時間（recv 在 close 後立即 raise）
     assert "串流中斷" in capsys.readouterr().out
     worker.disarm()
+
+
+def test_default_audio_factory_command(monkeypatch):
+    # 只驗指令構造不真起 subprocess（Windows 無 arecord）
+    import myProgram.stt as stt_mod
+    captured = {}
+    class FakeProc:
+        stdout = None
+        def poll(self): return None
+        def terminate(self): pass
+    def fake_popen(cmd, **kwargs):
+        captured["cmd"] = cmd
+        captured["kwargs"] = kwargs
+        return FakeProc()
+    monkeypatch.setattr(stt_mod.subprocess, "Popen", fake_popen)
+    monkeypatch.delenv("STT_ARECORD_DEVICE", raising=False)
+    stt_mod._default_audio_factory()
+    assert captured["cmd"] == ["arecord", "-q", "-f", "S16_LE", "-r", "16000",
+                               "-c", "1", "-t", "raw"]
+    assert captured["kwargs"]["stdin"] == stt_mod.subprocess.DEVNULL
+
+    monkeypatch.setenv("STT_ARECORD_DEVICE", "plughw:1,0")
+    stt_mod._default_audio_factory()
+    assert captured["cmd"][1:3] == ["-D", "plughw:1,0"]
+
+
+def test_module_api_lazy_singleton(monkeypatch):
+    import myProgram.stt as stt_mod
+    monkeypatch.setattr(stt_mod, "_worker", None)
+    monkeypatch.delenv("DEEPGRAM_API_KEY", raising=False)
+    stt_mod.shutdown()                     # singleton 未建 → no-op 不炸
+    assert stt_mod._worker is None
+    stt_mod.arm()                          # 首次 arm 建 singleton（無 key → 停用警告）
+    assert stt_mod._worker is not None
+    stt_mod.disarm()
+    stt_mod.shutdown()

@@ -168,9 +168,73 @@ def _is_auth_error(e: Exception) -> bool:
     return getattr(getattr(e, "response", None), "status_code", None) == 401
 
 
+class _ArecordSource:
+    """arecord subprocess 包裝：read 走 stdout pipe，close 走 terminate。
+
+    stdin=DEVNULL 對齊 tts.py mpg123 守則（不偷主程式 stdin）；terminate 容錯
+    OSError（子程序剛好自然結束——對齊 tts.shutdown 同情境處理）。
+    """
+
+    def __init__(self, proc: "subprocess.Popen") -> None:
+        self._proc = proc
+
+    def read(self, n: int) -> bytes:
+        return self._proc.stdout.read(n)
+
+    def close(self) -> None:
+        if self._proc.poll() is None:
+            try:
+                self._proc.terminate()
+            except OSError:
+                pass
+
+
 def _default_audio_factory():
-    raise NotImplementedError  # Task 7 實作（Pi-only：arecord subprocess）
+    """production 音源：arecord 16kHz/S16_LE/mono raw → stdout pipe。
+
+    裝置選擇：環境變數 STT_ARECORD_DEVICE（如 "plughw:1,0"）；未設用 ALSA 預設
+    （Pi 端把 ReSpeaker 設為預設 capture 或設此變數——pineedtodo 會列）。
+    """
+    cmd = ["arecord", "-q", "-f", "S16_LE", "-r", "16000", "-c", "1", "-t", "raw"]
+    device = os.environ.get("STT_ARECORD_DEVICE")
+    if device:
+        cmd[1:1] = ["-D", device]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.DEVNULL)
+    return _ArecordSource(proc)
 
 
 def _default_ws_factory(api_key: str):
-    raise NotImplementedError  # Task 7 實作（Pi-only：lazy import websockets）
+    """production 連線：websockets 同步 client（lazy import——Windows 紅線）。"""
+    from websockets.sync.client import connect
+    return connect(DEEPGRAM_URL,
+                   additional_headers={"Authorization": f"Token {api_key}"})
+
+
+# Lazy singleton（與 input_reader eager singleton 不同的刻意選擇）：import 時
+# 不起 thread、不讀 env——Windows pytest import 零副作用；首次 arm 才建。
+_worker: "SttWorker | None" = None
+
+
+def _get_worker() -> SttWorker:
+    global _worker
+    if _worker is None:
+        from myProgram import input_reader
+        _worker = SttWorker(sink=input_reader.inject,
+                            api_key=os.environ.get("DEEPGRAM_API_KEY"))
+    return _worker
+
+
+def arm() -> None:
+    """對外 API：開麥（read_customer_input 於 TTS 播完後呼叫）。"""
+    _get_worker().arm()
+
+
+def disarm() -> None:
+    """對外 API：收麥（read_customer_input finally 呼叫）。"""
+    _get_worker().disarm()
+
+
+def shutdown() -> None:
+    """對外 API：main() finally 鏈呼叫；singleton 未建過則 no-op。"""
+    if _worker is not None:
+        _worker.shutdown()
