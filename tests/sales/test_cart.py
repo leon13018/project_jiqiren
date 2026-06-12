@@ -205,6 +205,9 @@ def test_remaining_capacity_tracks_max_qty_per_item() -> None:
 
 ## CART-CQ-001
 ### Scenario: 空 cart、合法數量 → "ok"
+### Given 一個空 cart
+### When 對冰紅茶分類 qty=3（在剩餘容量內）
+### Then 回傳 "ok"
 def test_classify_qty_ok() -> None:
     c = new_cart()
     assert cart_module.classify_qty(c, "冰紅茶", 3) == "ok"
@@ -212,6 +215,9 @@ def test_classify_qty_ok() -> None:
 
 ## CART-CQ-002
 ### Scenario: qty == 0 → "zero"（顧客明確說 0）
+### Given 一個空 cart
+### When 對冰紅茶分類 qty=0
+### Then 回傳 "zero"
 def test_classify_qty_zero() -> None:
     c = new_cart()
     assert cart_module.classify_qty(c, "冰紅茶", 0) == "zero"
@@ -219,6 +225,9 @@ def test_classify_qty_zero() -> None:
 
 ## CART-CQ-003
 ### Scenario: qty 超過剩餘容量 → "over_limit"
+### Given cart 內冰紅茶已加到剩餘容量僅 2（MAX_QTY_PER_ITEM - 2）
+### When 對冰紅茶分類 qty=3（超過剩餘 2）
+### Then 回傳 "over_limit"
 def test_classify_qty_over_limit() -> None:
     c = new_cart()
     add_item(c, "冰紅茶", MAX_QTY_PER_ITEM - 2)
@@ -227,6 +236,9 @@ def test_classify_qty_over_limit() -> None:
 
 ## CART-CQ-004
 ### Scenario: cart 已達上限 → "at_cap" 最高優先（與 qty 無關，含 qty==0）
+### Given cart 內冰紅茶已達單筆上限（remaining == 0）
+### When 對冰紅茶分別分類 qty=0 與 qty=1
+### Then 兩者皆回傳 "at_cap"（at_cap 優先於 zero，與 qty 無關）
 def test_classify_qty_at_cap_overrides_zero() -> None:
     c = new_cart()
     add_item(c, "冰紅茶", MAX_QTY_PER_ITEM)
@@ -236,6 +248,9 @@ def test_classify_qty_at_cap_overrides_zero() -> None:
 
 ## CART-CQ-005
 ### Scenario: 邊界 — qty 恰等於剩餘容量 → "ok"
+### Given cart 內冰紅茶已加到剩餘容量恰為 5（MAX_QTY_PER_ITEM - 5）
+### When 對冰紅茶分類 qty=5（恰等於剩餘容量）
+### Then 回傳 "ok"（邊界值在範圍內）
 def test_classify_qty_boundary_exact_remaining() -> None:
     c = new_cart()
     add_item(c, "冰紅茶", MAX_QTY_PER_ITEM - 5)

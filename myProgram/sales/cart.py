@@ -11,12 +11,15 @@
     - 依 PRODUCTS 計算實際價（九折）
 """
 
-from typing import TypeAlias
+from typing import Literal, TypeAlias
 
 from myProgram.sales.constants import PRODUCTS, MAX_QTY_PER_ITEM
 
 # Cart 型別定義：商品名 → 數量
 Cart: TypeAlias = dict[str, int]
+
+# classify_qty 回傳值封閉集（對齊 nlu.Intent 的 Literal 風格；typo 由 type checker 守）
+QtyVerdict: TypeAlias = Literal["at_cap", "zero", "over_limit", "ok"]
 
 
 def new_cart() -> Cart:
@@ -71,7 +74,7 @@ def remaining_capacity(cart: Cart, product: str) -> int:
     return MAX_QTY_PER_ITEM - get_quantity(cart, product)
 
 
-def classify_qty(cart: Cart, product: str, qty: int) -> str:
+def classify_qty(cart: Cart, product: str, qty: int) -> QtyVerdict:
     """數量四分類（perf_w3 F-6 收斂三處手寫副本）。
 
     判定順序即優先序（對齊 Pass 1 既有行序）：
