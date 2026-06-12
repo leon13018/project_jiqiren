@@ -99,7 +99,7 @@ class SttWorker:
                 return self._ws_factory(self._api_key)
             except Exception as e:
                 if _is_auth_error(e):
-                    print(f"[語音辨識] ⚠️ API key 無效（HTTP 401），本次執行停用 STT")
+                    print("[語音辨識] ⚠️ API key 無效（HTTP 401），本次執行停用 STT")
                     self._disabled = True
                     return None
                 if attempt == 1:
