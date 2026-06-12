@@ -57,6 +57,8 @@
 | 廠商 SDK | `/home/pi/TonyPi/HiwonderSDK/` |
 | Pi 家目錄 | `/home/pi` |
 
+> **例外——package 內資產**（如 `myProgram/tts_cache/`，perf_w5）：用 `__file__` 錨定（`os.path.dirname(os.path.abspath(__file__))`），**勿「修正」成 /home/pi 硬編絕對路徑**——package-anchored 非 cwd 依賴、Windows pytest 與 Pi 通用；硬編會弄壞 Windows 測試。
+
 > **部署提醒**：code 推上 Pi 後，`git pull` 拉到新 commit 必清專案樹下所有 `__pycache__` 再跑——stale .pyc 會跑舊邏輯（權威與清法 → [standard-workflow.md](standard-workflow.md)）。
 
 ---
