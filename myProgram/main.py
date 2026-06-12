@@ -150,10 +150,17 @@ class TerminalSim:
         # fallback 走原 single read 保證向後相容）。否則走 _tick_countdown：每秒對齊
         # 整秒邊界印 `timeout = N`，input_reader.read 拿到 input 即中斷回傳，deadline
         # 耗盡回 None。
-        if timeout is None or timeout <= 0:
-            raw = input_reader.read(timeout)
-        else:
-            raw = _tick_countdown(timeout, "timeout", input_reader.read)
+        from myProgram import stt
+        # STT Phase 1：TTS 播完才開麥（arm 冪等；缺 key 自動停用走純鍵盤）。
+        # finally 保證三條路徑（拿到輸入 / timeout / 'q' sys.exit）皆收麥。
+        stt.arm()
+        try:
+            if timeout is None or timeout <= 0:
+                raw = input_reader.read(timeout)
+            else:
+                raw = _tick_countdown(timeout, "timeout", input_reader.read)
+        finally:
+            stt.disarm()
         if raw is None:
             return None  # timeout（既有語意）
         raw = raw.strip()
@@ -333,7 +340,7 @@ def main():
         # Lazy import + swallow ImportError：finally 內不該因 cleanup 失敗反過來污染
         # 主流程；Windows pytest 環境無 edge_tts / vendor SDK，import 可能 ImportError。
         import importlib
-        for name in ("tts", "action", "input_reader"):
+        for name in ("stt", "tts", "action", "input_reader"):
             try:
                 importlib.import_module(f"myProgram.{name}").shutdown()
             except ImportError:
