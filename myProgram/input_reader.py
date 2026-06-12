@@ -170,6 +170,15 @@ class InputReader:
         """
         drain_queue(self._q)
 
+    def inject(self, text: str) -> None:
+        """外部 producer（STT speech_final 文字）注入一行輸入。
+
+        與鍵盤 reader thread 共用同一 queue（單 queue 原則，producer 端零分流；
+        見 incremental-rebuild §單 queue 偏好）——caller 端 read() 的 drain /
+        timeout 語意對兩種來源完全一致。
+        """
+        self._q.put(text)
+
 
 # Module-level singleton：import 時自動啟動 daemon reader thread。
 # 使用者多次 `from myProgram import input_reader` 不會重複建（Python module cache）。
@@ -218,3 +227,8 @@ def shutdown() -> None:
     對齊 tts/action shutdown 對稱（純清自己 queue）。
     """
     _reader.shutdown()
+
+
+def inject(text: str) -> None:
+    """對外 API：注入一行輸入（STT worker 的 sink；與鍵盤共用單 queue）。"""
+    _reader.inject(text)
