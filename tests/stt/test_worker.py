@@ -109,3 +109,62 @@ def test_shutdown_equals_disarm():
     worker.arm()
     worker.shutdown()
     assert not worker.is_armed()
+
+
+class _AuthError(Exception):
+    """模擬 websockets InvalidStatus(401)——duck-typing 匹配 _is_auth_error。"""
+    def __init__(self):
+        super().__init__("HTTP 401")
+        self.response = type("R", (), {"status_code": 401})()
+
+
+def test_connect_retry_once_then_success():
+    attempts = []
+    ws = FakeWs()
+    def flaky_factory(key):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise ConnectionError("transient")
+        return ws
+    worker = SttWorker(sink=lambda t: None, api_key="test-key",
+                       ws_factory=flaky_factory, audio_factory=FakeAudioSource)
+    worker.arm()
+    assert worker.is_armed() and len(attempts) == 2
+    worker.disarm()
+
+
+def test_connect_fail_twice_gives_up_but_not_disabled(capsys):
+    def dead_factory(key):
+        raise ConnectionError("down")
+    worker = SttWorker(sink=lambda t: None, api_key="test-key",
+                       ws_factory=dead_factory, audio_factory=FakeAudioSource)
+    worker.arm()
+    assert not worker.is_armed()
+    assert "連線失敗" in capsys.readouterr().out
+    worker.arm()                       # 暫時失敗不停用 → 下次 arm 再試
+    assert "連線失敗" in capsys.readouterr().out
+
+
+def test_401_disables_permanently(capsys):
+    attempts = []
+    def auth_fail_factory(key):
+        attempts.append(1)
+        raise _AuthError()
+    worker = SttWorker(sink=lambda t: None, api_key="test-key",
+                       ws_factory=auth_fail_factory, audio_factory=FakeAudioSource)
+    worker.arm()
+    assert "401" in capsys.readouterr().out
+    worker.arm()                       # 已停用 → 不再嘗試連線
+    assert len(attempts) == 1 and not worker.is_armed()
+
+
+def test_stream_interruption_warns(capsys):
+    import time
+    ws = FakeWs([])
+    worker = SttWorker(sink=lambda t: None, api_key="test-key",
+                       ws_factory=lambda key: ws, audio_factory=FakeAudioSource)
+    worker.arm()
+    ws.close()                         # 模擬伺服器端斷線（stop 未設 → 應印警示）
+    time.sleep(0.2)                    # receiver 反應時間（recv 在 close 後立即 raise）
+    assert "串流中斷" in capsys.readouterr().out
+    worker.disarm()
