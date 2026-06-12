@@ -307,3 +307,108 @@ def test_wait_idle_default_max_wait_is_30_seconds():
         f"speak_and_wait max_wait default should be 30.0, "
         f"got {sig_speak_wait.parameters['max_wait'].default}"
     )
+
+
+# ============================================================
+# perf_w2 F-4：1-deep prefetch（雙 buffer）
+# ============================================================
+
+
+def test_prefetch_synthesizes_next_during_playback(monkeypatch):
+    """連發兩句：第一句播放期間（gated Popen 未釋放前）第二句應已被 prefetch 合成；
+    全程結束後每句恰 synth 一次（prefetch 命中不重合成）。
+
+    a_may_proceed 卡住 A 的 synth 直到 B 已入 queue——確保 prefetch peek 必看得到 B
+    （消除 say 與 worker 消費之間的時序 race，測試確定性）。
+    """
+    synth_calls: list = []
+    a_may_proceed = threading.Event()
+    b_synthed = threading.Event()
+
+    async def recording_synth(text, out_path):
+        if text == "A":
+            a_may_proceed.wait()
+        synth_calls.append(text)
+        if text == "B":
+            b_synthed.set()
+
+    release_play = threading.Event()
+    monkeypatch.setattr(tts_module, "_synthesize", recording_synth)
+    monkeypatch.setattr(
+        tts_module.subprocess, "Popen",
+        lambda *a, **kw: _FakePopen(returncode=0, wait_event=release_play),
+    )
+    monkeypatch.setattr(tts_module.time, "sleep", lambda s: None)
+
+    worker = TtsWorker()
+    worker.say("A")
+    worker.say("B")
+    a_may_proceed.set()
+
+    # A 播放被 gate 住（release_play 未 set）期間，B 應已被 prefetch 合成
+    assert b_synthed.wait(timeout=2.0), (
+        "B 應在 A 播放期間（release_play 未 set 前）被 prefetch 合成"
+    )
+    release_play.set()
+    assert worker.wait_idle(max_wait=5.0) is True
+    assert synth_calls == ["A", "B"], (
+        f"每句恰合成一次（B 走 prefetch 命中、不重合成），實際 {synth_calls}"
+    )
+
+
+def test_prefetch_failure_falls_back_to_inline_synth(monkeypatch):
+    """prefetch 失敗（B 首呼 raise）→ B 輪到自己的 _process 內重試成功；計數不卡。"""
+    b_calls = {"n": 0}
+    a_may_proceed = threading.Event()
+
+    async def flaky_synth(text, out_path):
+        if text == "A":
+            a_may_proceed.wait()
+        if text == "B":
+            b_calls["n"] += 1
+            if b_calls["n"] == 1:
+                raise RuntimeError("prefetch 網路抖動")
+
+    release_play = threading.Event()
+    release_play.set()  # 播放不卡（重點在 synth 呼叫次數，非重疊時序）
+    monkeypatch.setattr(tts_module, "_synthesize", flaky_synth)
+    monkeypatch.setattr(
+        tts_module.subprocess, "Popen",
+        lambda *a, **kw: _FakePopen(returncode=0, wait_event=release_play),
+    )
+    monkeypatch.setattr(tts_module.time, "sleep", lambda s: None)
+
+    worker = TtsWorker()
+    worker.say("A")
+    worker.say("B")
+    a_may_proceed.set()
+
+    assert worker.wait_idle(max_wait=5.0) is True, "prefetch 失敗不得卡住 pipeline"
+    assert b_calls["n"] == 2, (
+        f"B 應 prefetch 失敗一次＋inline 重試一次，實際 {b_calls['n']} 次"
+    )
+
+
+def test_consecutive_synth_paths_alternate_buffers(monkeypatch):
+    """相鄰兩次 synth 的 out_path 必不同（_next_buf 輪替——防播放中的檔被覆寫）。
+    此性質與 prefetch 是否命中無關，對任何時序皆成立（確定性斷言）。"""
+    paths: list = []
+
+    async def recording_synth(text, out_path):
+        paths.append(out_path)
+
+    monkeypatch.setattr(tts_module, "_synthesize", recording_synth)
+    monkeypatch.setattr(
+        tts_module.subprocess, "Popen",
+        lambda *a, **kw: _FakePopen(returncode=0),
+    )
+    monkeypatch.setattr(tts_module.time, "sleep", lambda s: None)
+
+    worker = TtsWorker()
+    for t in ("A", "B", "C"):
+        worker.say(t)
+
+    assert worker.wait_idle(max_wait=5.0) is True
+    assert len(paths) == 3, f"每句恰合成一次，實際 {paths}"
+    for i in range(len(paths) - 1):
+        assert paths[i] != paths[i + 1], f"相鄰 synth 不得同檔：{paths}"

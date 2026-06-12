@@ -50,7 +50,9 @@ import edge_tts  # fail-fast：缺套件直接 ImportError；S2+ demo 環境是 
 from myProgram.queue_worker import QueueWorker
 
 VOICE = "zh-TW-HsiaoChenNeural"  # 台灣女聲
-TMP_MP3 = "/tmp/last_tts.mp3"  # Linux 絕對路徑（path-conventions 規範）
+# 雙 buffer（perf_w2 F-4）：當前句播放中預合成下一句到另一檔，避免覆寫播放中的檔。
+# Linux 絕對路徑（path-conventions 規範）。
+_TTS_BUF_PATHS: tuple = ("/tmp/last_tts_0.mp3", "/tmp/last_tts_1.mp3")
 
 # mpg123 退出時 ALSA buffer 仍可能有未播完的尾巴音訊（~200-400ms）。下一個 speak
 # 立刻啟動新 mpg123 開 ALSA device 會把舊 buffer 沖掉，造成上一句末尾被截斷。
@@ -134,6 +136,9 @@ class TtsWorker(QueueWorker):
         # q.get() 後 _pending 仍 > 0，wait_idle 阻塞至 worker 真完成才返回。
         self._cv = threading.Condition()
         self._pending = 0  # queued + processing 的 text 數量（say inc / worker on_done dec）
+        # perf_w2 F-4：1-deep prefetch 狀態（僅 worker thread 觸碰，不需鎖）
+        self._buf_idx = 0                                      # 雙 buffer 輪替指標
+        self._prefetched: "tuple[str, str] | None" = None      # (text, mp3_path)
         # 基底建 _q + 啟動 daemon thread（daemon=True：主程式退出時自動 die，不會
         # 卡住整個程序退出；但 daemon die 不會自動 terminate 當前 mpg123 子程序 →
         # 仍需顯式 shutdown()）。
@@ -148,6 +153,17 @@ class TtsWorker(QueueWorker):
         # 強退（S6 教訓 3/4），跨 thread close 反引入 race。
         self._loop_obj = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop_obj)
+
+    def _next_buf(self) -> str:
+        """輪替取下一個 buffer 路徑（每次 synth 前呼叫 → 連續兩次 synth 必異檔）。"""
+        self._buf_idx ^= 1
+        return _TTS_BUF_PATHS[self._buf_idx]
+
+    def _peek_next(self) -> "str | None":
+        """偷看 queue 下一筆（不取出）。安全性：本 thread 是唯一消費者（唯一會移除
+        元素的人），producer 並發 put 只 append 尾端 → mutex 下讀 queue[0] 穩定。"""
+        with self._q.mutex:
+            return self._q.queue[0] if self._q.queue else None
 
     def say(self, text: str) -> None:
         """非阻塞 producer：原子 inc _pending + put queue。FIFO 順序消費（不中斷）。
@@ -175,23 +191,35 @@ class TtsWorker(QueueWorker):
                 self._cv.notify_all()
 
     def _process(self, text: str) -> None:
-        """處理單一 text：synth → play → drain。各失敗分支用 return 結束（替代舊 continue）。
+        """處理單一 text：synth（或 prefetch 命中）→ play＋預取下一句 → drain。
 
         本函式是 single-iteration body（基底 _loop 每輪 get 一筆即呼叫一次），失敗
-        分支 return 而非 continue — 基底 _loop 的 try/finally 才負責 on_done（_pending
+        分支用 return 結束 — 基底 _loop 的 try/finally 才負責 on_done（_pending
         dec + notify_all）+ 下一輪 get。
+
+        perf_w2 F-4：播放等待期間（Popen 後、wait() 前）預合成 queue 下一句到另一
+        buffer——句間靜默從一次 synth round-trip 降到接近 0。單 thread 內重疊，
+        零新鎖、零新 race 面（_buf_idx / _prefetched 只被本 thread 觸碰）。
         """
-        # 階段 1：合成 mp3
-        try:
-            self._loop_obj.run_until_complete(_synthesize(text, TMP_MP3))
-        except Exception as e:
-            # edge_tts 可能 raise NoAudioReceived / WebSocketException / asyncio 相關錯
-            # 不確定具體類型 → 統一 catch Exception，但訊息要詳細
-            _print_failure("synth", [
-                f"exception = {type(e).__name__}: {e!r}",
-                f"text      = {text!r}",
-            ])
-            return
+        # 階段 1：合成 mp3（prefetch 命中則直接用已合成檔，跳過 synth）
+        if self._prefetched is not None and self._prefetched[0] == text:
+            mp3_path = self._prefetched[1]
+            self._prefetched = None
+        else:
+            # 防禦：FIFO 單消費者下 prefetch 內容必等於下一句，mismatch 理論不可達；
+            # 若出現（未來改動引入）丟棄重合成即可，行為仍正確
+            self._prefetched = None
+            mp3_path = self._next_buf()
+            try:
+                self._loop_obj.run_until_complete(_synthesize(text, mp3_path))
+            except Exception as e:
+                # edge_tts 可能 raise NoAudioReceived / WebSocketException / asyncio 相關錯
+                # 不確定具體類型 → 統一 catch Exception，但訊息要詳細
+                _print_failure("synth", [
+                    f"exception = {type(e).__name__}: {e!r}",
+                    f"text      = {text!r}",
+                ])
+                return
 
         # 階段 2：播放 mp3（subprocess.Popen → 保留 reference 給 shutdown 用）
         # 對比 S2 同步版用 subprocess.run：S4 改 Popen + wait 兩段是為了讓
@@ -212,9 +240,21 @@ class TtsWorker(QueueWorker):
             with self._lock:
                 # 短臨界區：spawn + 存 ref，不包 wait（避免 shutdown 拿不到 lock）
                 self._proc = subprocess.Popen(
-                    ["mpg123", "-q", TMP_MP3],
+                    ["mpg123", "-q", mp3_path],
                     stdin=subprocess.DEVNULL,
                 )
+            # 階段 2.5（perf_w2 F-4）：播放等待前預合成下一句——本 thread 反正要
+            # 阻塞等播放，把閒置時間拿來 synth；寫另一 buffer，不碰播放中的檔。
+            nxt = self._peek_next()
+            if nxt is not None:
+                buf = self._next_buf()
+                try:
+                    self._loop_obj.run_until_complete(_synthesize(nxt, buf))
+                    self._prefetched = (nxt, buf)
+                except Exception:
+                    self._prefetched = None
+                    # 預取失敗刻意靜默：該句輪到自己的 _process 會重試 synth，
+                    # 屆時才走既有 noisy 失敗 path——避免同一句印兩次失敗訊息
             # 等播完（不持 lock — shutdown 可在此期間 terminate）。terminate
             # 觸發時 wait 返回非 0 returncode（Linux 上 SIGTERM 是 -15）。
             returncode = self._proc.wait()
@@ -225,7 +265,7 @@ class TtsWorker(QueueWorker):
                 # 但仍印訊息，方便 SSH log 看到「程式退出時殺掉了播放中的 X」）。
                 raise subprocess.CalledProcessError(
                     returncode=returncode,
-                    cmd=["mpg123", "-q", TMP_MP3],
+                    cmd=["mpg123", "-q", mp3_path],
                 )
         except FileNotFoundError as e:
             # mpg123 binary 不存在（Pi 未 apt install mpg123）
