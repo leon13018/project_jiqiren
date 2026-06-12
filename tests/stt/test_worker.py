@@ -25,3 +25,44 @@ def test_no_key_disables_and_warns_once(capsys):
     assert out.count("DEEPGRAM_API_KEY") == 1
     assert not worker.is_armed()
     assert calls == []
+
+
+def _make_worker(messages, chunks=(), ws_factory=None):
+    calls = []
+    ws = FakeWs(messages)
+    worker = SttWorker(
+        sink=calls.append,
+        api_key="test-key",
+        ws_factory=ws_factory or (lambda key: ws),
+        audio_factory=lambda: FakeAudioSource(chunks),
+    )
+    return worker, ws, calls
+
+
+def test_speech_final_injected_normalized():
+    worker, ws, calls = _make_worker([
+        _results("我要紅茶", speech_final=False),     # interim → 忽略
+        _results("我要紅茶兩杯。", speech_final=True),  # final → 注入（去句號）
+    ])
+    worker.arm()
+    assert wait_until(lambda: calls == ["我要紅茶兩杯"])
+    worker.disarm()
+
+
+def test_interim_empty_and_nonresults_not_injected():
+    worker, ws, calls = _make_worker([
+        json.dumps({"type": "Metadata"}),              # 非 Results → 忽略
+        _results("", speech_final=True),               # 空 transcript → 忽略
+        _results("。", speech_final=True),             # 正規化後空 → 忽略
+        _results("好", speech_final=True),             # 唯一有效
+    ])
+    worker.arm()
+    assert wait_until(lambda: calls == ["好"])
+    worker.disarm()
+
+
+def test_sender_streams_audio_chunks():
+    worker, ws, calls = _make_worker([], chunks=[b"\x01\x02", b"\x03\x04"])
+    worker.arm()
+    assert wait_until(lambda: ws.sent == [b"\x01\x02", b"\x03\x04"])
+    worker.disarm()

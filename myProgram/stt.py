@@ -77,12 +77,78 @@ class SttWorker:
                 print("[語音辨識] ⚠️ 未設定 DEEPGRAM_API_KEY，STT 停用（鍵盤輸入照常）")
                 self._disabled = True
                 return
+            ws = self._connect_with_retry()
+            if ws is None:
+                return  # 本輪放棄（已印原因）；下次 arm 再試或已永久停用
+            audio = self._audio_factory()
+            stop = threading.Event()
+            receiver = threading.Thread(
+                target=self._receive_loop, args=(ws, stop),
+                name="SttReceiver", daemon=True)
+            sender = threading.Thread(
+                target=self._send_loop, args=(ws, audio, stop),
+                name="SttSender", daemon=True)
+            self._session = (stop, audio, ws, receiver, sender)
+            receiver.start()
+            sender.start()
+
+    def _connect_with_retry(self):
+        """建線；非 401 失敗重試 1 次；401 → 永久停用（本次執行）。Task 6 補測。"""
+        for attempt in (1, 2):
+            try:
+                return self._ws_factory(self._api_key)
+            except Exception as e:
+                if _is_auth_error(e):
+                    print(f"[語音辨識] ⚠️ API key 無效（HTTP 401），本次執行停用 STT")
+                    self._disabled = True
+                    return None
+                if attempt == 1:
+                    continue
+                print(f"[語音辨識] ⚠️ 連線失敗（{type(e).__name__}: {e!r}），本輪改用鍵盤")
+                return None
+
+    def _send_loop(self, ws, audio, stop) -> None:
+        """audio.read → ws.send；EOF（disarm terminate / 裝置故障）或 stop 即止。"""
+        try:
+            while not stop.is_set():
+                chunk = audio.read(CHUNK_BYTES)
+                if not chunk:
+                    break
+                ws.send(chunk)
+        except Exception:
+            pass  # ws 已關（disarm / 斷線）→ 靜默結束；對外回報由 receiver 負責
+
+    def _receive_loop(self, ws, stop) -> None:
+        """ws.recv → JSON → speech_final 的 transcript 正規化後注入 sink。"""
+        try:
+            while not stop.is_set():
+                msg = ws.recv()
+                if isinstance(msg, bytes):
+                    continue  # Deepgram Results 皆為 text frame；防禦略過
+                data = json.loads(msg)
+                if data.get("type") != "Results" or not data.get("speech_final"):
+                    continue
+                alts = data.get("channel", {}).get("alternatives", [])
+                text = _normalize_transcript(alts[0].get("transcript", "")) if alts else ""
+                if text:
+                    print(f"[語音辨識] {text}")
+                    self._sink(text)
+        except Exception as e:
+            if not stop.is_set():
+                # 非 disarm 觸發的中斷（伺服器斷線等）——印警示；不自動重連，
+                # 下次 arm 重建 session。timeout 既有 reprompt 流程兜底。
+                print(f"[語音辨識] ⚠️ 串流中斷（{type(e).__name__}），本輪改用鍵盤")
 
     def disarm(self) -> None:
         pass  # Task 5 實作
 
     def shutdown(self) -> None:
         self.disarm()
+
+
+def _is_auth_error(e: Exception) -> bool:
+    """websockets InvalidStatus 的 401 偵測——duck-typing 避免頂層 import websockets。"""
+    return getattr(getattr(e, "response", None), "status_code", None) == 401
 
 
 def _default_audio_factory():
