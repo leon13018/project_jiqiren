@@ -255,3 +255,13 @@ def test_classify_qty_boundary_exact_remaining() -> None:
     c = new_cart()
     add_item(c, "冰紅茶", MAX_QTY_PER_ITEM - 5)
     assert cart_module.classify_qty(c, "冰紅茶", 5) == "ok"
+
+
+## CART-CQ-006
+### Scenario: 負數 qty → "over_limit"（防衛上游異常，不得誤判 "ok"）
+### Given 空 cart（remaining > 0）
+### When classify_qty 收到負數數量
+### Then 回 "over_limit"（對齊舊 _classify_into_pending else 分支的保守行為）
+def test_classify_qty_negative_is_over_limit() -> None:
+    c = new_cart()
+    assert cart_module.classify_qty(c, "冰紅茶", -3) == "over_limit"

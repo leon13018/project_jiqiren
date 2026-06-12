@@ -80,7 +80,7 @@ def classify_qty(cart: Cart, product: str, qty: int) -> QtyVerdict:
     判定順序即優先序（對齊 Pass 1 既有行序）：
         "at_cap"     — 該商品 cart 內已達單筆上限（remaining <= 0），與 qty 無關
         "zero"       — qty == 0（顧客明確說 0）
-        "over_limit" — qty > 剩餘可加量
+        "over_limit" — qty > 剩餘可加量，或 qty < 0（防衛上游異常負數）
         "ok"         — 0 < qty <= 剩餘可加量
     純分類不動 cart；動作（add / pending / funnel / speak）由 caller 決定。
     """
@@ -89,7 +89,7 @@ def classify_qty(cart: Cart, product: str, qty: int) -> QtyVerdict:
         return "at_cap"
     if qty == 0:
         return "zero"
-    if qty > remaining:
+    if qty < 0 or qty > remaining:
         return "over_limit"
     return "ok"
 
