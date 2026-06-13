@@ -148,6 +148,19 @@ def test_nlu_checkout_intent_classified_as_checkout() -> None:
     assert nlu.classify_intent("結帳") == "結帳"
 
 
+def test_nlu_zheyang_jiu_hao_classified_as_checkout() -> None:
+    """Pi 實測：L3 加單狀態「這樣就好 / 這樣就好了」表達不追加 → 結帳。
+
+    原本不在 CHECKOUT keyword → 落「無法判斷」→ 回「聽不懂」；而「不用這樣就好了」
+    碰巧命中「不用」(REJECT，L3 normal mode 視為不追加 → 結帳) 而 work，造成
+    「有的變體行、有的不行」不一致。加入「這樣就好」substring 後三變體一致走結帳。
+    """
+    assert nlu.classify_intent("這樣就好") == "結帳"
+    assert nlu.classify_intent("這樣就好了") == "結帳"
+    assert nlu.classify_intent("這樣就好", mode="normal") == "結帳"  # L3 加單 context
+    assert nlu.classify_intent("这样就好") == "結帳"  # 簡體
+
+
 # ============================================================
 # L0-NLU-004
 # ============================================================
