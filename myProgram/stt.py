@@ -21,6 +21,7 @@ import json
 import os
 import subprocess
 import threading
+from urllib.parse import quote
 
 # 去頭尾用標點集（中英常見 + 空白）；句中標點保留——只防 strict-short 比對
 # （「好。」≠「好」）與字首雜訊，語意內容不動。
@@ -32,12 +33,25 @@ def _normalize_transcript(text: str) -> str:
     return text.strip(_PUNCT)
 
 
+# Keyterm prompting 詞表（Nova-3 contextual biasing）——點餐場景高頻詞，引導模型
+# 在近音模糊時偏向「清單內」的詞。解「三瓶」誤辨識為「商品」：sān-píng / shāng-pǐn
+# 平翹舌＋前後鼻音雙重混淆，而「商品」不在清單、「三瓶」在 → 模型偏向正確輸出。
+# 純連線參數、inference 內偏置，零額外延遲（非事後糾錯階段）。約 29 詞，遠低於
+# Deepgram 500 token 上限。數量用中文數字（顧客口語＋既有 NLU 吃中文數字）。
+KEYTERMS = [
+    "一瓶", "兩瓶", "三瓶", "四瓶", "五瓶", "六瓶", "七瓶", "八瓶", "九瓶", "十瓶",
+    "一張", "兩張", "三張", "四張", "五張", "六張", "七張", "八張", "九張", "十張",
+    "冰紅茶", "紅茶", "刮刮樂",
+    "結帳", "取消", "繼續", "繼續選購", "幾瓶", "幾張",
+]
+
 # Deepgram 串流端點（統領設計 §2.5 既定參數；Pi 首測若 handshake 400 → 改試
-# language=zh-Hant 並回寫 spec §2.3）
+# language=zh-Hant 並回寫 spec §2.3）。keyterm 在固定參數後 append（percent-encoded）。
 DEEPGRAM_URL = (
     "wss://api.deepgram.com/v1/listen"
     "?model=nova-3&language=zh-TW&encoding=linear16&sample_rate=16000"
     "&channels=1&interim_results=true&endpointing=300&smart_format=false"
+    + "".join(f"&keyterm={quote(_kt)}" for _kt in KEYTERMS)
 )
 CHUNK_BYTES = 3200  # 100ms @ 16kHz 16-bit mono——粒度夠細不增 ws 訊息開銷
 
