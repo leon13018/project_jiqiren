@@ -44,9 +44,9 @@ _KEYWORDS_CROSS_L_CANCEL = [
     "取消交易吧", "我想要取消交易",
 ]
 
-# REJECT substring 集（移除「沒/没」單字、「沒有/沒了/不了/没有」→ 移到 strict-short，
+# REJECT substring 集（移除「沒」單字、「沒有/沒了/不了」→ 移到 strict-short，
 # 避免「沒有問題」「等不了」「受不了」等口語被 substring 誤命中）
-# HP-1 / C5：「沒有 / 沒了 / 不了 / 没有」從 substring 集移出，改 strict-short
+# HP-1 / C5：「沒有 / 沒了 / 不了」從 substring 集移出，改 strict-short
 _KEYWORDS_REJECT = [
     "不要", "不用", "不想", "不買", "不買了",
     # 2026-05-30 加（Pi demo L3「請問還有額外需要購買的嗎？」NLU gap 修補）
@@ -58,7 +58,7 @@ _KEYWORDS_REJECT = [
 ] + _KEYWORDS_CROSS_L_CANCEL  # cross-L cancel 擴充（共享清單）
 
 # REJECT strict-short 集（只在 text.strip() 完全等於時命中，避免 substring 誤命中）
-# HP-1：加入「沒有 / 沒了 / 不了 / 没有」— 僅完整詞才觸發 reject，不影響複合口語
+# HP-1：加入「沒有 / 沒了 / 不了」— 僅完整詞才觸發 reject，不影響複合口語
 _KEYWORDS_REJECT_STRICT_SHORT = ["沒", "沒有", "沒了", "不了"]
 
 # REJECT 雙集配對（兩處判定式共用；對齊 W1 oop_w1 KG_* 慣例）

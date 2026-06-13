@@ -10,7 +10,7 @@ from myProgram.sales.nlu import classify_intent, parse_quantity
 # ============================================================
 # HP-1 / B1 / C1：「沒有」substring 誤命中
 # ============================================================
-# 修法：把「沒有 / 沒了 / 不了 / 没有」從 _KEYWORDS_REJECT substring 集移到
+# 修法：把「沒有 / 沒了 / 不了」從 _KEYWORDS_REJECT substring 集移到
 # _KEYWORDS_REJECT_STRICT_SHORT（只在 text.strip()=="沒有" 才算 reject）。
 
 def test_nlu_l4_沒有問題_should_not_be_reject():
