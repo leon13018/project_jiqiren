@@ -32,7 +32,8 @@ STT 輸出繁體中文 → 所有簡體 keyword 是**永遠不會被語音命中
 |---|---|
 | `myProgram/sales/nlu.py` | 刪簡體項（`_KEYWORDS_*` 多處）+ `_KEYWORDS_CHECKOUT` 加「醬就好」 |
 | `myProgram/sales/constants/keywords.py` | 刪簡體項（18 個 list 的簡體變體 + 混合行逐字挑） |
-| `tests/sales/test_nlu.py`、`test_states.py`、`test_product_parser.py`、`test_nlu_boundary.py` | 刪/改簡體測試 case（pytest 反向暴露） |
+| `myProgram/sales/product_parser.py` | **audit 補遺**（2026-06-13 sales-coder 執行時發現）：刪 `_PRODUCT_KEYWORD_TO_NAME` 5 個簡體 tuple（`冰红茶`/`红茶`/`刮刮乐`/`即时乐`/`乐透`）——商品解析自帶獨立簡體表，原 audit 漏列 |
+| `tests/sales/test_nlu.py`、`test_states.py`、`test_product_parser.py`、`test_nlu_boundary.py` | 刪/改簡體測試 case（pytest 反向暴露；含 product_parser 2 個簡體商品解析 test） |
 
 **混合行特別注意**（繁簡同一行，逐字挑簡體刪、留繁體）：
 - `nlu.py` `_KEYWORDS_REJECT_STRICT_SHORT`：刪「没」「没有」，留「沒」「沒有」「沒了」「不了」
