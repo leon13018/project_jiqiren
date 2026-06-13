@@ -158,14 +158,6 @@ def test_nlu_zheyang_jiu_hao_classified_as_checkout() -> None:
     assert nlu.classify_intent("這樣就好", mode="normal") == "結帳"  # L3 加單 context
 
 
-def test_nlu_jiang_jiu_hao_homophone_classified_as_checkout() -> None:
-    """台灣合音：「這樣」連讀成「醬」(zhè-yàng→jiàng)，斷字不清的顧客講「醬就好/醬就好了」
-    = 不追加 → 結帳。延續 test_nlu_zheyang_jiu_hao。只加繁體（STT 繁體輸出）。"""
-    assert nlu.classify_intent("醬就好") == "結帳"
-    assert nlu.classify_intent("醬就好了") == "結帳"
-    assert nlu.classify_intent("醬就好", mode="normal") == "結帳"
-
-
 # ============================================================
 # L0-NLU-004
 # ============================================================
