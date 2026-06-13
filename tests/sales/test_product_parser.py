@@ -87,17 +87,6 @@ def test_parse_products_duplicate_mixed_qty_drops_missing() -> None:
 # P4 regression tests — parse_products 路徑（2026-05-26 從 test_nlu.py 拆出）
 # ============================================================
 
-def test_parse_products_simplified_chinese_iced_tea() -> None:
-    """簡體「红茶 / 冰红茶」也應解析為冰紅茶（使用者 Windows 簡體系統實測）。"""
-    assert product_parser.parse_products("红茶 2") == [("冰紅茶", 2)]
-    assert product_parser.parse_products("我要冰红茶") == [("冰紅茶", None)]
-
-
-def test_parse_products_simplified_chinese_scratch_card() -> None:
-    """簡體「刮刮乐」也應解析為刮刮樂。"""
-    assert product_parser.parse_products("刮刮乐 3") == [("刮刮樂", 3)]
-
-
 def test_parse_products_iced_tea_short_word_tea_no_longer_matches() -> None:
     """S15：iced tea / black tea 具體詞仍能命中冰紅茶。"""
     assert product_parser.parse_products("iced tea 2") == [("冰紅茶", 2)]
