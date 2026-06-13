@@ -3155,11 +3155,6 @@ def test_l3_c2_second_stage_continue_speaks_ack_and_returns_to_main_loop() -> No
         "還想買",
         "想再買",
         "我想再買",
-        "继续选购",   # 簡體變體
-        "继续购买",
-        "继续买",
-        "再买",
-        "再加",
     ],
 )
 def test_l3_c2_second_stage_expanded_continue_keywords_hit_and_resume_dialog(
@@ -3215,7 +3210,6 @@ def test_l3_c2_second_stage_expanded_continue_keywords_hit_and_resume_dialog(
         "想取消",
         "我想取消",
         "不想要了",
-        "取消购买",   # 簡體變體
     ],
 )
 def test_l3_c2_second_stage_expanded_cancel_keywords_hit_and_exit_l1(

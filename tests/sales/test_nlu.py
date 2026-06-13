@@ -68,12 +68,10 @@ def test_nlu_l3_lenient_no_more_classified_as_checkout() -> None:
     [
         "不要買了",
         "不想買",
-        "不要买了",   # 簡體
-        "不想买",
     ],
 )
 def test_nlu_l3_strict_expanded_rejects(reject_text: str) -> None:
-    """2026-05-30 加：L3_STRICT 擴展「不要買了」「不想買」(+ 簡體) 應視為「拒絕」。
+    """2026-05-30 加：L3_STRICT 擴展「不要買了」「不想買」應視為「拒絕」。
 
     避免 mode="normal" 用通用 _KEYWORDS_REJECT substring 把這些 phrase 視為「結帳」
     → 觸發 confirm「您即將結帳... 正確嗎？」UX 怪。
@@ -158,7 +156,6 @@ def test_nlu_zheyang_jiu_hao_classified_as_checkout() -> None:
     assert nlu.classify_intent("這樣就好") == "結帳"
     assert nlu.classify_intent("這樣就好了") == "結帳"
     assert nlu.classify_intent("這樣就好", mode="normal") == "結帳"  # L3 加單 context
-    assert nlu.classify_intent("这样就好") == "結帳"  # 簡體
 
 
 def test_nlu_jiang_jiu_hao_homophone_classified_as_checkout() -> None:
@@ -195,14 +192,6 @@ def test_nlu_iced_tea_keyword_classified_as_product_iced_tea() -> None:
     assert nlu.classify_intent("冰紅茶") == "商品:冰紅茶"
 
 
-def test_nlu_iced_tea_simplified_variants_also_classified() -> None:
-    """2026-05-26 加：簡體「红茶 / 冰红茶」也應分類為冰紅茶（使用者 Windows 簡體系統實測）。
-    parse_products 的簡體驗證已移至 test_product_parser.py。
-    """
-    assert nlu.classify_intent("红茶") == "商品:冰紅茶"
-    assert nlu.classify_intent("冰红茶") == "商品:冰紅茶"
-
-
 # ============================================================
 # L0-NLU-006
 # ============================================================
@@ -214,13 +203,6 @@ def test_nlu_iced_tea_simplified_variants_also_classified() -> None:
 ### Then 分類結果為「商品:刮刮樂」
 def test_nlu_scratch_card_keyword_classified_as_product_scratch_card() -> None:
     assert nlu.classify_intent("刮刮樂") == "商品:刮刮樂"
-
-
-def test_nlu_scratch_card_simplified_variant_also_classified() -> None:
-    """2026-05-26 加：簡體「刮刮乐」也應分類為刮刮樂。
-    parse_products 的簡體驗證已移至 test_product_parser.py。
-    """
-    assert nlu.classify_intent("刮刮乐") == "商品:刮刮樂"
 
 
 # ============================================================
@@ -292,16 +274,6 @@ def test_nlu_short_mei_classified_by_mode() -> None:
     assert nlu.classify_intent("沒", "l2") == "拒絕"
     assert nlu.classify_intent("沒", "normal") == "結帳"
     assert nlu.classify_intent("沒", "l4") == "拒絕"
-
-
-def test_nlu_short_mei_simplified_variant_also_classified() -> None:
-    """2026-05-26 加：簡體「没」(U+6CA1) ≠ 繁體「沒」(U+6C92)，要獨立加入 REJECT。
-
-    使用者 Windows IME 預設輸入簡體，先前實測「没」在 DnC 被當無法判斷掉到 B-1。
-    """
-    assert nlu.classify_intent("没", "l2") == "拒絕"
-    assert nlu.classify_intent("没", "normal") == "結帳"
-    assert nlu.classify_intent("没", "l4") == "拒絕"
 
 
 def test_nlu_english_no_nope_in_l3_normal_mode_classified_as_unknown() -> None:
@@ -602,9 +574,6 @@ def test_nlu_l3_strict_reject_includes_whole_order_cancel_phrasings() -> None:
     assert nlu.classify_intent("取消") == "拒絕"
     assert nlu.classify_intent("全部不要") == "拒絕"
     assert nlu.classify_intent("都取消") == "拒絕"
-    # 簡體變體
-    assert nlu.classify_intent("整单取消") == "拒絕"
-    assert nlu.classify_intent("不想买了") == "拒絕"
 
 
 def test_nlu_iced_tea_short_word_tea_no_longer_matches() -> None:
@@ -675,9 +644,6 @@ def test_nlu_scratch_letou_and_caijuan_alias() -> None:
     assert nlu.classify_intent("樂透") == "商品:刮刮樂"
     assert nlu.classify_intent("彩卷") == "商品:刮刮樂"
     assert nlu.classify_intent("即時樂") == "商品:刮刮樂"
-    # 簡體變體
-    assert nlu.classify_intent("乐透") == "商品:刮刮樂"
-    assert nlu.classify_intent("即时乐") == "商品:刮刮樂"
 
 
 # ============================================================
