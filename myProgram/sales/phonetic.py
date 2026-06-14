@@ -22,8 +22,13 @@ AMBIGUITY_MARGIN = 0.25
 
 # 聲母模糊等價（平翹舌 + 常見混淆）：正規化後相等即視為同聲母。
 _INITIAL_EQUIV = {"sh": "s", "ch": "c", "zh": "z", "l": "n", "h": "f"}
-# 韻母模糊等價（前後鼻音）：正規化後相等即視為同韻母。
-_FINAL_EQUIV = {"ing": "in", "eng": "en", "ang": "an"}
+# 韻母模糊等價（前後鼻音 + 2026-06-14 Phase B 介音脫落）：正規化後相等即視為同韻母。
+# 介音 ua→a / uo→o / ie→e：解「尬(g,a)≡刮(g,ua)」ASR 介音脫落痛點。
+# 問數量候選韻母無一含 ua/uo/ie → 對 Phase A / ① 數量候選 inert（零影響）。
+_FINAL_EQUIV = {
+    "ing": "in", "eng": "en", "ang": "an",
+    "ua": "a", "uo": "o", "ie": "e",
+}
 
 
 def _canon_initial(initial):
@@ -56,28 +61,56 @@ def _default_to_pinyin(char):
     return initial, final
 
 
-def phonetic_match(text, candidates, *, to_pinyin=None):
+def _dedup_chars(text):
+    """連續重複字 collapse（2026-06-14 Phase B 疊字去重）：刮刮樂→刮樂、尬尬樂→尬樂。
+
+    解 ASR 對疊字商品名漏字 / 多字（刮樂≈刮刮樂）。idempotent（已去重者再呼叫不變）。
+    只 collapse 相鄰相同字，非相鄰重複保留（如「茶紅茶」不變）。
+    """
+    if not text:
+        return text
+    out = [text[0]]
+    for ch in text[1:]:
+        if ch != out[-1]:
+            out.append(ch)
+    return "".join(out)
+
+
+def phonetic_match(text, candidates, *, to_pinyin=None, group_key=None):
     """對 text 在 candidates 中找拼音近音命中（歧義安全閥保護）。
 
     Args:
-        text: ASR 輸出（可能被平翹舌 / 前後鼻音混淆）。
-        candidates: 合法候選詞 list（如 {一瓶…十瓶}）。
+        text: ASR 輸出（可能被平翹舌 / 前後鼻音 / 介音脫落 / 疊字漏字混淆）。
+        candidates: 合法候選詞 list（如 {一瓶…十瓶} 或 {冰紅茶, 紅茶, 刮刮樂}）。
         to_pinyin: 取音器 callback `char -> (聲母, 韻母)`；None 用 production lazy pypinyin。
+        group_key: 候選分組 callback `candidate -> group`（2026-06-14 Phase B 加）。
+            同 group 多 surface（如 冰紅茶 / 紅茶 同指一商品）不互壓歧義閥 margin，
+            且子串 fallback 以 group 唯一性判定。None = identity（每候選自成一組）→
+            退化為 Phase A 行為（問數量 / ① 數量候選不受影響）。
 
     Returns:
         命中時回該 candidate 原字串；空輸入 / pypinyin 不可用 / 歧義 / 無夠近 → None。
+
+    執行序（spec §2.2）：守衛 → 取音（try/except ImportError→None）→ 疊字去重 →
+        similarity（聲韻母 + 介音 + 鼻音 + 平翹舌）→ group-aware 歧義閥 → 命中回 original；
+        否則不同字數子串 fallback（group-aware）；否則 None。
     """
     # 守衛：空 text 或空 candidates → None
     if not text or not candidates:
         return None
 
     get_pinyin = to_pinyin or _default_to_pinyin
+    groups = [(group_key(cand) if group_key else cand) for cand in candidates]
+
+    # 疊字去重（命中仍回 original candidate；deduped 只用於比對 / 子串）
+    text_dd = _dedup_chars(text)
+    cand_dd = [_dedup_chars(cand) for cand in candidates]
 
     # 取音段包 try/except ImportError：pypinyin 不可用（如 Windows 未裝）→ 整體回 None
     # （graceful no-op：糾錯層缺依賴時靜默退回 caller 既有 reprompt，既有測試零衝擊）。
     try:
-        text_syllables = [get_pinyin(ch) for ch in text]
-        candidate_syllables = [[get_pinyin(ch) for ch in cand] for cand in candidates]
+        text_syllables = [get_pinyin(ch) for ch in text_dd]
+        candidate_syllables = [[get_pinyin(ch) for ch in cand] for cand in cand_dd]
     except ImportError:
         return None
 
@@ -92,11 +125,24 @@ def phonetic_match(text, candidates, *, to_pinyin=None):
         similarity = hits / max(len(text_syllables), len(cand_syl))
         scores.append(similarity)
 
-    ranked = sorted(scores, reverse=True)
-    top1 = ranked[0]
-    top2 = ranked[1] if len(ranked) > 1 else 0.0
+    best_idx = max(range(len(scores)), key=lambda i: scores[i])
+    top1 = scores[best_idx]
+    # group-aware top-2：只取「與 top-1 不同 group」者最高分（同商品多 surface 不互壓）。
+    # group_key=None 時各候選自成 group → 退化為原 top-2（Phase A 行為不變）。
+    other_group = [s for i, s in enumerate(scores) if groups[i] != groups[best_idx]]
+    top2 = max(other_group) if other_group else 0.0
 
-    # 歧義安全閥：top1 達閾值 且 top1 明顯勝 top2（margin 足夠）才修正。
+    # 歧義安全閥：top1 達閾值 且 top1 明顯勝其他 group（margin 足夠）才修正。
     if top1 >= SIMILARITY_THRESHOLD and (top1 - top2) >= AMBIGUITY_MARGIN:
-        return candidates[scores.index(top1)]
+        return candidates[best_idx]
+
+    # 不同字數子串 fallback（group-aware）：similarity 無 winner 時，找 deduped(text)
+    # 是 deduped(候選) 子串者；命中候選同屬唯一 group → 回該組 similarity 最高者；
+    # 跨多 group / 無命中 → None。解「茶 ⊂ 紅茶/冰紅茶（皆同商品組）」。
+    sub_idx = [i for i in range(len(candidates))
+               if text_dd != cand_dd[i] and text_dd in cand_dd[i]]
+    if sub_idx:
+        sub_groups = {groups[i] for i in sub_idx}
+        if len(sub_groups) == 1:
+            return candidates[max(sub_idx, key=lambda i: scores[i])]
     return None

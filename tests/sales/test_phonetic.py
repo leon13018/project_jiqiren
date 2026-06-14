@@ -56,9 +56,11 @@ def test_phonetic_match_handles_zhang_unit_variant() -> None:
 # ============================================================
 
 def test_phonetic_match_returns_none_when_ambiguous() -> None:
-    # text 與兩個候選皆完全相同分（1.0）→ top1-top2 = 0 < AMBIGUITY_MARGIN → None
-    pinyin = {"甲": ("j", "ia"), "乙": ("y", "i")}
-    assert phonetic_match("甲乙", ["甲乙", "甲乙"], to_pinyin=lambda ch: pinyin[ch]) is None
+    # text 與兩個**相異** group 候選皆完全相同分（1.0）→ top1-top2 = 0 < AMBIGUITY_MARGIN → None
+    # 2026-06-14：原用兩個字面相同候選 ["甲乙","甲乙"]，group-aware top-2 視同組不互壓
+    #   → 不再構成歧義（同一答案）。改用相異候選（乙/丙 皆與甲音同）保留「跨組同分→歧義」原意。
+    pinyin = {"甲": ("j", "ia"), "乙": ("j", "ia"), "丙": ("j", "ia")}
+    assert phonetic_match("甲", ["乙", "丙"], to_pinyin=lambda ch: pinyin[ch]) is None
 
 
 # ============================================================
@@ -128,20 +130,94 @@ def test_phonetic_match_empty_candidates_returns_none() -> None:
 # ============================================================
 
 def test_phonetic_match_length_mismatch_lowers_score_to_none() -> None:
-    # text=「甲乙」2 字；候選「甲乙丙」3 字，前 2 字完全相同（命中 2）
+    # text=「甲乙」2 字；候選「丙丁戊」3 字，前 2 字音同（丙≡甲、丁≡乙，命中 2）
     # similarity = 2 / max(2,3) = 2/3 ≈ 0.667 < 0.75 → None
-    pinyin = {"甲": ("j", "ia"), "乙": ("y", "i"), "丙": ("b", "ing")}
-    assert phonetic_match("甲乙", ["甲乙丙"], to_pinyin=lambda ch: pinyin[ch]) is None
+    # 2026-06-14：原候選用「甲乙丙」，「甲乙」恰為其字元子串 → 觸發 Phase B 子串 fallback
+    #   翻成命中。本案原意測「長度不等降分→None」非子串，改用相異字（音同位同但字元不構成
+    #   子串）保留原意，與 Phase B 子串規則解耦。
+    pinyin = {"甲": ("j", "ia"), "乙": ("y", "i"),
+              "丙": ("j", "ia"), "丁": ("y", "i"), "戊": ("b", "ing")}
+    assert phonetic_match("甲乙", ["丙丁戊"], to_pinyin=lambda ch: pinyin[ch]) is None
 
 
 # ============================================================
-# 介音不等價（守 Phase A 邊界）：(g,ua) vs (g,a) → 不命中（介音留 Phase B）
+# 介音等價（2026-06-14 Phase B 翻轉）：(g,ua) ≡ (g,a)（介音 ua→a）→ 命中
+# 解「尬(g,a)≡刮(g,ua)」痛點；Phase A 此處原斷言不等價，Phase B 補介音等價後翻轉。
 # ============================================================
 
-def test_phonetic_match_medial_not_equivalent() -> None:
-    # 韻母 ua / a 不在 _FINAL_EQUIV → 不等價 → 命中數 0 → similarity 0 → None
+def test_phonetic_match_medial_equivalent() -> None:
+    # 韻母 ua canon 後等價於 a（_FINAL_EQUIV "ua":"a"）→ 聲母同、韻母等價 →
+    # similarity 1.0 → 命中唯一候選「嘎」。
     pinyin = {"瓜": ("g", "ua"), "嘎": ("g", "a")}
-    assert phonetic_match("瓜", ["嘎"], to_pinyin=lambda ch: pinyin[ch]) is None
+    assert phonetic_match("瓜", ["嘎"], to_pinyin=lambda ch: pinyin[ch]) == "嘎"
+
+
+def test_phonetic_match_medial_equivalences_three_classes() -> None:
+    """介音脫落三類等價：ua↔a、uo↔o、ie↔e（聲母相同）各一對命中。"""
+    pairs = {
+        ("ua", "a"): {"甲": ("g", "ua"), "乙": ("g", "a")},
+        ("uo", "o"): {"甲": ("d", "uo"), "乙": ("d", "o")},
+        ("ie", "e"): {"甲": ("l", "ie"), "乙": ("l", "e")},
+    }
+    for pinyin in pairs.values():
+        assert phonetic_match("甲", ["乙"], to_pinyin=lambda ch: pinyin[ch]) == "乙"
+
+
+# ============================================================
+# ② 引擎擴展（2026-06-14 Phase B，spec §2.2）：疊字去重 / group_key / 子串
+# 問商品 context fake：冰紅茶 / 紅茶 / 刮刮樂 三候選。
+# ============================================================
+
+_FAKE_B = {
+    "冰": ("b", "ing"), "紅": ("h", "ong"), "茶": ("ch", "a"),
+    "刮": ("g", "ua"), "樂": ("l", "e"), "尬": ("g", "a"), "宏": ("h", "ong"),
+}
+
+
+def fakeB(ch):
+    return _FAKE_B[ch]
+
+
+def grpB(s):
+    return {"冰紅茶": "T", "紅茶": "T", "刮刮樂": "L"}[s]
+
+
+PROD = ["冰紅茶", "紅茶", "刮刮樂"]
+
+
+# --- (a) 疊字去重：比對前 collapse 連續重複字，命中回 original ---
+
+def test_phonetic_match_dedup_dropped_repeat_char() -> None:
+    """「刮樂」(=刮刮樂少一字)：text 與候選去重後（刮刮樂→刮樂）逐位相同 → 命中 original 刮刮樂。"""
+    assert phonetic_match("刮樂", ["刮刮樂", "紅茶"], to_pinyin=fakeB) == "刮刮樂"
+
+
+def test_phonetic_match_dedup_with_medial_garble() -> None:
+    """「尬尬樂」(=刮刮樂，介音脫落 ua→a)：去重 尬尬樂→尬樂、刮刮樂→刮樂；
+    尬(g,a)≡刮(g,ua) 介音等價 + 樂同 → 命中 original 刮刮樂。"""
+    assert phonetic_match("尬尬樂", ["刮刮樂", "紅茶"], to_pinyin=fakeB) == "刮刮樂"
+
+
+# --- (c) group_key：同商品多 surface 不互壓歧義閥 ---
+
+def test_phonetic_match_group_key_same_product_not_suppressed() -> None:
+    """「宏茶」(=紅茶) vs 候選 冰紅茶/紅茶（同 group T）+ 刮刮樂（group L）：
+    冰紅茶 與 紅茶 同 group 不互壓 margin（group-aware top-2 取不同 group 最高）→ 命中紅茶。"""
+    assert phonetic_match("宏茶", PROD, to_pinyin=fakeB, group_key=grpB) == "紅茶"
+
+
+# --- (d) 不同字數子串 fallback（group-aware）---
+
+def test_phonetic_match_substring_fallback_group_aware() -> None:
+    """「茶」⊂「冰紅茶」「紅茶」(皆 group T)：similarity 無 winner →
+    group-aware 子串 fallback 唯一 group → 回該組（冰紅茶 / 紅茶 之一）。"""
+    assert phonetic_match("茶", PROD, to_pinyin=fakeB, group_key=grpB) in {"冰紅茶", "紅茶"}
+
+
+def test_phonetic_match_substring_fallback_disabled_without_group_key() -> None:
+    """無 group_key（問數量 / ① path，group_key=None）→ 子串 fallback 不啟用 → None。
+    保證引擎擴展對 Phase A / ① inert。"""
+    assert phonetic_match("茶", PROD, to_pinyin=fakeB) is None
 
 
 # ============================================================
