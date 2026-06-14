@@ -84,6 +84,7 @@ from myProgram.sales.constants import (
 from myProgram.sales.dialog_io import DialogIO
 from myProgram.sales.nlu import classify_intent
 from myProgram.sales.product_parser import parse_products
+from myProgram.sales.phonetic import phonetic_match
 from myProgram.sales import cart as cart_module
 from myProgram.sales.states._l2_l3_qty_followup import (
     resolve_and_add_products,
@@ -96,6 +97,16 @@ from myProgram.sales.states._timed_confirm import CANCEL_CONFIRM, SERVICE_CONFIR
 def _entry_prompt_for(cart) -> str:
     """cart 世界狀態 → entry prompt（空 → L2、非空 → L3）；進場與 reenter 共用。"""
     return L2_ENTRY_PROMPT if cart_module.is_empty(cart) else L3_ENTRY_PROMPT
+
+
+# ② 問商品 unclear 出口拼音糾錯（2026-06-14 Phase B，spec §2.3）：
+# 商品名整個被聽歪（刮樂/尬尬樂→刮刮樂、茶→紅茶）→ 整句認不出 → 放棄出口前糾正。
+_PRODUCT_PHONETIC_CANDIDATES = ("冰紅茶", "紅茶", "刮刮樂")
+
+
+def _product_group(s):
+    """候選分組鍵：同商品多 surface（冰紅茶 / 紅茶 皆指冰紅茶）不互壓歧義閥 margin。"""
+    return parse_products(s)[0][0]
 
 
 def run_dialog(
@@ -434,44 +445,20 @@ class DialogSession:
         # 商品 → C / B-3（多商品 parser + 各自缺數量追問）
         products = parse_products(response)
         if products:
-            if in_main_loop:
-                self.unclear_count = 0
-            was_empty = cart_module.is_empty(self.cart)
-            added, cancel_notices, control = resolve_and_add_products(
-                products=products,
-                cart=self.cart,
-                speak=self.io.speak,
-                print_terminal=self.io.print_terminal,
-                read_customer_input=self.io.read_customer_input,
-                classify_intent_mode=policy.nlu_mode,
-                speak_and_wait=self.io.speak_and_wait,
-            )
-            if control == "exit_l1":
-                return self.exit_a()
-            if control in ("reenter_timeout", "reenter_cancel"):
-                self._reenter_speak(control)
-                return None
-            if added and was_empty:
-                # cart 從空 → 非空：speak L2_TO_L3_TRANSITION（合成 voice，原 L2_C_ADDED +
-                # L3_ENTRY_PROMPT 合併為一句連貫播報；漏播會讓顧客以為對話結束、
-                # 6s timeout 直接觸發 C-2 自動結帳）
-                if in_main_loop:
-                    # B11：L2→L3 cart-state 切換點 reset think_count——各 mode 獨立計數，
-                    # L2 think_count 不應污染 L3；inner 語境不直接改（由主迴圈 writeback
-                    # 分支事後處理）
-                    self.think_count = 0
-                # S3 同步動作（2026-05-27 fix）：L2→L3 transition 觸發 ACTION_L3
-                self.io.do_action(ACTION_L3)
-                # 2026-05-30 合成 speak：cancel notices 拼接到 transition 前
-                self.io.speak(_prepend_cancel_notices(cancel_notices, L2_TO_L3_TRANSITION))
-                return None
-            if added:
-                # cart 已非空語境：額外加單後重問（cancel notices 拼接到 L3_REASK 前）
-                self.io.speak(_prepend_cancel_notices(cancel_notices, L3_REASK))
-                return None
-            # 全部商品在追問內取消 → re-prompt 依當前 mode reask
-            self.io.speak(_prepend_cancel_notices(cancel_notices, policy.reask))
-            return None
+            return self._handle_products(products, in_main_loop=in_main_loop)
+
+        # ② 問商品 unclear 出口拼音糾錯（2026-06-14 Phase B，spec §2.3）：
+        # 拒絕 / 想一下 / 結帳 / 客服 / 想買無商品 / 正常解析皆已先 return，不被劫持。
+        # 此處兜底 ASR 把商品名整個聽歪（刮樂→刮刮樂、茶→紅茶）：在商品候選域做拼音近音
+        # 糾錯，命中 → 重 parse_products（含①內嵌數量糾錯）→ 走與正常輸入相同的 _handle_products。
+        # corrected is None（含 Windows 無 pypinyin / 歧義 / 無夠近）→ 落回既有 B-1，不劣化。
+        corrected = phonetic_match(
+            response, _PRODUCT_PHONETIC_CANDIDATES, group_key=_product_group
+        )
+        if corrected is not None:
+            corrected_products = parse_products(corrected)
+            if corrected_products:
+                return self._handle_products(corrected_products, in_main_loop=in_main_loop)
 
         # 都沒命中 → B-1 兜底（Q2：主迴圈計數 + 上限分流；inner 只 clarify 不計數）
         if in_main_loop:
@@ -482,6 +469,56 @@ class DialogSession:
             self.io.speak(policy.clarify)
             return None
         self.io.speak(policy.clarify)
+        return None
+
+    def _handle_products(self, products, *, in_main_loop: bool):
+        """商品加單共用體（2026-06-14 Phase B 抽取）：resolve + control 分流 + transition / reask。
+
+        原 _dispatch 內聯 products block，抽出讓正常解析路徑與②問商品糾錯路徑共用
+        （糾錯命中後 corrected 重 parse_products → 走此共用體，含①內嵌數量糾錯）。
+
+        Returns:
+            tuple — 退出 dialog（caller 直接 return）
+            None  — 已處理
+        """
+        policy = self.policy()
+        if in_main_loop:
+            self.unclear_count = 0
+        was_empty = cart_module.is_empty(self.cart)
+        added, cancel_notices, control = resolve_and_add_products(
+            products=products,
+            cart=self.cart,
+            speak=self.io.speak,
+            print_terminal=self.io.print_terminal,
+            read_customer_input=self.io.read_customer_input,
+            classify_intent_mode=policy.nlu_mode,
+            speak_and_wait=self.io.speak_and_wait,
+        )
+        if control == "exit_l1":
+            return self.exit_a()
+        if control in ("reenter_timeout", "reenter_cancel"):
+            self._reenter_speak(control)
+            return None
+        if added and was_empty:
+            # cart 從空 → 非空：speak L2_TO_L3_TRANSITION（合成 voice，原 L2_C_ADDED +
+            # L3_ENTRY_PROMPT 合併為一句連貫播報；漏播會讓顧客以為對話結束、
+            # 6s timeout 直接觸發 C-2 自動結帳）
+            if in_main_loop:
+                # B11：L2→L3 cart-state 切換點 reset think_count——各 mode 獨立計數，
+                # L2 think_count 不應污染 L3；inner 語境不直接改（由主迴圈 writeback
+                # 分支事後處理）
+                self.think_count = 0
+            # S3 同步動作（2026-05-27 fix）：L2→L3 transition 觸發 ACTION_L3
+            self.io.do_action(ACTION_L3)
+            # 2026-05-30 合成 speak：cancel notices 拼接到 transition 前
+            self.io.speak(_prepend_cancel_notices(cancel_notices, L2_TO_L3_TRANSITION))
+            return None
+        if added:
+            # cart 已非空語境：額外加單後重問（cancel notices 拼接到 L3_REASK 前）
+            self.io.speak(_prepend_cancel_notices(cancel_notices, L3_REASK))
+            return None
+        # 全部商品在追問內取消 → re-prompt 依當前 mode reask
+        self.io.speak(_prepend_cancel_notices(cancel_notices, policy.reask))
         return None
 
     def _think_silence(self):

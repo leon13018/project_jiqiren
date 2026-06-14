@@ -7128,3 +7128,146 @@ def test_qty_number_words_round_trip_through_parse_quantity():
                 f"parse_quantity({corrected!r}) = {parse_quantity(corrected)}，"
                 f"期望 {expected[word]}（phonetic 糾錯 round-trip 斷裂）"
             )
+
+
+# ============================================================
+# ② 問商品 unclear 出口拼音糾錯 wiring（2026-06-14 Phase B，spec §2.3）
+# 商品名整個被聽歪（刮樂→刮刮樂）→ 整句認不出 → 在問商品 NLU 放棄出口前糾正。
+# 整合測試 mock l2_l3_dialog.phonetic_match（演算法正確性由 test_phonetic.py 覆蓋）。
+# ============================================================
+
+def test_product_unclear_phonetic_correction_adds_product() -> None:
+    """問商品 unclear 出口顧客 garble（既非意圖、parse_products 又空）→
+    phonetic_match 糾回「刮刮樂」→ parse_products → 走 _handle_products 進加單，
+    顧客補數量後 cart 加刮刮樂、unclear_count 未累加（不走 B-1）。"""
+    from unittest.mock import patch
+    from myProgram.sales.states import l2_l3_dialog
+
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # garble「刮樂」(非意圖、parse_products 空) → 糾錯「刮刮樂」(無 qty) → followup「兩張」加 2
+    # → L3；主 None → C-2 → None → confirm；「對」→ L4
+    customer_input = FakeCustomerInput(["刮樂", "兩張", None, None, "對"])
+
+    with patch.object(l2_l3_dialog, "phonetic_match", return_value="刮刮樂"):
+        next_state, _ = states.run_dialog(
+            speak=lambda text: speak_calls.append(text),
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+            think_count=0,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    assert cart_module.get_quantity(cart, "刮刮樂") == 2, (
+        f"糾錯後應加入刮刮樂 ×2，實際 cart：{cart}"
+    )
+    # 未走 B-1 unclear clarify（糾錯命中 → reset/不累加 unclear_count）
+    assert L2_B1_CLARIFY not in speak_calls, (
+        f"糾錯命中不應 speak B-1 clarify，實際：{speak_calls}"
+    )
+
+
+def test_product_unclear_phonetic_correction_none_falls_back_to_b1() -> None:
+    """糾錯失敗（phonetic_match 回 None，含 Windows graceful no-op）→
+    落回既有 B-1 unclear（speak clarify、unclear_count 累加），行為同今天（不劣化）。"""
+    from unittest.mock import patch
+    from myProgram.sales.states import l2_l3_dialog
+
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # garble 連 UNCLEAR_MAX 次、糾錯皆 None → 走 B-1 達上限退鏈路 A（與既有 B-1 路徑同）
+    customer_input = FakeCustomerInput(["刮樂"] * UNCLEAR_MAX)
+
+    with patch.object(l2_l3_dialog, "phonetic_match", return_value=None):
+        next_state, _ = states.run_dialog(
+            speak=lambda text: speak_calls.append(text),
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+            think_count=0,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    assert cart_module.is_empty(cart), f"糾錯 None 不應加任何商品，實際 cart：{cart}"
+    assert speak_calls.count(L2_B1_CLARIFY) == UNCLEAR_MAX - 1, (
+        f"糾錯 None 應落回 B-1，前 {UNCLEAR_MAX-1} 次 speak clarify，實際：{speak_calls}"
+    )
+    assert next_state == "L1_via_subroutine_a"
+
+
+def test_product_unclear_phonetic_not_hijacking_reject_intent() -> None:
+    """拒絕意圖 garble → 先過 cancel_confirm gate（早 return）→ 不被糾錯劫持
+    （phonetic_match 完全不被呼叫）。"""
+    from unittest.mock import patch
+    from myProgram.sales.states import l2_l3_dialog
+
+    cart = cart_module.new_cart()
+    # 「不要了」→ 拒絕意圖 → cancel_confirm；「對」確認取消 → 退鏈路 A
+    customer_input = FakeCustomerInput(["不要了", "對"])
+
+    with patch.object(l2_l3_dialog, "phonetic_match") as mock_pm:
+        states.run_dialog(
+            speak=lambda text: None,
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+            think_count=0,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+        mock_pm.assert_not_called()
+
+
+def test_product_unclear_phonetic_not_hijacking_checkout_intent() -> None:
+    """結帳意圖 garble（L2 mode 視為 B-1，但經 intent=="結帳" 分支早 return）→
+    不被糾錯劫持（phonetic_match 完全不被呼叫）。"""
+    from unittest.mock import patch
+    from myProgram.sales.states import l2_l3_dialog
+
+    cart = cart_module.new_cart()
+    # 「結帳」→ L2 mode on_checkout_main（B-1 unclear）；再 None → 退出
+    customer_input = FakeCustomerInput(["結帳", None])
+
+    with patch.object(l2_l3_dialog, "phonetic_match") as mock_pm:
+        states.run_dialog(
+            speak=lambda text: None,
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+            think_count=0,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+        mock_pm.assert_not_called()
+
+
+def test_product_unclear_phonetic_corrected_missing_qty_enters_followup() -> None:
+    """糾錯命中商品名但無數量（corrected「刮刮樂」）→ 走 _handle_products 進缺數量追問，
+    顧客 timeout（None）→ skip 該商品 → 不加單（走與正常缺數量輸入相同 path）。"""
+    from unittest.mock import patch
+    from myProgram.sales.states import l2_l3_dialog
+
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # garble → 糾錯「刮刮樂」(無 qty) → 追問；followup None → skip 該商品；主 None → 退鏈路 A
+    customer_input = FakeCustomerInput(["刮樂", None, None])
+
+    with patch.object(l2_l3_dialog, "phonetic_match", return_value="刮刮樂"):
+        states.run_dialog(
+            speak=lambda text: speak_calls.append(text),
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+            think_count=0,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    # 進了缺數量追問（speak QTY_PROMPT），但顧客 timeout skip → 未加單
+    assert any("刮刮樂" in s and "幾" in s for s in speak_calls), (
+        f"糾錯後缺數量應 speak QTY 追問提示，實際：{speak_calls}"
+    )
+    assert cart_module.is_empty(cart), f"追問內 timeout skip → 不應加單，實際 cart：{cart}"
