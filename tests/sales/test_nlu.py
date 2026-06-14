@@ -511,6 +511,48 @@ def test_has_quantity_detects_arabic_and_chinese() -> None:
 
 
 # ============================================================
+# Bug2（2026-06-14 Pi 實測）：split_at_quantity — 商品名歪 + 數量同句拆句
+# ============================================================
+# 「刮樂一千張」(garble 商品 + 數量) 整句 phonetic_match 認不出 → 拆出商品段糾錯。
+# 從首個數量指示字（阿拉伯數字 / CHINESE_DIGIT_MAP 字 / multiplier 十拾百佰千仟萬万）
+# 切成 (head, tail)。
+
+def test_split_at_quantity_商品名歪加數量():
+    """「刮樂一千張」→ ("刮樂", "一千張")（從首個數量字「一」切）。"""
+    assert nlu.split_at_quantity("刮樂一千張") == ("刮樂", "一千張")
+
+
+def test_split_at_quantity_無數量字():
+    """無數量字 → (text, "")。"""
+    assert nlu.split_at_quantity("刮刮樂") == ("刮刮樂", "")
+
+
+def test_split_at_quantity_數量字在開頭():
+    """數量字在開頭 → ("", text)。"""
+    assert nlu.split_at_quantity("一千張") == ("", "一千張")
+
+
+def test_split_at_quantity_商品加阿拉伯數量():
+    """阿拉伯數字也算數量指示字。"""
+    assert nlu.split_at_quantity("刮樂3張") == ("刮樂", "3張")
+
+
+def test_split_at_quantity_商品加中文個位():
+    """「刮樂三張」→ ("刮樂", "三張")。"""
+    assert nlu.split_at_quantity("刮樂三張") == ("刮樂", "三張")
+
+
+def test_split_at_quantity_multiplier_十():
+    """multiplier「十」(在 CHINESE_DIGIT_MAP) 也是切點。"""
+    assert nlu.split_at_quantity("紅茶十瓶") == ("紅茶", "十瓶")
+
+
+def test_split_at_quantity_空字串():
+    """空字串 → ("", "")。"""
+    assert nlu.split_at_quantity("") == ("", "")
+
+
+# ============================================================
 # L0-QTY-011 (2026-05-25 加：量詞 agnostic 契約)
 # ============================================================
 

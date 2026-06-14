@@ -382,6 +382,34 @@ def has_quantity(text: str) -> bool:
     return any(char in text for char in _CHINESE_MULTIPLIER_CHARS)
 
 
+# 數量指示字集（split_at_quantity 用）：阿拉伯數字由 .isascii()+.isdigit() 認，
+# 中文側 = CHINESE_DIGIT_MAP 字（含十拾）∪ multiplier（含百佰千仟萬万）。
+_CHINESE_QUANTITY_CHARS = frozenset(CHINESE_DIGIT_MAP) | frozenset(_CHINESE_MULTIPLIER_CHARS)
+
+
+def split_at_quantity(text: str) -> tuple[str, str]:
+    """以「首個數量指示字」把文字切成 (head, tail)。
+
+    Bug2（2026-06-14）：商品名歪 + 數量同句（「刮樂一千張」）整句 phonetic_match
+    認不出 → 拆出 head（商品段）糾錯、tail（數量段）保留再拼接。
+
+    數量指示字 = 阿拉伯數字 / CHINESE_DIGIT_MAP 字 / multiplier（十拾百佰千仟萬万）。
+    tail 從首個數量指示字（含該字）起。
+
+    Returns:
+        無數量字 → (text, "")
+        數量字在開頭（index 0）→ ("", text)
+        否則 → (text[:i], text[i:])
+
+    例：「刮樂一千張」→ ("刮樂", "一千張")；「刮刮樂」→ ("刮刮樂", "")；
+        「一千張」→ ("", "一千張")。
+    """
+    for i, char in enumerate(text):
+        if (char.isascii() and char.isdigit()) or char in _CHINESE_QUANTITY_CHARS:
+            return text[:i], text[i:]
+    return text, ""
+
+
 def parse_quantity(text: str, default: int | None = 1) -> int | None:
     """從顧客輸入解析商品數量。
 

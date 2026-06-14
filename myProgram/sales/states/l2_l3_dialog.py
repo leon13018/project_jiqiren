@@ -82,7 +82,7 @@ from myProgram.sales.constants import (
     ACTION_L3_CHECKOUT_GO,
 )
 from myProgram.sales.dialog_io import DialogIO
-from myProgram.sales.nlu import classify_intent
+from myProgram.sales.nlu import classify_intent, split_at_quantity
 from myProgram.sales.product_parser import parse_products
 from myProgram.sales.phonetic import phonetic_match
 from myProgram.sales import cart as cart_module
@@ -447,16 +447,31 @@ class DialogSession:
         if products:
             return self._handle_products(products, in_main_loop=in_main_loop)
 
-        # ② 問商品 unclear 出口拼音糾錯（2026-06-14 Phase B，spec §2.3）：
+        # ② 問商品 unclear 出口拼音糾錯（2026-06-14 Phase B，spec §2.3 + Bug2 §2.2）：
         # 拒絕 / 想一下 / 結帳 / 客服 / 想買無商品 / 正常解析皆已先 return，不被劫持。
-        # 此處兜底 ASR 把商品名整個聽歪（刮樂→刮刮樂、茶→紅茶）：在商品候選域做拼音近音
-        # 糾錯，命中 → 重 parse_products（含①內嵌數量糾錯）→ 走與正常輸入相同的 _handle_products。
-        # corrected is None（含 Windows 無 pypinyin / 歧義 / 無夠近）→ 落回既有 B-1，不劣化。
-        corrected = phonetic_match(
+        # 兜底 ASR 把商品名整個聽歪（刮樂→刮刮樂、茶→紅茶）：在商品候選域做拼音近音糾錯。
+        # 兩路統一收斂到 corrected_response → parse_products → _handle_products：
+        #   (1) 整句 match：商品名歪、無數量（「刮樂」）
+        #   (2) 拆句 match（Bug2）：商品名歪 + 數量同句（「刮樂一千張」整句認不出 →
+        #       split_at_quantity 拆出 head「刮樂」糾「刮刮樂」+ tail「一千張」拼回）
+        # corrected_response is None（含 Windows 無 pypinyin / 歧義 / 無夠近 / 無數量段
+        # / 商品段糾不出）→ 落回既有 B-1，不劣化。
+        corrected_response = None
+        whole = phonetic_match(
             response, _PRODUCT_PHONETIC_CANDIDATES, group_key=_product_group
         )
-        if corrected is not None:
-            corrected_products = parse_products(corrected)
+        if whole is not None:
+            corrected_response = whole
+        else:
+            head, tail = split_at_quantity(response)
+            if head and tail:
+                corrected_head = phonetic_match(
+                    head, _PRODUCT_PHONETIC_CANDIDATES, group_key=_product_group
+                )
+                if corrected_head is not None:
+                    corrected_response = corrected_head + tail
+        if corrected_response is not None:
+            corrected_products = parse_products(corrected_response)
             if corrected_products:
                 return self._handle_products(corrected_products, in_main_loop=in_main_loop)
 

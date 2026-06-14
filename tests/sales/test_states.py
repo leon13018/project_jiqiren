@@ -7293,3 +7293,108 @@ def test_product_unclear_phonetic_corrected_missing_qty_enters_followup() -> Non
         f"糾錯後缺數量應 speak QTY 追問提示，實際：{speak_calls}"
     )
     assert cart_module.is_empty(cart), f"追問內 timeout skip → 不應加單，實際 cart：{cart}"
+
+
+# ============================================================
+# Bug2（2026-06-14 Pi 實測）：商品名歪 + 數量同句糾錯（拆句）
+# 「刮樂一千張」整句 phonetic_match 認不出 → split_at_quantity 拆出商品段「刮樂」糾錯
+# →「刮刮樂」+ tail「一千張」→ parse_products → _handle_products。
+# mock l2_l3_dialog.phonetic_match side_effect（整句→None、"刮樂"→"刮刮樂"）。
+# ============================================================
+
+def test_product_garble_with_quantity_split_corrects_and_funnels_over_limit() -> None:
+    """Bug2 整合：「刮樂一千張」整句糾錯 None → 拆句糾「刮樂」→「刮刮樂」+「一千張」
+    → parse_products 刮刮樂 qty 1000（bug1 修後）→ 超量 invalid_qty_reask（非 unclear）
+    → 改報 5 → 加 5。"""
+    from unittest.mock import patch
+    from myProgram.sales.states import l2_l3_dialog
+
+    def fake_pm(text, *args, **kwargs):
+        if text == "刮樂":
+            return "刮刮樂"
+        return None  # 整句「刮樂一千張」等其他 → 認不出
+
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 「刮樂一千張」→ 整句 None → 拆句「刮樂」→「刮刮樂」+「一千張」→ parse_products 刮刮樂×1000
+    #  → 超量 invalid_qty_reask → "5" → 加 5 → L3；主 None None → C-2 →「對」→ L4
+    customer_input = FakeCustomerInput(["刮樂一千張", "5", None, None, "對"])
+
+    with patch.object(l2_l3_dialog, "phonetic_match", side_effect=fake_pm):
+        next_state, _ = states.run_dialog(
+            speak=lambda text: speak_calls.append(text),
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+            think_count=0,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    assert cart_module.get_quantity(cart, "刮刮樂") == 5, (
+        f"拆句糾錯後刮刮樂應走超量重問改 5，非 unclear，實際 cart：{cart}"
+    )
+    assert any("最多只能選購" in s for s in speak_calls), (
+        f"預期超量重問提示（非 B-1 unclear），實際：{speak_calls}"
+    )
+    assert L2_B1_CLARIFY not in speak_calls, (
+        f"拆句糾錯命中不應 speak B-1 clarify，實際：{speak_calls}"
+    )
+
+
+def test_product_garble_no_quantity_segment_falls_back_to_b1() -> None:
+    """Bug2 邊界：garble 無數量段（「刮樂以前」整句糾不出、無數量字可拆）→
+    拆句不觸發（head and tail 為 False）→ 落回 B-1 unclear（不劣化）。"""
+    from unittest.mock import patch
+    from myProgram.sales.states import l2_l3_dialog
+
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 「刮樂以前」無數量字 → split_at_quantity ("刮樂以前","") → 不拆 → 整句 None → B-1
+    customer_input = FakeCustomerInput(["刮樂以前"] * UNCLEAR_MAX)
+
+    with patch.object(l2_l3_dialog, "phonetic_match", return_value=None):
+        next_state, _ = states.run_dialog(
+            speak=lambda text: speak_calls.append(text),
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+            think_count=0,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    assert cart_module.is_empty(cart), f"無數量段不應加單，實際 cart：{cart}"
+    assert speak_calls.count(L2_B1_CLARIFY) == UNCLEAR_MAX - 1, (
+        f"無數量段應落回 B-1，前 {UNCLEAR_MAX-1} 次 speak clarify，實際：{speak_calls}"
+    )
+    assert next_state == "L1_via_subroutine_a"
+
+
+def test_product_garble_with_quantity_head_uncorrectable_falls_back_to_b1() -> None:
+    """Bug2 邊界：有數量段但商品段糾不出（phonetic_match 整句與 head 皆回 None）→
+    corrected_response is None → 落回 B-1 unclear（不劣化）。"""
+    from unittest.mock import patch
+    from myProgram.sales.states import l2_l3_dialog
+
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 「亂碼三張」→ 整句 None、拆句 head「亂碼」糾錯仍 None → corrected None → B-1
+    customer_input = FakeCustomerInput(["亂碼三張"] * UNCLEAR_MAX)
+
+    with patch.object(l2_l3_dialog, "phonetic_match", return_value=None):
+        next_state, _ = states.run_dialog(
+            speak=lambda text: speak_calls.append(text),
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+            think_count=0,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    assert cart_module.is_empty(cart), f"商品段糾不出不應加單，實際 cart：{cart}"
+    assert speak_calls.count(L2_B1_CLARIFY) == UNCLEAR_MAX - 1, (
+        f"商品段糾不出應落回 B-1，實際：{speak_calls}"
+    )
+    assert next_state == "L1_via_subroutine_a"
