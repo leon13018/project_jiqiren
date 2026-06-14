@@ -12,6 +12,7 @@
 - `nlu.py` — 意圖辨識（規則匹配，純函式；比對經 `constants/keyword_group.py` 的 `KeywordGroup`）。
 - `dialog_io.py` — `DialogIO` callback 束（speak / read / print / act + `speak_blocking`；states 私有函式統一收 io 單參，OOP 重構 W2）。
 - `product_parser.py` — 商品與數量解析。
+- `phonetic.py` — 拼音近音糾錯（聲韻母模糊比對 + 歧義安全閥，純函式；掛 NLU 放棄出口兜底 ASR 平翹舌 / 前後鼻音混淆，pypinyin 注入 seam + 缺依賴 graceful no-op。Phase A 只掛問數量）。
 - `cart.py` — 購物車（加 / 減 / 清空 / 結算 / `classify_qty` 數量四分類，純函式）。
 - `__init__.py` — 套件標記。
 - `CLAUDE.md` — 本層導引。
