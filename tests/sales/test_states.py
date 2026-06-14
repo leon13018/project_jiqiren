@@ -6949,3 +6949,156 @@ def test_zero_qty_scenario3_zero_first_then_missing() -> None:
     )
     assert cart_module.get_quantity(cart, "刮刮樂") == 5
     assert cart_module.get_quantity(cart, "冰紅茶") == 3
+
+
+# ============================================================
+# 拼音近音糾錯 Phase A 掛載（spec resources/specs/pinyin_correction_phaseA_2026-06-14_spec.md §2.2）
+#
+# 問數量 sub-loop「其他 bucket」插入 phonetic_match 兜底：顧客答非數字 / 非客服 /
+# 非拒絕 / 非結帳（如 ASR 把「三瓶」聽成「商品」）→ phonetic 糾回 → 走與直接報數
+# 完全相同的 classify_qty / add_item 路徑。
+#
+# mock _l2_l3_qty_followup.phonetic_match（Windows 無 pypinyin，不依賴真演算法；
+# 演算法正確性由 test_phonetic.py 注入式單元測試覆蓋）。
+# ============================================================
+
+
+def test_qty_followup_phonetic_corrects_misheard_to_quantity() -> None:
+    """缺量商品追問內顧客答「商品」（ASR 誤聽）→ phonetic 糾回「三瓶」→ 加 3。"""
+    from unittest.mock import patch
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 紅茶（缺量）→ ask 幾瓶 → "商品"（非數字/客服/拒絕/結帳）→ phonetic 回「三瓶」→ 加 3
+    # → added → L2_TO_L3_TRANSITION → continue → None None → C-2 silent → confirm；「對」→ L4
+    customer_input = FakeCustomerInput(["紅茶", "商品", None, None, "對"])
+
+    with patch(
+        "myProgram.sales.states._l2_l3_qty_followup.phonetic_match",
+        return_value="三瓶",
+    ):
+        next_state, _ = states.run_dialog(
+            speak=lambda text: speak_calls.append(text),
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+            think_count=0,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    assert cart_module.get_quantity(cart, "冰紅茶") == 3, (
+        f"phonetic 糾回「三瓶」應走與直接報數相同路徑加 3，實際 cart：{dict(cart)}"
+    )
+
+
+def test_qty_followup_phonetic_none_keeps_existing_reprompt() -> None:
+    """回歸：phonetic_match 回 None（含 Windows 無 pypinyin / 歧義 / 無夠近）
+    → 既有 attempts++ / QTY_CLARIFY_TEMPLATE reprompt 行為不變（達 3 次 skip + cancel_notice）。
+    """
+    from unittest.mock import patch
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 紅茶（缺量）→ ask → "商品" ×3（phonetic 皆回 None）→ attempts cap → skip + cancel notice
+    # → L2_B3_REASK 合成 → 主迴圈 continue → None → L2-A timeout 退 L1
+    customer_input = FakeCustomerInput(["紅茶", "商品", "商品", "商品", None])
+
+    with patch(
+        "myProgram.sales.states._l2_l3_qty_followup.phonetic_match",
+        return_value=None,
+    ):
+        next_state, _ = states.run_dialog(
+            speak=lambda text: speak_calls.append(text),
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+            think_count=0,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    # phonetic None → 落回既有路徑：未加 cart、達 attempts cap 後 skip
+    assert cart_module.is_empty(cart), (
+        f"phonetic None 應落回既有 reprompt，未加任何商品，實際：{dict(cart)}"
+    )
+    assert next_state == "L1_via_subroutine_a"
+    # 既有 clarify reprompt 行為不變（attempts 期間 speak QTY_CLARIFY_TEMPLATE）
+    assert QTY_CLARIFY_TEMPLATE.format(unit="瓶") in speak_calls, (
+        f"phonetic None 應維持既有 QTY_CLARIFY_TEMPLATE reprompt，實際：{speak_calls}"
+    )
+    # 達 attempts cap → cancel notice 與 L2_B3_REASK 合成單一 speak
+    notice = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="冰紅茶")
+    assert any(notice in s and L2_B3_REASK in s for s in speak_calls), (
+        f"attempts cap 應 speak 合成「{notice}，{L2_B3_REASK}」，實際：{speak_calls}"
+    )
+
+
+def test_qty_followup_phonetic_over_limit_funnels_into_reask() -> None:
+    """邊界：phonetic_match 回超量詞「六十瓶」(60 > 50) → 走 invalid_qty_reask（control 路徑）
+    → 顧客改報合法「5」→ 加 5。驗修正後數量走與直接報數完全相同的超量重問鏈。
+    """
+    from unittest.mock import patch
+    from myProgram.sales.constants import MAX_QTY_PER_ITEM
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 紅茶（缺量）→ ask → "商品" → phonetic 回「六十瓶」(60>50) → invalid_qty_reask
+    # 「最多只能選購 50」→ "5" → 加 5 → added → L2_TO_L3_TRANSITION → None None → C-2 → 「對」→ L4
+    customer_input = FakeCustomerInput(["紅茶", "商品", "5", None, None, "對"])
+
+    with patch(
+        "myProgram.sales.states._l2_l3_qty_followup.phonetic_match",
+        return_value="六十瓶",
+    ):
+        next_state, _ = states.run_dialog(
+            speak=lambda text: speak_calls.append(text),
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+            think_count=0,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    assert cart_module.get_quantity(cart, "冰紅茶") == 5, (
+        f"phonetic 超量詞應 funnel 進 invalid_qty_reask，改報 5 後加 5，實際：{dict(cart)}"
+    )
+    assert any("最多只能選購" in s and str(MAX_QTY_PER_ITEM) in s for s in speak_calls), (
+        f"預期 invalid_qty_reask『最多只能選購 {MAX_QTY_PER_ITEM}』提示，實際：{speak_calls}"
+    )
+
+
+def test_qty_followup_phonetic_does_not_hijack_reject() -> None:
+    """回歸保險：拒絕在插入點之前 return，不被 phonetic 劫持。
+
+    即使 phonetic_match 被 mock 成永遠回「三瓶」，顧客在追問內講「不要」(L2 拒絕)
+    仍走拒絕 skip path（cart 不加），證明客服 / 拒絕 / 結帳 三判定優先於 phonetic。
+    """
+    from unittest.mock import patch
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    # 紅茶（缺量）→ ask → "不要"（L2 拒絕，在 phonetic 插入點之前 return）→ skip
+    # → cancel notice + L2_B3_REASK 合成 → continue → None → L2-A timeout 退 L1
+    customer_input = FakeCustomerInput(["紅茶", "不要", None])
+
+    with patch(
+        "myProgram.sales.states._l2_l3_qty_followup.phonetic_match",
+        return_value="三瓶",
+    ):
+        next_state, _ = states.run_dialog(
+            speak=lambda text: speak_calls.append(text),
+            print_terminal=lambda text: None,
+            read_customer_input=customer_input.read,
+            cart=cart,
+            think_count=0,
+            opencv_disable=lambda: None,
+            do_action=lambda *a, **k: None,
+        )
+
+    # 拒絕優先 → skip，phonetic 不該劫持把「三瓶」加進去
+    assert cart_module.is_empty(cart), (
+        f"拒絕應在 phonetic 之前 return skip，cart 應為空，實際：{dict(cart)}"
+    )
+    assert next_state == "L1_via_subroutine_a"
+    notice = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="冰紅茶")
+    assert any(notice in s and L2_B3_REASK in s for s in speak_calls), (
+        f"拒絕 skip 應 speak 合成「{notice}，{L2_B3_REASK}」，實際：{speak_calls}"
+    )

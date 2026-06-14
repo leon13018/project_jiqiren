@@ -43,6 +43,11 @@ from myProgram.sales import cart as cart_module
 from myProgram.sales.dialog_io import DialogIO
 from myProgram.sales.states._timed_confirm import SERVICE_CONFIRM
 from myProgram.sales.states._invalid_qty_reask import invalid_qty_reask
+from myProgram.sales.phonetic import phonetic_match
+
+# 拼音糾錯候選用 canonical 口語量詞（spec §2.2）：一個量值一個口語詞（2 用「兩」），
+# 保歧義安全閥有效——避免同義候選（如「二瓶」「兩瓶」）互相壓低 margin。
+_QTY_NUMBER_WORDS = ("一", "兩", "三", "四", "五", "六", "七", "八", "九", "十")
 
 
 def format_cancel_prefix(cancel_notices: list[str]) -> str:
@@ -173,6 +178,42 @@ def resolve_and_add_products(
     return added_count > 0, cancel_notices, None
 
 
+def _apply_resolved_qty(
+    qty: int,
+    product: str,
+    unit: str,
+    cart,
+    io,
+) -> tuple[bool, str | None, str | None]:
+    """已得 int qty → classify_qty 三分流（at_cap / 無效 / ok），單一來源化。
+
+    現有 has_quantity 分支與新 phonetic 分支共用，消除重複（行為與原 has_quantity
+    分支完全相同）。回傳語意對齊 _qty_follow_up_sub_loop：
+        (True, None, None)  — 已加入 cart
+        (False, None, None) — cart cap 上限 skip（即時 speak 已發出）
+        (False, None, control) — 超量 funnel 進 invalid_qty_reask；非 resolved 冒泡 control。
+    """
+    verdict = cart_module.classify_qty(cart, product, qty)
+    if verdict == "at_cap":
+        # cart 內已達上限 → 無法再加，即時 speak 提示 + skip 此商品（非 cancel UX，不拼接）
+        io.speak(AT_CAP_NOTICE_TEMPLATE.format(product=product, max_qty=MAX_QTY_PER_ITEM, unit=unit))
+        return False, None, None
+    if verdict != "ok":
+        # 2026-06-09：qty==0 / 超量皆不 cap，funnel 進 invalid_qty_reask（單商品；
+        # verdict 字面即 reason）
+        control = invalid_qty_reask(
+            {product: verdict}, cart, io.speak, io.print_terminal,
+            io.read_customer_input, io.speak_and_wait,
+        )
+        if control == "resolved":
+            return True, None, None       # 已在 reask loop 內 add_item
+        if control == "exit_l1":
+            return False, None, "exit_l1"
+        return False, None, control        # reenter_timeout / reenter_cancel
+    cart_module.add_item(cart, product, qty)
+    return True, None, None
+
+
 def _qty_follow_up_sub_loop(
     product: str,
     unit: str,
@@ -223,29 +264,11 @@ def _qty_follow_up_sub_loop(
             return False, cancel_notice, None
 
         if has_quantity(follow_up):
-            qty = parse_quantity(follow_up)
             # Wave 4 hotfix（2026-05-26）— caller 端 cart cap 業務檢查
             # 修 Pi 實機踩坑：顧客輸入「34435454545454545」→ parse_quantity 解析
             # 為天文數字 → cart.add_item assert raise → 程式 crash。
-            verdict = cart_module.classify_qty(cart, product, qty)
-            if verdict == "at_cap":
-                # cart 內已達上限 → 無法再加，即時 speak 提示 + skip 此商品（非 cancel UX，不拼接）
-                io.speak(AT_CAP_NOTICE_TEMPLATE.format(product=product, max_qty=MAX_QTY_PER_ITEM, unit=unit))
-                return False, None, None
-            if verdict != "ok":
-                # 2026-06-09：qty==0 / 超量皆不 cap，funnel 進 invalid_qty_reask（單商品；
-                # verdict 字面即 reason）
-                control = invalid_qty_reask(
-                    {product: verdict}, cart, io.speak, io.print_terminal,
-                    io.read_customer_input, io.speak_and_wait,
-                )
-                if control == "resolved":
-                    return True, None, None       # 已在 reask loop 內 add_item
-                if control == "exit_l1":
-                    return False, None, "exit_l1"
-                return False, None, control        # reenter_timeout / reenter_cancel
-            cart_module.add_item(cart, product, qty)
-            return True, None, None
+            # 2026-06-14：at_cap / 無效 / ok 三分流抽 _apply_resolved_qty 單一來源化。
+            return _apply_resolved_qty(parse_quantity(follow_up), product, unit, cart, io)
 
         follow_intent = classify_intent(follow_up, classify_intent_mode)
 
@@ -270,6 +293,15 @@ def _qty_follow_up_sub_loop(
             # B3：L3 normal mode「不要 / 不用」被分類為結帳意圖 — 視為「不追加此商品」
             # 2026-05-30：notice 不即時 speak，return 給 caller 拼接到 reask
             return False, cancel_notice, None
+
+        # 2026-06-14 拼音近音糾錯（Phase A，spec §2.2）：客服 / 拒絕 / 結帳已先判定，
+        # 不被糾錯劫持。此處兜底 ASR 把量詞聽成近音詞（如「三瓶」→「商品」）：
+        # 在合法詞域 {一瓶…十瓶} 比對，命中 → 走與直接報數完全相同的 _apply_resolved_qty
+        # 路徑。corrected is None（含 Windows 無 pypinyin / 歧義 / 無夠近）→ 落回 attempts++。
+        candidates = [w + unit for w in _QTY_NUMBER_WORDS]
+        corrected = phonetic_match(follow_up, candidates)
+        if corrected is not None:
+            return _apply_resolved_qty(parse_quantity(corrected), product, unit, cart, io)
 
         # 其他（無法判斷 / 想一下 / 商品 等）
         attempts += 1
