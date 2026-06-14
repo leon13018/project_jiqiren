@@ -17,6 +17,8 @@
 """
 
 from myProgram.sales.nlu import parse_quantity
+from myProgram.sales.phonetic import phonetic_match
+from myProgram.sales.constants import PRODUCTS, QTY_NUMBER_WORDS
 
 # ============================================================
 # 商品 keyword → 標準商品名映射（從 nlu.py 移過來）
@@ -118,6 +120,17 @@ def parse_products(text: str) -> list:
         window_end = found[i + 1][0] if i + 1 < len(found) else len(text)
         window = text[end:window_end]
         qty = parse_quantity(window, default=None)
+        # ① 內嵌數量拼音糾錯（2026-06-14 Phase B，spec §2.1）：
+        # 視窗解不出數量、但有實質內容時（如「紅茶商品」的「商品」=「三瓶」聽歪），
+        # 在該 product 單位的合法量詞域 {一X…十X} 做拼音近音糾錯。
+        # phonetic_match graceful（Windows 無 pypinyin → None）→ ① no-op，行為同今天。
+        if qty is None and window.strip():
+            unit = PRODUCTS[product]["單位"]
+            corrected = phonetic_match(
+                window.strip(), [w + unit for w in QTY_NUMBER_WORDS]
+            )
+            if corrected is not None:
+                qty = parse_quantity(corrected)
         raw.append((product, qty))
 
     # 4. Per-product dedup pass（見 docstring「Per-product dedup 規則」段）

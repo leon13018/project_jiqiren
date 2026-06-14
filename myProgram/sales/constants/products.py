@@ -12,6 +12,7 @@ __all__ = [
     "QTY_PROMPT_TEMPLATE",
     "QTY_CLARIFY_TEMPLATE",
     "AT_CAP_NOTICE_TEMPLATE",
+    "QTY_NUMBER_WORDS",
 ]
 
 # ============================================================
@@ -38,3 +39,9 @@ QTY_CLARIFY_TEMPLATE: str = "不好意思我聽不太懂，請問您要幾{unit}
 # L2 / L3 加單時 cart 已達單筆上限的即時通知（2026-06-11 抽常數；
 # 原 inline 於 _l2_l3_qty_followup.py 兩處逐字重複）
 AT_CAP_NOTICE_TEMPLATE: str = "{product}已經點到單筆上限 {max_qty} {unit}，無法再加"
+
+# 拼音糾錯候選用 canonical 口語量詞（2026-06-14 Phase B 從 _l2_l3_qty_followup 下移共用）。
+# 問數量 sub-loop（Phase A）與 parse_products 內嵌數量糾錯（Phase B ①）共用此清單，
+# 避免兩處平行維護（對齊既有「keyword 共享常數」慣例）。
+# 一個量值一個口語詞（2 用「兩」），保歧義安全閥有效——避免同義候選互相壓低 margin。
+QTY_NUMBER_WORDS: tuple = ("一", "兩", "三", "四", "五", "六", "七", "八", "九", "十")

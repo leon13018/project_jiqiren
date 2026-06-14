@@ -127,3 +127,41 @@ def test_parse_products_chinese_quantity() -> None:
     """中文數字也能解析。"""
     result = product_parser.parse_products("紅茶兩瓶")
     assert result == [("冰紅茶", 2)]
+
+
+# ============================================================
+# ① 一句內嵌數量拼音糾錯（2026-06-14 Phase B，spec §2.1）
+# parse_quantity 解不出視窗數量時，對視窗做拼音近音糾錯（重用 phonetic_match）。
+# 整合測試 mock product_parser.phonetic_match（Windows 無 pypinyin；
+# 聲韻母演算法正確性由 test_phonetic.py 注入 fake 覆蓋）。
+# ============================================================
+
+from unittest.mock import patch  # noqa: E402
+
+
+def test_parse_products_embedded_qty_phonetic_correction_hits() -> None:
+    """「紅茶商品」(=紅茶三瓶)：商品認得、內嵌數量「商品」聽歪 →
+    phonetic_match 糾回「三瓶」→ 直接 冰紅茶 ×3，不再多問一次。"""
+    with patch.object(product_parser, "phonetic_match", return_value="三瓶"):
+        assert product_parser.parse_products("紅茶商品") == [("冰紅茶", 3)]
+
+
+def test_parse_products_embedded_qty_correction_none_keeps_missing() -> None:
+    """糾錯失敗（phonetic_match 回 None，含 Windows graceful no-op）→
+    視窗數量仍 None，落回 (商品, None) 走既有追問，行為同今天（不劣化）。"""
+    with patch.object(product_parser, "phonetic_match", return_value=None):
+        assert product_parser.parse_products("紅茶商品") == [("冰紅茶", None)]
+
+
+def test_parse_products_embedded_qty_not_triggered_when_qty_resolved() -> None:
+    """視窗已解出數量（「紅茶 2」）→ 不觸發糾錯（phonetic_match 完全不被呼叫）。"""
+    with patch.object(product_parser, "phonetic_match") as mock_pm:
+        assert product_parser.parse_products("紅茶 2") == [("冰紅茶", 2)]
+        mock_pm.assert_not_called()
+
+
+def test_parse_products_empty_window_not_corrected() -> None:
+    """單商品無後方視窗內容（「紅茶」）→ 空視窗不誤糾（phonetic_match 不被呼叫）。"""
+    with patch.object(product_parser, "phonetic_match") as mock_pm:
+        assert product_parser.parse_products("紅茶") == [("冰紅茶", None)]
+        mock_pm.assert_not_called()

@@ -37,6 +37,7 @@ from myProgram.sales.constants import (
     QTY_FOLLOWUP_TIMEOUT,
     PRODUCT_CANCELLED_NOTICE_TEMPLATE,
     MULTI_PRODUCT_CANCELLED_NOTICE_TEMPLATE,
+    QTY_NUMBER_WORDS,
 )
 from myProgram.sales.nlu import parse_quantity, has_quantity, classify_intent
 from myProgram.sales import cart as cart_module
@@ -44,10 +45,6 @@ from myProgram.sales.dialog_io import DialogIO
 from myProgram.sales.states._timed_confirm import SERVICE_CONFIRM
 from myProgram.sales.states._invalid_qty_reask import invalid_qty_reask
 from myProgram.sales.phonetic import phonetic_match
-
-# 拼音糾錯候選用 canonical 口語量詞（spec §2.2）：一個量值一個口語詞（2 用「兩」），
-# 保歧義安全閥有效——避免同義候選（如「二瓶」「兩瓶」）互相壓低 margin。
-_QTY_NUMBER_WORDS = ("一", "兩", "三", "四", "五", "六", "七", "八", "九", "十")
 
 
 def format_cancel_prefix(cancel_notices: list[str]) -> str:
@@ -298,7 +295,7 @@ def _qty_follow_up_sub_loop(
         # 不被糾錯劫持。此處兜底 ASR 把量詞聽成近音詞（如「三瓶」→「商品」）：
         # 在合法詞域 {一瓶…十瓶} 比對，命中 → 走與直接報數完全相同的 _apply_resolved_qty
         # 路徑。corrected is None（含 Windows 無 pypinyin / 歧義 / 無夠近）→ 落回 attempts++。
-        candidates = [w + unit for w in _QTY_NUMBER_WORDS]
+        candidates = [w + unit for w in QTY_NUMBER_WORDS]
         corrected = phonetic_match(follow_up, candidates)
         if corrected is not None:
             return _apply_resolved_qty(parse_quantity(corrected), product, unit, cart, io)
