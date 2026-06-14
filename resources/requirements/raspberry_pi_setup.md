@@ -34,6 +34,7 @@
 - qrcode
 - opencv-python
 - wheel
+- pypinyin
 
 ## raspi-config 啟用項
 
