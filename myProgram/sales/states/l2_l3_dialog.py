@@ -101,12 +101,18 @@ def _entry_prompt_for(cart) -> str:
 
 # ② 問商品 unclear 出口拼音糾錯（2026-06-14 Phase B，spec §2.3）：
 # 商品名整個被聽歪（刮樂/尬尬樂→刮刮樂、茶→紅茶）→ 整句認不出 → 放棄出口前糾正。
+# 候選須全部可被 parse_products 解析（_product_group 依賴）；擴充候選時務必確認。
 _PRODUCT_PHONETIC_CANDIDATES = ("冰紅茶", "紅茶", "刮刮樂")
 
 
 def _product_group(s):
-    """候選分組鍵：同商品多 surface（冰紅茶 / 紅茶 皆指冰紅茶）不互壓歧義閥 margin。"""
-    return parse_products(s)[0][0]
+    """候選分組鍵：同商品多 surface（冰紅茶 / 紅茶 皆指冰紅茶）不互壓歧義閥 margin。
+
+    防線（2026-06-14 採納反思 product-group-unguarded-empty-parse）：候選若不可
+    parse_products（回空 list）→ 回原字串 fallback，避免 `[0]` IndexError 炸 session。
+    """
+    result = parse_products(s)
+    return result[0][0] if result else s
 
 
 def run_dialog(

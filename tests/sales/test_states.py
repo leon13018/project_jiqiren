@@ -7398,3 +7398,23 @@ def test_product_garble_with_quantity_head_uncorrectable_falls_back_to_b1() -> N
         f"商品段糾不出應落回 B-1，實際：{speak_calls}"
     )
     assert next_state == "L1_via_subroutine_a"
+
+
+def test_product_group_unparseable_candidate_returns_fallback():
+    """守則：_product_group 對不可 parse_products 的字串回 fallback（原字串），不 IndexError。
+
+    採納反思 product-group-unguarded-empty-parse（2026-06-14）：候選未來若擴入不在
+    KEYWORD_MAP 的詞，舊寫法 parse_products(s)[0][0] 會 IndexError 炸整個 dialog session。
+    """
+    from myProgram.sales.product_parser import parse_products
+    from myProgram.sales.states.l2_l3_dialog import (
+        _product_group,
+        _PRODUCT_PHONETIC_CANDIDATES,
+    )
+
+    assert _product_group("完全不存在的詞") == "完全不存在的詞"  # fallback，不炸
+    assert _product_group("紅茶") == "冰紅茶"
+    assert _product_group("刮刮樂") == "刮刮樂"
+    # 所有 production 候選皆可解析（防線僅為未來擴充保險，現不誤觸發 else 分支）
+    for cand in _PRODUCT_PHONETIC_CANDIDATES:
+        assert _product_group(cand) == parse_products(cand)[0][0]
