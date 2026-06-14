@@ -6892,6 +6892,28 @@ def test_over_limit_cancel_overlimit_reenters_with_notice() -> None:
     assert any("好的已為您取消這些商品" in s for s in speaks)
 
 
+def test_qty_followup_一千張_over_limit_funnels_into_reask() -> None:
+    """Bug1 整合（2026-06-14 Pi 實測）：缺數量追問答「一千張」(=1000 超量) →
+    進 invalid_qty_reask 重問鏈（非修前靜默加 1 張）→ 改 5 → 加 5。"""
+    speaks: list = []
+    cart = cart_module.new_cart()
+    # 「刮刮樂」(缺量) → 追問 → "一千張"(=1000 超量) → invalid_qty_reask「最多只能選購 50」
+    #  → "5" → 加 5 → L3；主 None None → C-2 → 「對」 → L4
+    customer_input = FakeCustomerInput(["刮刮樂", "一千張", "5", None, None, "對"])
+    next_state, _ = states.run_dialog(
+        speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
+        read_customer_input=customer_input.read, cart=cart, think_count=0,
+        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+    )
+    # 修前「一千張」=1 → 靜默加 1 張刮刮樂；修後 =1000 超量 → 重問 → 改 5
+    assert cart_module.get_quantity(cart, "刮刮樂") == 5, (
+        f"「一千張」應走超量重問改 5，非靜默加 1，實際：{dict(cart)}"
+    )
+    assert any("最多只能選購" in s for s in speaks), (
+        f"預期超量重問提示，實際 speaks={speaks}"
+    )
+
+
 # ============================================================
 # qty==0 無效數量重問（2026-06-09 加；spec invalid_qty_reask Task 3）
 # ============================================================

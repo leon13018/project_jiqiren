@@ -262,9 +262,17 @@ _CHINESE_TENS = {"十": 10, "拾": 10, "百": 100, "佰": 100}
 # 個位字元集（供複合數字 regex 用）
 _CHINESE_UNIT_CHARS = "一壹兩二貳三參四肆五伍六陸七柒八捌九玖"
 
+# 數量乘數字元集（Bug1 2026-06-14：擴 千/萬）。供 has_quantity 偵測「千張」=有數量、
+# split_at_quantity 找首個數量指示字用。十/百已可由 CHINESE_DIGIT_MAP（十）或 compound 認，
+# 千/萬 不在 map → 必須獨立列為偵測字元。含異體字。
+_CHINESE_MULTIPLIER_CHARS = "十拾百佰千仟萬万"
+
 # 複合中文數字 regex（perf_w1 F-2 預編譯；pattern 與原 f-string 逐字相同）
 _TENS_RE = re.compile(rf"([{_CHINESE_UNIT_CHARS}])?[十拾]([{_CHINESE_UNIT_CHARS}])?")
 _HUNDREDS_RE = re.compile(rf"([{_CHINESE_UNIT_CHARS}])[百佰]([{_CHINESE_UNIT_CHARS}十拾]*)?")
+# Bug1：千 / 萬位 regex（mirror _HUNDREDS_RE；rest 可含更低位單位字 + 個位）
+_THOUSANDS_RE = re.compile(rf"([{_CHINESE_UNIT_CHARS}])?[千仟]([{_CHINESE_UNIT_CHARS}百佰十拾]*)?")
+_TENTHOUSANDS_RE = re.compile(rf"([{_CHINESE_UNIT_CHARS}])?[萬万]([{_CHINESE_UNIT_CHARS}千仟百佰十拾]*)?")
 
 
 def _match_tens(text: str) -> int | None:
@@ -281,16 +289,34 @@ def _match_tens(text: str) -> int | None:
 
 
 def _parse_compound_chinese(text: str) -> int | None:
-    """解析複合中文數字（「十二 / 二十 / 二十一 / 一百 / 三十五」等）。
+    """解析複合中文數字（「十二 / 二十 / 一百 / 三百五十二 / 一千五百 / 一萬」等）。
 
     支援 pattern（依優先序）：
-        1. X百[Y十Z] — 百位（如「一百」→ 100、「三百五十二」→ 352）
-        2. [X]十Y    — 十位（如「十二」→ 12、「二十」→ 20、「二十一」→ 21）
+        1. [X]萬[rest]  — 萬位（如「一萬」→ 10000）（Bug1 2026-06-14）
+        2. [X]千[rest]  — 千位（如「一千」→ 1000、「一千五百」→ 1500、「兩千」→ 2000）（Bug1）
+        3. X百[Y十Z]    — 百位（如「一百」→ 100、「三百五十二」→ 352）
+        4. [X]十Y       — 十位（如「十二」→ 12、「二十」→ 20、「二十一」→ 21）
+
+    千 / 萬位「單位字省略 → 預設 1」（「千張」→ 1000、「萬張」→ 10000），與既有
+    十位「十二」省略前導 1 一致。rest 由 _parse_rest 遞迴解析較低位（百 / 十 / 個位）。
+    `零` 連接（一萬零五十）out of scope（spec §2.1）。
 
     Returns:
         int 或 None（未命中複合 pattern）。
     """
-    # 「百」位優先
+    # 「萬」位優先（Bug1）
+    m = _TENTHOUSANDS_RE.search(text)
+    if m:
+        tenthousands = CHINESE_DIGIT_MAP.get(m.group(1), 1)
+        return tenthousands * 10000 + _parse_rest(m.group(2) or "")
+
+    # 「千」位（Bug1）
+    m = _THOUSANDS_RE.search(text)
+    if m:
+        thousands = CHINESE_DIGIT_MAP.get(m.group(1), 1)
+        return thousands * 1000 + _parse_rest(m.group(2) or "")
+
+    # 「百」位
     m = _HUNDREDS_RE.search(text)
     if m:
         hundreds = CHINESE_DIGIT_MAP.get(m.group(1), 1)
@@ -300,6 +326,25 @@ def _parse_compound_chinese(text: str) -> int | None:
 
     # 「十」位（共用 _match_tens）
     return _match_tens(text)
+
+
+def _parse_rest(text: str) -> int:
+    """解析千 / 萬位後的剩餘部分（可含百 / 十 / 個位）。
+
+    遞迴回 _parse_compound_chinese 處理百 / 十位（如「一千五百」rest=「五百」→ 500）；
+    未命中複合 pattern 則純個位 fallback。空字串回 0。
+    遞迴安全：rest 已剝除千 / 萬，只會命中較低位分支，不會回到千 / 萬。
+    """
+    if not text:
+        return 0
+    compound = _parse_compound_chinese(text)
+    if compound is not None:
+        return compound
+    # 純個位
+    for char, value in CHINESE_DIGIT_MAP.items():
+        if char in text:
+            return value
+    return 0
 
 
 def _parse_tens_part(text: str) -> int:
@@ -330,7 +375,11 @@ def has_quantity(text: str) -> bool:
     """
     if _ARABIC_DIGITS_RE.search(text):
         return True
-    return any(char in text for char in CHINESE_DIGIT_MAP)
+    if any(char in text for char in CHINESE_DIGIT_MAP):
+        return True
+    # Bug1（2026-06-14）：千 / 萬 multiplier 不在 CHINESE_DIGIT_MAP（十在 map），
+    # 須獨立認列 — 否則「千張」/「萬張」被判無數量 → 誤觸缺數量追問。
+    return any(char in text for char in _CHINESE_MULTIPLIER_CHARS)
 
 
 def parse_quantity(text: str, default: int | None = 1) -> int | None:
