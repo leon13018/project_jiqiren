@@ -7102,3 +7102,29 @@ def test_qty_followup_phonetic_does_not_hijack_reject() -> None:
     assert any(notice in s and L2_B3_REASK in s for s in speak_calls), (
         f"拒絕 skip 應 speak 合成「{notice}，{L2_B3_REASK}」，實際：{speak_calls}"
     )
+
+
+def test_qty_number_words_round_trip_through_parse_quantity():
+    """守則：phonetic 糾錯候選詞 _QTY_NUMBER_WORDS 每個 + 單位經 parse_quantity 都解回正確數量。
+
+    涵蓋反思（2026-06-14）parse-quantity-liang-compatibility /
+    phonetic-corrected-parse-quantity-bypass：糾錯分支
+    `_apply_resolved_qty(parse_quantity(corrected), ...)` 依賴此 round-trip，
+    若候選詞清單或 parse_quantity 改動破壞耦合（尤其「兩」≠「二」的相容性），
+    qty 會靜默走錯分流（漏糾 / 進 invalid_qty_reask）。runtime 已驗證正確，本測試固化防回歸。
+    """
+    from myProgram.sales.states._l2_l3_qty_followup import _QTY_NUMBER_WORDS
+    from myProgram.sales.nlu import parse_quantity
+
+    expected = {
+        "一": 1, "兩": 2, "三": 3, "四": 4, "五": 5,
+        "六": 6, "七": 7, "八": 8, "九": 9, "十": 10,
+    }
+    for word in _QTY_NUMBER_WORDS:
+        assert word in expected, f"_QTY_NUMBER_WORDS 新增未知詞「{word}」，請補預期值再驗 round-trip"
+        for unit in ("瓶", "張"):
+            corrected = word + unit
+            assert parse_quantity(corrected) == expected[word], (
+                f"parse_quantity({corrected!r}) = {parse_quantity(corrected)}，"
+                f"期望 {expected[word]}（phonetic 糾錯 round-trip 斷裂）"
+            )
