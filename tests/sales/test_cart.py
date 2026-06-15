@@ -265,3 +265,18 @@ def test_classify_qty_boundary_exact_remaining() -> None:
 def test_classify_qty_negative_is_over_limit() -> None:
     c = new_cart()
     assert cart_module.classify_qty(c, "冰紅茶", -3) == "over_limit"
+
+
+# ============================================================
+# Bug2 整合：parse_quantity 阿拉伯+乘數 → classify_qty 超量路徑
+# ============================================================
+## Scenario: qty sub-loop 顧客答「9萬瓶」→ 解析 90000 → 超量 → over_limit reask
+### Given 一個空 cart
+### When parse_quantity 解析「9萬瓶」後交 classify_qty 分類
+### Then 解析回 90000（非靜默 9）且分類為 "over_limit"（觸發 invalid_qty_reask，非靜默加 9）
+def test_arabic_multiplier_qty_routes_to_over_limit() -> None:
+    from myProgram.sales.nlu import parse_quantity
+    c = new_cart()
+    qty = parse_quantity("9萬瓶")
+    assert qty == 90000
+    assert cart_module.classify_qty(c, "冰紅茶", qty) == "over_limit"

@@ -125,6 +125,13 @@ _CTRL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _FULLWIDTH_DIGIT_TABLE = str.maketrans("０１２３４５６７８９", "0123456789")
 _NEG_CONTINUE_RE = re.compile(r"[不別沒休][一-龥]{0,5}繼續")
 _ARABIC_DIGITS_RE = re.compile(r"\d+")
+# Bug2（2026-06-14 Pi 實測）：阿拉伯數字緊接中文乘數（「9萬」=90000）。
+# 乘數值表（含異體字）+ 預編譯 regex；供 parse_quantity 阿拉伯優先 return 之前先攔。
+_MULTIPLIER_VALUE = {
+    "十": 10, "拾": 10, "百": 100, "佰": 100,
+    "千": 1000, "仟": 1000, "萬": 10000, "万": 10000,
+}
+_ARABIC_MULTIPLIER_RE = re.compile(r"(\d+)\s*([十拾百佰千仟萬万])")
 
 
 def normalize_input(raw: str, max_length: int = 200) -> str:
@@ -434,6 +441,12 @@ def parse_quantity(text: str, default: int | None = 1) -> int | None:
     Returns:
         數量整數（含顯式 0）；無數字時回 default
     """
+    # Bug2：阿拉伯數字緊接中文乘數（「9萬」=90000）→ 相乘回傳。
+    # 須在阿拉伯 findall 之前攔；否則 findall 抓「9」就回、忽略「萬」（靜默變小、繞過超量守衛）。
+    m = _ARABIC_MULTIPLIER_RE.search(text)
+    if m:
+        return int(m.group(1)) * _MULTIPLIER_VALUE[m.group(2)]
+
     # 阿拉伯數字優先（B16：顯式 0 回 0，不 fallback）
     arabic_matches = _ARABIC_DIGITS_RE.findall(text)
     if arabic_matches:

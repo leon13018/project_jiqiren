@@ -178,6 +178,53 @@ def test_nlu_parse_quantity_bug1_regression_lower_orders():
 
 
 # ============================================================
+# Bug2（2026-06-14 Pi 實測）：parse_quantity 阿拉伯數字 + 中文乘數
+# ============================================================
+# 根因：阿拉伯優先分支 _ARABIC_DIGITS_RE.findall 抓到阿拉伯數字即 return，
+# 從不檢查其後中文乘數 →「9萬」抓「9」就回、忽略「萬」（靜默變小，繞過超量守衛）。
+# 先前 Bug1（4c025ad）千/萬 fix 只修純中文路徑、漏 arabic。
+# 修法：parse_quantity 開頭（findall 之前）先測「阿拉伯數字緊接中文乘數」→ 相乘回傳。
+
+def test_nlu_parse_quantity_9萬瓶():
+    """Bug2 重現：「9萬瓶」數量應為 90000（修前靜默變 9）。"""
+    assert parse_quantity("9萬瓶") == 90000
+
+
+def test_nlu_parse_quantity_9萬():
+    """「9萬」數量應為 90000（無單位後綴亦命中）。"""
+    assert parse_quantity("9萬") == 90000
+
+
+def test_nlu_parse_quantity_1萬():
+    """「1萬」數量應為 10000（修前靜默變 1）。"""
+    assert parse_quantity("1萬") == 10000
+
+
+def test_nlu_parse_quantity_3千():
+    """「3千」數量應為 3000（修前靜默變 3）。"""
+    assert parse_quantity("3千") == 3000
+
+
+def test_nlu_parse_quantity_10萬():
+    """「10萬」數量應為 100000（leading 多位數 × 萬）。"""
+    assert parse_quantity("10萬") == 100000
+
+
+# Bug2 回歸守護：阿拉伯+乘數支援不可改變既有純阿拉伯 / 純中文 / 顯式 0 解析。
+def test_nlu_parse_quantity_bug2_regression():
+    """回歸：純阿拉伯（100瓶/9/15瓶/0）、純中文（三千/一萬/一千張/五十/三百五十二）解析不變。"""
+    assert parse_quantity("100瓶") == 100
+    assert parse_quantity("9") == 9
+    assert parse_quantity("15瓶") == 15
+    assert parse_quantity("0") == 0
+    assert parse_quantity("三千") == 3000
+    assert parse_quantity("一萬") == 10000
+    assert parse_quantity("一千張") == 1000
+    assert parse_quantity("五十") == 50
+    assert parse_quantity("三百五十二") == 352
+
+
+# ============================================================
 # B16：parse_quantity 「0 瓶」明確回 0
 # ============================================================
 # 修法：阿拉伯數字分支 — 若有命中但全為 0，明確回 0（不 fallback 1）。
