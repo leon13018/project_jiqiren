@@ -19,3 +19,7 @@
 | W-11 | 反思素材風險排序代替位置截斷 | turn 級 diff 常態超 30 檔 | 逆向比對 §4#6 | open |
 | W-12 | 反思「已報未修」去重機制 | adopted-but-recurring 實際發生（同型提議二度出現） | 反思機制設計討論 2026-06-05 | open |
 | W-13 | skill 指回 memory 的 pointer | agent 因漏看 memory 內容而犯錯 | scaffolding audit 範圍外備註（Agent ④） | open |
+| W-14 | `C2_DECISION_TIMEOUT` 守值斷言缺 | — | perf §10（2026-06-12） | **closed**（2026-06-15 test_constants 補 `assert == 6`，補齊 timing sibling 守值 pattern；commit 5f0aefa）|
+| W-15 | `shared.py` 拆分軟上限 | >20 常數 或 >120 行 | perf §10 / full_review N-12 | open（2026-06-15 確認 13 常數 / 62 行，未達閾值；拆分已否決，僅留觸發監看）|
+| W-16 | `tts_cache` 孤兒 mp3 清理 | 文案常數頻繁增刪、孤兒累積 | perf §10 | open（2026-06-15 語音合併後即時 2 孤兒已 git rm，commit a13c7ac；通用清理工具因 `tts.py` edge_tts import 障礙需抽 core，暫緩，待文案頻繁變動再建）|
+| W-17 | pytest 偶發跨 test daemon warning | 警告轉為遮蔽真問題 / 變常態 | perf §10 | open-deferred（2026-06-15 triage：調查型、修法不定，demo 期不投入）|
