@@ -117,6 +117,17 @@ def test_parse_products_with_filler_words_extracts_correctly() -> None:
     assert result == [("冰紅茶", 2), ("刮刮樂", 1)]
 
 
+def test_parse_products_filler_before_exact_product_unaffected() -> None:
+    """filler 在精確商品前：「我要冰紅茶」→ 冰紅茶精確命中，gap「我要」剝空 → 不誤造商品。"""
+    assert product_parser.parse_products("我要冰紅茶") == [("冰紅茶", None)]
+
+
+def test_parse_products_pure_filler_yields_nothing() -> None:
+    """純 filler / 無商品殘段 → 不誤造商品。"""
+    assert product_parser.parse_products("我要") == []
+    assert product_parser.parse_products("今天天氣很好") == []
+
+
 def test_parse_products_long_keyword_not_double_counted_by_short() -> None:
     """「冰紅茶」涵蓋「紅茶」，不應被短詞二度匹配（去重）。"""
     result = product_parser.parse_products("冰紅茶 3")
@@ -285,3 +296,11 @@ def test_parse_products_garbled_qty_homophone_tiebreak() -> None:
 
     with patch.object(product_parser, "phonetic_match", side_effect=side_effect):
         assert product_parser.parse_products("紅茶食品") == [("冰紅茶", 10)]
+
+
+def test_parse_products_filler_diluted_garbled_name() -> None:
+    """「我要刮樂」：意圖前綴 filler「我要」剝除後殘段「刮樂」→ garbled 刮刮樂。"""
+    se = _garbled_product_side_effect({"刮樂": "刮刮樂"})
+    with patch.object(product_parser, "phonetic_match", side_effect=se):
+        assert product_parser.parse_products("我要刮樂") == [("刮刮樂", None)]
+        assert product_parser.parse_products("我要刮樂三張") == [("刮刮樂", 3)]

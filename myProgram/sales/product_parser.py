@@ -76,6 +76,20 @@ def _product_group(s):
     return result[0][0] if result else s
 
 
+# gap 意圖前綴 filler（2026-06-15 C2）：顧客口語常帶「我要 X」，X 為 garbled 品名時
+# 整段 phonetic 對齊被前綴稀釋而失敗。比對前剝單一前綴（長詞先試，避免「要」先吃掉「我要」），
+# 殘段交既有引擎（疊字去重等）糾錯。只在 gap 上、只剝一次、剝空→不誤造商品。
+_GAP_FILLER_PREFIXES = ("我想要", "我要", "我想", "幫我", "給我", "想要", "要")
+
+
+def _strip_filler(seg: str) -> str:
+    """剝除 gap 開頭單一意圖前綴 filler；無命中回原樣。"""
+    for f in _GAP_FILLER_PREFIXES:
+        if seg.startswith(f):
+            return seg[len(f):]
+    return seg
+
+
 def _find_product_spans(text: str) -> list:
     """精確商品 span：沿用 _PRODUCT_KEYWORDS_PRE 比對 + 重疊去重。
 
@@ -182,7 +196,7 @@ def parse_products(text: str) -> list:
     unused_gaps: list = []       # (start, end) 未命中商品的 gap，留給 step 6 數量糾錯
     for gs, ge, seg in _remaining_gaps(text, occupied_spans):
         corrected = phonetic_match(
-            seg.strip(), _PRODUCT_PHONETIC_CANDIDATES, group_key=_product_group
+            _strip_filler(seg.strip()), _PRODUCT_PHONETIC_CANDIDATES, group_key=_product_group
         )
         if corrected is not None:
             garbled_spans.append((gs, ge, _product_group(corrected)))
