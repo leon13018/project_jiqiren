@@ -148,7 +148,6 @@ class L5State(State):
     def run(self, machine) -> "Transition | None":
         cb = machine.callbacks
         states.run_l5(
-            speak=cb["speak"],
             cart=machine.cart,
             sleep=cb["sleep"],
             do_action=cb["do_action"],

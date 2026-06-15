@@ -7,6 +7,9 @@ TDD（Stage 3）由 subagent 把這些 scenarios 搬到 tests/sales/test_states.
 對應 prod 模組（subagent Stage 3 階段決定如何分配）：
     - 全部 4 scenarios → myProgram/sales/states.py（加 run_l5）
     - constants.py 追加 `L5_THANKS` 字串
+      （2026-06-15 結帳收尾語音合併後 L5 不再獨立 speak，致謝語音已併入
+       L4 鏈路 A 的 L4_A_PAY_SUCCESS_FAREWELL 單句；L5_THANKS 死常數已移除。
+       L5-ENTRY-002 改為「L5 不 speak、僅 do_action 揮手送客」。）
 
 L5 設計約束（最簡單一層）：
     - **唯一進入**：L4 鏈路 A 掃碼成功
@@ -31,12 +34,12 @@ loop_count 與 unclear_count reset 為 0）
 # L5-ENTRY：進入時動作（4 個獨立可驗證行為，但「do_action」TBD 不入測試）
 # ============================================================
 
-## L5-ENTRY-002
-### Scenario: 進入 L5 播致謝語音
-### Given 從 L4 鏈路 A 進入 L5
+## L5-ENTRY-002（2026-06-15 結帳收尾語音合併後修訂）
+### Scenario: 進入 L5 不再獨立 speak（致謝語音已併入 L4 鏈路 A）
+### Given 從 L4 鏈路 A 進入 L5（L4 已 speak L4_A_PAY_SUCCESS_FAREWELL 合併句）
 ### When run_l5 啟動執行進入時動作
-### Then 系統 speak「謝謝您的光臨，歡迎再度光臨」（L5_THANKS 常數）
-def test_l5_entry_speaks_thanks_message() -> None:
+### Then run_l5 不再 speak，僅 do_action(ACTION_L5_FAREWELL) 揮手送客
+def test_l5_entry_does_not_speak() -> None:
     pass
 
 

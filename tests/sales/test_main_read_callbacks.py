@@ -123,14 +123,14 @@ def test_sleep_calls_wait_idle_before_actual_sleep(monkeypatch):
     L5 THANK_DELAY=3s 規格 promise「顧客 3 秒離開時間」現在從 speak 完才起算
     （之前 S4 後 speak 非阻塞 + 立即 time.sleep → 顧客 effective 離開時間 ~1s）。
 
-    L5 序列（sales/states/l5.py:47-56）：
-        speak(L5_THANKS)               # 非阻塞（S4 worker enqueue，return immediately）
+    L5 序列（sales/states/l5.py；2026-06-15 結帳收尾語音合併後 L5 不再 speak，
+    致謝語音已併入 L4 鏈路 A 的 L4_A_PAY_SUCCESS_FAREWELL 單句）：
         do_action(ACTION_L5_FAREWELL)  # 非阻塞（S5 worker enqueue，return immediately）
         clear_cart                     # instant
         sleep(THANK_DELAY)             # ← 之前立即 time.sleep(3)，TTS 還在播
 
-    只等 TTS（不等 do_action）— L5 揮手動作可跟 3s 禮貌間隔並行（regular UX
-    — 顧客看到動作 + 聽完語音 + 有 3s 走人）。
+    sleep 仍先 wait_idle 等 TTS（此處指 L4 已 enqueue 的合併致謝句）播完才倒數
+    — 顧客看到揮手動作 + 聽完語音 + 有 3s 走人（do_action 不卡倒數）。
 
     2026-05-30 加：sleep 進入 polling loop（每秒印 `wait = N`）對齊 read_customer_input
     countdown pattern；為避免測試陷入無限迴圈（mock 的 time.sleep 不真實前進

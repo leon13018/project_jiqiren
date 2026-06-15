@@ -60,7 +60,8 @@ def test_l4_entry_calculates_total_prints_detail_and_speaks() -> None:
 ### Scenario: 顧客終端輸入 s 觸發鏈路 A 掃碼成功進 L5
 ### Given L4 等待中（cart 含商品）
 ### When 顧客輸入「s」（模擬掃碼成功）
-### Then 系統 speak「付款成功」（或同等付款成功語音），轉到 L5
+### Then 系統 speak「付款成功，謝謝光臨，歡迎再來」（2026-06-15 結帳收尾語音合併，
+###      原 L4「付款成功」與 L5 致謝併為 L4_A_PAY_SUCCESS_FAREWELL 單句），轉到 L5
 ###      （cart 在 L5 進入時清空，L4-A 本身不清；見 L0 cart 生命週期）
 def test_l4_a_scan_success_speaks_and_goes_l5() -> None:
     pass

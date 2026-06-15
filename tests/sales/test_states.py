@@ -45,7 +45,7 @@ from myProgram.sales.constants import (
     L3_C1_CHECKOUT_GO,
     L4_ENTRY_PROMPT_TEMPLATE,
     L4_QR_MOCK_HINT,
-    L4_A_PAY_SUCCESS,
+    L4_A_PAY_SUCCESS_FAREWELL,
     L4_B_CANCEL_THANKS,
     L4_C_CONFIRM_PROMPT_TEMPLATE,
     L4_C_CONFIRM_TIMEOUT,
@@ -70,7 +70,6 @@ from myProgram.sales.constants import (
     QTY_CLARIFY_TEMPLATE,
     PRODUCT_CANCELLED_NOTICE_TEMPLATE,
     THANK_DELAY,
-    L5_THANKS,
     DIALOG_VAGUE_BUY_REASK,
 )
 from myProgram.sales import cart as cart_module
@@ -3422,8 +3421,8 @@ def test_l4_a_scan_success_speaks_and_goes_l5() -> None:
     )
 
     # Assert：speak 付款成功，轉 L5，cart 不清空（L5 負責清）
-    assert L4_A_PAY_SUCCESS in speak_calls, (
-        f"鏈路 A 應 speak L4_A_PAY_SUCCESS，實際：{speak_calls}"
+    assert L4_A_PAY_SUCCESS_FAREWELL in speak_calls, (
+        f"鏈路 A 應 speak L4_A_PAY_SUCCESS_FAREWELL，實際：{speak_calls}"
     )
     assert next_state == "L5", f"鏈路 A 應轉 L5，實際：{next_state!r}"
     assert not cart_module.is_empty(cart), "L4-A 不清空 cart（L5 負責清）"
@@ -4166,7 +4165,7 @@ def test_l4_c_service_no_substring_precedence_over_yes_strict_short() -> None:
 # Scenario: 客服模式內終端輸入 s → 鏈路 A 掃碼成功 → L5（保留模擬 wire-up）
 # Given L4 客服模式 confirm 子狀態等待中
 # When 顧客輸入「s」（終端掃碼成功模擬）
-# Then 立即 speak L4_A_PAY_SUCCESS + do_action(ACTION_L4_PAY) + 轉 L5
+# Then 立即 speak L4_A_PAY_SUCCESS_FAREWELL + do_action(ACTION_L4_PAY) + 轉 L5
 # ============================================================
 
 def test_l4_c_service_input_s_treated_as_continue_then_scan() -> None:
@@ -4187,9 +4186,9 @@ def test_l4_c_service_input_s_treated_as_continue_then_scan() -> None:
         do_action=lambda *a, **k: None,
     )
 
-    # Assert：L4_A_PAY_SUCCESS 被 speak，轉 L5
-    assert L4_A_PAY_SUCCESS in speak_calls, (
-        f"客服模式內 s 應 speak 付款成功，實際:{speak_calls}"
+    # Assert：L4_A_PAY_SUCCESS_FAREWELL 被 speak，轉 L5
+    assert L4_A_PAY_SUCCESS_FAREWELL in speak_calls, (
+        f"客服模式內 s 應 speak 付款成功合併句，實際:{speak_calls}"
     )
     assert next_state == "L5", f"客服模式內 s 應直接到 L5，實際:{next_state!r}"
 
@@ -4366,27 +4365,26 @@ def test_l4_service_mode_continue_yes_reprints_entry_and_resets_budget() -> None
 # ============================================================
 
 ## L5-ENTRY-002
-### Scenario: 進入 L5 播致謝語音
-### Given 從 L4 鏈路 A 進入 L5
+### Scenario: 進入 L5 不再獨立 speak（2026-06-15 結帳收尾語音合併）
+### Given 從 L4 鏈路 A 進入 L5（致謝語音已併入 L4_A_PAY_SUCCESS_FAREWELL 單句）
 ### When run_l5 啟動執行進入時動作
-### Then 系統 speak 致謝語音（L5_THANKS 常數）
-def test_l5_entry_speaks_thanks_message() -> None:
+### Then run_l5 不再有 speak 入口（簽名已無 speak 參數），改由 do_action 揮手送客
+def test_l5_entry_does_not_speak() -> None:
     # Arrange
-    speak_calls: list = []
+    do_action_calls: list = []
     sleep_calls: list = []
     cart: dict = {"冰紅茶": 2, "刮刮樂": 1}
 
     # Act
     states.run_l5(
-        speak=lambda text: speak_calls.append(text),
         cart=cart,
         sleep=lambda secs: sleep_calls.append(secs),
-        do_action=lambda *a, **k: None,
+        do_action=lambda name: do_action_calls.append(name),
     )
 
-    # Assert — L5-ENTRY-002：speak 被呼叫且包含 L5_THANKS 致謝語音
-    assert L5_THANKS in speak_calls, (
-        f"應 speak L5_THANKS 致謝語音，實際：{speak_calls}"
+    # Assert — L5-ENTRY-002：L5 不再 speak，只揮手送客（致謝語音已併入 L4 鏈路 A）
+    assert do_action_calls == [ACTION_L5_FAREWELL], (
+        f"L5 應只 do_action(ACTION_L5_FAREWELL) 揮手送客，實際：{do_action_calls}"
     )
 
 
@@ -4401,13 +4399,11 @@ def test_l5_entry_speaks_thanks_message() -> None:
 ### Then cart 被清空（cart 內無任何商品）
 def test_l5_entry_clears_cart() -> None:
     # Arrange
-    speak_calls: list = []
     sleep_calls: list = []
     cart: dict = {"冰紅茶": 2, "刮刮樂": 1}
 
     # Act
     states.run_l5(
-        speak=lambda text: speak_calls.append(text),
         cart=cart,
         sleep=lambda secs: sleep_calls.append(secs),
         do_action=lambda *a, **k: None,
@@ -4434,13 +4430,11 @@ def test_l5_entry_clears_cart() -> None:
 ###      read_customer_input 被呼叫一次當純等待（timeout=THANK_DELAY 秒）
 def test_l5_a_returns_to_l1_via_subroutine_a_after_thank_delay() -> None:
     # Arrange
-    speak_calls: list = []
     sleep_calls: list = []
     cart: dict = {"冰紅茶": 2, "刮刮樂": 1}
 
     # Act
     result = states.run_l5(
-        speak=lambda text: speak_calls.append(text),
         cart=cart,
         sleep=lambda secs: sleep_calls.append(secs),
         do_action=lambda *a, **k: None,
@@ -5386,8 +5380,8 @@ def test_l4_normal_scan_within_budget_succeeds() -> None:
     assert L4_ACK_GENTLE in speak_calls, (
         f"ack 詞應 speak 溫和回應，實際 speak：{speak_calls}"
     )
-    assert L4_A_PAY_SUCCESS in speak_calls, (
-        f"掃碼成功應 speak L4_A_PAY_SUCCESS，實際 speak：{speak_calls}"
+    assert L4_A_PAY_SUCCESS_FAREWELL in speak_calls, (
+        f"掃碼成功應 speak L4_A_PAY_SUCCESS_FAREWELL，實際 speak：{speak_calls}"
     )
 
 
@@ -6552,12 +6546,12 @@ def test_l4_pay_success_service_mode_calls_do_action() -> None:
 
 
 def test_l5_entry_calls_do_action_after_thanks() -> None:
-    """L5 進入後：speak(L5_THANKS) -> do_action(ACTION_L5_FAREWELL) -> clear_cart -> sleep。
+    """L5 進入後：do_action(ACTION_L5_FAREWELL) -> clear_cart -> sleep。
 
-    驗證 do_action 在 speak 之後、clear_cart 之前被呼叫一次(規格表明示順序)。
+    驗證 do_action 在 clear_cart 之前被呼叫一次(規格表明示順序)。
+    （2026-06-15 結帳收尾語音合併後 L5 不再 speak，致謝語音已併入 L4 鏈路 A。）
     """
     # Arrange
-    speak_calls: list = []
     sleep_calls: list = []
     do_action_calls: list = []
     # 用一個會記錄當下 cart 狀態的 do_action stub，驗證呼叫時 cart 仍未被清
@@ -6570,7 +6564,6 @@ def test_l5_entry_calls_do_action_after_thanks() -> None:
 
     # Act
     states.run_l5(
-        speak=lambda text: speak_calls.append(text),
         cart=cart,
         sleep=lambda secs: sleep_calls.append(secs),
         do_action=_capture_do_action,
@@ -6580,9 +6573,9 @@ def test_l5_entry_calls_do_action_after_thanks() -> None:
     assert do_action_calls == [ACTION_L5_FAREWELL], (
         f"L5 應呼叫 do_action(ACTION_L5_FAREWELL) 一次，實際：{do_action_calls}"
     )
-    # Assert：do_action 呼叫時 cart 仍未被清(規格：speak -> do_action -> clear_cart)
+    # Assert：do_action 呼叫時 cart 仍未被清(規格：do_action -> clear_cart)
     assert cart_at_do_action == [{"冰紅茶": 2}], (
-        f"do_action 呼叫時 cart 應仍未清空(規格順序：speak -> do_action -> clear_cart)；"
+        f"do_action 呼叫時 cart 應仍未清空(規格順序：do_action -> clear_cart)；"
         f"實際 cart 快照={cart_at_do_action}"
     )
     # Assert：do_action 呼叫後 cart 才被清空

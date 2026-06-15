@@ -133,7 +133,7 @@ def _make_scenario_run(pre_cart, script, entry):
             return states.run_l4(
                 speak=_noop, print_terminal=_noop, read_customer_input=reader,
                 cart=cart, opencv_disable=_noop, do_action=_noop)
-        return states.run_l5(speak=_noop, cart=cart, sleep=_noop, do_action=_noop)
+        return states.run_l5(cart=cart, sleep=_noop, do_action=_noop)
     return run
 
 

@@ -161,7 +161,7 @@ def test_l4state_non_scan_maps_to_l1_via_sub(monkeypatch):
 def test_l5state_always_maps_to_l1_via_sub_ignoring_return(monkeypatch):
     """L5State：run_l5 stub 清 cart 回非標準字串 ("L1", 0, 0)（回傳值被忽略）
     → 仍 Transition("l1", via_subroutine_a=True)。"""
-    def stub_run_l5(*, speak, cart, sleep, do_action):
+    def stub_run_l5(*, cart, sleep, do_action):
         cart.clear()
         return ("L1", 0, 0)  # 非標準字串；應被忽略
 

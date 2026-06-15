@@ -36,7 +36,7 @@ from myProgram.sales.constants import (
     L4_QR_REFRESH_INTERVAL,
     L4_ENTRY_PROMPT_TEMPLATE,
     L4_QR_MOCK_HINT,
-    L4_A_PAY_SUCCESS,
+    L4_A_PAY_SUCCESS_FAREWELL,
     L4_ACK_GENTLE,
     L4_B_CANCEL_THANKS,
     L4_D_FORCED_EXIT,
@@ -244,8 +244,8 @@ def _l4_exit_to_l1(io, cart, notice: str) -> tuple:
 
 
 def _l4_pay_success(io) -> tuple:
-    """鏈路 A 共同體：付款成功 speak + 鞠躬動作 + 進 L5（終端 "s" 與客服 "scan" 共用）。"""
-    io.speak(L4_A_PAY_SUCCESS)
+    """鏈路 A 共同體：付款成功＋致謝合一句 speak + 鞠躬動作 + 進 L5（終端 "s" 與客服 "scan" 共用）。"""
+    io.speak(L4_A_PAY_SUCCESS_FAREWELL)
     io.do_action(ACTION_L4_PAY)
     return ("L5", 0, 0)
 
