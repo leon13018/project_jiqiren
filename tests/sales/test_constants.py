@@ -30,6 +30,7 @@ def test_time_constants_match_spec() -> None:
     assert const.OPENCV_MUTE == 6
     assert const.THANK_DELAY == 3
     assert const.OPENCV_DWELL == 1.5
+    assert const.C2_DECISION_TIMEOUT == 6
 
 
 # ============================================================
