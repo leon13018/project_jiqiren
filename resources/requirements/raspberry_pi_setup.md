@@ -35,6 +35,7 @@
 - opencv-python
 - wheel
 - pypinyin
+- websockets（STT Deepgram 串流 client；純 Python，無 piwheels/GLIBC 風險）
 
 ## raspi-config 啟用項
 
@@ -47,3 +48,4 @@
 ## 其他手動設定（音量 / 權限 / 設定檔 / 服務啟動等）
 
 - Python 3.11.9 source build（edge-tts 依賴，原 Pi OS 內建版本不足；2026-05-23 加裝 tk-dev / tcl-dev 後 rebuild，使 `_tkinter` 編進 stdlib）
+- DEEPGRAM_API_KEY 環境變數（STT Deepgram 串流金鑰，寫入 `~/.bashrc`；STT Phase 1 已 Pi 實測通過）
