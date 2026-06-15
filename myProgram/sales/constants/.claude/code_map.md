@@ -11,7 +11,7 @@
 - `l2_text.py` — L2 文案（問需求等）。
 - `l3_text.py` — L3 文案（加單 / C-2 結帳提示 `L3_C2_WARNING_TEMPLATE` 等）。
 - `l4_text.py` — L4 文案（金額 / 掃碼提示 `L4_REMIND_PROMPT` 等）。
-- `l5_text.py` — L5 文案（致謝 `L5_THANKS` 等）。
+- `l5_text.py` — L5 文案（致謝句 2026-06-15 併入 `l4_text.py` 的 `L4_A_PAY_SUCCESS_FAREWELL`；本檔現無常數）。
 
 **其他常數**
 - `keywords.py` — NLU 規則匹配關鍵字（`KEYWORDS_C2_*` / `KEYWORDS_CONFIRM_*` / strict-short ＋HAWK_SLOGANS 叫賣標語 等）+ `KG_*` KeywordGroup 配對實例（類別在本層 `keyword_group.py`）。

@@ -89,7 +89,7 @@ def run_l4(
             注意：dialog 進入時已 disable 過；本處 disable 是 defence-in-depth，
             涵蓋未來「不經 dialog 直接進 L4」的可能架構。
         do_action: callback(name: str) — 同步阻塞跑廠商動作組（S3 加，2026-05-27）。
-            L4 內**只**在鏈路 A 掃碼付款成功（speak L4_A_PAY_SUCCESS 後）觸發
+            L4 內**只**在鏈路 A 掃碼付款成功（speak L4_A_PAY_SUCCESS_FAREWELL 後）觸發
             ACTION_L4_PAY（鞠躬）；兩處進入鏈路 A 都會跑：
               (a) `_l4_dispatch_response` 終端 's' 路徑
               (b) `_l4_service_mode` 客服模式內 's' 路徑
@@ -328,7 +328,7 @@ def _l4_service_mode(io, cart) -> tuple | None:
 
     本函式只負責解讀 helper 回傳值並執行 L4-specific exit actions：
         - "yes" → return None（caller 重置兩計時器 + 重印明細 + 重 speak entry prompt）
-        - "scan" → speak L4_A_PAY_SUCCESS + do_action(ACTION_L4_PAY) + 進 L5（鏈路 A）
+        - "scan" → speak L4_A_PAY_SUCCESS_FAREWELL + do_action(ACTION_L4_PAY) + 進 L5（鏈路 A）
         - "no" → 清 cart 退 L1
 
     Args:
