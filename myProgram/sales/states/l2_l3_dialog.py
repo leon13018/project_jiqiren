@@ -83,7 +83,11 @@ from myProgram.sales.constants import (
 )
 from myProgram.sales.dialog_io import DialogIO
 from myProgram.sales.nlu import classify_intent, split_at_quantity, expand_fusion
-from myProgram.sales.product_parser import parse_products
+from myProgram.sales.product_parser import (
+    parse_products,
+    _PRODUCT_PHONETIC_CANDIDATES,
+    _product_group,
+)
 from myProgram.sales.phonetic import phonetic_match
 from myProgram.sales import cart as cart_module
 from myProgram.sales.states._l2_l3_qty_followup import (
@@ -99,20 +103,8 @@ def _entry_prompt_for(cart) -> str:
     return L2_ENTRY_PROMPT if cart_module.is_empty(cart) else L3_ENTRY_PROMPT
 
 
-# ② 問商品 unclear 出口拼音糾錯（2026-06-14 Phase B，spec §2.3）：
-# 商品名整個被聽歪（刮樂/尬尬樂→刮刮樂、茶→紅茶）→ 整句認不出 → 放棄出口前糾正。
-# 候選須全部可被 parse_products 解析（_product_group 依賴）；擴充候選時務必確認。
-_PRODUCT_PHONETIC_CANDIDATES = ("冰紅茶", "紅茶", "刮刮樂")
-
-
-def _product_group(s):
-    """候選分組鍵：同商品多 surface（冰紅茶 / 紅茶 皆指冰紅茶）不互壓歧義閥 margin。
-
-    防線（2026-06-14 採納反思 product-group-unguarded-empty-parse）：候選若不可
-    parse_products（回空 list）→ 回原字串 fallback，避免 `[0]` IndexError 炸 session。
-    """
-    result = parse_products(s)
-    return result[0][0] if result else s
+# ② 問商品 unclear 出口拼音糾錯候選 / 分組鍵：2026-06-15 移入 product_parser
+# （統一 token-parser 內部也需 garbled 品名糾錯，破循環 import）。此處 import 沿用。
 
 
 def run_dialog(

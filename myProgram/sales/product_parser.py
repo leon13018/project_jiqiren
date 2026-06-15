@@ -1,22 +1,28 @@
 """商品實體解析（從 nlu.py 拉出，2026-05-26 P7）。
 
 職責：
-    - 多商品 + 數量區間綁定解析
+    - 多商品 + 數量解析（統一 token-parser，2026-06-15 重寫）
     - 商品 keyword → 標準商品名 mapping
 
 設計原則：
     - 純函式（無 IO / 無 callback）
-    - 數量解析委派 nlu.parse_quantity(window, default=None)
-      （W1 oop_w1：原 _parse_quantity_in_window 與 parse_quantity 合併，用 default 區分 fallback）
+    - 數量解析委派 nlu.parse_quantity / nlu.find_quantity_spans
     - sales/ 內 caller（dialog / qty_followup）由此 import parse_products，
       不再從 nlu 拿
 
 對外 public API：
     - parse_products(text) -> list[tuple[str, int | None]]
       回傳 (product_name, qty_or_None) 依出現順序排列
+
+2026-06-15 統一 token-parser 重寫（spec unified_product_parser）：
+    原 4 拼湊機制（sticky-right / ② leading / Phase B split / ① window）無法 compose
+    「任意順序 + 多商品 + garbled 品名/數量」。改為 token 化（精確商品 + 數量 +
+    garbled 品名 span）後鄰近綁定的統一解法。dedup 規則 1/2/3 原樣保留。
+    _PRODUCT_PHONETIC_CANDIDATES / _product_group 由 l2_l3_dialog 移入此檔
+    （破循環 import — parse_products 內需用 garbled 品名糾錯）。
 """
 
-from myProgram.sales.nlu import parse_quantity
+from myProgram.sales.nlu import parse_quantity, find_quantity_spans
 from myProgram.sales.phonetic import phonetic_match
 from myProgram.sales.constants import PRODUCTS, QTY_NUMBER_WORDS
 
@@ -51,69 +57,34 @@ _PRODUCT_KEYWORDS_PRE: list = [
 ]
 
 
-def _resolve_window_qty(window: str, unit: str):
-    """視窗數量解析；解不出且有實質內容 → 拼音近音糾錯（① 右視窗 / ② 前導段共用）。
+# ============================================================
+# garbled 品名拼音糾錯候選（2026-06-15 從 l2_l3_dialog 移入，破循環 import）：
+# 商品名整個被 ASR 聽歪（刮樂/尬尬樂→刮刮樂、茶→紅茶）→ 在商品候選域拼音近音糾錯。
+# 候選須全部可被 parse_products 解析（_product_group 依賴）；擴充候選時務必確認。
+# l2_l3_dialog ② 出口改 import 此二者（移出後）。
+# ============================================================
+_PRODUCT_PHONETIC_CANDIDATES = ("冰紅茶", "紅茶", "刮刮樂")
 
-    2026-06-15 ②：從 ① inline 抽出（DRY）。視窗解不出數量、但有實質內容時，
-    在該 product 單位的合法量詞域 {一X…十X} 做拼音近音糾錯。
-    phonetic_match graceful（Windows 無 pypinyin → None）→ no-op，行為同今天。
+
+def _product_group(s):
+    """候選分組鍵：同商品多 surface（冰紅茶 / 紅茶 皆指冰紅茶）不互壓歧義閥 margin。
+
+    防線（2026-06-14 採納反思 product-group-unguarded-empty-parse）：候選若不可
+    parse_products（回空 list）→ 回原字串 fallback，避免 `[0]` IndexError 炸 session。
+    """
+    result = parse_products(s)
+    return result[0][0] if result else s
+
+
+def _find_product_spans(text: str) -> list:
+    """精確商品 span：沿用 _PRODUCT_KEYWORDS_PRE 比對 + 重疊去重。
 
     Returns:
-        int（解析到或糾錯後解出）或 None（解不出 → caller 進追問）
+        [(start, end, product), ...]（未排序；caller 與其他 token 一起排）。
     """
-    qty = parse_quantity(window, default=None)
-    if qty is None and window.strip():
-        corrected = phonetic_match(
-            window.strip(), [w + unit for w in QTY_NUMBER_WORDS]
-        )
-        if corrected is not None:
-            qty = parse_quantity(corrected)
-    return qty
-
-
-def parse_products(text: str) -> list:
-    """多商品解析（B 方案 — 2026-05-25 加；2026-05-26 P7 移至 product_parser）。
-
-    從顧客輸入找出**所有**商品 mention，依出現順序排序，
-    並把每個商品**後方視窗內**的數量黏住該商品（sticky-right）。
-
-    視窗範圍：商品 keyword 結束位置 → 下個商品 keyword 起始位置（或文字結尾）。
-
-    Args:
-        text: 顧客輸入字串
-
-    Returns:
-        list of (product_name, qty_or_None) tuples，依出現順序排列。
-        qty: int（有解析到）或 None（沒解析到 → caller 進 QTY 追問）
-        無商品 → 返 []
-
-        **Per-product dedup 規則（2026-05-25 加，使用者實機回報後修正；
-        2026-05-26 Wave 7a C22 規則 3 改覆寫）：**
-        1. 同商品全部都**沒**數量 → 合併成一個 (product, None)（只追問一次）
-        2. 同商品**至少一個有**數量 → 只保留有數量的 entries，無數量的丟棄
-        3. 同商品**全部都有**數量 → 只保留**最後一個**帶 qty entry（覆寫；
-           顧客修正語意 — 「紅茶 2 紅茶 3」= 改成 3 瓶，非累加 5 瓶）
-
-    範例：
-        "紅茶 1 刮刮樂 2"     → [("冰紅茶", 1), ("刮刮樂", 2)]
-        "紅茶 刮刮樂"          → [("冰紅茶", None), ("刮刮樂", None)]
-        "紅茶 1 刮刮樂"        → [("冰紅茶", 1), ("刮刮樂", None)]
-        "想要紅茶 2 跟刮刮樂 1 謝謝" → [("冰紅茶", 2), ("刮刮樂", 1)]
-        "今天天氣很好"         → []
-        # Dedup 規則
-        "刮刮樂 刮刮樂"        → [("刮刮樂", None)]   # 規則 1：合一
-        "刮刮樂 3 刮刮樂"      → [("刮刮樂", 3)]      # 規則 2：丟無數量
-        "紅茶 2 紅茶 3"        → [("冰紅茶", 3)]      # 規則 3：覆寫為最後一個 qty
-    """
-    if not text:
-        return []
-
     text_lower = text.lower()
-
-    # 1. 找所有商品 keyword 出現位置（含重疊去重 — 「冰紅茶」涵蓋「紅茶」就跳過短的）
-    found: list = []  # (start, end, product_name)
-    occupied: list = []  # 已被佔據的字元位置區間 [(start, end), ...]
-
+    found: list = []        # (start, end, product)
+    occupied: list = []     # 已被佔據的字元位置區間 [(start, end), ...]
     for kw_lower, kw_len, product in _PRODUCT_KEYWORDS_PRE:
         pos = 0
         while True:
@@ -121,41 +92,176 @@ def parse_products(text: str) -> list:
             if idx == -1:
                 break
             end = idx + kw_len
-            # 若此區間與既有 occupied 重疊 → 跳過（避免「冰紅茶」被「紅茶」二度算）
+            # 與既有 occupied 重疊 → 跳過（避免「冰紅茶」被「紅茶」二度算）
             overlaps = any(not (end <= os or idx >= oe) for os, oe in occupied)
             if not overlaps:
                 found.append((idx, end, product))
                 occupied.append((idx, end))
             pos = end
+    return found
 
-    if not found:
+
+def _remaining_gaps(text: str, spans: list) -> list:
+    """扣掉已佔用 span 後的剩餘連續區段（gap）。
+
+    Args:
+        spans: [(start, end), ...]（商品 span + 數量 span 的位置）。
+
+    Returns:
+        [(start, end, substring), ...]，跳過純空白 gap（strip 後為空）。
+    """
+    occupied = sorted((s, e) for s, e in spans)
+    gaps: list = []
+    cursor = 0
+    for s, e in occupied:
+        if s > cursor:
+            seg = text[cursor:s]
+            if seg.strip():
+                gaps.append((cursor, s, seg))
+        cursor = max(cursor, e)
+    if cursor < len(text):
+        seg = text[cursor:]
+        if seg.strip():
+            gaps.append((cursor, len(text), seg))
+    return gaps
+
+
+def parse_products(text: str) -> list:
+    """多商品 / 數量統一 token-parser（2026-06-15 重寫，spec unified_product_parser §2.1）。
+
+    從顧客輸入找出**所有**商品 mention（精確 + garbled 品名），定位所有數量段，
+    依位置鄰近綁定，回 (product_name, qty_or_None) 依出現順序。
+
+    八步（spec §2.1）：
+        1. 精確商品 span（_PRODUCT_KEYWORDS_PRE + 重疊去重）。
+        2. 數量 span（find_quantity_spans；數量字集與商品字天然不重疊）。
+        3. garbled 品名 span：扣商品 + 數量後的剩餘 gap，phonetic_match 商品候選域
+           命中即 garbled 商品；未命中 gap 收進 unused_gaps（graceful：無 pypinyin→None）。
+        4. 排序所有 token（商品[精確/garbled] + 數量）依 start。
+        5. 鄰近綁定：每個數量綁「最近的前一個未綁商品」；無則「最近的後一個未綁商品」。
+        6. garbled 數量（保 ①）：仍未綁商品 → 緊鄰未用 gap（先右後左）對該商品單位的
+           合法量詞域 phonetic_match → 命中即綁（含 2.0 tie-break，解 紅茶食品→×10）。
+        7. 組 raw：商品依位置序，各帶綁定 qty 或 None。
+        8. per-product dedup：原樣 port 規則 1/2/3。
+
+    Returns:
+        list of (product_name, qty_or_None) tuples，依出現順序排列。
+        qty: int（含顯式 0）或 None（沒解析到 → caller 進 QTY 追問）。無商品 → []。
+
+        **Per-product dedup 規則（2026-05-25 加；2026-05-26 Wave 7a C22 規則 3 改覆寫）：**
+        1. 同商品全部都**沒**數量 → 合併成一個 (product, None)（只追問一次）
+        2. 同商品**至少一個有**數量 → 只保留有數量的 entries，無數量的丟棄
+        3. 同商品**全部都有**數量 → 只保留**最後一個**帶 qty entry（覆寫；
+           顧客修正語意 — 「紅茶 2 紅茶 3」= 改成 3 瓶，非累加 5 瓶）
+
+    範例：
+        "紅茶 1 刮刮樂 2"          → [("冰紅茶", 1), ("刮刮樂", 2)]
+        "五張刮刮樂三瓶紅茶"        → [("刮刮樂", 5), ("冰紅茶", 3)]
+        "三瓶紅茶兩張刮刮樂"        → [("冰紅茶", 3), ("刮刮樂", 2)]
+        "紅茶 刮刮樂"              → [("冰紅茶", None), ("刮刮樂", None)]
+        "今天天氣很好"             → []
+        # Dedup 規則
+        "刮刮樂 刮刮樂"            → [("刮刮樂", None)]   # 規則 1：合一
+        "刮刮樂 3 刮刮樂"          → [("刮刮樂", 3)]      # 規則 2：丟無數量
+        "紅茶 2 紅茶 3"           → [("冰紅茶", 3)]      # 規則 3：覆寫為最後一個 qty
+    """
+    if not text:
         return []
 
-    # 2. 依出現順序排序
-    found.sort(key=lambda x: x[0])
+    # 1. 精確商品 span
+    product_spans = _find_product_spans(text)
 
-    # 3. 對每個商品，視窗 = (keyword 結束) → (下個商品 keyword 起始)，找數量
-    raw: list = []
-    for i, (_start, end, product) in enumerate(found):
-        window_end = found[i + 1][0] if i + 1 < len(found) else len(text)
-        window = text[end:window_end]
-        # ① 內嵌數量拼音糾錯（2026-06-14 Phase B，spec §2.1）：
-        # 右視窗解不出數量、但有實質內容時（如「紅茶商品」的「商品」=「三瓶」聽歪），
-        # 在該 product 單位的合法量詞域做拼音近音糾錯（_resolve_window_qty 內處理）。
-        qty = _resolve_window_qty(window, PRODUCTS[product]["單位"])
-        raw.append((product, qty))
+    # 2. 數量 span（值已 parse_quantity；數量字集與商品字不重疊）
+    qty_spans = find_quantity_spans(text)
 
-    # 3b. ② 數量提前（2026-06-15，spec §2.1）：第一商品右視窗無數量時，
-    # 解析其前導段 text[:found[0][0]]（商品名前的「三瓶」自然語序）補綁。
-    # 只綁第一商品 — 非首商品的左段＝前一商品右視窗（sticky-right 已處理），不重綁。
-    if raw and raw[0][1] is None:
-        leading = text[: found[0][0]]
-        if leading.strip():
-            lead_qty = _resolve_window_qty(leading, PRODUCTS[raw[0][0]]["單位"])
-            if lead_qty is not None:
-                raw[0] = (raw[0][0], lead_qty)
+    # 3. garbled 品名 span：扣商品 + 數量後的剩餘 gap，phonetic_match 商品候選域。
+    occupied_spans = [(s, e) for s, e, _ in product_spans] + [
+        (s, e) for s, e, _ in qty_spans
+    ]
+    garbled_spans: list = []     # (start, end, product)
+    unused_gaps: list = []       # (start, end) 未命中商品的 gap，留給 step 6 數量糾錯
+    for gs, ge, seg in _remaining_gaps(text, occupied_spans):
+        corrected = phonetic_match(
+            seg.strip(), _PRODUCT_PHONETIC_CANDIDATES, group_key=_product_group
+        )
+        if corrected is not None:
+            garbled_spans.append((gs, ge, _product_group(corrected)))
+        else:
+            unused_gaps.append((gs, ge))
 
-    # 4. Per-product dedup pass（見 docstring「Per-product dedup 規則」段）
+    if not product_spans and not garbled_spans:
+        return []
+
+    # 4. 排序所有 token（商品 + 數量）依 start。
+    #    商品 token：(start, end, 'PROD', product)；數量 token：(start, end, 'QTY', value)。
+    prod_tokens = [
+        (s, e, "PROD", p) for s, e, p in (product_spans + garbled_spans)
+    ]
+    qty_tokens = [(s, e, "QTY", v) for s, e, v in qty_spans]
+    tokens = sorted(prod_tokens + qty_tokens, key=lambda t: t[0])
+
+    # 商品綁定狀態：依出現位置序的商品索引 → [start, end, product, qty]
+    products = [
+        [s, e, p, None]
+        for s, e, kind, p in tokens
+        if kind == "PROD"
+    ]
+
+    def _bind_qty(qty_start: int, value) -> None:
+        """數量綁「最近的前一個未綁商品」；無則「最近的後一個未綁商品」（spec step 5）。"""
+        # 前一個未綁商品（start < qty_start，取最靠近者 = start 最大者）
+        prev = [p for p in products if p[0] < qty_start and p[3] is None]
+        if prev:
+            target = max(prev, key=lambda p: p[0])
+        else:
+            # 後一個未綁商品（start > qty_start，取最靠近者 = start 最小者）
+            nxt = [p for p in products if p[0] > qty_start and p[3] is None]
+            if not nxt:
+                return
+            target = min(nxt, key=lambda p: p[0])
+        target[3] = value
+
+    # 5. 鄰近綁定：依位置序逐數量綁定。
+    for s, _e, kind, v in tokens:
+        if kind == "QTY":
+            _bind_qty(s, v)
+
+    # 6. garbled 數量（保 ①）：仍未綁商品 → 緊鄰未用 gap（先右後左）對該商品單位
+    #    合法量詞域 phonetic_match → 命中即綁（含 2.0 tie-break，解 紅茶食品→×10）。
+    used_gaps: set = set()
+    for p in products:
+        if p[3] is not None:
+            continue
+        unit = PRODUCTS[p[2]]["單位"]
+        # 緊鄰右 gap（gap.start == product.end），其次緊鄰左 gap（gap.end == product.start）
+        adj = None
+        for i, (gs, ge) in enumerate(unused_gaps):
+            if i in used_gaps:
+                continue
+            if gs == p[1]:
+                adj = i
+                break
+        if adj is None:
+            for i, (gs, ge) in enumerate(unused_gaps):
+                if i in used_gaps:
+                    continue
+                if ge == p[0]:
+                    adj = i
+                    break
+        if adj is None:
+            continue
+        gs, ge = unused_gaps[adj]
+        corrected = phonetic_match(
+            text[gs:ge].strip(), [w + unit for w in QTY_NUMBER_WORDS]
+        )
+        if corrected is not None:
+            p[3] = parse_quantity(corrected)
+            used_gaps.add(adj)
+
+    # 7. 組 raw：商品依位置序 (product, qty)。
+    raw: list = [(p[2], p[3]) for p in products]
+
+    # 8. Per-product dedup pass（原樣 port 規則 1/2/3，見 docstring）。
     products_with_qty = {p for p, q in raw if q is not None}
     deduped: list = []
     seen_missing: set = set()

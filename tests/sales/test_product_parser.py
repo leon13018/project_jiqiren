@@ -141,8 +141,20 @@ from unittest.mock import patch  # noqa: E402
 
 def test_parse_products_embedded_qty_phonetic_correction_hits() -> None:
     """「紅茶商品」(=紅茶三瓶)：商品認得、內嵌數量「商品」聽歪 →
-    phonetic_match 糾回「三瓶」→ 直接 冰紅茶 ×3，不再多問一次。"""
-    with patch.object(product_parser, "phonetic_match", return_value="三瓶"):
+    phonetic_match 糾回「三瓶」→ 直接 冰紅茶 ×3，不再多問一次。
+
+    2026-06-15 統一 token-parser 重寫後 phonetic_match 兩處被呼叫：
+      step 3（garbled 品名糾錯，候選=商品候選）→ 「商品」非 garbled 品名 → 回 None；
+      step 6（garbled 數量糾錯，候選=量詞域）→ 「商品」≈「三瓶」→ 回「三瓶」。
+    side_effect 依候選域區分（取代舊單一 return_value，避免 step 3 誤把「商品」當品名）。
+    """
+    def side_effect(seg, candidates, **kwargs):
+        # 量詞域候選（如「三瓶」）→ 糾回三瓶；商品候選域 → 非品名 → None
+        if any(str(c).endswith("瓶") for c in candidates):
+            return "三瓶"
+        return None
+
+    with patch.object(product_parser, "phonetic_match", side_effect=side_effect):
         assert product_parser.parse_products("紅茶商品") == [("冰紅茶", 3)]
 
 
@@ -195,3 +207,81 @@ def test_parse_products_leading_no_qty_keeps_missing() -> None:
         ("冰紅茶", None),
         ("刮刮樂", None),
     ]
+
+
+# ============================================================
+# comprehensive 統一 token-parser（2026-06-15，spec §2.1 Part 2）
+# 任意順序 + 多商品 + 數量在前/後 → 鄰近綁定（數量綁前一未綁商品，無則後一）。
+# ============================================================
+
+def test_parse_products_qty_before_each_of_two_products() -> None:
+    """「五張刮刮樂三瓶紅茶」：數量各在自身商品前 → 鄰近綁定 → [(刮刮樂,5),(冰紅茶,3)]。
+    （現 sticky-right 把刮刮樂右視窗三瓶綁錯成 [(刮刮樂,3),(冰紅茶,None)] → RED）"""
+    assert product_parser.parse_products("五張刮刮樂三瓶紅茶") == [
+        ("刮刮樂", 5),
+        ("冰紅茶", 3),
+    ]
+
+
+def test_parse_products_qty_after_each_of_two_products_baseline() -> None:
+    """「刮刮樂五張紅茶三瓶」：數量各在自身商品後 → [(刮刮樂,5),(冰紅茶,3)]（現已對，當基準）。"""
+    assert product_parser.parse_products("刮刮樂五張紅茶三瓶") == [
+        ("刮刮樂", 5),
+        ("冰紅茶", 3),
+    ]
+
+
+def test_parse_products_qty_before_and_after_mixed_order() -> None:
+    """「三瓶紅茶兩張刮刮樂」：數量各在自身商品前 → 鄰近綁定 → [(冰紅茶,3),(刮刮樂,2)]。"""
+    assert product_parser.parse_products("三瓶紅茶兩張刮刮樂") == [
+        ("冰紅茶", 3),
+        ("刮刮樂", 2),
+    ]
+
+
+# ============================================================
+# garbled 品名 + 數量（step 3 garbled 品名 span + step 5 鄰近綁定）
+# 整合測試 mock product_parser.phonetic_match，依候選域區分：
+#   商品候選域（不以瓶/張結尾）→ garbled 品名糾錯；量詞域 → garbled 數量糾錯。
+# ============================================================
+
+def _garbled_product_side_effect(mapping):
+    """build side_effect：seg 在 mapping 內且候選為商品域 → 回對應商品；其餘 → None。"""
+    def side_effect(seg, candidates, **kwargs):
+        is_qty_domain = any(
+            str(c).endswith("瓶") or str(c).endswith("張") for c in candidates
+        )
+        if is_qty_domain:
+            return None
+        return mapping.get(seg)
+    return side_effect
+
+
+def test_parse_products_garbled_name_with_leading_qty() -> None:
+    """「五張刮樂三瓶紅茶」：刮樂 garbled 品名（step3 糾刮刮樂）+ 數量在各自前 →
+    [(刮刮樂,5),(冰紅茶,3)]。"""
+    se = _garbled_product_side_effect({"刮樂": "刮刮樂"})
+    with patch.object(product_parser, "phonetic_match", side_effect=se):
+        assert product_parser.parse_products("五張刮樂三瓶紅茶") == [
+            ("刮刮樂", 5),
+            ("冰紅茶", 3),
+        ]
+
+
+def test_parse_products_garbled_name_single_with_leading_qty() -> None:
+    """「五張刮樂」：單一 garbled 品名（糾刮刮樂）+ 前導數量 → [(刮刮樂,5)]。"""
+    se = _garbled_product_side_effect({"刮樂": "刮刮樂"})
+    with patch.object(product_parser, "phonetic_match", side_effect=se):
+        assert product_parser.parse_products("五張刮樂") == [("刮刮樂", 5)]
+
+
+def test_parse_products_garbled_qty_homophone_tiebreak() -> None:
+    """「紅茶食品」(=紅茶十瓶)：商品認得、garbled 數量「食品」→ step6 量詞域糾錯
+    （含 2.0 完全同音 tie-break，食≡十）→ 十瓶 → [(冰紅茶,10)]。"""
+    def side_effect(seg, candidates, **kwargs):
+        if any(str(c).endswith("瓶") for c in candidates):
+            return "十瓶"
+        return None
+
+    with patch.object(product_parser, "phonetic_match", side_effect=side_effect):
+        assert product_parser.parse_products("紅茶食品") == [("冰紅茶", 10)]
