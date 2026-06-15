@@ -35,6 +35,7 @@
 - 寫 PowerShell / Windows 編碼相關註解時，別假設「台灣 Windows=Big5」；用「系統 code page（這台是 cp936）」或「系統 code page（非 UTF-8）」。
 - 使用者用簡體打字 → 經簡轉繁工具 → 我看到繁中；**對話顯示繁中不代表系統環境是繁中**。
 - 亂碼問題優先查 **UTF-8 vs cp936** 衝突（如 `Get-Content` 不指定 `-Encoding utf8` 會以 cp936 解碼 UTF-8 檔）。
+- **跑 Python 中文輸出探針**（驗證 / 功能探測）時設 `PYTHONIOENCODING=utf-8 PYTHONUTF8=1`，否則 stdout 中文被 cp936 解碼成亂碼（純顯示問題、不影響邏輯與測試結果）。
 - 產出物規範不變（仍全繁體，獨立於系統設定）。
 
 ---
