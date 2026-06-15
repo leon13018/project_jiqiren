@@ -51,6 +51,26 @@ _PRODUCT_KEYWORDS_PRE: list = [
 ]
 
 
+def _resolve_window_qty(window: str, unit: str):
+    """視窗數量解析；解不出且有實質內容 → 拼音近音糾錯（① 右視窗 / ② 前導段共用）。
+
+    2026-06-15 ②：從 ① inline 抽出（DRY）。視窗解不出數量、但有實質內容時，
+    在該 product 單位的合法量詞域 {一X…十X} 做拼音近音糾錯。
+    phonetic_match graceful（Windows 無 pypinyin → None）→ no-op，行為同今天。
+
+    Returns:
+        int（解析到或糾錯後解出）或 None（解不出 → caller 進追問）
+    """
+    qty = parse_quantity(window, default=None)
+    if qty is None and window.strip():
+        corrected = phonetic_match(
+            window.strip(), [w + unit for w in QTY_NUMBER_WORDS]
+        )
+        if corrected is not None:
+            qty = parse_quantity(corrected)
+    return qty
+
+
 def parse_products(text: str) -> list:
     """多商品解析（B 方案 — 2026-05-25 加；2026-05-26 P7 移至 product_parser）。
 
@@ -119,19 +139,21 @@ def parse_products(text: str) -> list:
     for i, (_start, end, product) in enumerate(found):
         window_end = found[i + 1][0] if i + 1 < len(found) else len(text)
         window = text[end:window_end]
-        qty = parse_quantity(window, default=None)
         # ① 內嵌數量拼音糾錯（2026-06-14 Phase B，spec §2.1）：
-        # 視窗解不出數量、但有實質內容時（如「紅茶商品」的「商品」=「三瓶」聽歪），
-        # 在該 product 單位的合法量詞域 {一X…十X} 做拼音近音糾錯。
-        # phonetic_match graceful（Windows 無 pypinyin → None）→ ① no-op，行為同今天。
-        if qty is None and window.strip():
-            unit = PRODUCTS[product]["單位"]
-            corrected = phonetic_match(
-                window.strip(), [w + unit for w in QTY_NUMBER_WORDS]
-            )
-            if corrected is not None:
-                qty = parse_quantity(corrected)
+        # 右視窗解不出數量、但有實質內容時（如「紅茶商品」的「商品」=「三瓶」聽歪），
+        # 在該 product 單位的合法量詞域做拼音近音糾錯（_resolve_window_qty 內處理）。
+        qty = _resolve_window_qty(window, PRODUCTS[product]["單位"])
         raw.append((product, qty))
+
+    # 3b. ② 數量提前（2026-06-15，spec §2.1）：第一商品右視窗無數量時，
+    # 解析其前導段 text[:found[0][0]]（商品名前的「三瓶」自然語序）補綁。
+    # 只綁第一商品 — 非首商品的左段＝前一商品右視窗（sticky-right 已處理），不重綁。
+    if raw and raw[0][1] is None:
+        leading = text[: found[0][0]]
+        if leading.strip():
+            lead_qty = _resolve_window_qty(leading, PRODUCTS[raw[0][0]]["單位"])
+            if lead_qty is not None:
+                raw[0] = (raw[0][0], lead_qty)
 
     # 4. Per-product dedup pass（見 docstring「Per-product dedup 規則」段）
     products_with_qty = {p for p, q in raw if q is not None}

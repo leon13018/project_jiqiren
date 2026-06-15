@@ -165,3 +165,33 @@ def test_parse_products_empty_window_not_corrected() -> None:
     with patch.object(product_parser, "phonetic_match") as mock_pm:
         assert product_parser.parse_products("紅茶") == [("冰紅茶", None)]
         mock_pm.assert_not_called()
+
+
+# ============================================================
+# ② 數量提前（2026-06-15，spec §2.1）
+# 數量在商品**前**（自然語序「三瓶紅茶」）→ sticky-right 右視窗落空，
+# 改解析第一商品前導段 text[:found[0][0]] 補綁。只綁第一商品（避免重綁 between-product）。
+# ============================================================
+
+def test_parse_products_leading_quantity_before_product() -> None:
+    """「三瓶紅茶」：數量在商品前 → 解析前導段補綁第一商品 → 冰紅茶 ×3。"""
+    assert product_parser.parse_products("三瓶紅茶") == [("冰紅茶", 3)]
+
+
+def test_parse_products_leading_quantity_large_number() -> None:
+    """「一千瓶紅茶」：前導段含千位複合中文數字 → 冰紅茶 ×1000。"""
+    assert product_parser.parse_products("一千瓶紅茶") == [("冰紅茶", 1000)]
+
+
+def test_parse_products_qty_after_product_unchanged_by_leading() -> None:
+    """回歸：數量在商品後（sticky-right）仍正確，前導段不重複介入。"""
+    assert product_parser.parse_products("紅茶三瓶") == [("冰紅茶", 3)]
+    assert product_parser.parse_products("刮刮樂兩張") == [("刮刮樂", 2)]
+
+
+def test_parse_products_leading_no_qty_keeps_missing() -> None:
+    """回歸：商品前後皆無數量（「紅茶刮刮樂」）→ 兩者 qty 都 None，前導段不誤糾。"""
+    assert product_parser.parse_products("紅茶刮刮樂") == [
+        ("冰紅茶", None),
+        ("刮刮樂", None),
+    ]
