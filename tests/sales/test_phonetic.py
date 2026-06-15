@@ -229,3 +229,47 @@ def test_phonetic_match_graceful_without_pypinyin() -> None:
     # Windows 未裝 → ImportError → 整體靜默回 None（caller 落回既有 reprompt）。
     # （此測試依賴 pypinyin 未安裝；Pi 裝後此 path 改走真演算法，由 Part 1 注入式測試覆蓋。）
     assert phonetic_match("商品", QTY) is None
+
+
+# ============================================================
+# 2.0 完全同音 tie-break（2026-06-15，spec §2.0）
+# 歧義閥改用 (模糊相似度, 完全同音數) 排序。完全同音數 = 逐位「聲韻母**未經模糊
+# 正規化**即相等」的音節數。sim 平手時 exact 較高者勝（解真歧義「食品→十瓶」）。
+# fake 取音器刻意構造 ASR 痛點：食(sh,i) 對 四(s,i)/十(sh,i) sim 皆 1.0，但
+#   食≡十 完全同音（exact=1）勝 食≈四 平翹舌（exact=0）。
+# ============================================================
+
+# 食=十 同音、食≈四 平翹舌、品≈瓶 前後鼻音 → 食品 對 四瓶/十瓶 sim 皆 1.0
+_FK = {
+    "食": ("sh", "i"), "品": ("p", "in"), "商": ("sh", "ang"),
+    "三": ("s", "an"), "四": ("s", "i"), "十": ("sh", "i"),
+    "一": ("", "i"), "兩": ("l", "iang"), "五": ("", "u"), "六": ("l", "iu"),
+    "七": ("q", "i"), "八": ("b", "a"), "九": ("j", "iu"), "瓶": ("p", "ing"),
+}
+
+
+def fk(ch):
+    return _FK[ch]
+
+
+QP = [w + "瓶" for w in "一兩三四五六七八九十"]
+
+
+def test_phonetic_match_exact_homophone_tiebreak_shipin_to_shiping() -> None:
+    """「食品」對 四瓶/十瓶 模糊相似度皆 1.0（食≈四 平翹舌、品≈瓶 前後鼻音），
+    但食≡十 完全同音（exact=1）> 食≈四（exact=0）→ tie-break 命中十瓶。
+    （現況 margin=0 → None；本案為 RED）"""
+    assert phonetic_match("食品", QP, to_pinyin=fk) == "十瓶"
+
+
+def test_phonetic_match_clear_winner_unaffected_by_tiebreak() -> None:
+    """「商品」清楚命中三瓶（sim 1.0 明顯勝其他）→ tie-break 不改變既有行為。"""
+    assert phonetic_match("商品", QP, to_pinyin=fk) == "三瓶"
+
+
+def test_phonetic_match_double_tie_still_none() -> None:
+    """真雙重平手：兩候選對 text 既 sim 皆 1.0、exact 又皆 0 → 無法區分 → None。
+    甲(j,ia)；乙/丙皆(j,ia)（聲韻母與甲完全相同字但屬不同 group）→ sim 1.0、
+    exact 1 也相同 → exact 無法 tie-break → None。"""
+    pinyin = {"甲": ("j", "ia"), "乙": ("j", "ia"), "丙": ("j", "ia")}
+    assert phonetic_match("甲", ["乙", "丙"], to_pinyin=lambda ch: pinyin[ch]) is None

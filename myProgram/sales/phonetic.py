@@ -115,26 +115,39 @@ def phonetic_match(text, candidates, *, to_pinyin=None, group_key=None):
         return None
 
     scores = []
+    exacts = []  # 完全同音數（逐位「聲韻母未經模糊正規化即相等」的音節數，spec §2.0）
     for cand_syl in candidate_syllables:
+        overlap = range(min(len(text_syllables), len(cand_syl)))
         hits = sum(
-            1
-            for i in range(min(len(text_syllables), len(cand_syl)))
-            if _syllable_equiv(text_syllables[i], cand_syl[i])
+            1 for i in overlap if _syllable_equiv(text_syllables[i], cand_syl[i])
         )
+        # 完全同音：逐位未 canon 即相等（食≡十 而非僅平翹舌 食≈四），供 sim 平手 tie-break。
+        exact = sum(1 for i in overlap if text_syllables[i] == cand_syl[i])
         # 長度不等自然降分（分母取較長者），無需子串特例。
         similarity = hits / max(len(text_syllables), len(cand_syl))
         scores.append(similarity)
+        exacts.append(exact)
 
-    best_idx = max(range(len(scores)), key=lambda i: scores[i])
+    # group-aware ranking：排序鍵 (sim, exact) 降序——sim 主、exact 為 sim 平手時的
+    # tie-break 維度（spec §2.0 完全同音 tie-break）。先排除與 top-1 同 group 者再取 top-2
+    # （同商品多 surface 不互壓）；group_key=None 時各候選自成 group → 退化為原 top-2。
+    best_idx = max(range(len(scores)), key=lambda i: (scores[i], exacts[i]))
     top1 = scores[best_idx]
-    # group-aware top-2：只取「與 top-1 不同 group」者最高分（同商品多 surface 不互壓）。
-    # group_key=None 時各候選自成 group → 退化為原 top-2（Phase A 行為不變）。
-    other_group = [s for i, s in enumerate(scores) if groups[i] != groups[best_idx]]
-    top2 = max(other_group) if other_group else 0.0
+    other_idx = [i for i in range(len(scores)) if groups[i] != groups[best_idx]]
+    runner = max(other_idx, key=lambda i: (scores[i], exacts[i])) if other_idx else None
+    top2 = scores[runner] if runner is not None else 0.0
 
-    # 歧義安全閥：top1 達閾值 且 top1 明顯勝其他 group（margin 足夠）才修正。
-    if top1 >= SIMILARITY_THRESHOLD and (top1 - top2) >= AMBIGUITY_MARGIN:
-        return candidates[best_idx]
+    # 歧義安全閥：top1 達閾值，且滿足下列任一勝出條件 → 修正命中。
+    #   (a) top1 明顯勝 top2（margin 足夠）→ 命中（不變）；
+    #   (b) sim 平手但 top1 完全同音數較高 → 命中（解 食品→十瓶，食≡十 同音勝食≈四 平翹舌）；
+    #   皆不滿足（含 sim 且 exact 皆平手 = 真‧無法區分）→ 落到下方子串 fallback。
+    if top1 >= SIMILARITY_THRESHOLD:
+        clear_win = (top1 - top2) >= AMBIGUITY_MARGIN
+        exact_tiebreak = (
+            runner is not None and top1 == top2 and exacts[best_idx] > exacts[runner]
+        )
+        if clear_win or exact_tiebreak:
+            return candidates[best_idx]
 
     # 不同字數子串 fallback（group-aware）：similarity 無 winner 時，找 deduped(text)
     # 是 deduped(候選) 子串者；命中候選同屬唯一 group → 回該組 similarity 最高者；
