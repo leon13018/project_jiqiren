@@ -159,6 +159,33 @@ def test_nlu_zheyang_jiu_hao_classified_as_checkout() -> None:
 
 
 # ============================================================
+# 合音還原 expand_fusion（2026-06-15，spec §2.2）
+# 台灣合音「這樣→醬(jiàng)」+ ASR 同音變體「將」未還原 →「醬/將就好」無法判斷。
+# expand_fusion 固定表逐字替換；無命中原樣返回（idempotent）。
+# ============================================================
+
+def test_expand_fusion_jiang_restored_to_zheyang() -> None:
+    """「將就好」→「這樣就好」（ASR 同音變體「將」還原）。"""
+    assert nlu.expand_fusion("將就好") == "這樣就好"
+
+
+def test_expand_fusion_jiang_sauce_restored_to_zheyang() -> None:
+    """「醬就好」→「這樣就好」（台灣合音「醬」還原）。"""
+    assert nlu.expand_fusion("醬就好") == "這樣就好"
+
+
+def test_expand_fusion_idempotent_no_fusion_char() -> None:
+    """無合音字（「這樣就好」已展開、「紅茶」普通詞）→ 原樣返回（idempotent，遞迴安全）。"""
+    assert nlu.expand_fusion("這樣就好") == "這樣就好"
+    assert nlu.expand_fusion("紅茶") == "紅茶"
+
+
+def test_expand_fusion_empty_string() -> None:
+    """空字串 → 空字串。"""
+    assert nlu.expand_fusion("") == ""
+
+
+# ============================================================
 # L0-NLU-004
 # ============================================================
 

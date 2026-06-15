@@ -2857,6 +2857,70 @@ def test_l3_c1_checkout_keyword_speaks_and_goes_l4() -> None:
 
 
 # ============================================================
+# 合音還原整合（2026-06-15，spec §2.2）：L3 顧客講「將就好」/「醬就好」
+# → _dispatch unclear 出口 expand_fusion →「這樣就好」→ 重 dispatch
+# → classify=結帳 → C-1 confirm → L4（非 unclear clarify）。
+# ============================================================
+
+@pytest.mark.parametrize("fused_text", ["將就好", "醬就好"])
+def test_l3_fusion_checkout_via_expand_goes_l4(fused_text: str) -> None:
+    """L3 加單狀態顧客講合音「將就好」/「醬就好」→ 還原這樣就好 → 走結帳 C-1 → L4。"""
+    # Arrange
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # 合音 → 還原這樣就好 → 結帳 confirm → "1" 確認 → L4
+    customer_input = FakeCustomerInput([fused_text, "1"])
+
+    # Act
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # Assert：走結帳 confirm（含「正確嗎」confirm 文案）→ L4，非 unclear clarify
+    confirm_prompts = [t for t in speak_calls if "正確嗎" in t]
+    assert len(confirm_prompts) >= 1, (
+        f"合音「{fused_text}」應還原後走結帳 confirm，實際：{speak_calls}"
+    )
+    assert L3_B1_CLARIFY not in speak_calls, (
+        f"合音「{fused_text}」不應落 unclear clarify，實際：{speak_calls}"
+    )
+    assert next_state == "L4", f"應進 L4，實際：{next_state!r}"
+
+
+def test_l3_gibberish_no_fusion_char_still_unclear() -> None:
+    """回歸：無合音字（醬/將）的 gibberish → expand_fusion no-op → 仍走 unclear clarify（不被劫持）。"""
+    # Arrange
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # gibberish → unclear clarify → None timeout 收尾
+    customer_input = FakeCustomerInput(["asdf", None])
+
+    # Act
+    states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    # Assert：仍走 unclear clarify（expand_fusion 無變、不重 dispatch）
+    assert L3_B1_CLARIFY in speak_calls, (
+        f"gibberish 應仍走 unclear clarify，實際：{speak_calls}"
+    )
+
+
+# ============================================================
 # L3-C-2-001
 ### Scenario: 6 秒無回應觸發 C-2 第一段語音並進入第二段 6 秒等待
 ### Given L3 進入時動作完成，等待顧客回應中

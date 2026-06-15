@@ -82,7 +82,7 @@ from myProgram.sales.constants import (
     ACTION_L3_CHECKOUT_GO,
 )
 from myProgram.sales.dialog_io import DialogIO
-from myProgram.sales.nlu import classify_intent, split_at_quantity
+from myProgram.sales.nlu import classify_intent, split_at_quantity, expand_fusion
 from myProgram.sales.product_parser import parse_products
 from myProgram.sales.phonetic import phonetic_match
 from myProgram.sales import cart as cart_module
@@ -452,6 +452,13 @@ class DialogSession:
         products = parse_products(response)
         if products:
             return self._handle_products(products, in_main_loop=in_main_loop)
+
+        # ③ 合音還原（2026-06-15，spec §2.2）：classify 已回無法判斷的 unclear 出口，
+        # 台灣合音「醬/將就好」→「這樣就好」→ 重 dispatch 重 classify → 走結帳 confirm。
+        # idempotent + `expanded != response` guard → 重 dispatch 無變 → 不再遞迴（max depth 1）。
+        expanded = expand_fusion(response)
+        if expanded != response:
+            return self._dispatch(expanded, in_main_loop=in_main_loop)
 
         # ② 問商品 unclear 出口拼音糾錯（2026-06-14 Phase B，spec §2.3 + Bug2 §2.2）：
         # 拒絕 / 想一下 / 結帳 / 客服 / 想買無商品 / 正常解析皆已先 return，不被劫持。

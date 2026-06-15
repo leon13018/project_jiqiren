@@ -263,6 +263,29 @@ def classify_intent(text: str, mode: str = "normal") -> Intent:
     return "無法判斷"
 
 
+# ============================================================
+# 合音還原（2026-06-15，spec §2.2）：台灣口語合音「這樣→醬(jiàng)」+
+# ASR 同音變體「將」。固定表逐字替換，無命中原樣返回（idempotent）。
+# 只在 _dispatch 已 classify 為「無法判斷」的 unclear 出口跑（gating 壓低 FP）。
+# 初版只 醬/將→這樣（design YAGNI；甭/表 等另議）。
+# ============================================================
+_FUSION_TABLE = {"醬": "這樣", "將": "這樣"}
+
+
+def expand_fusion(text: str) -> str:
+    """合音 / ASR 同音變體還原（逐字替換）。
+
+    「醬就好」/「將就好」→「這樣就好」（→ classify=結帳）。
+    無命中原樣返回；「這樣…」已展開 → 不再變（idempotent → 重 dispatch 遞迴安全）。
+
+    Returns:
+        替換後字串（無命中時 == 原字串）
+    """
+    for fused, expanded in _FUSION_TABLE.items():
+        text = text.replace(fused, expanded)
+    return text
+
+
 # 中文「十 / 百」位乘數（B5 / D10 複合數字支援）
 _CHINESE_TENS = {"十": 10, "拾": 10, "百": 100, "佰": 100}
 
