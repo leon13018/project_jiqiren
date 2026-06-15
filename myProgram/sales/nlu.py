@@ -440,6 +440,33 @@ def split_at_quantity(text: str) -> tuple[str, str]:
     return text, ""
 
 
+# 數量字元段 regex（find_quantity_spans 用，2026-06-15 spec §2.1 Part 1）：
+# 阿拉伯 0-9 + CHINESE_DIGIT_MAP 字（含十拾）+ multiplier（百佰千仟萬万）+ 單位 瓶張。
+# 單位字併入讓「三瓶」「五張」黏成一段（單位是 span 邊界線索，非數量本身）；
+# 商品字（冰紅茶刮樂）不在此集 → 數量 span 與商品 span 天然不重疊。
+_QTY_SPAN_RE = re.compile(
+    r"[0-9" + "".join(CHINESE_DIGIT_MAP) + _CHINESE_MULTIPLIER_CHARS + "瓶張]+"
+)
+
+
+def find_quantity_spans(text: str) -> list[tuple[int, int, int]]:
+    """掃出文字內所有數量字元段，回 [(start, end, value), ...]。
+
+    供 parse_products 統一 token-parser 定位數量 token。每段以 _QTY_SPAN_RE 取最大
+    連續段，再 parse_quantity(default=None) 求值；值為 None 的段（如純單位字「瓶」
+    無數字）棄。
+
+    例：「紅茶三瓶」→ [(2, 4, 3)]；「五張刮刮樂三瓶」→ [(0, 2, 5), (5, 7, 3)]；
+        「9萬瓶」→ [(0, 3, 90000)]；「紅茶」→ []。
+    """
+    out: list[tuple[int, int, int]] = []
+    for m in _QTY_SPAN_RE.finditer(text):
+        value = parse_quantity(m.group(), default=None)
+        if value is not None:
+            out.append((m.start(), m.end(), value))
+    return out
+
+
 def parse_quantity(text: str, default: int | None = 1) -> int | None:
     """從顧客輸入解析商品數量。
 

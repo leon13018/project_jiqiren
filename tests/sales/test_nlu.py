@@ -580,6 +580,38 @@ def test_split_at_quantity_空字串():
 
 
 # ============================================================
+# find_quantity_spans（2026-06-15，spec §2.1 Part 1）
+# 掃描數量字元段 regex（阿拉伯 + CHINESE_DIGIT_MAP + multiplier + 單位 瓶張），
+# 每段 parse_quantity 得值；值為 None 的段棄。回 [(start, end, value), ...]。
+# 供 parse_products 統一 token-parser 找數量 token。
+# ============================================================
+
+def test_find_quantity_spans_single_after_product():
+    """「紅茶三瓶」：紅茶 0-2 不在數量集、三瓶 2-4 → [(2, 4, 3)]。"""
+    assert nlu.find_quantity_spans("紅茶三瓶") == [(2, 4, 3)]
+
+
+def test_find_quantity_spans_two_spans_around_product():
+    """「五張刮刮樂三瓶」：五張 0-2、刮刮樂 2-5 不在數量集、三瓶 5-7 → [(0,2,5),(5,7,3)]。"""
+    assert nlu.find_quantity_spans("五張刮刮樂三瓶") == [(0, 2, 5), (5, 7, 3)]
+
+
+def test_find_quantity_spans_arabic_multiplier():
+    """「9萬瓶」：阿拉伯數字緊接乘數 → span 0-3、值 90000。"""
+    assert nlu.find_quantity_spans("9萬瓶") == [(0, 3, 90000)]
+
+
+def test_find_quantity_spans_no_quantity_returns_empty():
+    """「紅茶」無數量字 → []。"""
+    assert nlu.find_quantity_spans("紅茶") == []
+
+
+def test_find_quantity_spans_unit_only_no_value_dropped():
+    """「瓶」單位字但無數字 → parse_quantity(default=None) 回 None → 該段棄 → []。"""
+    assert nlu.find_quantity_spans("瓶") == []
+
+
+# ============================================================
 # L0-QTY-011 (2026-05-25 加：量詞 agnostic 契約)
 # ============================================================
 
