@@ -24,13 +24,14 @@
 
 - `_l4_pay_success`：`io.speak(L4_A_PAY_SUCCESS_FAREWELL)` + `io.do_action(ACTION_L4_PAY)` → `return ("L5", 0, 0)`（不變）。
 - `run_l5`：**移除** `speak(L5_THANKS)`；保留 `do_action(ACTION_L5_FAREWELL)` → `clear_cart` → `sleep(THANK_DELAY)` → `return ("L1_via_subroutine_a", 0, 0)`。
+- **`run_l5` 連帶移除 `speak` 參數**：machine 每 state 精確傳所需 callback（非統一 bundle），L5 不再 speak → `machine.py` `L5State.run` 同步不再傳 `speak=cb["speak"]`；test stub（test_logic/test_machine）與 bench 的 `run_l5` 簽名同步去 speak。（留未用參數會被 reviewer 標、違反本 codebase 慣例。）
 
 > 棄 Option 2（合併句在 L5 播、L4 只 bow）：bow 會在無語音的靜默中先跑、較突兀。
 
 ### 2.2 常數變更（`constants/`）
 
 - **新增** `l4_text.py`：`L4_A_PAY_SUCCESS_FAREWELL: str = "付款成功，謝謝光臨，歡迎再來"`（不加結尾「。」，match 現有語音常數 house style；14 字 → `tts._pick_rate` 落「中句 +6%」，已確認接受此語速，較原兩句短句 +3% 快約 3%、無感）。
-- **移除死常數**：`L4_A_PAY_SUCCESS`（僅 `_l4_pay_success` 用）、`L5_THANKS`（僅 `run_l5` 用），連同 `constants/__init__.py` 的 re-export。`THANK_DELAY` / `ACTION_L4_PAY` / `ACTION_L5_FAREWELL` 不動。
+- **移除死常數**：`L4_A_PAY_SUCCESS`（僅 `_l4_pay_success` 用）、`L5_THANKS`（僅 `run_l5` 用），方式為改各自子模組的 `__all__`；`constants/__init__.py` 用 `import *` 由 `__all__` 驅動 → **無需直接改**。`THANK_DELAY` / `ACTION_L4_PAY` / `ACTION_L5_FAREWELL` 不動。
 
 ### 2.3 動作時序與不變項
 
@@ -48,12 +49,13 @@ SOP（文案常數改動）：Pi 端 `python3.11 -m myProgram.tts_prewarm`（勿
 
 | # | 檔 | 類型 | 內容 |
 |---|---|---|---|
-| 1 | `myProgram/sales/constants/l4_text.py` | 改 | +`L4_A_PAY_SUCCESS_FAREWELL`，−`L4_A_PAY_SUCCESS` |
-| 2 | `myProgram/sales/constants/l5_text.py` | 改 | −`L5_THANKS` |
-| 3 | `myProgram/sales/constants/__init__.py` | 改 | re-export 同步（+合併常數、−兩死常數） |
-| 4 | `myProgram/sales/states/l4.py` | 改 | `_l4_pay_success` speak 改用合併常數 + import |
-| 5 | `myProgram/sales/states/l5.py` | 改 | `run_l5` 移除 `speak(L5_THANKS)` + import + 更新 docstring（ENTRY-002 步移除） |
-| 6 | `tests/sales/test_states.py`（及相關） | 改 | 斷言更新：L4 講合併句、L5 不再 speak、L5 仍 wave+clear+sleep；既有案當回歸網 |
+| 1 | `myProgram/sales/constants/l4_text.py` | 改 | +`L4_A_PAY_SUCCESS_FAREWELL`（含 `__all__`），−`L4_A_PAY_SUCCESS` |
+| 2 | `myProgram/sales/constants/l5_text.py` | 改 | −`L5_THANKS`，`__all__` 清空 |
+| – | `constants/__init__.py` | **不改** | `import *` 由各子模組 `__all__` 驅動，自動同步 |
+| 3 | `myProgram/sales/states/l4.py` | 改 | `_l4_pay_success` speak 改用合併常數 + import |
+| 4 | `myProgram/sales/states/l5.py` | 改 | `run_l5` 移除 `speak` 參數 + `speak(L5_THANKS)` + import + docstring |
+| 5 | `myProgram/sales/states/machine.py` | 改 | `L5State.run` 不再傳 `speak=cb["speak"]` 給 `run_l5` |
+| 6 | tests | 改 | `test_states`（L4 合併句 / L5 不 speak / run_l5 簽名）、`test_tts_worker`（prewarm 枚舉換新常數）、`test_main_read_callbacks`（樣本字串）、`test_logic`/`test_machine`（stub_run_l5 去 speak）、`bench_sales`（去 speak）、`tests/spec/*` 敘述對齊 |
 
 ## 4. Out of scope
 
