@@ -10,7 +10,7 @@
 - `evals/` — skill EDD 回歸：場景庫（`evals.json` 舊格式 + `scenarios_*.json` 新格式）+ `README.md`（harness 跑法）+ `baseline/`、`iteration-*/` 歷史；harness 本體在 `.claude/workflows/skill-edd-regression.js`。
 - `architecture/` — 架構願景 + 前後端契約 + 後端模組結構。
 - `requirements/` — 需求文件（Raspberry Pi setup / 已安裝清單）。
-- `pineedtodo/` — Pi 端待辦操作說明書（append-only）。
+- `pineedtodo/` — Pi 端待辦操作說明書（寫入 append-only；完成即 `git mv` 進 `archive/` 子目錄，主目錄只留未完成 pending）。
 - `examples/` — 範例 code。
 - `changelogs/` — 開發日誌分期詳錄（按時期一檔；索引在 `changelog.md`）。
 - `roadmaps/` — 未來計畫詳檔（索引在 `roadmap.md`）。

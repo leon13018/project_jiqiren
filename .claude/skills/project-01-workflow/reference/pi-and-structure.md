@@ -19,7 +19,7 @@
 
 **不觸發 ❌**：純程式邏輯修改/重構（無新依賴）｜純文件/markdown/memory/`.claude/` 檔｜`.gitignore`/`sync_pi.ps1`/git 設定｜CLAUDE.md/規範自身修訂。
 
-**輸出**：位置固定 `resources/pineedtodo/<YYYY-MM-DD>_<short_name>.md`；**append-only**（每輪新增新檔，既有不動不刪；發現先前有誤也新開檔修正）。
+**輸出**：位置固定 `resources/pineedtodo/<YYYY-MM-DD>_<short_name>.md`；**寫入 append-only**（每輪新增新檔、既有內容不改寫；發現先前有誤也新開檔修正，不在原檔改歷史）。**完成即歸檔**：該檔 Pi 實測通過且使用者回報後，housekeeping 時 `git mv` 進 `resources/pineedtodo/archive/`（保留歷史、主目錄只留未完成的真 pending）。判定完成＝使用者回報 ✕ `requirements/raspberry_pi_setup.md` ✕ changelog「Pi 實測通過」字樣三者交叉，**禁臆測**。
 
 **寫完 pineedtodo → 主 agent 提醒使用者回報**：「請在 Pi 完成後回報哪些**成功**裝上/啟用（套件名/raspi-config 項/service），我更新 `resources/requirements/raspberry_pi_setup.md`。失敗/未完成不必報。」收到回報 → Read 該清單把**明確**回報成功項加進去（純文件編輯例外，主 agent 自己改，走標準 5 步收尾）。**禁自動推測**；失敗/未報項絕不寫入。
 
@@ -35,7 +35,7 @@
 - **檔頭（置頂）**：`建立日期` / `對應提交：<hash> — <標題>` /（可選短簡介）。
 - **驗證段（置尾）**：跑什麼指令確認本輪 Pi 操作成功、預期輸出/行為、故障排除。
 - 其他自選：Step 1..N / 故障排除表 / 完成說明 / 注意事項。
-- 參考範例：`resources/pineedtodo/2026-05-22_TTS_setup.md`。
+- 參考範例：`resources/pineedtodo/archive/2026-05-22_TTS_setup.md`（已完成歸檔）。
 
 ---
 
