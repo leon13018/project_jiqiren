@@ -232,3 +232,41 @@ def test_arecord_source_reads_ch0():
 
     out = _ArecordSource(_P()).read(6)  # 6 bytes mono = 3 個 ch0 樣本（內部讀 36 bytes）
     assert struct.unpack("<3h", out) == (1, 2, 3)
+
+
+def test_prewarm_only_keepalive_no_audio():
+    ws = FakeWs([])
+    worker = SttWorker(sink=lambda t: None, api_key="test-key",
+                       ws_factory=lambda key: ws, audio_factory=FakeAudioSource,
+                       keepalive_interval=0.02)
+    worker.prewarm()
+    assert worker.is_armed()                                   # session 已起
+    assert wait_until(lambda: any(isinstance(m, str) and "KeepAlive" in m
+                                  for m in ws.sent))           # 有送 KeepAlive
+    assert all(isinstance(m, str) for m in ws.sent)            # 全是 KeepAlive，零音訊 bytes
+    worker.disarm()
+
+
+def test_arm_sends_audio_after_prewarm():
+    ws = FakeWs([_results("我要紅茶兩杯。", speech_final=True)])
+    calls = []
+    worker = SttWorker(sink=calls.append, api_key="test-key",
+                       ws_factory=lambda key: ws,
+                       audio_factory=lambda: FakeAudioSource([b"\x01\x02"]),
+                       keepalive_interval=5.0)
+    worker.prewarm()
+    worker.arm()                                               # 開始送音訊
+    assert wait_until(lambda: b"\x01\x02" in ws.sent)          # 音訊送出
+    assert wait_until(lambda: calls == ["我要紅茶兩杯"])       # 顧客辨識注入
+    worker.disarm()
+
+
+def test_module_prewarm_delegates(monkeypatch):
+    import myProgram.stt as stt_mod
+    monkeypatch.setattr(stt_mod, "_worker", None)
+    monkeypatch.setattr(stt_mod, "_default_ws_factory", lambda key: FakeWs())
+    monkeypatch.setattr(stt_mod, "_default_audio_factory", lambda: FakeAudioSource())
+    monkeypatch.setenv("DEEPGRAM_API_KEY", "test-key")
+    stt_mod.prewarm()
+    assert stt_mod._worker.is_armed()
+    stt_mod.disarm()
