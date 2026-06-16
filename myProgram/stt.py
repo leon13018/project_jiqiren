@@ -1,7 +1,7 @@
-"""STT worker — Deepgram Nova-3 串流語音辨識（Phase 1：播完才聽）。
+"""STT worker — Deepgram Nova-3 串流語音辨識（Phase 2：prewarm 預熱期邊播邊聽但閘住丟棄，TTS 播完 arm 開閘 go-live；讀 ReSpeaker ch0 處理後聲道）。
 
-對應 spec：resources/specs/stt_p1_2026-06-12_spec.md
-（統領設計 resources/specs/stt_bargein_2026-06-12_design.md）。
+對應 spec：resources/specs/stt_p1_2026-06-12_spec.md、stt_p2_2026-06-16_spec.md
+（統領設計 resources/specs/stt_bargein_2026-06-12_design.md；barge-in 經 AEC 實測收掉，Phase 2 改 turn-taking 微調）。
 
 架構（第四個 worker；producer 形狀，與 input_reader 同類）：
     - 無常駐 thread：arm() 起 session（sender + receiver 兩條 daemon thread），

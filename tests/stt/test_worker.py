@@ -245,8 +245,8 @@ def test_prewarm_starts_session_gated():
 def test_prewarm_discards_received_transcript():
     worker, ws, calls = _make_worker([_results("機器人自己的話。", speech_final=True)])
     worker.prewarm()
-    assert wait_until(lambda: not ws._messages)  # 訊息已被 receiver 消費
-    import time; time.sleep(0.05)                 # 給 sink 被呼叫的機會（若會）
+    assert wait_until(lambda: not ws._messages)  # 訊息已被 receiver 消費（閘判斷在 _sink 前同步發生）
+    import time; time.sleep(0.05)                 # 保險：消費已確認於上行，此 sleep 只防晚到的 sink（非 load-bearing）
     assert calls == []                            # gated → 沒注入
     worker.disarm()
 
