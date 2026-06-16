@@ -18,7 +18,6 @@ def wired(monkeypatch):
     fake_tts = types.SimpleNamespace(
         wait_idle=lambda max_wait=30.0: calls.append("wait_idle") or True)
     fake_stt = types.SimpleNamespace(
-        prewarm=lambda: calls.append("prewarm"),
         arm=lambda: calls.append("arm"),
         disarm=lambda: calls.append("disarm"))
     monkeypatch.setitem(sys.modules, "myProgram.tts", fake_tts)
@@ -50,8 +49,7 @@ def test_arm_after_wait_idle_and_disarm_on_input(wired):
     sim, calls, monkeypatch = wired
     _stub_input(monkeypatch, calls, "好")
     assert sim.read_customer_input(timeout=5) == "好"
-    assert (calls.index("prewarm") < calls.index("wait_idle")
-            < calls.index("arm") < calls.index("read"))
+    assert calls.index("wait_idle") < calls.index("arm") < calls.index("read")
     assert calls[-1] == "disarm"
 
 

@@ -39,7 +39,8 @@
 ### 6. STT Phase 2 — 讀 ch0 + 預熱連線（barge-in 經 AEC 實測收掉）
 - **真 barge-in 不可行（Pi 實測 2026-06-16）**：硬體 AEC ~0dB、最佳線性 AEC 上限 7–10dB（換主動式喇叭僅+2dB、1秒窗≈整段排除時脈漂移、`norm_xcorr 0.178` 非線性耦合）；需 20–30dB 才能可靠搶話 → 收掉。詳 spec `stt_p2_2026-06-16_spec.md` §1（離線最佳線性 FIR 工具 `userPrompt/aec_offline*.py`）。
 - 轉 turn-taking 微調（spec/plan `55ed770`）：① 讀 ReSpeaker **ch0 處理後聲道**（`_extract_ch0` + `_ArecordSource` 反交錯 + factory `-c 6`，取代 6ch 降混稀釋）`a908209`；② **prewarm gate** 預熱 Deepgram 連線（`_live` Event + `_start_session(live)` race-safe + `main.py` `prewarm→wait_idle→arm`）`fad257e`；review minor doc `47ba770`。
-- 測試 592 → 627（+35 stt，含 ch0 反交錯 / gate 丟棄）；spec-reviewer + code-quality 三段審通過。Pi 操作：`STT_ARECORD_DEVICE=hw:CARD=ArrayUAC10`（原生 6ch）→ `pineedtodo/2026-06-16_stt_p2_ch0_6ch.md`。
+- 測試 592 → 627（+35 stt，含 ch0 反交錯 / gate 丟棄）；spec-reviewer + code-quality 三段審通過（Windows）。
+- **❌ 已 revert（2026-06-16 Pi 實測）**：prewarm 邊播邊收 → 機器人自聲經 Deepgram **延遲轉錄、漏過 `_live` 閘**（閘只能依「收到時間」判斷，擋不住「播放時收、講完延遲才回」的轉錄）→ `[語音辨識]` 收到自己的 TTS → 自我回授無限迴圈。**無 AEC 無從擋** → code 退回 `e15167a`（Phase 1，播完才開麥；621 綠）。spec/plan 留存為記錄、pineedtodo `git rm`。**結論：無 AEC 時任何邊播邊收（prewarm / barge-in）皆不可行；STT 停在 Phase 1。**
 
 ## 架構 / 流程沉澱
 - 新模組：`myProgram/stt/`（Deepgram 串流 worker）、`myProgram/sales/phonetic.py`（拼音近音糾錯，pypinyin 注入 + graceful）。
@@ -48,6 +49,6 @@
 - 反思採納：cwd-pinned worktree Option B（`worktree.md`）、cp936 中文輸出探針設 `PYTHONIOENCODING=utf-8 PYTHONUTF8=1`（`conventions.md`）。
 
 ## 下一步（pending）
-- ~~STT barge-in Phase 2~~：真搶話經 AEC 實測收掉（見里程碑 6）；STT 已收尾於 Phase 2 turn-taking（讀 ch0 + prewarm）。
+- ~~STT barge-in Phase 2~~ / ~~Phase 2 turn-taking~~：真搶話經 AEC 收掉；Phase 2 turn-taking 亦 revert（prewarm 自我回授，見里程碑 6）→ **STT 停在 Phase 1**。
 - **HTML UI**（`roadmaps/html_ui_plan.md`）｜**期末 demo 準備**（`presentation/` 尚空）。
 - deferred edges（已記 watchlist W-14~17 / roadmap）：C1 無分隔雙數量、C3 插字 garble、C4 合音表擴充、D4 daemon warning、D3 通用快取清理工具——demo 真踩到再修。

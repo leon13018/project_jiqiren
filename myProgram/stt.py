@@ -1,7 +1,7 @@
-"""STT worker — Deepgram Nova-3 串流語音辨識（Phase 2：prewarm 預熱期邊播邊聽但閘住丟棄，TTS 播完 arm 開閘 go-live；讀 ReSpeaker ch0 處理後聲道）。
+"""STT worker — Deepgram Nova-3 串流語音辨識（Phase 1：播完才聽）。
 
-對應 spec：resources/specs/stt_p1_2026-06-12_spec.md、stt_p2_2026-06-16_spec.md
-（統領設計 resources/specs/stt_bargein_2026-06-12_design.md；barge-in 經 AEC 實測收掉，Phase 2 改 turn-taking 微調）。
+對應 spec：resources/specs/stt_p1_2026-06-12_spec.md
+（統領設計 resources/specs/stt_bargein_2026-06-12_design.md）。
 
 架構（第四個 worker；producer 形狀，與 input_reader 同類）：
     - 無常駐 thread：arm() 起 session（sender + receiver 兩條 daemon thread），
@@ -77,53 +77,34 @@ class SttWorker:
         self._lock = threading.Lock()
         self._session = None      # (stop_event, audio, ws, receiver, sender)
         self._disabled = False    # 缺 key / 401 → 本次執行停用（鍵盤照常）
-        self._live = threading.Event()  # 注入閘：set 才把辨識注入 sink（prewarm 期關）
 
     def is_armed(self) -> bool:
         with self._lock:
             return self._session is not None
 
-    def _start_session(self, live: bool) -> None:
-        """caller 持 self._lock。起 session（ws + audio + sender/receiver threads）。
-        起 thread 前依 live 先定閘——避免 receiver 早於設閘而誤丟首筆（race-safe）。
-        缺 key / 連線失敗 → 停用 / 放棄（同既有）。"""
-        if self._disabled or self._session is not None:
-            return
-        if not self._api_key:
-            print("[語音辨識] ⚠️ 未設定 DEEPGRAM_API_KEY，STT 停用（鍵盤輸入照常）")
-            self._disabled = True
-            return
-        ws = self._connect_with_retry()
-        if ws is None:
-            return  # 本輪放棄（已印原因）；下次 arm 再試或已永久停用
-        if live:
-            self._live.set()
-        else:
-            self._live.clear()
-        audio = self._audio_factory()
-        stop = threading.Event()
-        receiver = threading.Thread(
-            target=self._receive_loop, args=(ws, stop),
-            name="SttReceiver", daemon=True)
-        sender = threading.Thread(
-            target=self._send_loop, args=(ws, audio, stop),
-            name="SttSender", daemon=True)
-        self._session = (stop, audio, ws, receiver, sender)
-        receiver.start()
-        sender.start()
-
-    def prewarm(self) -> None:
-        """預熱：起 session 但閘關（收到的辨識先丟棄）。冪等。"""
-        with self._lock:
-            self._start_session(live=False)
-
     def arm(self) -> None:
-        """開麥 go-live：無 session 則起並開閘；已 prewarm 的 session 直接開閘。冪等。"""
+        """冪等開麥：已 armed / 已停用 no-op；缺 key 印一次警告後停用。"""
         with self._lock:
-            if self._session is None:
-                self._start_session(live=True)
-            else:
-                self._live.set()
+            if self._disabled or self._session is not None:
+                return
+            if not self._api_key:
+                print("[語音辨識] ⚠️ 未設定 DEEPGRAM_API_KEY，STT 停用（鍵盤輸入照常）")
+                self._disabled = True
+                return
+            ws = self._connect_with_retry()
+            if ws is None:
+                return  # 本輪放棄（已印原因）；下次 arm 再試或已永久停用
+            audio = self._audio_factory()
+            stop = threading.Event()
+            receiver = threading.Thread(
+                target=self._receive_loop, args=(ws, stop),
+                name="SttReceiver", daemon=True)
+            sender = threading.Thread(
+                target=self._send_loop, args=(ws, audio, stop),
+                name="SttSender", daemon=True)
+            self._session = (stop, audio, ws, receiver, sender)
+            receiver.start()
+            sender.start()
 
     def _connect_with_retry(self):
         """建線；非 401 失敗重試 1 次；401 → 永久停用（本次執行）。Task 6 補測。"""
@@ -163,7 +144,7 @@ class SttWorker:
                     continue
                 alts = data.get("channel", {}).get("alternatives", [])
                 text = _normalize_transcript(alts[0].get("transcript", "")) if alts else ""
-                if text and self._live.is_set():
+                if text:
                     print(f"[語音辨識] {text}")
                     self._sink(text)
         except Exception as e:
@@ -179,7 +160,6 @@ class SttWorker:
         daemon，極端卡住也不擋程式退出（對齊 S6 教訓：不嘗試強解 blocking IO）。
         """
         with self._lock:
-            self._live.clear()
             if self._session is None:
                 return
             stop, audio, ws, receiver, sender = self._session
@@ -202,16 +182,6 @@ def _is_auth_error(e: Exception) -> bool:
     return getattr(getattr(e, "response", None), "status_code", None) == 401
 
 
-_CHANNELS = 6  # ReSpeaker 6-channel 韌體：ch0 = 處理後（AEC/波束成形/降噪）ASR 軌
-
-
-def _extract_ch0(buf: bytes, channels: int = _CHANNELS) -> bytes:
-    """交錯多聲道 S16 buffer → 取 channel 0（每幀第一個 16-bit 樣本）。不完整尾幀丟棄。"""
-    frame = channels * 2
-    usable = len(buf) - (len(buf) % frame)
-    return b"".join(buf[i:i + 2] for i in range(0, usable, frame))
-
-
 class _ArecordSource:
     """arecord subprocess 包裝：read 走 stdout pipe，close 走 terminate。
 
@@ -223,8 +193,7 @@ class _ArecordSource:
         self._proc = proc
 
     def read(self, n: int) -> bytes:
-        # 讀 n*6 bytes（6ch 交錯）→ 取 ch0（處理後）→ 回 mono；半幀尾自然順延
-        return _extract_ch0(self._proc.stdout.read(n * _CHANNELS))
+        return self._proc.stdout.read(n)
 
     def close(self) -> None:
         if self._proc.poll() is None:
@@ -240,8 +209,7 @@ def _default_audio_factory():
     裝置選擇：環境變數 STT_ARECORD_DEVICE（如 "plughw:1,0"）；未設用 ALSA 預設
     （Pi 端把 ReSpeaker 設為預設 capture 或設此變數——pineedtodo 會列）。
     """
-    cmd = ["arecord", "-q", "-f", "S16_LE", "-r", "16000",
-           "-c", str(_CHANNELS), "-t", "raw"]
+    cmd = ["arecord", "-q", "-f", "S16_LE", "-r", "16000", "-c", "1", "-t", "raw"]
     device = os.environ.get("STT_ARECORD_DEVICE")
     if device:
         cmd[1:1] = ["-D", device]
@@ -268,11 +236,6 @@ def _get_worker() -> SttWorker:
         _worker = SttWorker(sink=input_reader.inject,
                             api_key=os.environ.get("DEEPGRAM_API_KEY"))
     return _worker
-
-
-def prewarm() -> None:
-    """對外 API：預熱連線（read_customer_input 進場呼叫，疊在 TTS 播放上）。"""
-    _get_worker().prewarm()
 
 
 def arm() -> None:

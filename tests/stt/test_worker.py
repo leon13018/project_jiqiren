@@ -186,7 +186,7 @@ def test_default_audio_factory_command(monkeypatch):
     monkeypatch.delenv("STT_ARECORD_DEVICE", raising=False)
     stt_mod._default_audio_factory()
     assert captured["cmd"] == ["arecord", "-q", "-f", "S16_LE", "-r", "16000",
-                               "-c", "6", "-t", "raw"]
+                               "-c", "1", "-t", "raw"]
     assert captured["kwargs"]["stdin"] == stt_mod.subprocess.DEVNULL
 
     monkeypatch.setenv("STT_ARECORD_DEVICE", "plughw:1,0")
@@ -204,63 +204,3 @@ def test_module_api_lazy_singleton(monkeypatch):
     assert stt_mod._worker is not None
     stt_mod.disarm()
     stt_mod.shutdown()
-
-
-def test_module_prewarm_delegates(monkeypatch):
-    import myProgram.stt as stt_mod
-    monkeypatch.setattr(stt_mod, "_worker", None)
-    monkeypatch.setattr(stt_mod, "_default_ws_factory", lambda key: FakeWs())
-    monkeypatch.setattr(stt_mod, "_default_audio_factory", lambda: FakeAudioSource())
-    monkeypatch.setenv("DEEPGRAM_API_KEY", "test-key")
-    stt_mod.prewarm()
-    assert stt_mod._worker.is_armed() and not stt_mod._worker._live.is_set()
-    stt_mod.disarm()
-
-
-def test_extract_ch0_picks_first_channel():
-    import struct
-    from myProgram.stt import _extract_ch0
-    buf = struct.pack("<6h", 11, 1, 2, 3, 4, 5) + struct.pack("<6h", 22, 6, 7, 8, 9, 0)
-    assert struct.unpack("<2h", _extract_ch0(buf)) == (11, 22)
-
-
-def test_extract_ch0_drops_partial_frame():
-    import struct
-    from myProgram.stt import _extract_ch0
-    buf = struct.pack("<6h", 11, 0, 0, 0, 0, 0)
-    assert _extract_ch0(buf + b"\x09\x09") == _extract_ch0(buf)
-
-
-def test_prewarm_starts_session_gated():
-    worker, ws, calls = _make_worker([])
-    worker.prewarm()
-    assert worker.is_armed()           # session 已起
-    assert not worker._live.is_set()   # 閘未開（丟棄期）
-    worker.arm()
-    assert worker._live.is_set()       # arm 開閘 go-live
-    worker.disarm()
-    assert not worker._live.is_set()   # disarm 歸零
-
-
-def test_prewarm_discards_received_transcript():
-    worker, ws, calls = _make_worker([_results("機器人自己的話。", speech_final=True)])
-    worker.prewarm()
-    assert wait_until(lambda: not ws._messages)  # 訊息已被 receiver 消費（閘判斷在 _sink 前同步發生）
-    import time; time.sleep(0.05)                 # 保險：消費已確認於上行，此 sleep 只防晚到的 sink（非 load-bearing）
-    assert calls == []                            # gated → 沒注入
-    worker.disarm()
-
-
-def test_arecord_source_reads_ch0():
-    import io, struct
-    from myProgram.stt import _ArecordSource
-    buf = b"".join(struct.pack("<6h", v, 9, 9, 9, 9, 9) for v in (1, 2, 3))
-
-    class _P:
-        stdout = io.BytesIO(buf)
-        def poll(self): return None
-        def terminate(self): pass
-
-    src = _ArecordSource(_P())
-    out = src.read(6)  # 要 6 bytes mono = 3 個 ch0 樣本（內部讀 36 bytes 6ch）
-    assert struct.unpack("<3h", out) == (1, 2, 3)
