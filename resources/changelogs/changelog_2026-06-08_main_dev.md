@@ -36,6 +36,11 @@
 - **triage 共識 defer**（已記 watchlist/roadmap）：C1 無分隔雙數量（輸入本歧義）/ C3 插字 garble（需編輯距離）/ C4 合音表擴充（缺證據）/ D4 daemon warning（連 repro 未有）/ D3 通用清理工具。
 - 測試 589 → 592；無 Pi 操作（純解析邏輯）。
 
+### 6. STT Phase 2 — 讀 ch0 + 預熱連線（barge-in 經 AEC 實測收掉）
+- **真 barge-in 不可行（Pi 實測 2026-06-16）**：硬體 AEC ~0dB、最佳線性 AEC 上限 7–10dB（換主動式喇叭僅+2dB、1秒窗≈整段排除時脈漂移、`norm_xcorr 0.178` 非線性耦合）；需 20–30dB 才能可靠搶話 → 收掉。詳 spec `stt_p2_2026-06-16_spec.md` §1（離線最佳線性 FIR 工具 `userPrompt/aec_offline*.py`）。
+- 轉 turn-taking 微調（spec/plan `55ed770`）：① 讀 ReSpeaker **ch0 處理後聲道**（`_extract_ch0` + `_ArecordSource` 反交錯 + factory `-c 6`，取代 6ch 降混稀釋）`a908209`；② **prewarm gate** 預熱 Deepgram 連線（`_live` Event + `_start_session(live)` race-safe + `main.py` `prewarm→wait_idle→arm`）`fad257e`；review minor doc `47ba770`。
+- 測試 592 → 627（+35 stt，含 ch0 反交錯 / gate 丟棄）；spec-reviewer + code-quality 三段審通過。Pi 操作：`STT_ARECORD_DEVICE=hw:CARD=ArrayUAC10`（原生 6ch）→ `pineedtodo/2026-06-16_stt_p2_ch0_6ch.md`。
+
 ## 架構 / 流程沉澱
 - 新模組：`myProgram/stt/`（Deepgram 串流 worker）、`myProgram/sales/phonetic.py`（拼音近音糾錯，pypinyin 注入 + graceful）。
 - `parse_products` = 統一 token-parser（精確商品 span + 數量 span + phonetic garbled 兜底 + 鄰近綁定 + dedup 規則 1/2/3）。
@@ -43,6 +48,6 @@
 - 反思採納：cwd-pinned worktree Option B（`worktree.md`）、cp936 中文輸出探針設 `PYTHONIOENCODING=utf-8 PYTHONUTF8=1`（`conventions.md`）。
 
 ## 下一步（pending）
-- **STT barge-in Phase 2** ⭐：25% 開麥 + 搶話中斷（`tts.interrupt` / `action.preempt`）+ TTS 改線啟用 AEC。design `specs/stt_bargein_2026-06-12_design.md`（Phase 1 已完成）。
+- ~~STT barge-in Phase 2~~：真搶話經 AEC 實測收掉（見里程碑 6）；STT 已收尾於 Phase 2 turn-taking（讀 ch0 + prewarm）。
 - **HTML UI**（`roadmaps/html_ui_plan.md`）｜**期末 demo 準備**（`presentation/` 尚空）。
 - deferred edges（已記 watchlist W-14~17 / roadmap）：C1 無分隔雙數量、C3 插字 garble、C4 合音表擴充、D4 daemon warning、D3 通用快取清理工具——demo 真踩到再修。
