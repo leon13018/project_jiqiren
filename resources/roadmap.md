@@ -6,7 +6,7 @@
 ## 現況快照（2026-06-16）
 
 - **主程式**：incremental-rebuild **S1-S6 ✅**（5 層狀態機 + TTS/動作/輸入三 worker 並行 + speak_and_wait 計時架構 + 客服統一）。pytest sales/ **592** 個 test 通過。
-- **STT**：**Phase 1 ✅**（Deepgram Nova-3 串流 + `main.py` arm/disarm 佈線 + keyterm；Pi 實測通過）；**真 barge-in 搶話經 AEC 實測不可行**（硬體~0 / 最佳線性上限~10dB / 近距聲學耦合非線性；詳 `specs/stt_p2_2026-06-16_spec.md` §1）→ **Phase 2 turn-taking（讀 ch0 + prewarm）已實作但 revert**：prewarm 邊播邊收觸發 STT↔TTS 自我回授（機器人自聲經 Deepgram 延遲轉錄、漏過 `_live` 閘 → 無限迴圈；無 AEC 無解，見 changelog 里程碑 6）→ **STT 維持 Phase 1**（播完才開麥；`STT_ARECORD_DEVICE` 用 `plughw:` 降混）。
+- **STT**：**Phase 1 ✅**（Deepgram Nova-3 串流 + `main.py` arm/disarm 佈線 + keyterm；Pi 實測通過）；**真 barge-in 搶話經 AEC 實測不可行**（硬體~0 / 最佳線性上限~10dB / 近距聲學耦合非線性；詳 `specs/stt_p2_2026-06-16_spec.md` §1）→ **Phase 2 v2（來源端閘 prewarm + 讀 ch0）已實作 ✅**：prewarm 只連線 + 送 KeepAlive、**不送音訊**，arm 才送顧客音訊 → Deepgram 從沒收到機器人聲、根治 v1 自我回授（v1 閘在結果端擋不住延遲轉錄；見 changelog 里程碑 6）。**待 Pi 實測重點驗「無自我回授」**（`STT_ARECORD_DEVICE=hw:CARD=ArrayUAC10` 原生 6ch；喇叭插樹莓派板載）。
 - **NLU/語音 robustness**：全繁體化 ✅；**本地拼音糾錯層 ✅**（問數量 / 問商品 + 統一 token-parser + 完全同音 tie-break + 合音還原；Pi 實測通過）；**結帳收尾語音合併 ✅**（Pi 實測通過）。
 - **開發基建**：harness 四件套互鎖（hooks 反思閉環 / skill 路由 + reference / EDD 回歸 / memory 健檢）——詳 `changelogs/`。
 - **展示面**：`resources/presentation/`（gitignored）尚空。
