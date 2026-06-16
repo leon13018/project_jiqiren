@@ -182,6 +182,16 @@ def _is_auth_error(e: Exception) -> bool:
     return getattr(getattr(e, "response", None), "status_code", None) == 401
 
 
+_CHANNELS = 6  # ReSpeaker 6-channel 韌體：ch0 = 處理後（AEC/波束成形/降噪）ASR 軌
+
+
+def _extract_ch0(buf: bytes, channels: int = _CHANNELS) -> bytes:
+    """交錯多聲道 S16 buffer → 取 channel 0（每幀第一個 16-bit 樣本）。不完整尾幀丟棄。"""
+    frame = channels * 2
+    usable = len(buf) - (len(buf) % frame)
+    return b"".join(buf[i:i + 2] for i in range(0, usable, frame))
+
+
 class _ArecordSource:
     """arecord subprocess 包裝：read 走 stdout pipe，close 走 terminate。
 
@@ -193,7 +203,8 @@ class _ArecordSource:
         self._proc = proc
 
     def read(self, n: int) -> bytes:
-        return self._proc.stdout.read(n)
+        # 讀 n*6 bytes（6ch 交錯）→ 取 ch0（處理後）→ 回 mono；半幀尾自然順延
+        return _extract_ch0(self._proc.stdout.read(n * _CHANNELS))
 
     def close(self) -> None:
         if self._proc.poll() is None:
@@ -209,7 +220,8 @@ def _default_audio_factory():
     裝置選擇：環境變數 STT_ARECORD_DEVICE（如 "plughw:1,0"）；未設用 ALSA 預設
     （Pi 端把 ReSpeaker 設為預設 capture 或設此變數——pineedtodo 會列）。
     """
-    cmd = ["arecord", "-q", "-f", "S16_LE", "-r", "16000", "-c", "1", "-t", "raw"]
+    cmd = ["arecord", "-q", "-f", "S16_LE", "-r", "16000",
+           "-c", str(_CHANNELS), "-t", "raw"]
     device = os.environ.get("STT_ARECORD_DEVICE")
     if device:
         cmd[1:1] = ["-D", device]
