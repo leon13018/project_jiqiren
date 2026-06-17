@@ -20,7 +20,6 @@ vendor import 或 worker thread 啟動。
 """
 
 import math
-import os
 import sys
 import time
 
@@ -143,31 +142,18 @@ class TerminalSim:
         """
         # 等 TTS 播完才開始倒數（max_wait=30s 防 synth/mpg123 hang 永久阻塞）。
         # Lazy import 對齊既有 speak callback pattern（Windows pytest 不觸發 edge_tts import）。
-        from myProgram import stt
-        # STT prewarm（來源端閘送靜音）：進場先在 prompt 播放期背景預連 Deepgram ws +
-        # **起 arecord 暖機錄音、但 sender 送等長靜音**（機器人聲收進卻不送 Deepgram → 無
-        # 回授，靜音同時維持連線）→ wait_idle 播完後 arm 翻旗號即切真實，arecord 已暖、開麥零裁切。
-        # STT_DEBUG_TIMING=1 → 印 [計時] log 定位互動延遲卡段（預設關，demo 乾淨）。
-        _dbg = os.environ.get("STT_DEBUG_TIMING")
-        _t = time.monotonic()
-        stt.prewarm()
-        if _dbg:
-            print(f"[計時] prewarm {time.monotonic() - _t:.2f}s（ws 連線 + arecord 暖機）")
         from myProgram import tts
-        _t = time.monotonic()
         tts.wait_idle()
-        if _dbg:
-            print(f"[計時] wait_idle {time.monotonic() - _t:.2f}s（TTS 合成+播放+drain）")
         from myProgram import input_reader
 
         # timeout is None / <= 0 不適用倒數（read_customer_input caller 不會傳；守備性
         # fallback 走原 single read 保證向後相容）。否則走 _tick_countdown：每秒對齊
         # 整秒邊界印 `timeout = N`，input_reader.read 拿到 input 即中斷回傳，deadline
         # 耗盡回 None。
-        # TTS 播完才 arm 解 mute（arecord 已於 prewarm 暖機錄音、連線已熱 → 開麥零裁切；arm 冪等、缺 key 自動停用走純鍵盤）。
+        from myProgram import stt
+        # STT Phase 1：TTS 播完才開麥（arm 冪等；缺 key 自動停用走純鍵盤）。
         # finally 保證三條路徑（拿到輸入 / timeout / 'q' sys.exit）皆收麥。
         stt.arm()
-        _t = time.monotonic()
         try:
             if timeout is None or timeout <= 0:
                 raw = input_reader.read(timeout)
@@ -175,8 +161,6 @@ class TerminalSim:
                 raw = _tick_countdown(timeout, "timeout", input_reader.read)
         finally:
             stt.disarm()
-        if _dbg:
-            print(f"[計時] arm→輸入 {time.monotonic() - _t:.2f}s（你開口+Deepgram 辨識）")
         if raw is None:
             return None  # timeout（既有語意）
         raw = raw.strip()

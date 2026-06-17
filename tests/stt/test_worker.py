@@ -14,17 +14,6 @@ def _results(transcript: str, speech_final: bool) -> str:
     })
 
 
-class _RepeatSource:
-    """持續回傳同一 chunk（驗 mute/送真實的連續 sender 迴圈；FakeAudioSource 耗盡即 EOF 不適用）。"""
-    def __init__(self, chunk):
-        self._chunk = chunk
-        self.closed = False
-    def read(self, n):
-        return b"" if self.closed else self._chunk
-    def close(self):
-        self.closed = True
-
-
 def test_no_key_disables_and_warns_once(capsys):
     calls = []
     worker = SttWorker(sink=calls.append, api_key=None,
@@ -215,53 +204,3 @@ def test_module_api_lazy_singleton(monkeypatch):
     assert stt_mod._worker is not None
     stt_mod.disarm()
     stt_mod.shutdown()
-
-
-def test_prewarm_warms_arecord_sends_silence():
-    ws = FakeWs([])
-    src = _RepeatSource(b"\xAA\xBB")
-    worker = SttWorker(sink=lambda t: None, api_key="test-key",
-                       ws_factory=lambda key: ws, audio_factory=lambda: src)
-    worker.prewarm()
-    assert worker.is_armed()                                  # session 已起（含 arecord 暖機）
-    assert wait_until(lambda: len(ws.sent) > 0)               # sender 有在送
-    assert b"\xAA\xBB" not in ws.sent                         # 真實聲（機器人）絕不送出
-    assert all(m == b"\x00\x00" for m in ws.sent)             # 送的全是等長靜音
-    worker.disarm()
-
-
-def test_arm_unmutes_to_real_audio():
-    ws = FakeWs([_results("我要紅茶兩杯。", speech_final=True)])
-    calls = []
-    src = _RepeatSource(b"\xAA\xBB")
-    worker = SttWorker(sink=calls.append, api_key="test-key",
-                       ws_factory=lambda key: ws, audio_factory=lambda: src)
-    worker.prewarm()                                          # mute（送靜音）
-    worker.arm()                                              # 解 mute → 送真實
-    assert wait_until(lambda: b"\xAA\xBB" in ws.sent)         # 真實音訊送出
-    assert wait_until(lambda: calls == ["我要紅茶兩杯"])      # 顧客辨識注入
-    worker.disarm()
-
-
-def test_prewarm_then_arm_reuses_connection():
-    factory_calls = []
-    def ws_factory(key):
-        factory_calls.append(key)
-        return FakeWs()
-    worker = SttWorker(sink=lambda t: None, api_key="test-key",
-                       ws_factory=ws_factory, audio_factory=FakeAudioSource)
-    worker.prewarm()
-    worker.arm()                                      # 重用 prewarm 連線，不另開 ws
-    assert factory_calls == ["test-key"]
-    worker.disarm()
-
-
-def test_module_prewarm_delegates(monkeypatch):
-    import myProgram.stt as stt_mod
-    monkeypatch.setattr(stt_mod, "_worker", None)
-    monkeypatch.setattr(stt_mod, "_default_ws_factory", lambda key: FakeWs())
-    monkeypatch.setattr(stt_mod, "_default_audio_factory", lambda: FakeAudioSource())
-    monkeypatch.setenv("DEEPGRAM_API_KEY", "test-key")
-    stt_mod.prewarm()
-    assert stt_mod._worker.is_armed()
-    stt_mod.disarm()

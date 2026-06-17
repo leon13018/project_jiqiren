@@ -75,60 +75,36 @@ class SttWorker:
         self._audio_factory = audio_factory or _default_audio_factory
         self._ws_factory = ws_factory or _default_ws_factory
         self._lock = threading.Lock()
-        self._session = None      # dict|None: stop/ws/receiver/audio/sender/live
+        self._session = None      # (stop_event, audio, ws, receiver, sender)
         self._disabled = False    # 缺 key / 401 → 本次執行停用（鍵盤照常）
 
     def is_armed(self) -> bool:
         with self._lock:
             return self._session is not None
 
-    def _start_session(self, live_initial: bool) -> bool:
-        """caller 持 self._lock。連 ws + 起 receiver + arecord + sender（暖機就收音）。
-        起 sender 前依 live_initial 定 live 旗號（避免 mute 期誤送真實聲，race-safe）：
-        False → sender 進 mute（送等長靜音）；True → 直接送真實音訊。
-        缺 key / 連線失敗 → 停用 / 放棄。回傳就緒與否；已有 session 直接 True。"""
-        if self._disabled:
-            return False
-        if self._session is not None:
-            return True
-        if not self._api_key:
-            print("[語音辨識] ⚠️ 未設定 DEEPGRAM_API_KEY，STT 停用（鍵盤輸入照常）")
-            self._disabled = True
-            return False
-        ws = self._connect_with_retry()
-        if ws is None:
-            return False  # 本輪放棄（已印原因）
-        stop = threading.Event()
-        live = threading.Event()  # False=mute(送靜音), True=送真實音訊
-        if live_initial:
-            live.set()
-        audio = self._audio_factory()
-        receiver = threading.Thread(
-            target=self._receive_loop, args=(ws, stop),
-            name="SttReceiver", daemon=True)
-        sender = threading.Thread(
-            target=self._send_loop, args=(ws, audio, stop, live),
-            name="SttSender", daemon=True)
-        self._session = {"stop": stop, "ws": ws, "receiver": receiver,
-                         "audio": audio, "sender": sender, "live": live}
-        receiver.start()
-        sender.start()
-        return True
-
-    def prewarm(self) -> None:
-        """預熱：連 ws + 起 arecord 暖機錄音，但 sender 進 mute（送靜音、機器人聲不進
-        Deepgram）。arecord 提前暖好 → arm 後零開麥裁切。冪等。"""
-        with self._lock:
-            self._start_session(live_initial=False)
-
     def arm(self) -> None:
-        """解 mute：sender 改送真實顧客音訊（arecord 已於 prewarm 暖好、零啟動裁切）。
-        未經 prewarm 直接 arm 則即起即送（向後相容）。冪等。"""
+        """冪等開麥：已 armed / 已停用 no-op；缺 key 印一次警告後停用。"""
         with self._lock:
-            if self._session is None:
-                self._start_session(live_initial=True)
-            else:
-                self._session["live"].set()
+            if self._disabled or self._session is not None:
+                return
+            if not self._api_key:
+                print("[語音辨識] ⚠️ 未設定 DEEPGRAM_API_KEY，STT 停用（鍵盤輸入照常）")
+                self._disabled = True
+                return
+            ws = self._connect_with_retry()
+            if ws is None:
+                return  # 本輪放棄（已印原因）；下次 arm 再試或已永久停用
+            audio = self._audio_factory()
+            stop = threading.Event()
+            receiver = threading.Thread(
+                target=self._receive_loop, args=(ws, stop),
+                name="SttReceiver", daemon=True)
+            sender = threading.Thread(
+                target=self._send_loop, args=(ws, audio, stop),
+                name="SttSender", daemon=True)
+            self._session = (stop, audio, ws, receiver, sender)
+            receiver.start()
+            sender.start()
 
     def _connect_with_retry(self):
         """建線；非 401 失敗重試 1 次；401 → 永久停用（本次執行）。Task 6 補測。"""
@@ -145,15 +121,14 @@ class SttWorker:
                 print(f"[語音辨識] ⚠️ 連線失敗（{type(e).__name__}: {e!r}），本輪改用鍵盤")
                 return None
 
-    def _send_loop(self, ws, audio, stop, live) -> None:
-        """audio.read → ws.send。mute（live 未 set）期送等長靜音（保連線、不送真實聲）；
-        live 後送真實音訊。EOF / stop 即止。"""
+    def _send_loop(self, ws, audio, stop) -> None:
+        """audio.read → ws.send；EOF（disarm terminate / 裝置故障）或 stop 即止。"""
         try:
             while not stop.is_set():
                 chunk = audio.read(CHUNK_BYTES)
                 if not chunk:
                     break
-                ws.send(chunk if live.is_set() else b"\x00" * len(chunk))
+                ws.send(chunk)
         except Exception:
             pass  # ws 已關（disarm / 斷線）→ 靜默結束；對外回報由 receiver 負責
 
@@ -179,7 +154,7 @@ class SttWorker:
                 print(f"[語音辨識] ⚠️ 串流中斷（{type(e).__name__}），本輪改用鍵盤")
 
     def disarm(self) -> None:
-        """冪等收麥：stop → 殺音源 + 關 ws → join receiver/sender。
+        """冪等收麥：stop → 殺音源（sender 讀到 EOF 止）→ 關 ws（解 receiver 阻塞）。
 
         join(timeout=1) 讓 session 結束具確定性（測試 / re-arm 安全）；threads 為
         daemon，極端卡住也不擋程式退出（對齊 S6 教訓：不嘗試強解 blocking IO）。
@@ -187,15 +162,15 @@ class SttWorker:
         with self._lock:
             if self._session is None:
                 return
-            s = self._session
+            stop, audio, ws, receiver, sender = self._session
             self._session = None
-            s["stop"].set()
-            s["audio"].close()
+            stop.set()
+            audio.close()
             try:
-                s["ws"].close()
+                ws.close()
             except Exception:
                 pass  # 已斷線的 ws close 可能 raise——cleanup 路徑安全吞掉
-        for th in (s["receiver"], s["sender"]):
+        for th in (receiver, sender):
             th.join(timeout=1.0)
 
     def shutdown(self) -> None:
@@ -261,11 +236,6 @@ def _get_worker() -> SttWorker:
         _worker = SttWorker(sink=input_reader.inject,
                             api_key=os.environ.get("DEEPGRAM_API_KEY"))
     return _worker
-
-
-def prewarm() -> None:
-    """對外 API：預熱連線（read_customer_input 進場、疊在 TTS 播放上呼叫）。"""
-    _get_worker().prewarm()
 
 
 def arm() -> None:
