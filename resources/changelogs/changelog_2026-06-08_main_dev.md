@@ -42,7 +42,8 @@
 - 測試 592 → 627（+35 stt，含 ch0 反交錯 / gate 丟棄）；spec-reviewer + code-quality 三段審通過（Windows）。
 - **❌ 已 revert（2026-06-16 Pi 實測）**：prewarm 邊播邊收 → 機器人自聲經 Deepgram **延遲轉錄、漏過 `_live` 閘**（閘只能依「收到時間」判斷，擋不住「播放時收、講完延遲才回」的轉錄）→ `[語音辨識]` 收到自己的 TTS → 自我回授無限迴圈。**無 AEC 無從擋** → code 退回 `e15167a`（Phase 1，播完才開麥；621 綠）。spec/plan 留存為記錄、pineedtodo `git rm`。
 - **✅ v2 修正重做（spec/plan `eb8378e`）**：把閘從「結果端」移到**「來源端」**——`prewarm` 只連 ws + 週期送 KeepAlive 維持連線、**完全不送音訊**（`_open_ws`/`_keepalive_loop`），`arm` 才起 sender 送顧客音訊 → Deepgram 從沒收到機器人聲 → 無轉錄 → **無回授**。session tuple→dict、移除 `_live` 結果端閘、ch0 一併加回。增量1 `cc61647`（ch0）+ 增量2 `d8c8d77`（來源端閘）；592→627 綠；spec-reviewer + code-quality ✅（後者查證 websockets sync `send` 持 `protocol_mutex`、keepalive/sender 並發 send 安全）。**Pi 實測無自我回授通過**，但殘留「播完不能馬上講、卡頓」。
-- **✅ v3 暖機期送靜音（spec/plan `0e05d08`）**：v2 把 arecord 留在 `arm()` 才起 → 提示音播完仍有 arecord spawn 啟動延遲（Pi 實測「播完不能馬上講、卡頓」）。v3 把 arecord **提前到 `prewarm`** 暖好、暖機期 sender 讀真實聲但送**等長靜音**（`b"\x00"*len(chunk)`，機器人聲永不進 Deepgram、靜音同時維持連線取代 KeepAlive thread），`arm` 翻 `live` Event 解 mute 改送真實 → **零 arm 啟動延遲**。`_open_ws`→`_start_session(live_initial)`（`live.set()` 在 `sender.start()` 前、race-safe）、刪 `_keepalive_loop`、`_send_loop` 加靜音分支、`disarm` dict 版。單一 commit `ea0bd57`；627 綠（35 stt + 592 sales，無增減）；spec-reviewer ✅ + code-quality ✅（查證 flag-before-start race-safe、join 在 lock 外無死鎖、來源端 mute 真實不送）。**待 Pi 實測**：驗無自我回授仍成立 + 播完跟手度改善。
+- **✅ v3 暖機期送靜音（spec/plan `0e05d08`）**：v2 把 arecord 留在 `arm()` 才起 → 提示音播完仍有 arecord spawn 啟動延遲（Pi 實測「播完不能馬上講、卡頓」）。v3 把 arecord **提前到 `prewarm`** 暖好、暖機期 sender 讀真實聲但送**等長靜音**（`b"\x00"*len(chunk)`，機器人聲永不進 Deepgram、靜音同時維持連線取代 KeepAlive thread），`arm` 翻 `live` Event 解 mute 改送真實 → **零 arm 啟動延遲**。`_open_ws`→`_start_session(live_initial)`（`live.set()` 在 `sender.start()` 前、race-safe）、刪 `_keepalive_loop`、`_send_loop` 加靜音分支、`disarm` dict 版。單一 commit `ea0bd57`；627 綠（35 stt + 592 sales，無增減）；spec-reviewer ✅ + code-quality ✅（查證 flag-before-start race-safe、join 在 lock 外無死鎖、來源端 mute 真實不送）。**Pi 實測（2026-06-17）辨識變不准 + prewarm 無感 → 連同 v2 全 revert（見下）。**
+- **❌ v2+v3 全 revert，STT 定版 Phase 1（2026-06-17 Pi 實測）**：v3 辨識變不准（有講沒錄進 / 錄進但轉換錯誤），且播完仍不能馬上講。根因兩條：① **ch0 處理後聲道反而降 ASR 準確度**——ReSpeaker ch0 經 beamforming/NS「聲音怪怪的」，Deepgram 對它的辨識率低於 Phase 1 的 `-c 1` mono 降混（使用者實證：最穩定版本是未導入 ch0 的 Phase 1）；② **prewarm 無感且延遲為結構性**——開麥（arm）刻意排在 `wait_idle`（TTS 播完含 ALSA drain）之後（無 AEC 必然設計），prewarm 只省 ws 連線/arecord spawn 的微小成本，殘留延遲 = Deepgram endpointing(300ms)+轉錄，非 prewarm 可解。→ 4 檔（`stt.py`/`main.py`/`test_worker.py`/`test_main_wireup.py`）restore 至 `e15167a`，`git diff e15167a` 為空（逐位元對齊已驗證的 Phase 1）；`6b20e7f`；621 綠。ch0/prewarm 的 spec/plan 留存為歷史（不刪）。**STT 定版 Phase 1**：`-c 1` mono 降混、`wait_idle` 後才 `arm` 開麥。
 
 ## 架構 / 流程沉澱
 - 新模組：`myProgram/stt/`（Deepgram 串流 worker）、`myProgram/sales/phonetic.py`（拼音近音糾錯，pypinyin 注入 + graceful）。
@@ -51,6 +52,6 @@
 - 反思採納：cwd-pinned worktree Option B（`worktree.md`）、cp936 中文輸出探針設 `PYTHONIOENCODING=utf-8 PYTHONUTF8=1`（`conventions.md`）。
 
 ## 下一步（pending）
-- ~~STT barge-in Phase 2~~：真搶話經 AEC 收掉（見里程碑 6）。**Phase 2 turn-taking 已上線**（v1 revert → v2 來源端閘 → v3 暖機送靜音消啟動延遲）→ 待 Pi 實測收尾。
+- ~~STT barge-in Phase 2~~ / ~~Phase 2 turn-taking~~：真搶話經 AEC 收掉；turn-taking v1/v2/v3 全試過 → ch0 降準確度、prewarm 無感、延遲為結構性（無 AEC 開麥必在播完後）→ **STT 定版 Phase 1**（`-c 1` mono、播完才開麥；見里程碑 6）。
 - **HTML UI**（`roadmaps/html_ui_plan.md`）｜**期末 demo 準備**（`presentation/` 尚空）。
 - deferred edges（已記 watchlist W-14~17 / roadmap）：C1 無分隔雙數量、C3 插字 garble、C4 合音表擴充、D4 daemon warning、D3 通用快取清理工具——demo 真踩到再修。

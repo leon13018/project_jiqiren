@@ -6,7 +6,7 @@
 ## 現況快照（2026-06-17）
 
 - **主程式**：incremental-rebuild **S1-S6 ✅**（5 層狀態機 + TTS/動作/輸入三 worker 並行 + speak_and_wait 計時架構 + 客服統一）。pytest sales/ **592** 個 test 通過。
-- **STT**：**Phase 1 ✅**（Deepgram Nova-3 串流 + `main.py` arm/disarm 佈線 + keyterm；Pi 實測通過）；**真 barge-in 搶話經 AEC 實測不可行**（硬體~0 / 最佳線性上限~10dB / 近距聲學耦合非線性；詳 `specs/stt_p2_2026-06-16_spec.md` §1）→ **Phase 2 v3（來源端閘 prewarm + 讀 ch0）已實作 ✅**：prewarm 就起 arecord（背景暖好）、暖機期送**等長靜音**（機器人聲讀進但永不送 Deepgram，同時維持連線取代 KeepAlive），arm 翻 `live` 旗號解 mute 改送真實顧客音訊 → 無自我回授 + 消除 v2「arm 才起 arecord」的啟動延遲（v1 結果端閘擋不住延遲轉錄、v2 改來源端閘 KeepAlive；演進史見 changelog 里程碑 6）。**待 Pi 實測**：驗無自我回授仍成立 + 播完跟手度改善（`STT_ARECORD_DEVICE=hw:CARD=ArrayUAC10` 原生 6ch；喇叭插樹莓派板載）。
+- **STT**：**定版 Phase 1 ✅**（Deepgram Nova-3 串流 + `main.py` arm/disarm 佈線 + keyterm；`arecord -c 1` mono 降混、TTS 播完才開麥；Pi 實測辨識正常）。**真 barge-in 搶話經 AEC 實測不可行**（硬體~0 / 最佳線性上限~10dB / 近距聲學耦合非線性；詳 `specs/stt_p2_2026-06-16_spec.md` §1）；**Phase 2 turn-taking（讀 ch0 + prewarm）v1/v2/v3 全試過後 revert**——ch0 處理後聲道反**降**辨識準確度、prewarm 無感、殘留延遲為**結構性**（無 AEC → 開麥必排在播完之後）；演進與根因見 changelog 里程碑 6。**Pi 端注意**：Phase 1 用 `-c 1`，`STT_ARECORD_DEVICE` 須為 `plughw:CARD=ArrayUAC10`（可降混）而**非** `hw:`（固定 6ch、與 `-c 1` 衝突）；喇叭插樹莓派板載。
 - **NLU/語音 robustness**：全繁體化 ✅；**本地拼音糾錯層 ✅**（問數量 / 問商品 + 統一 token-parser + 完全同音 tie-break + 合音還原；Pi 實測通過）；**結帳收尾語音合併 ✅**（Pi 實測通過）。
 - **開發基建**：harness 四件套互鎖（hooks 反思閉環 / skill 路由 + reference / EDD 回歸 / memory 健檢）——詳 `changelogs/`。
 - **展示面**：`resources/presentation/`（gitignored）尚空。
@@ -21,7 +21,7 @@
 | Cap retry redesign | 顧客超量被拒後的對話設計（dormant） | 三輪 revert 史，需先重新對齊 expectation |
 | 拼音 parser 邊緣 | 無分隔雙數量 / filler / 插字 garble / 合音表擴充 | demo 浮現才修（C1/C3/C4 + D4 於 2026-06-15 deferred）|
 
-**建議優先序**：展示日有餘裕 → HTML UI；展示日近 → demo 準備優先。（STT 已收尾於 Phase 2 turn-taking；真 barge-in 經實測收掉。）
+**建議優先序**：展示日有餘裕 → HTML UI；展示日近 → demo 準備優先。（STT 定版 Phase 1；turn-taking v1/v2/v3 與真 barge-in 皆經 Pi 實測收掉。）
 
 ## 路由
 
