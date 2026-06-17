@@ -213,9 +213,6 @@ class TtsWorker(QueueWorker):
         內容定址快取——句間靜默從一次 synth round-trip 降到接近 0。單 thread 內重疊，
         零新鎖、零新 race 面（_prefetched 只被本 thread 觸碰；各句快取檔名互異）。
         """
-        _dbg = os.environ.get("STT_DEBUG_TIMING")
-        _t0 = time.monotonic()
-        _synthed = False
         # 階段 1：取得 mp3——prefetch 標記 → 內容定址快取 → 現場合成（三層 fallback）
         cache_path = _cache_path_for(text)
         if self._prefetched is not None and self._prefetched[0] == text:
@@ -229,7 +226,6 @@ class TtsWorker(QueueWorker):
             # 防禦：FIFO 單消費者下 prefetch 內容必等於下一句，mismatch 理論不可達；
             # 若出現（未來改動引入）丟棄重合成即可，行為仍正確
             self._prefetched = None
-            _synthed = True
             tmp_path = cache_path + ".tmp"
             try:
                 self._loop_obj.run_until_complete(_synthesize(text, tmp_path))
@@ -324,8 +320,6 @@ class TtsWorker(QueueWorker):
             with self._lock:
                 self._proc = None
 
-        if _dbg:
-            print(f"[計時] TTS {text[:8]!r}: {'合成' if _synthed else '快取'} 共 {time.monotonic() - _t0:.2f}s")
         # 播放成功（returncode==0）：drain ALSA
         # 給 ALSA buffer 完成尾巴音訊播放的時間，避免下一個 speak() 立刻啟動
         # 新 mpg123 沖掉舊 buffer（症狀：「付款成功」尾巴被截）。失敗 path
