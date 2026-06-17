@@ -171,7 +171,7 @@ def test_stream_interruption_warns(capsys):
 
 
 def test_default_audio_factory_command(monkeypatch):
-    # 只驗指令構造不真起 subprocess（Windows 無 arecord）
+    # 只驗指令構造 + 預設聲道，不真起 subprocess（Windows 無 arecord）
     import myProgram.stt as stt_mod
     captured = {}
     class FakeProc:
@@ -184,14 +184,58 @@ def test_default_audio_factory_command(monkeypatch):
         return FakeProc()
     monkeypatch.setattr(stt_mod.subprocess, "Popen", fake_popen)
     monkeypatch.delenv("STT_ARECORD_DEVICE", raising=False)
-    stt_mod._default_audio_factory()
+    monkeypatch.delenv("STT_MIC_CHANNEL", raising=False)
+    src = stt_mod._default_audio_factory()
     assert captured["cmd"] == ["arecord", "-q", "-f", "S16_LE", "-r", "16000",
-                               "-c", "1", "-t", "raw"]
+                               "-c", "6", "-t", "raw"]
     assert captured["kwargs"]["stdin"] == stt_mod.subprocess.DEVNULL
+    assert src._channel == 1                      # 預設抽 ch1（第一支生麥）
 
-    monkeypatch.setenv("STT_ARECORD_DEVICE", "plughw:1,0")
+    monkeypatch.setenv("STT_ARECORD_DEVICE", "hw:CARD=ArrayUAC10")
     stt_mod._default_audio_factory()
-    assert captured["cmd"][1:3] == ["-D", "plughw:1,0"]
+    assert captured["cmd"][1:3] == ["-D", "hw:CARD=ArrayUAC10"]
+
+
+def test_extract_channel_picks_requested_channel():
+    import struct
+    from myProgram.stt import _extract_channel
+    buf = (struct.pack("<6h", 10, 11, 12, 13, 14, 15)
+           + struct.pack("<6h", 20, 21, 22, 23, 24, 25))
+    assert struct.unpack("<2h", _extract_channel(buf, 0)) == (10, 20)
+    assert struct.unpack("<2h", _extract_channel(buf, 1)) == (11, 21)
+    assert struct.unpack("<2h", _extract_channel(buf, 4)) == (14, 24)
+
+
+def test_extract_channel_drops_partial_frame():
+    import struct
+    from myProgram.stt import _extract_channel
+    buf = struct.pack("<6h", 1, 2, 3, 4, 5, 6)
+    assert _extract_channel(buf + b"\x09\x09", 1) == _extract_channel(buf, 1)
+
+
+def test_mic_channel_env_parsing(monkeypatch):
+    import myProgram.stt as stt_mod
+    monkeypatch.delenv("STT_MIC_CHANNEL", raising=False)
+    assert stt_mod._mic_channel() == 1            # 未設 → 預設 ch1
+    monkeypatch.setenv("STT_MIC_CHANNEL", "3")
+    assert stt_mod._mic_channel() == 3
+    monkeypatch.setenv("STT_MIC_CHANNEL", "abc")  # 非法 → fallback
+    assert stt_mod._mic_channel() == 1
+    monkeypatch.setenv("STT_MIC_CHANNEL", "9")    # 越界（非 0..5）→ fallback
+    assert stt_mod._mic_channel() == 1
+
+
+def test_arecord_source_extracts_channel():
+    import io, struct
+    from myProgram.stt import _ArecordSource
+    buf = b"".join(struct.pack("<6h", v, v + 1, v + 2, v + 3, v + 4, v + 5)
+                   for v in (10, 20, 30))
+    class _P:
+        stdout = io.BytesIO(buf)
+        def poll(self): return None
+        def terminate(self): pass
+    out = _ArecordSource(_P(), channel=1).read(6)  # 6 bytes mono = 3 樣本（內部讀 36 bytes）
+    assert struct.unpack("<3h", out) == (11, 21, 31)
 
 
 def test_module_api_lazy_singleton(monkeypatch):
