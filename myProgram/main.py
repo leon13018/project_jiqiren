@@ -142,6 +142,11 @@ class TerminalSim:
         """
         # 等 TTS 播完才開始倒數（max_wait=30s 防 synth/mpg123 hang 永久阻塞）。
         # Lazy import 對齊既有 speak callback pattern（Windows pytest 不觸發 edge_tts import）。
+        from myProgram import stt
+        # STT prewarm（v2 式來源端閘）：進場先在 prompt 播放期背景預連 Deepgram ws +
+        # KeepAlive 維持、**不開麥不送音訊**（機器人聲不進辨識）→ wait_idle 播完後 arm
+        # 才開麥，省掉 ws 握手延遲、且無自我回授。
+        stt.prewarm()
         from myProgram import tts
         tts.wait_idle()
         from myProgram import input_reader
@@ -150,8 +155,7 @@ class TerminalSim:
         # fallback 走原 single read 保證向後相容）。否則走 _tick_countdown：每秒對齊
         # 整秒邊界印 `timeout = N`，input_reader.read 拿到 input 即中斷回傳，deadline
         # 耗盡回 None。
-        from myProgram import stt
-        # STT Phase 1：TTS 播完才開麥（arm 冪等；缺 key 自動停用走純鍵盤）。
+        # TTS 播完才 arm 開麥（連線已於 prewarm 預熱，省握手；arm 冪等、缺 key 自動停用走純鍵盤）。
         # finally 保證三條路徑（拿到輸入 / timeout / 'q' sys.exit）皆收麥。
         stt.arm()
         try:

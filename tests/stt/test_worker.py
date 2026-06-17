@@ -204,3 +204,60 @@ def test_module_api_lazy_singleton(monkeypatch):
     assert stt_mod._worker is not None
     stt_mod.disarm()
     stt_mod.shutdown()
+
+
+def test_prewarm_connects_keepalive_no_audio():
+    ws = FakeWs([])
+    audios = []
+    def audio_factory():
+        a = FakeAudioSource()
+        audios.append(a)
+        return a
+    worker = SttWorker(sink=lambda t: None, api_key="test-key",
+                       ws_factory=lambda key: ws, audio_factory=audio_factory,
+                       keepalive_interval=0.01)
+    worker.prewarm()
+    assert worker.is_armed()                          # session 已起（連線熱著）
+    assert audios == []                               # 未開麥（arecord 沒被建）
+    assert wait_until(lambda: len(ws.sent) > 0)       # 有送東西
+    assert all(json.loads(m).get("type") == "KeepAlive" for m in ws.sent)  # 全是 KeepAlive、非音訊
+    worker.disarm()
+
+
+def test_arm_after_prewarm_sends_audio():
+    ws = FakeWs([_results("我要紅茶兩杯。", speech_final=True)])
+    calls = []
+    worker = SttWorker(sink=calls.append, api_key="test-key",
+                       ws_factory=lambda key: ws,
+                       audio_factory=lambda: FakeAudioSource([b"\x01\x02"]),
+                       keepalive_interval=0.01)
+    worker.prewarm()                                  # 連線 + KeepAlive
+    worker.arm()                                      # 停 KeepAlive → 開麥送真實
+    assert wait_until(lambda: b"\x01\x02" in ws.sent)  # 真實音訊送出
+    assert wait_until(lambda: calls == ["我要紅茶兩杯"])  # 顧客辨識注入
+    worker.disarm()
+
+
+def test_prewarm_then_arm_reuses_connection():
+    factory_calls = []
+    def ws_factory(key):
+        factory_calls.append(key)
+        return FakeWs()
+    worker = SttWorker(sink=lambda t: None, api_key="test-key",
+                       ws_factory=ws_factory, audio_factory=FakeAudioSource,
+                       keepalive_interval=0.01)
+    worker.prewarm()
+    worker.arm()                                      # 重用 prewarm 連線，不另開 ws
+    assert factory_calls == ["test-key"]
+    worker.disarm()
+
+
+def test_module_prewarm_delegates(monkeypatch):
+    import myProgram.stt as stt_mod
+    monkeypatch.setattr(stt_mod, "_worker", None)
+    monkeypatch.setattr(stt_mod, "_default_ws_factory", lambda key: FakeWs())
+    monkeypatch.setattr(stt_mod, "_default_audio_factory", lambda: FakeAudioSource())
+    monkeypatch.setenv("DEEPGRAM_API_KEY", "test-key")
+    stt_mod.prewarm()
+    assert stt_mod._worker.is_armed()
+    stt_mod.disarm()
