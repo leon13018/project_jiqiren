@@ -6,7 +6,7 @@
 ## 現況快照（2026-06-17）
 
 - **主程式**：incremental-rebuild **S1-S6 ✅**（5 層狀態機 + TTS/動作/輸入三 worker 並行 + speak_and_wait 計時架構 + 客服統一）。pytest sales/ **592** 個 test 通過。
-- **STT**：**Phase 1 串流 + v2 式 prewarm + 單一 raw 麥克風聲道（`-c 6` 抽軌、預設 ch1）已實作 ✅**（Deepgram Nova-3 + keyterm）。降混 `-c 1` 音質糊致難詞（刮刮樂）誤辨成數字 → 改抽單一生麥軌（`_extract_channel`，`STT_MIC_CHANNEL` env 可掃 ch1-4；commit `f7b16ab`）。prewarm = 播放期背景預連 ws、播完才開麥（省握手、無自我回授）。**真 barge-in 經 AEC 實測不可行**（詳 `specs/stt_p2_2026-06-16_spec.md` §1）；**ch0 處理後軌經實測降準確度、已剔除**（演進見 changelog 里程碑 6）。**待 Pi 實測**：掃 `STT_MIC_CHANNEL=1..4` 找「刮刮樂」最清楚的軌 → 定案寫死 `_DEFAULT_MIC_CHANNEL`。**Pi 端**：`STT_ARECORD_DEVICE=hw:CARD=ArrayUAC10`（原生 6ch，`-c 6` 需要）；喇叭插樹莓派板載。
+- **STT**：**Phase 1 串流 + v2 式 prewarm + `-c 1` plughw 全麥降混（定版音源）✅**（Deepgram Nova-3 + keyterm；Pi 實測辨識可用）。聲道試驗收斂:ch0 處理後軌降準確度、單一 raw 麥軌訊號弱「很難分辨」→ 皆剔除,**定版全麥降混（訊號最強）**。prewarm = 播放期背景預連 ws、播完才開麥（省握手、無回授）。**真 barge-in 經 AEC 實測不可行**（詳 `specs/stt_p2_2026-06-16_spec.md` §1）。難詞（刮刮樂）辨識若仍不足 → 下一步攻 keyterm / Deepgram 參數（非聲道）。**Pi 端**：`STT_ARECORD_DEVICE=plughw:CARD=ArrayUAC10`（`-c 1` 降混需 plughw、非 hw）；喇叭插樹莓派板載。
 - **NLU/語音 robustness**：全繁體化 ✅；**本地拼音糾錯層 ✅**（問數量 / 問商品 + 統一 token-parser + 完全同音 tie-break + 合音還原；Pi 實測通過）；**結帳收尾語音合併 ✅**（Pi 實測通過）。
 - **開發基建**：harness 四件套互鎖（hooks 反思閉環 / skill 路由 + reference / EDD 回歸 / memory 健檢）——詳 `changelogs/`。
 - **展示面**：`resources/presentation/`（gitignored）尚空。
