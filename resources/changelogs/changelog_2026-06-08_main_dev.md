@@ -50,6 +50,7 @@
 - **❌ 退回 `-c 1` plughw 全麥降混（定版音源；2026-06-17 Pi 實測）**：單一 raw 麥軌(ch1-4)訊號弱、使用者「很難分辨」,實測不如 `plughw -c 1` 全麥降混(多麥拾音、訊號最強)。→ `stt.py`/`test_worker.py` restore 至 `62e31c6`(prewarm + 計時 log 保留、**僅音源退回降混**),`git diff 62e31c6` 為空;`4301a55`;629→625 綠(移除 4 抽軌測試)。**STT 音源定版 `plughw -c 1` 全麥降混**——聲道試驗收斂:ch0 處理後軌降準確度、單一 raw 麥軌訊號弱,**皆不如全麥降混**。難詞(刮刮樂)若仍不足 → 下一步攻 keyterm/Deepgram 參數(非聲道)。**Pi 端**:裝置須改回 `STT_ARECORD_DEVICE=plughw:CARD=ArrayUAC10`(`-c 1` 降混需 plughw、非 hw)。
 - **✅ 暖機 arecord 消開麥裁切（spec/plan `cfaea44`）**：`[計時]` + 使用者實測定位**真因**——arecord 在 `arm`（語音播完）才 spawn,USB 冷啟 ~200–400ms,顧客一播完開口的**開頭被裁掉**（刮刮樂掉「刮」→ 聽成「25/八二五張」,先前以為是聲道/降混問題,其實是開麥裁切）。修:prewarm keepalive-based → **silence-based**——arecord 提前到 `prewarm` 暖機錄音、mute 期 sender 送等長靜音（機器人聲收進卻不送 Deepgram → 無回授、靜音維持連線取代 KeepAlive）、`arm` 翻 `live` 旗號即切真實 → arecord 已暖 + 即時抽乾（pipe 鎖步維持淺）→ **開麥零裁切、零積壓、低延遲**。音源維持 `-c 1` 降混（不碰 ch0/抽軌）。`_open_ws`→`_start_session(live_initial)`（race-safe `live.set` 在 `sender.start` 前）、刪 `_keepalive_loop`、`disarm` dict 版;順手修 `main.py` 因機制變更而 stale 的 prewarm 註解。`cf284c3`;625 綠;spec-reviewer ✅ + code-quality ✅（查證 race-safe gate、lockstep 無積壓、join 在 lock 外、靜音取代 KeepAlive）。**Pi 實測（2026-06-17）反而「收不到音」**——「lockstep 無積壓」假設在真硬體不成立:暖機期 arecord 累積的播放期舊音在 arm 被當真實送出 → 顧客真實語音被埋 / Deepgram 搶先返回舊音結果 → `read_customer_input` 提早返回 → revert（見下）。
 - **❌ 放棄 prewarm、退回 pure Phase 1（2026-06-17 Pi 實測，架構性結論）**：prewarm **三輪皆 Pi 實測失敗**——v1 自我回授、warm-arecord（v3 式）暖機積壓「收不到音」、keepalive 版未改善辨識。**架構性問題 → 放棄 prewarm**。4 檔（`stt.py`/`main.py`/`test_worker.py`/`test_main_wireup.py`）restore 至 `e15167a`（pure Phase 1:無 prewarm、`-c 1` plughw 降混、arm 才開麥），`git diff e15167a` 為空（逐位元對齊使用者確認「辨識正常」的版本）;`4fdd9fa`;625→621 綠。**STT 定版 pure Phase 1**。剩餘難詞（刮刮樂）若不足 → 下一步攻 keyterm / Deepgram 參數（prewarm、聲道皆已窮舉剔除）。
+- **✅ STT 階段定案（2026-06-17）**：採用 **pure Phase 1**;**開麥裁切**（arecord 冷啟 ~300–500ms、搶快講掉開頭,warm-arecord 修法失敗）→ **接受**,**Demo 操作 = 提示音播完停 ~0.5s 再答**避裁切（記於 roadmap）。移除遺留 `[計時]` 診斷 log（`tts.py`,`d25aea8`）→ myProgram 內 `STT_DEBUG_TIMING`/`[計時]` 全清。STT 探索全程（barge-in/AEC、prewarm 三輪、聲道三軌）收斂記錄於本里程碑 + memory `respeaker-mic-array-v2`,避免重走。難詞精修（keyterm/Deepgram 參數）留待 demo 真需要再開。
 
 ## 架構 / 流程沉澱
 - 新模組：`myProgram/stt/`（Deepgram 串流 worker）、`myProgram/sales/phonetic.py`（拼音近音糾錯，pypinyin 注入 + graceful）。
@@ -58,6 +59,6 @@
 - 反思採納：cwd-pinned worktree Option B（`worktree.md`）、cp936 中文輸出探針設 `PYTHONIOENCODING=utf-8 PYTHONUTF8=1`（`conventions.md`）。
 
 ## 下一步（pending）
-- ~~STT barge-in Phase 2~~ / ~~Phase 2 turn-taking~~：真搶話經 AEC 收掉；ch0 經實測降準確度已剔除（見里程碑 6）。**現況：Phase 1 `-c 1` mono + v2 式 prewarm（不含 ch0）已實作**，待 Pi 實測 prewarm 跟手度（辨識正常已確認）。
+- ~~STT barge-in Phase 2 / turn-taking / 聲道試驗 / prewarm 三輪~~：全試過皆收斂 → **STT 定案 pure Phase 1**（見里程碑 6）；開麥裁切接受、demo 以「播完停 0.5s 再答」應對。難詞精修（keyterm/Deepgram 參數）demo 真需要再開。
 - **HTML UI**（`roadmaps/html_ui_plan.md`）｜**期末 demo 準備**（`presentation/` 尚空）。
 - deferred edges（已記 watchlist W-14~17 / roadmap）：C1 無分隔雙數量、C3 插字 garble、C4 合音表擴充、D4 daemon warning、D3 通用快取清理工具——demo 真踩到再修。
