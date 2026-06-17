@@ -69,23 +69,23 @@ class SttWorker:
         ws_factory：接 api_key 回傳具 send/recv/close 的連線（production = websockets）
     """
 
-    def __init__(self, sink, api_key=None, audio_factory=None, ws_factory=None,
-                 keepalive_interval=5.0):
+    def __init__(self, sink, api_key=None, audio_factory=None, ws_factory=None):
         self._sink = sink
         self._api_key = api_key
         self._audio_factory = audio_factory or _default_audio_factory
         self._ws_factory = ws_factory or _default_ws_factory
-        self._keepalive_interval = keepalive_interval  # prewarm 期維持連線間隔（秒）
         self._lock = threading.Lock()
-        self._session = None      # dict|None: stop/ws/receiver/keepalive/sending/audio/sender
+        self._session = None      # dict|None: stop/ws/receiver/audio/sender/live
         self._disabled = False    # 缺 key / 401 → 本次執行停用（鍵盤照常）
 
     def is_armed(self) -> bool:
         with self._lock:
             return self._session is not None
 
-    def _open_ws(self) -> bool:
-        """caller 持 self._lock。連 ws + 起 receiver + keepalive（不送音訊）。
+    def _start_session(self, live_initial: bool) -> bool:
+        """caller 持 self._lock。連 ws + 起 receiver + arecord + sender（暖機就收音）。
+        起 sender 前依 live_initial 定 live 旗號（避免 mute 期誤送真實聲，race-safe）：
+        False → sender 進 mute（送等長靜音）；True → 直接送真實音訊。
         缺 key / 連線失敗 → 停用 / 放棄。回傳 session 是否就緒。"""
         if self._disabled:
             return False
@@ -99,52 +99,35 @@ class SttWorker:
         if ws is None:
             return False  # 本輪放棄（已印原因）
         stop = threading.Event()
-        sending = threading.Event()  # set 後 keepalive 停（audio 接手維持連線）
+        live = threading.Event()  # False=mute(送靜音), True=送真實音訊
+        if live_initial:
+            live.set()
+        audio = self._audio_factory()
         receiver = threading.Thread(
             target=self._receive_loop, args=(ws, stop),
             name="SttReceiver", daemon=True)
-        keepalive = threading.Thread(
-            target=self._keepalive_loop, args=(ws, stop, sending),
-            name="SttKeepAlive", daemon=True)
+        sender = threading.Thread(
+            target=self._send_loop, args=(ws, audio, stop, live),
+            name="SttSender", daemon=True)
         self._session = {"stop": stop, "ws": ws, "receiver": receiver,
-                         "keepalive": keepalive, "sending": sending,
-                         "audio": None, "sender": None}
+                         "audio": audio, "sender": sender, "live": live}
         receiver.start()
-        keepalive.start()
+        sender.start()
         return True
 
     def prewarm(self) -> None:
-        """預熱：連 ws + 起 receiver/keepalive，不送音訊（機器人聲不進 Deepgram）。冪等。"""
+        """預熱：連 ws + 起收音，但 sender 進 mute（送靜音、機器人聲不進 Deepgram）。冪等。"""
         with self._lock:
-            self._open_ws()
+            self._start_session(live_initial=False)
 
     def arm(self) -> None:
-        """開始送顧客音訊：確保連線 → 停 keepalive + 起 arecord/sender。冪等。"""
+        """解 mute：sender 改送真實顧客音訊（arecord 已於 prewarm 暖好、零啟動延遲）。
+        未經 prewarm 直接 arm 則即起即送（向後相容）。冪等。"""
         with self._lock:
-            if not self._open_ws():
-                return
-            s = self._session
-            if s["sender"] is not None:
-                return  # 已 armed
-            s["sending"].set()  # 通知 keepalive 停送（audio 接手維持連線）
-            audio = self._audio_factory()
-            sender = threading.Thread(
-                target=self._send_loop, args=(s["ws"], audio, s["stop"]),
-                name="SttSender", daemon=True)
-            s["audio"] = audio
-            s["sender"] = sender
-            sender.start()
-
-    def _keepalive_loop(self, ws, stop, sending) -> None:
-        """prewarm 期週期送 KeepAlive（text frame）維持 Deepgram 連線；
-        送音訊（sending set）或 stop 後即止。"""
-        while not stop.wait(self._keepalive_interval):
-            if sending.is_set():
-                return
-            try:
-                ws.send(json.dumps({"type": "KeepAlive"}))
-            except Exception:
-                return
+            if self._session is None:
+                self._start_session(live_initial=True)
+            else:
+                self._session["live"].set()
 
     def _connect_with_retry(self):
         """建線；非 401 失敗重試 1 次；401 → 永久停用（本次執行）。Task 6 補測。"""
@@ -161,14 +144,15 @@ class SttWorker:
                 print(f"[語音辨識] ⚠️ 連線失敗（{type(e).__name__}: {e!r}），本輪改用鍵盤")
                 return None
 
-    def _send_loop(self, ws, audio, stop) -> None:
-        """audio.read → ws.send；EOF（disarm terminate / 裝置故障）或 stop 即止。"""
+    def _send_loop(self, ws, audio, stop, live) -> None:
+        """audio.read → ws.send。mute（live 未 set）期送等長靜音（保連線、不送真實聲）；
+        live 後送真實音訊。EOF / stop 即止。"""
         try:
             while not stop.is_set():
                 chunk = audio.read(CHUNK_BYTES)
                 if not chunk:
                     break
-                ws.send(chunk)
+                ws.send(chunk if live.is_set() else b"\x00" * len(chunk))
         except Exception:
             pass  # ws 已關（disarm / 斷線）→ 靜默結束；對外回報由 receiver 負責
 
@@ -194,22 +178,20 @@ class SttWorker:
                 print(f"[語音辨識] ⚠️ 串流中斷（{type(e).__name__}），本輪改用鍵盤")
 
     def disarm(self) -> None:
-        """冪等收麥：stop → 殺音源(若有) + 關 ws → join receiver/keepalive/sender。"""
+        """冪等收麥：stop → 殺音源 + 關 ws → join receiver/sender。"""
         with self._lock:
             if self._session is None:
                 return
             s = self._session
             self._session = None
             s["stop"].set()
-            if s["audio"] is not None:
-                s["audio"].close()
+            s["audio"].close()
             try:
                 s["ws"].close()
             except Exception:
                 pass  # 已斷線的 ws close 可能 raise——cleanup 路徑安全吞掉
-        for th in (s["receiver"], s["keepalive"], s["sender"]):
-            if th is not None:
-                th.join(timeout=1.0)
+        for th in (s["receiver"], s["sender"]):
+            th.join(timeout=1.0)
 
     def shutdown(self) -> None:
         self.disarm()

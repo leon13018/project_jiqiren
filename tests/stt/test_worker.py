@@ -6,6 +6,17 @@ from tests.stt.conftest import FakeAudioSource, FakeWs, wait_until
 from myProgram.stt import SttWorker
 
 
+class _RepeatSource:
+    """持續回傳同一 chunk（驗 mute/送真實的連續 sender 迴圈；FakeAudioSource 耗盡即 EOF 不適用）。"""
+    def __init__(self, chunk):
+        self._chunk = chunk
+        self.closed = False
+    def read(self, n):
+        return b"" if self.closed else self._chunk
+    def close(self):
+        self.closed = True
+
+
 def _results(transcript: str, speech_final: bool) -> str:
     return json.dumps({
         "type": "Results",
@@ -234,30 +245,29 @@ def test_arecord_source_reads_ch0():
     assert struct.unpack("<3h", out) == (1, 2, 3)
 
 
-def test_prewarm_only_keepalive_no_audio():
+def test_prewarm_mutes_real_audio_sends_silence():
     ws = FakeWs([])
+    src = _RepeatSource(b"\xAA\xBB")
     worker = SttWorker(sink=lambda t: None, api_key="test-key",
-                       ws_factory=lambda key: ws, audio_factory=FakeAudioSource,
-                       keepalive_interval=0.02)
+                       ws_factory=lambda key: ws, audio_factory=lambda: src)
     worker.prewarm()
-    assert worker.is_armed()                                   # session 已起
-    assert wait_until(lambda: any(isinstance(m, str) and "KeepAlive" in m
-                                  for m in ws.sent))           # 有送 KeepAlive
-    assert all(isinstance(m, str) for m in ws.sent)            # 全是 KeepAlive，零音訊 bytes
+    assert worker.is_armed()                                  # session 已起（含 arecord）
+    assert wait_until(lambda: len(ws.sent) > 0)               # sender 有在送
+    assert b"\xAA\xBB" not in ws.sent                         # 真實聲（機器人）絕不送出
+    assert all(m == b"\x00\x00" for m in ws.sent)             # 送的全是等長靜音
     worker.disarm()
 
 
-def test_arm_sends_audio_after_prewarm():
+def test_arm_unmutes_to_real_audio():
     ws = FakeWs([_results("我要紅茶兩杯。", speech_final=True)])
     calls = []
+    src = _RepeatSource(b"\xAA\xBB")
     worker = SttWorker(sink=calls.append, api_key="test-key",
-                       ws_factory=lambda key: ws,
-                       audio_factory=lambda: FakeAudioSource([b"\x01\x02"]),
-                       keepalive_interval=5.0)
-    worker.prewarm()
-    worker.arm()                                               # 開始送音訊
-    assert wait_until(lambda: b"\x01\x02" in ws.sent)          # 音訊送出
-    assert wait_until(lambda: calls == ["我要紅茶兩杯"])       # 顧客辨識注入
+                       ws_factory=lambda key: ws, audio_factory=lambda: src)
+    worker.prewarm()                                          # mute（送靜音）
+    worker.arm()                                              # 解 mute → 送真實
+    assert wait_until(lambda: b"\xAA\xBB" in ws.sent)         # 真實音訊送出
+    assert wait_until(lambda: calls == ["我要紅茶兩杯"])      # 顧客辨識注入
     worker.disarm()
 
 
