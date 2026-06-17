@@ -225,47 +225,18 @@ def _is_auth_error(e: Exception) -> bool:
     return getattr(getattr(e, "response", None), "status_code", None) == 401
 
 
-_CHANNELS = 6  # ReSpeaker 原生 6 聲道韌體：ch0=處理後（AEC/波束）/ ch1-4=生麥克風 / ch5=播放參考
-_DEFAULT_MIC_CHANNEL = 1  # 預設抽 ch1（第一支生麥）；ch0 處理後實測降準確度、ch5 為播放參考
-
-
-def _extract_channel(buf: bytes, channel: int, channels: int = _CHANNELS) -> bytes:
-    """交錯多聲道 S16 buffer → 取指定 channel（每幀第 channel 個 16-bit 樣本）。不完整尾幀丟棄。"""
-    frame = channels * 2
-    usable = len(buf) - (len(buf) % frame)
-    start = channel * 2
-    return b"".join(buf[i + start:i + start + 2] for i in range(0, usable, frame))
-
-
-def _mic_channel() -> int:
-    """讀 STT_MIC_CHANNEL env（預設 1=第一支生麥）；未設 / 非法 / 越界(非 0..5) → fallback 預設。
-
-    實測用：使用者一個 session 設一值掃 ch1→4 找「刮刮樂」最清楚的軌，定案後改 _DEFAULT_MIC_CHANNEL。
-    """
-    raw = os.environ.get("STT_MIC_CHANNEL")
-    if raw is None:
-        return _DEFAULT_MIC_CHANNEL
-    try:
-        ch = int(raw)
-    except ValueError:
-        return _DEFAULT_MIC_CHANNEL
-    return ch if 0 <= ch < _CHANNELS else _DEFAULT_MIC_CHANNEL
-
-
 class _ArecordSource:
-    """arecord subprocess 包裝：read 讀 6ch 交錯 stdout、抽單一聲道→mono，close 走 terminate。
+    """arecord subprocess 包裝：read 走 stdout pipe，close 走 terminate。
 
     stdin=DEVNULL 對齊 tts.py mpg123 守則（不偷主程式 stdin）；terminate 容錯
     OSError（子程序剛好自然結束——對齊 tts.shutdown 同情境處理）。
     """
 
-    def __init__(self, proc: "subprocess.Popen", channel: int = _DEFAULT_MIC_CHANNEL) -> None:
+    def __init__(self, proc: "subprocess.Popen") -> None:
         self._proc = proc
-        self._channel = channel
 
     def read(self, n: int) -> bytes:
-        # 讀 n*6 bytes（6ch 交錯）→ 抽第 _channel 軌（生麥）→ 回 n bytes mono
-        return _extract_channel(self._proc.stdout.read(n * _CHANNELS), self._channel)
+        return self._proc.stdout.read(n)
 
     def close(self) -> None:
         if self._proc.poll() is None:
@@ -276,17 +247,17 @@ class _ArecordSource:
 
 
 def _default_audio_factory():
-    """production 音源：arecord 16kHz/S16_LE 原生 6ch raw → 抽 STT_MIC_CHANNEL 軌 → mono。
+    """production 音源：arecord 16kHz/S16_LE/mono raw → stdout pipe。
 
-    裝置選擇：環境變數 STT_ARECORD_DEVICE（原生 6ch 須 "hw:CARD=ArrayUAC10"）；聲道
-    由 STT_MIC_CHANNEL 決定（預設 ch1 生麥；Pi 端掃 ch1-4 找最清楚的——pineedtodo 會列）。
+    裝置選擇：環境變數 STT_ARECORD_DEVICE（如 "plughw:1,0"）；未設用 ALSA 預設
+    （Pi 端把 ReSpeaker 設為預設 capture 或設此變數——pineedtodo 會列）。
     """
-    cmd = ["arecord", "-q", "-f", "S16_LE", "-r", "16000", "-c", str(_CHANNELS), "-t", "raw"]
+    cmd = ["arecord", "-q", "-f", "S16_LE", "-r", "16000", "-c", "1", "-t", "raw"]
     device = os.environ.get("STT_ARECORD_DEVICE")
     if device:
         cmd[1:1] = ["-D", device]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.DEVNULL)
-    return _ArecordSource(proc, _mic_channel())
+    return _ArecordSource(proc)
 
 
 def _default_ws_factory(api_key: str):
