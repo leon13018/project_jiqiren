@@ -485,7 +485,7 @@ function animateCartRowExit(id, done) {
   let fired = false;
   const fin = () => { if (!fired) { fired = true; done(); } };
   row.addEventListener("animationend", fin, { once: true });
-  setTimeout(fin, 460);
+  setTimeout(fin, 380);
 }
 
 function bindEvents(root) {

@@ -122,17 +122,21 @@ body {
   100% { width: 100%;  background: var(--accent); color: var(--text-on-brand); opacity: 1; }
 }
 
-/* ---- 購物車列 進/退場：加入時由左往右刷入；刪除時反向（右→左）刷出 ---- */
+/* ---- 購物車列 進/退場：加入時「先空出位置 → 整張卡片由左流星刷入（含尾光）」；刪除時反向 fade + 右滑 ---- */
 @keyframes cart-row-in {
-  0%   { clip-path: inset(0 100% 0 0); opacity: 0; max-height: 0; }
-  100% { clip-path: inset(0 0 0 0);    opacity: 1; max-height: 120px; }
+  0%   { max-height: 0;     opacity: 0; transform: translateX(-100%); box-shadow: none; }
+  34%  { max-height: 120px; opacity: 0; transform: translateX(-100%); box-shadow: none; }   /* 先把位置空出來 */
+  46%  { opacity: 1; }
+  72%  { box-shadow: -34px 0 30px -8px var(--accent); }                                       /* 流星尾光 */
+  100% { max-height: 120px; opacity: 1; transform: translateX(0);    box-shadow: none; }      /* 刷到定位 */
 }
 @keyframes cart-row-out {
-  0%   { clip-path: inset(0 0 0 0);    opacity: 1; max-height: 120px; }
-  100% { clip-path: inset(0 100% 0 0); opacity: 0; max-height: 0; }
+  0%   { max-height: 120px; opacity: 1; transform: translateX(0); }
+  55%  { max-height: 120px; opacity: 0; transform: translateX(55%); }                          /* 反向 fade + 右滑 */
+  100% { max-height: 0;     opacity: 0; transform: translateX(55%); }                          /* 再收合空位 */
 }
-.cart-row-in  { animation: cart-row-in  0.36s var(--ease-fluid) both; overflow: hidden; }
-.cart-row-out { animation: cart-row-out 0.36s var(--ease-fluid) both; overflow: hidden; }
+.cart-row-in  { animation: cart-row-in  0.48s var(--ease-out, cubic-bezier(.16,1,.3,1)) both; overflow: hidden; will-change: transform, opacity; }
+.cart-row-out { animation: cart-row-out 0.34s var(--ease-fluid) both; overflow: hidden; will-change: transform, opacity; }
 
 /* ---- 無障礙：尊重 reduced-motion（Pi 降規時也會套用） ---- */
 @media (prefers-reduced-motion: reduce) {
