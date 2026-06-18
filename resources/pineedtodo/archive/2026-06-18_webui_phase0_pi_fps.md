@@ -32,3 +32,9 @@ cd /home/pi/Desktop/project_jiqiren && python3.11 myProgram/webui/serve.py 8137
 
 ## 回報
 請回報：(1) 各操作的 fps (2) go ／ 需降規 ／ 降規後可接受 三選一 (3) 是否放行 Phase 1。
+
+---
+
+## 結果（2026-06-18，已完成）
+**Pi 自帶 Chromium 跑不動**——① 很卡（GPU 撐不住多層 backdrop-filter 玻璃模糊 + 連續動畫）；② 部分顏色失效（設計大量用 OKLCH，Pi Chromium <111 不支援 `oklch()`）。
+**裁決**：玻璃方向過關，但渲染端改用 **client**——同 wifi 筆電瀏覽器（GPU 夠 + Chromium 夠新 OKLCH 正常）連 `raspberrypi.local:8137`，**Pi 只跑 `serve.py` 送靜態檔**。**放行 Phase 1**（後端串接），前端輸出端 = client 筆電非 Pi 螢幕。詳 `changelogs/changelog_2026-06-18_webui.md`、`roadmaps/html_ui_plan.md`、memory `webui-pi-rendering`。
