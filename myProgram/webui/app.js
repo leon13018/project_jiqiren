@@ -550,8 +550,10 @@ function bindEvents(root) {
     const act = t.dataset.act;
     const id = t.dataset.id;
     const cur = id ? (App.state.cart[id] || 0) : 0;
-    // live 模式：WS 為購物車唯一權威，瀏覽器被動鏡像 → 觸控加/減停用（雙向留 Phase 2）。
-    if (App._live && (act === "add" || act === "inc" || act === "dec")) return;
+    // live 模式：WS 為鏡像狀態唯一權威，瀏覽器純被動鏡像 → 停用所有改鏡像狀態的本機觸控
+    // （exitStandby/checkout/place/finish/add/inc/dec 等都會與機器人 desync，斷線時更卡死頁），
+    //  只留 adGoto（本機廣告輪播，非鏡像狀態）。雙向留 Phase 2。
+    if (App._live && act !== "adGoto") return;
     switch (act) {
       case "add": App.setQty(id, 1); break;
       case "inc": App.setQty(id, cur + 1); break;
