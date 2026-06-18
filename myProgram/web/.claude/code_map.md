@@ -9,8 +9,8 @@
 
 ## 檔案（Pi-only — import fastapi / uvicorn / pydantic，Windows 不可 import / run，只能 `ast.parse`）
 - `models.py` — 前後端契約 Pydantic DTO：`Product` / `DisplayState` / `Snapshot`。
-- `app.py` — FastAPI app：`create_app(bus)` → `/api/state`（快照）+ `/ws/state`（WS 推送）+ StaticFiles 出 `webui/` 靜態檔；startup 綁 uvicorn loop 進 bus。
-- `server.py` — uvicorn 背景執行緒生命週期：`start(bus, host, port=8137) → (server, thread)`、`stop(server)`；非主執行緒 → 關 signal handler。
+- `app.py` — FastAPI app：`create_app(bus, on_input)` → `/api/state`（快照）+ `/ws/state`（WS 推送下行 + receive 上行：`commands.to_token` → `on_input` 注入既有 input queue，壞 JSON 吞掉）+ StaticFiles 出 `webui/` 靜態檔；startup 綁 uvicorn loop 進 bus。
+- `server.py` — uvicorn 背景執行緒生命週期：`start(bus, on_input, host, port=8137) → (server, thread)`、`stop(server)`；非主執行緒 → 關 signal handler。
 
 ## 其他
 - `CLAUDE.md` — 本層導引。

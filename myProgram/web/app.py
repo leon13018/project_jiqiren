@@ -1,11 +1,13 @@
-"""FastAPI app：/api/state（快照）+ /ws/state（推送）+ 出 webui 靜態檔。Pi-only（import fastapi）。"""
+"""FastAPI app：/api/state（快照）+ /ws/state（推送 + 上行命令）+ 出 webui 靜態檔。Pi-only（import fastapi）。"""
 import asyncio
+import json
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
 from myProgram.sales.constants import PRODUCTS
+from myProgram.web import commands
 from myProgram.web.models import Product, DisplayState, Snapshot
 
 _WEBUI_DIR = Path(__file__).resolve().parent.parent / "webui"
@@ -17,7 +19,7 @@ def _catalog() -> list:
             for n, d in PRODUCTS.items()]
 
 
-def create_app(bus) -> FastAPI:
+def create_app(bus, on_input) -> FastAPI:
     app = FastAPI()
 
     @app.on_event("startup")
@@ -36,7 +38,13 @@ def create_app(bus) -> FastAPI:
         try:
             await ws.send_json(bus.last_state() or _STANDBY)
             while True:
-                await ws.receive_text()              # 模式 A：忽略 client 訊息，只維持連線
+                raw = await ws.receive_text()        # Phase 2：上行觸控命令
+                try:
+                    token = commands.to_token(json.loads(raw))
+                except Exception:
+                    token = None                     # 壞 JSON / 非 dict → 忽略（不拖垮連線）
+                if token is not None:
+                    on_input(token)                  # = input_reader.inject（queue.put，thread-safe）
         except WebSocketDisconnect:
             pass
         finally:
