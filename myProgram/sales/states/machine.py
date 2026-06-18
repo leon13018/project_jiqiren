@@ -25,6 +25,10 @@ from myProgram.sales import states
 from myProgram.sales import cart as cart_module
 
 
+# 機台層 → web 顯示 phase 映射（display 回呼用；終端模式 display 為 None 不觸發）。
+_PHASE_BY_STATE = {"l1": "standby", "dialog": "ordering", "l4": "checkout", "l5": "thankyou"}
+
+
 @dataclass(frozen=True)
 class Transition:
     """狀態轉移結果——取代主迴圈的字串 tuple 魔法值。"""
@@ -176,6 +180,18 @@ class SalesMachine:
             "l5": L5State(),
         }
 
+    def _emit(self, current: str) -> None:
+        """進每層時 emit phase 轉移 + cart 快照給 web display 回呼（終端模式 display=None 不觸發）。
+
+        cart 傳 dict 拷貝避免跨執行緒看到後續突變；paid 僅 l5（thankyou）帶
+        calc_total（在 L5 清 cart 前算）。
+        """
+        disp = self.callbacks.get("display")
+        if disp is None:
+            return
+        paid = cart_module.calc_total(self.cart) if current == "l5" else 0
+        disp(_PHASE_BY_STATE[current], dict(self.cart), paid)
+
     def run(self) -> None:
         current = "l1"
         while True:
@@ -189,6 +205,7 @@ class SalesMachine:
                     f"未知 entry_invariant：{state.entry_invariant!r}"
                     f"（state={type(state).__name__}）"
                 )
+            self._emit(current)            # 進場 emit phase（invariant 後、state.run 前）
             result = state.run(self)
             if result is None:
                 return None

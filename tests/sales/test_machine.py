@@ -240,3 +240,73 @@ def test_machine_run_raises_on_unknown_entry_invariant():
 
     with pytest.raises(ValueError, match="entry_invariant"):
         machine.run()
+
+
+# ============================================================
+# Test 5：machine 狀態進場 emit display（phase 轉移 + thankyou paid）
+# ============================================================
+
+def test_machine_emits_phase_on_state_entry(monkeypatch):
+    """SalesMachine.run() 每進新層 emit phase 轉移 + 當前 cart 快照；
+    進 l5 帶 paid = calc_total(cart)（清 cart 前算）。
+
+    驅動一輪完整 cycle：l1（空）→ dialog（加 冰紅茶×2）→ l4 → l5（清 cart）
+    → subroutine_a → l1（空）→ 終止。
+    emit 在每層進場（invariant 檢查後、state.run 前）→ cart 快照為「進該層當下」狀態：
+        standby  (l1, cart 空)
+        ordering (dialog, cart 空 — dialog stub 進場後才加單)
+        checkout (l4, cart={冰紅茶:2})
+        thankyou (l5, cart={冰紅茶:2}, paid=54=2×27 — l5 清 cart 前算)
+        standby  (回 l1, cart 已被 l5 清空)
+    """
+    calls = []
+
+    l1_count = {"n": 0}
+
+    def stub_run_l1(**kwargs):
+        l1_count["n"] += 1
+        return "L2" if l1_count["n"] == 1 else None  # 第二次進 l1 終止
+
+    def stub_run_dialog(*, speak, print_terminal, read_customer_input, cart,
+                        think_count, opencv_disable, do_action, speak_and_wait=None,
+                        display=None):
+        cart["冰紅茶"] = 2  # 顧客點兩瓶；L4 路徑不清 cart
+        return ("L4", 0)
+
+    def stub_run_l4(*, speak, print_terminal, read_customer_input, cart,
+                    opencv_disable, do_action, speak_and_wait=None):
+        return ("L5", 0, 0)  # 掃碼成功 → L5（不清 cart，L5 負責）
+
+    def stub_run_l5(*, cart, sleep, do_action):
+        cart.clear()  # L5 清 cart（正常行為）
+        return ("L1", 0, 0)
+
+    def stub_run_subroutine_a(**kwargs):
+        pass
+
+    monkeypatch.setattr(states_module, "run_l1", stub_run_l1)
+    monkeypatch.setattr(states_module, "run_dialog", stub_run_dialog)
+    monkeypatch.setattr(states_module, "run_l4", stub_run_l4)
+    monkeypatch.setattr(states_module, "run_l5", stub_run_l5)
+    monkeypatch.setattr(states_module, "run_subroutine_a", stub_run_subroutine_a)
+
+    cb = _make_callbacks(
+        display=lambda phase, cart, paid=0: calls.append((phase, dict(cart), paid)),
+    )
+    SalesMachine(callbacks=cb, cart=cart_module.new_cart()).run()
+
+    phases = [c[0] for c in calls]
+    assert phases[:4] == ["standby", "ordering", "checkout", "thankyou"]
+    assert calls[2][1] == {"冰紅茶": 2}, "進 l4 cart 快照應含 冰紅茶×2"
+    assert calls[3] == ("thankyou", {"冰紅茶": 2}, 54), "進 l5 帶 paid=2×27=54（清 cart 前算）"
+
+
+def test_machine_no_emit_when_display_absent(monkeypatch):
+    """callbacks 無 display 鍵 → _emit 經 .get 取 None → 不 emit（既有 621 測試零行為改變）。
+
+    run_l1 stub 第一輪即回 None 終止（只進一次 l1）；不傳 display callback，
+    驗證 _emit 對缺 display 鍵 graceful（不 KeyError、不 raise）。
+    """
+    monkeypatch.setattr(states_module, "run_l1", lambda **kwargs: None)
+    machine = _make_machine()              # _make_callbacks 無 display 鍵
+    machine.run()                          # 不應 raise（.get("display") → None → 跳過 emit）
