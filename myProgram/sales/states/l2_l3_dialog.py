@@ -591,6 +591,11 @@ class DialogSession:
             if isinstance(result, tuple):
                 return result
 
+            # WebUI Phase 1：每輪處理完（cart 可能變動）emit ordering + 最新 cart 快照
+            # → 前端購物車逐項長出的增量鏡像（終端模式 display=None 不觸發）。
+            if self.io.display is not None:
+                self.io.display("ordering", dict(self.cart))
+
     def c2_second_stage(self) -> tuple:
         """L3 C-2 第二段：三選一子狀態（2026-05-28 重構：二元 yes/no → 繼續/結帳/取消）。
 

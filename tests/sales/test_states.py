@@ -7475,3 +7475,58 @@ def test_product_group_unparseable_candidate_returns_fallback():
     # 所有 production 候選皆可解析（防線僅為未來擴充保險，現不誤觸發 else 分支）
     for cand in _PRODUCT_PHONETIC_CANDIDATES:
         assert _product_group(cand) == parse_products(cand)[0][0]
+
+
+# ============================================================
+# DIALOG-EMIT：每輪 emit ordering + 最新 cart（WebUI Phase 1 Task 3 增量鏡像）
+# Scenario: 顧客每加完一輪單，dialog 主迴圈 emit display("ordering", cart 快照)
+# → 前端購物車逐項長出來的增量鏡像
+# ============================================================
+
+def test_dialog_emits_cart_each_turn() -> None:
+    """DialogSession.main_loop() 每輪 _dispatch 回非 tuple 後 emit ("ordering", dict(cart))。
+
+    驅動「冰紅茶兩個」加單那輪 → 主迴圈處理完該輪 emit ordering + cart={冰紅茶:2}
+    （後續 None None「對」走 C-2 confirm → L4，timeout 路徑由 on_timeout 直接 return，
+    不經 emit 點）。display 傳 dict 拷貝快照。
+    """
+    calls: list = []
+    cart = cart_module.new_cart()
+    customer_input = FakeCustomerInput(["冰紅茶兩個", None, None, "對"])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+        display=lambda phase, c, paid=0: calls.append((phase, dict(c))),
+    )
+
+    assert next_state == "L4"
+    assert ("ordering", {"冰紅茶": 2}) in calls, (
+        f"加單該輪應 emit ('ordering', {{冰紅茶:2}})，實際 emit：{calls}"
+    )
+
+
+def test_dialog_no_emit_when_display_none() -> None:
+    """display 預設 None（既有測試 run_dialog 不傳 display）→ main_loop guard 跳過、不 raise。
+
+    既有 dialog 測試零行為改變的回歸保護：io.display is None → 不呼叫 → 無 AttributeError。
+    """
+    cart = cart_module.new_cart()
+    customer_input = FakeCustomerInput(["冰紅茶兩個", None, None, "對"])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )  # 不傳 display → io.display=None → main_loop emit guard 跳過
+
+    assert next_state == "L4"  # 不 raise，行為與既有完全一致
