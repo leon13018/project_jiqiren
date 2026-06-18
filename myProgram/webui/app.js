@@ -120,6 +120,11 @@ function ActionArea(row) {
 const App = {
   state: { cart: { bingcha: 2, guagua: 1 }, overlay: null, standby: false, paidTotal: 0, reviewOpen: false, adIndex: 0 },
 
+  // live 模式（WS 驅動鏡像）旗號：非 ?demo=1 時為 true。demo 模式（false）保留 Phase 0 切換器 + 本機觸控。
+  _live: false,
+  // live 模式商品目錄（由後端 /api/state 的 catalog 注入；demo 模式 null → products() 走 hardcode fallback）
+  _catalog: null,
+
   // 上輪每商品 isInCart 快照——只在「加入購物車 ↔ 數量器」切換時播 action-swap 動效（數量增減不播）
   _prevInCart: null,
   // 上輪購物車商品 id 集合——判斷新加入的列要播「由左往右刷入」進場
@@ -131,8 +136,19 @@ const App = {
     this.render();
   },
 
-  // ---- 以下 products/ads/fmt/totalOf/setQty/overlay handlers/setView/qrCells 逐字移植自設計 DCLogic ----
+  // ---- 以下 ads/fmt/totalOf/setQty/overlay handlers/setView/qrCells 逐字移植自設計 DCLogic ----
+
+  // 商品呈現表：name → {icon, tone}（Glaze 視覺留前端，後端 catalog 只給資料 name/unit/價格）。
+  // key 為 PRODUCTS 商品名；icon/tone 搬自原 hardcode bingcha/guagua。
+  presentation: {
+    "冰紅茶": { icon: "ph-drop", tone: "linear-gradient(140deg, oklch(0.62 0.13 52), oklch(0.43 0.10 35))" },
+    "刮刮樂": { icon: "ph-ticket", tone: "linear-gradient(140deg, oklch(0.72 0.17 28), oklch(0.60 0.16 332))" },
+  },
+
+  // live 模式回後端 catalog（name 當 id；snake→camel 已於 ingest 時轉好）；
+  // demo 模式（?demo=1）回 Phase 0 hardcode fallback（id 為 bingcha/guagua）。
   products() {
+    if (this._live) return this._catalog || [];
     return [
       { id: "bingcha", name: "冰紅茶", priceNow: 27, priceOrig: 30, unit: "瓶", icon: "ph-drop", tone: "linear-gradient(140deg, oklch(0.62 0.13 52), oklch(0.43 0.10 35))" },
       { id: "guagua", name: "刮刮樂", priceNow: 180, priceOrig: 200, unit: "張", icon: "ph-ticket", tone: "linear-gradient(140deg, oklch(0.72 0.17 28), oklch(0.60 0.16 332))" },
@@ -203,6 +219,26 @@ const App = {
     else if (v === "standby") this.setState({ overlay: null, standby: true });
   },
 
+  // ---- live 模式（WS 驅動）----
+
+  // 後端 catalog（Pydantic Product：snake_case price_now/price_orig）→ 前端內部 camelCase；
+  // name 當 id，補呈現表的 icon/tone。
+  ingestCatalog(catalog) {
+    this._catalog = (catalog || []).map((c) => ({
+      id: c.name, name: c.name, unit: c.unit, priceNow: c.price_now, priceOrig: c.price_orig,
+      ...(this.presentation[c.name] || {}),
+    }));
+  },
+
+  // 後端 DisplayState（{phase, cart, total, paid}）→ App.state。WS 權威：cart 直接覆寫，
+  // phase 映射成既有 standby/overlay；paid 僅 thankyou 帶（falsy 時保留上一筆 paidTotal）。
+  applyState(s) {
+    this.state.cart = s.cart || {};
+    this.state.standby = s.phase === "standby";
+    this.state.overlay = s.phase === "checkout" ? "checkout" : s.phase === "thankyou" ? "thankyou" : null;
+    this.state.paidTotal = s.paid || this.state.paidTotal;
+  },
+
   qrCells(seed) {
     let h = 2166136261;
     for (let i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
@@ -271,7 +307,7 @@ const App = {
       showThankyou: this.state.overlay === "thankyou",
       standby: this.state.standby,
       reviewOptions,
-      showReview: true,
+      showReview: !this._live,   // demo 切換器只在 ?demo=1 顯示；live 模式不顯示
       reviewOpen: this.state.reviewOpen,
       qrCells: this.qrCells("GLAZE|" + total + "|" + JSON.stringify(cart)),
     };
@@ -514,6 +550,8 @@ function bindEvents(root) {
     const act = t.dataset.act;
     const id = t.dataset.id;
     const cur = id ? (App.state.cart[id] || 0) : 0;
+    // live 模式：WS 為購物車唯一權威，瀏覽器被動鏡像 → 觸控加/減停用（雙向留 Phase 2）。
+    if (App._live && (act === "add" || act === "inc" || act === "dec")) return;
     switch (act) {
       case "add": App.setQty(id, 1); break;
       case "inc": App.setQty(id, cur + 1); break;
@@ -543,4 +581,57 @@ function restartAdTimer() {
   _adTimer = setInterval(() => App.showAd((App.state.adIndex + 1) % ads.length), AD_INTERVAL);
 }
 
-document.addEventListener("DOMContentLoaded", () => { App.render(); restartAdTimer(); });
+// ===== live 模式連線（WS client 驅動 render）=====
+
+// 角落「重新連線中」提示：斷線時顯示、連上後移除（固定定位，不進 #app render 流程避免被重畫沖掉）。
+function showReconnecting() {
+  if (document.getElementById("ws-reconnect")) return;
+  const el = document.createElement("div");
+  el.id = "ws-reconnect";
+  el.textContent = "重新連線中…";
+  el.style.cssText = "position:fixed;right:20px;top:20px;z-index:200;padding:10px 16px;border-radius:var(--radius-capsule);" +
+    "background:var(--glass-tint-thick);backdrop-filter:blur(var(--blur-thick)) saturate(var(--glass-saturate));" +
+    "-webkit-backdrop-filter:blur(var(--blur-thick)) saturate(var(--glass-saturate));border:0.5px solid var(--glass-border);" +
+    "box-shadow:var(--glass-shadow-raised);color:var(--text-secondary);font-family:var(--font-text);font-size:13px;font-weight:600;";
+  document.body.appendChild(el);
+}
+function hideReconnecting() {
+  const el = document.getElementById("ws-reconnect");
+  if (el) el.remove();
+}
+
+// 指數退避：1s 起，每次 ×2，上限 10s（重連成功後 connectLive() 重設）。
+let _wsBackoff = 1000;
+function nextBackoff() { const b = _wsBackoff; _wsBackoff = Math.min(_wsBackoff * 2, 10000); return b; }
+
+// fetch /api/state 拿 catalog + 初始狀態 → render → 開 WS 收增量。斷線指數退避重連。
+async function connectLive() {
+  try {
+    const r = await fetch("/api/state");
+    const { catalog, state } = await r.json();
+    App.ingestCatalog(catalog);
+    App.applyState(state);
+    App.render();
+    hideReconnecting();
+    _wsBackoff = 1000;   // 拿到快照即視為連上 → 重設退避
+    const ws = new WebSocket(`ws://${location.host}/ws/state`);
+    ws.onmessage = (e) => { App.applyState(JSON.parse(e.data)); App.render(); };
+    ws.onclose = () => { showReconnecting(); setTimeout(connectLive, nextBackoff()); };
+    ws.onerror = () => ws.close();   // 觸發 onclose 走統一重連路徑
+  } catch (_) {
+    showReconnecting();
+    setTimeout(connectLive, nextBackoff());   // /api/state 失敗（server 還沒起）→ 退避重試
+  }
+}
+
+// 入口：?demo=1 走 Phase 0 demo（切換器 + 本機觸控）；否則 live 模式（WS 驅動鏡像）。
+document.addEventListener("DOMContentLoaded", () => {
+  App._live = !new URLSearchParams(location.search).has("demo");
+  if (App._live) {
+    connectLive();
+    restartAdTimer();
+  } else {
+    App.render();
+    restartAdTimer();
+  }
+});
