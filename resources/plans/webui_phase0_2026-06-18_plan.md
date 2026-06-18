@@ -123,7 +123,11 @@ foreach ($w in "regular","bold","fill") {
   Invoke-WebRequest "https://unpkg.com/@phosphor-icons/web@2.1.1/src/$w/style.css" -OutFile "$ww/phosphor/$w.css"
   Invoke-WebRequest "https://unpkg.com/@phosphor-icons/web@2.1.1/src/$w/Phosphor$(if($w -ne 'regular'){"-$($w.Substring(0,1).ToUpper()+$w.Substring(1))"}).woff2" -OutFile "$ww/phosphor/Phosphor-$w.woff2" -ErrorAction SilentlyContinue
 }
-# 抓完後把各 css 內 url(...) 改成指向同目錄 ./Phosphor-<weight>.woff2
+# 把各 css 的 url(...) 改指向同目錄已存檔名（離線生效關鍵；否則仍指原檔名 Phosphor.woff2 → 圖示靜默失效）
+foreach ($w in "regular","bold","fill") {
+  $css = "$ww/phosphor/$w.css"
+  (Get-Content $css -Raw) -replace 'url\([^)]*Phosphor[^)]*\.woff2\)', "url(./Phosphor-$w.woff2)" | Set-Content $css -NoNewline
+}
 ```
 Inter / Noto Sans TC 的 woff2 從 google-webfonts-helper（`gwfh.mranftl.com`）下載對應 weight，存入 `$ww/fonts/`，檔名對齊 Step 2 的 `src`。
 
