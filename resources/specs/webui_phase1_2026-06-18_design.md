@@ -70,7 +70,7 @@
 ### 1. `myProgram/web/` 套件（全新，不動既有 .py）
 
 - **`models.py`** — Pydantic DTO（見「DTO / 契約」）。
-- **`bus.py`** — `EventBus`：持目前 `DisplayState`（last-known，給新連線初始快照）+ 已連線 WS 集合；`publish(state)`（機器人執行緒呼叫，經 `run_coroutine_threadsafe` 排到 loop 廣播）+ `broadcast()`（async，送所有 WS，斷線者剔除）。
+- **`bus.py`** — `EventBus`（純 stdlib，不 import pydantic）：持目前 display state **dict**（last-known，給新連線初始快照）+ 已連線 WS 集合；`publish(state_dict)`（機器人執行緒呼叫，經 `run_coroutine_threadsafe` 排到 loop 廣播）+ `broadcast()`（async，送所有 WS，斷線者剔除）。
 - **`app.py`** — FastAPI app：
   - `GET /` + 靜態檔：`StaticFiles` 掛 `myProgram/webui/`（出 index.html / app.js / tokens…）。
   - `GET /api/state` → `Snapshot{ catalog, state }`（catalog 由 `sales/constants/products.py` `PRODUCTS` 建；state = bus last-known）。
@@ -83,7 +83,7 @@
 - **callback 契約**：`display(phase: str, cart: dict[str, int], paid: int = 0) -> None`
   - `phase ∈ {"standby","ordering","checkout","thankyou"}`；`cart` = 商品名→數量快照（傳 `dict(cart)` 拷貝，避免跨執行緒看到後續突變）；`paid` 僅 thankyou 帶。
   - **終端模式**：no-op（`TerminalSim.display` 空實作，保留純終端輸出乾淨）。
-  - **web 模式**：`WebSim.display` 建 `DisplayState`（total 由 cart×PRODUCTS 實際價算）→ `bus.publish(state)`。
+  - **web 模式**：web `display` 建**純 dict** `{phase, cart, total, paid}`（total 由 cart×PRODUCTS 實際價算）→ `bus.publish(dict)`；Pydantic `DisplayState` 只在 `app.py` 的 `/api/state` response_model + WS `send_json` 邊界包（Windows 不可測 → Pi 驗）。
 - **注入**：`logic.run(..., display=...)` 多收一個 callback，放進 callbacks dict 傳給 `SalesMachine`；`SalesMachine` 與相關 state 在變動點呼叫。
 - **emit 點**（writing-plans 細化確切行；原則如下）：
   1. `machine.py SalesMachine.run()`：每進新層 emit phase 轉移（`l1`→standby、`dialog`→ordering、`l4`→checkout、`l5`→thankyou）。涵蓋大多數 view 變化 + 邊界 cart 快照。
@@ -144,11 +144,13 @@ class Snapshot(BaseModel):
 
 ## 測試策略
 
-- **Windows pytest（純邏輯，無 uvicorn/Pi）**：
-  - `web/models.py` DTO 驗證、`WebSim.display`→`DisplayState` 映射（phase/total/paid 正確）、`bus` publish/last-known/斷線剔除（用 fake WS）。
-  - `sales/` emit：在既有 machine/dialog 測試注入 spy `display` stub，斷言「進 l4 emit checkout」「dialog 加單 emit ordering+正確 cart」「l5 emit thankyou+paid」等；既有 621 測試以 no-op display 全綠（零行為改變）。
-  - main.py：`_build_callbacks` 不啟 server（lazy）；web 模式 factory 可被 patch。
-- **Pi 端整合（實機，pineedtodo）**：裝 fastapi/uvicorn → `python -m myProgram --web` → client 筆電連 `raspberrypi.local:8137` → 走一輪點餐，確認購物車/結帳/感謝即時鏡像 + 斷線重連。
+> **本機禁裝依賴紅線**：fastapi / uvicorn / **pydantic** 在 Windows 裝不了 → 凡 import 它們的程式碼 Windows 無法 pytest。對策：bus + display 映射全走**純 dict（stdlib）**，Pydantic 只在 FastAPI 邊界用 → 大部分邏輯仍 Windows-TDD，pydantic/fastapi 殼留 Pi 驗。
+
+- **Windows pytest（純 stdlib，不 import pydantic/fastapi/uvicorn）**：
+  - `sales/` emit：spy `display` stub 斷言「進 l4 emit checkout」「dialog 每輪加單 emit ordering + 正確 cart」「進 l5 emit thankyou + paid」；既有 621 測試以 no-op display 全綠（零行為改變）。
+  - web 模式 `display`→**dict** 映射（phase/total/paid 正確）、`bus`（dict-based）publish / last-known / 斷線剔除（fake WS）。
+  - main.py：`_build_callbacks` 不啟 server（lazy import）；web 模式 factory 可被 patch（不觸發 uvicorn import）。
+- **Pi-only（import pydantic/fastapi/uvicorn，Windows 無法 pytest）**：`web/models.py` Pydantic DTO 驗證、`app.py` route + StaticFiles、`server.py` uvicorn thread、端到端整合（pineedtodo：裝 fastapi/uvicorn → `python -m myProgram --web` → client 筆電連 `raspberrypi.local:8137` → 走一輪點餐確認即時鏡像 + 斷線重連）。
 - **Iron Law**：沒跑 `python -m pytest tests/` 通過不得宣告完成（改了 sales/ → Stop hook 守）。
 
 ---
