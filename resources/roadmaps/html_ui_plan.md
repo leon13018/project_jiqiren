@@ -1,8 +1,27 @@
-# 未來計畫：HTML 網頁 UI（自 roadmap.md 搬遷）
+# HTML 網頁 UI — 階段路線
 
-> 2026-06-07 自 `resources/roadmap.md` 搬遷。狀態：待辦（等 STT / 主框架穩定）。
+> 2026-06-07 自 `resources/roadmap.md` 搬遷。**2026-06-18 更新：Phase 0 ✅ 完成**——這是進行中的前端弧，分階段如下。
 
-## UI：tkinter → HTML 網頁實現
+## 階段路線（2026-06-18）
+
+| 階段 | 範圍 | 狀態 |
+|---|---|---|
+| **Phase 0 — 玻璃效能切片** | Glaze Liquid Glass 點餐頁 buildless 化（`myProgram/webui/`）+ Pi 實機量 fps | **✅ 完成**（計畫 `plans/webui_phase0_2026-06-18_plan.md`；詳錄 `changelogs/changelog_2026-06-18_webui.md`；commit `db2d6b7`） |
+| **Phase 1 — 後端骨架** | FastAPI + WebSocket server；前端從 demo 切換器改成連 WS、收事件渲染 | ⬜ 下一步（使用者下個對話的主題） |
+| **Phase 2 — 事件注入** | `sales/` / callback 層加結構化事件注入點，把點餐 / 購物車 / 結帳狀態推給 web client | ⬜ 待 Phase 1 |
+| **Phase 3 — 端到端 Pi 整合** | Pi 跑機器人 + `serve.py`，筆電瀏覽器即時鏡像；demo 彩排 | ⬜ 待 Phase 2 |
+
+### Phase 0 裁決（2026-06-18 Pi 實機）
+玻璃方向過關，但 **Pi 4 自帶 Chromium 跑不動**（GPU 撐不住 backdrop-blur → 卡；Chromium <111 無 OKLCH → 部分顏色失效）→ **demo 由同 wifi client 筆電瀏覽器渲染、Pi 只當 `serve.py` 靜態伺服器**。**Phase 1+ 的前端輸出端 = client 筆電，不是 Pi 螢幕。**（要 Pi 自瀏覽器也能顯示 → 需做 OKLCH→sRGB fallback + 砍 blur 的「Pi 相容檔」，暫不做。）
+
+### Phase 1 接點（既有資產）
+- **後端 callback 注入點**已在 `main.py` 入口層 wire-up（`TerminalSim` callback 類別餵 `logic.run`）——Phase 1 把這些 callback 改成往 web client 推事件。
+- **前後端契約**：`architecture/frontend-backend-contract.md`（使用者註記部分內容過時 → Phase 1 設計時校對）。
+- **約束**：廠商檔（[[vendor-files]]）禁改；`sales/` 不 import 廠商 SDK；UI 文案繁中；前端落 `myProgram/webui/`（`sync_pi.ps1` 才會自動部署 Pi）。
+
+---
+
+## 背景：tkinter → HTML 網頁實現（原始決議）
 
 **狀態更新（2026-05-25）：** `screen_display.py` 已歸檔到 `resources/examples/legacy_threading_v1/`（S1 v1→v2 重構時），現在 S1 v2 沒有 UI 層。此計畫變成「未來上 UI 時直接走 HTML，不再寫 tkinter」。
 

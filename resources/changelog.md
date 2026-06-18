@@ -8,4 +8,5 @@
 | 2026-05-26 ~ 06-01（session 級詳錄） | P0-P8 重構、Wave 0-10、S2-S6 落地、L4 v2/v3、客服統一、SDD v1→v3 的逐 session 細節（自 roadmap 搬遷） | `changelogs/sessions_2026-05-26_to_06-01_detail.md` |
 | 2026-06-02 ~ 06-07 | **Harness Engineering 弧**：反思 hook、EDD 回歸 harness、memory 治理、兩輪官方 plugin 逆向、自進化閉環、weak_asserts 維護循環 | `changelogs/changelog_2026-06-02_to_06-07_harness.md` |
 | 2026-06-12 | **效能極限 campaign**：四鏡頭 review → 五波 SDD（熱路徑 -33~55%、TTS 快取零合成斷網可播、504→515 測試、行為零改變） | `changelogs/changelog_2026-06-12_perf_campaign.md` |
-| 2026-06-08 ~（當期） | **回歸主程式開發**：STT barge-in Phase 1（Deepgram 串流 + keyterm）→ NLU 全繁體化 → 本地拼音糾錯層（Phase A/B + 統一 parser + 同音 tie-break + 合音還原 + Pi bug 修）→ 結帳收尾語音合併 → parser filler-strip + housekeeping triage | `changelogs/changelog_2026-06-08_main_dev.md` |
+| 2026-06-08 ~ 06-17 | **回歸主程式開發**：STT barge-in Phase 1（Deepgram 串流 + keyterm）→ NLU 全繁體化 → 本地拼音糾錯層（Phase A/B + 統一 parser + 同音 tie-break + 合音還原 + Pi bug 修）→ 結帳收尾語音合併 → parser filler-strip + housekeeping triage | `changelogs/changelog_2026-06-08_main_dev.md` |
+| 2026-06-18 ~（當期） | **前端 webui 弧**：Glaze Liquid Glass 點餐頁 buildless 化（顯示鏡像 + 局部更新效能重構 + morph / 流星刷入動效）→ Pi 實機裁決「自瀏覽器跑不動（GPU + Chromium<111 無 OKLCH），demo 走 client 筆電、Pi 只當 server」→ Phase 0 ✅、待 Phase 1 後端串接 | `changelogs/changelog_2026-06-18_webui.md` |
