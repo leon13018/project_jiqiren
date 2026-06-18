@@ -21,7 +21,7 @@ body {
 /* ---- 背景固定 OKLCH 光暈（搬自設計 ambient glows） ---- */
 .bg-glows {
   position: fixed;
-  inset: 0;
+  inset: -10%;                /* 比 viewport 大一圈：drift 位移後仍蓋滿，不露出邊緣黑邊（垂直分界線） */
   pointer-events: none;
   z-index: 0;
   background:
