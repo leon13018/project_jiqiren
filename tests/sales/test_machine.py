@@ -108,7 +108,8 @@ def test_l1state_none_terminates(monkeypatch):
 def test_dialogstate_l4_maps_to_l4(monkeypatch):
     """DialogState：run_dialog stub 回 ("L4", 0) → Transition("l4")。"""
     def stub_run_dialog(*, speak, print_terminal, read_customer_input, cart,
-                        think_count, opencv_disable, do_action, speak_and_wait=None):
+                        think_count, opencv_disable, do_action, speak_and_wait=None,
+                        display=None):
         cart["冰紅茶"] = 1  # L4 路徑不清 cart
         return ("L4", 0)
 
@@ -122,7 +123,8 @@ def test_dialogstate_subroutine_a_maps_to_l1_via_sub(monkeypatch):
     """DialogState：run_dialog stub 清 cart 回 ("L1_via_subroutine_a", 0)
     → Transition("l1", via_subroutine_a=True)。"""
     def stub_run_dialog(*, speak, print_terminal, read_customer_input, cart,
-                        think_count, opencv_disable, do_action, speak_and_wait=None):
+                        think_count, opencv_disable, do_action, speak_and_wait=None,
+                        display=None):
         cart.clear()
         return ("L1_via_subroutine_a", 0)
 

@@ -117,6 +117,7 @@ def run_dialog(
     opencv_disable,
     do_action,
     speak_and_wait=None,
+    display=None,
 ) -> tuple:
     """統一對話層主迴圈 — cart 狀態驅動。
 
@@ -153,6 +154,7 @@ def run_dialog(
         print_terminal=print_terminal,
         do_action=do_action,
         speak_and_wait=speak_and_wait,
+        display=display,
     )
 
     # 進入 dialog → OpenCV 已用完任務（觸發進 dialog 後不再偵測），明示關閉

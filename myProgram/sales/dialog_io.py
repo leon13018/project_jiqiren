@@ -22,6 +22,7 @@ class DialogIO:
     print_terminal: Callable = None
     do_action: Callable = None
     speak_and_wait: Callable = None
+    display: Callable = None        # web 顯示鏡像 emit；終端模式 no-op / None（guard 於 caller）
 
     def speak_blocking(self, text: str) -> None:
         """阻塞 speak（wall-clock budget 用）——取代 8 處 fallback 三元式，語意一字不差。"""

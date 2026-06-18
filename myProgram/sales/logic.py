@@ -36,6 +36,7 @@ def run(
     exit_program,
     show_hawk_help,
     speak_and_wait=None,
+    display=None,
 ) -> None:
     """S1 v2 主迴圈 facade：組 callbacks + 建 SalesMachine（L1 → dialog → L4 → L5 → 子例程 A → L1 cycle）。
 
@@ -59,5 +60,6 @@ def run(
         exit_program=exit_program,
         show_hawk_help=show_hawk_help,
         speak_and_wait=speak_and_wait,
+        display=display,
     )
     return SalesMachine(callbacks=callbacks, cart=cart_module.new_cart()).run()

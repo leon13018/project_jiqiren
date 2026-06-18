@@ -106,6 +106,7 @@ class DialogState(State):
             opencv_disable=cb["opencv_disable"],
             do_action=cb["do_action"],
             speak_and_wait=cb["speak_and_wait"],
+            display=cb.get("display"),
         )
         if next_state == "L1_via_subroutine_a":
             _assert_cart_empty(machine.cart, "dialog 退出後（dialog A 已視情況清 cart）")

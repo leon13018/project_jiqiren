@@ -328,8 +328,10 @@ def main():
     state = _S1State()
     callbacks = _build_callbacks(state)
 
+    # 終端模式 display 為 no-op（web 模式於後續 task 覆寫注入真實 web 回呼）。
+    _noop_display = lambda *a, **k: None
     try:
-        logic.run(**callbacks)
+        logic.run(**callbacks, display=_noop_display)
     except SystemExit:
         pass
     except KeyboardInterrupt:
