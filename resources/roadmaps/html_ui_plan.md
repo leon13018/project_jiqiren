@@ -1,15 +1,14 @@
 # HTML 網頁 UI — 階段路線
 
-> 2026-06-07 自 `resources/roadmap.md` 搬遷。**2026-06-18 更新：Phase 0 ✅ 完成**——這是進行中的前端弧，分階段如下。
+> 2026-06-07 自 `resources/roadmap.md` 搬遷。**2026-06-18 更新：Phase 0 + Phase 1 ✅ 完成**（Pi 實機驗收即時鏡像 OK）——這是進行中的前端弧，分階段如下。
 
 ## 階段路線（2026-06-18）
 
 | 階段 | 範圍 | 狀態 |
 |---|---|---|
 | **Phase 0 — 玻璃效能切片** | Glaze Liquid Glass 點餐頁 buildless 化（`myProgram/webui/`）+ Pi 實機量 fps | **✅ 完成**（計畫 `plans/webui_phase0_2026-06-18_plan.md`；詳錄 `changelogs/changelog_2026-06-18_webui.md`；commit `db2d6b7`） |
-| **Phase 1 — 後端骨架** | FastAPI + WebSocket server；前端從 demo 切換器改成連 WS、收事件渲染 | ⬜ 下一步（使用者下個對話的主題） |
-| **Phase 2 — 事件注入** | `sales/` / callback 層加結構化事件注入點，把點餐 / 購物車 / 結帳狀態推給 web client | ⬜ 待 Phase 1 |
-| **Phase 3 — 端到端 Pi 整合** | Pi 跑機器人 + `serve.py`，筆電瀏覽器即時鏡像；demo 彩排 | ⬜ 待 Phase 2 |
+| **Phase 1 — 後端串接 + 即時鏡像** | FastAPI + WS server + `display` 事件回呼穿 sales/ emit（**含原 Phase 2 事件注入 + Phase 3 端到端，本階段一併完成**）+ 前端 WS client 驅動 | **✅ 完成**（spec `webui_phase1_2026-06-18_design.md`；詳錄 changelog；commit `8005e57` + hardening `d2cb850`；**Pi 驗收即時鏡像 ✅、延遲幾乎沒有**） |
+| **Phase 2 — 觸控雙向** | client 觸控點餐 → 注入機器人 input queue（類 STT inject seam），從「顯示鏡像」進化到「可觸控操作」，完成互動閉環 | ⬜ 下一步 |
 
 ### Phase 0 裁決（2026-06-18 Pi 實機）
 玻璃方向過關，但 **Pi 4 自帶 Chromium 跑不動**（GPU 撐不住 backdrop-blur → 卡；Chromium <111 無 OKLCH → 部分顏色失效）→ **demo 由同 wifi client 筆電瀏覽器渲染、Pi 只當 `serve.py` 靜態伺服器**。**Phase 1+ 的前端輸出端 = client 筆電，不是 Pi 螢幕。**（要 Pi 自瀏覽器也能顯示 → 需做 OKLCH→sRGB fallback + 砍 blur 的「Pi 相容檔」，暫不做。）

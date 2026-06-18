@@ -36,6 +36,8 @@
 - wheel
 - pypinyin
 - websockets（STT Deepgram 串流 client；純 Python，無 piwheels/GLIBC 風險）
+- fastapi（webui Phase 1 顯示鏡像後端；使用者 2026-06-18 確認裝成功）
+- uvicorn（**純 uvicorn，非 `uvicorn[standard]`**——避 uvloop/httptools C 擴充 Pi wheel 風險；webui Phase 1 ASGI server）
 
 ## raspi-config 啟用項
 

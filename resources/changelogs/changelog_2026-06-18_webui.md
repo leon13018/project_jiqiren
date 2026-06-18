@@ -24,7 +24,24 @@
 
 **下一步（Phase 1+）**：見 `roadmaps/html_ui_plan.md`——Phase 1 後端 FastAPI + WebSocket（`main.py` 的 `TerminalSim` callback 改成往 web client 推事件）、Phase 2 `sales/` 結構化事件注入點、Phase 3 端到端 Pi 整合。**Pi 相容備援檔**（OKLCH→sRGB fallback + 砍 blur，讓 Pi 自瀏覽器也能顯示）暫不做（demo 走筆電）。
 
+### 1. WebUI Phase 1 — FastAPI 顯示鏡像後端（點餐即時鏡像到 client 瀏覽器）
+
+**決策**（brainstorm → spec `specs/webui_phase1_2026-06-18_design.md`）：傳輸 **FastAPI + uvicorn**（process 內背景執行緒，契約原訂）；模組 **`myProgram/web/`** 獨立 transport 套件（與 sales/ 分離）；狀態觀測用**事件回呼 `display` 穿透 sales/**（非輪詢，使用者選純事件驅動）；互動模式 A（瀏覽器被動鏡像）。
+
+**建置**（SDD plan `plans/webui_phase1_2026-06-18_plan.md`，8 task，worktree → ff-merge `8005e57`）：
+- **`display` 事件回呼 seam**（第 15 callback，穿 `logic.run`→`DialogIO`→`SalesMachine`，終端 no-op）：`machine.py` 進場 emit phase（standby/ordering/checkout/thankyou + l5 paid）；`l2_l3_dialog.py` 每輪 emit ordering+cart（購物車逐項長出）。**既有 621 測試零行為改變**（None guard）。
+- **`myProgram/web/`**：`bus.py`（EventBus，`run_coroutine_threadsafe` 橋機器人執行緒→uvicorn loop）+ `display.py`（cart→dict）= 純 stdlib Windows-TDD；`models.py`（Pydantic DTO）+ `app.py`（`/api/state`+`/ws/state`+StaticFiles）+ `server.py`（uvicorn 背景執行緒）= Pi-only。
+- **`main.py --web`**：`_run_wiring` 旗號分流 + lazy import 隔離 + graceful fallback。**前端 `app.js`**：WS client 驅動 render、phase→view 映射、後端 catalog 為商品來源、live 觸控停用、`?demo=1` 保留 Phase 0 demo。
+- **測試**：633 Windows pytest 綠（pydantic/fastapi/uvicorn 那層 Pi-only `ast.parse`）；雙 reviewer（code-quality ✅）。
+
+**Pi 實機驗收（2026-06-18）✅**：裝 fastapi + 純 uvicorn → `python3.11 -m myProgram --web` → client 筆電連 `raspberrypi.local:8137` → **待機→點餐→購物車增量→結帳 QR→感謝 各階段即時鏡像正確、延遲幾乎沒有**（pineedtodo `2026-06-18_webui_phase1_deps_verify.md`）。
+
+**Hardening（驗收後，spec `specs/webui_phase1_hardening_2026-06-18_spec.md`，ff-merge `d2cb850`，635 綠）**：① UX——live 模式停用所有改鏡像狀態的本機觸控（`act!=="adGoto"`），修「斷線時點開始點餐跳轉死頁」（使用者報告）；② 2 反思守衛——`machine._emit` phase-map `.get`（未知 current 不 KeyError）+ `main._run_wiring` web 啟動全程 graceful（`except Exception`，port 衝突等不 crash 機器人）。
+
+**下一步**：Phase 2 — 觸控雙向（client 點餐 → 注入機器人 input queue，類 STT inject seam）。
+
 ## 流程 / 沉澱
 - **零新 Python 依賴**：字型 / 圖示走 CDN、伺服器用 stdlib `http.server` → Pi 不必 pip / apt（Phase 0 需 Pi 有網路抓 CDN；離線在地化留待後續）。
 - **cwd-pinned worktree 收尾**：本弧在釘住 cwd 的 worktree 內，收尾用 `git -C 主checkout` 做 ff-merge + push（協議 `worktree.md`）；worktree 空殼因自鎖留待新 session 清。
-- 反思採納：AdBanner 輪播（採納）、Phosphor 圖示 url-fixup（採納）——記於 `reflections/proposals.md`。
+- 反思採納：AdBanner 輪播、Phosphor 圖示 url-fixup（Phase 0）；phase-map-unguarded-keyerror、web-startup-non-import-error-crash（Phase 1 hardening 守衛）——皆採納，記於 `reflections/proposals.md`。
+- Phase 1 worktree 收尾：主 agent 全程不進 worktree（純 git `worktree add` + 派 sales-coder 編輯 + `git -C` 收尾）→ 無 cwd 自鎖、worktree remove 乾淨（驗證 worktree.md「cwd-pinned 例外 Option B」）。
