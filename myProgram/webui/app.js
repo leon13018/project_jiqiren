@@ -56,28 +56,28 @@ function QuantityStepper({ id, value = 0, size = "lg" }) {
     ${btn("plus", "inc")}</div>`;
 }
 
-// 廣告輪播卡（對齊設計 AdBanner.jsx）：漂移漸層 + droplet sheen + 左側暗化漸層（文字可讀）
-// + 內容（eyebrow/title/subtitle/CTA glass 鈕）+ 右下進度 pills（可點跳）。
-// animate=true → 漸層 + 內容套 glaze-pop-in 過場（只在切換時，不在整頁 render 時）。
-function AdBanner({ slides, index = 0, height = 240, animate = false }) {
+// 廣告輪播（手機式左右滑動過場）：所有 slide 並排於 track，`translateX(-index*100%)` 顯示目前頁，
+// track 上的 CSS transition 讓切換時左右滑動。整頁 render 重建 track 時用初始 transform（初始值不
+// 觸發 transition）→ 點餐互動不會亂滑；只有 showAd 改「既有」track 的 transform 才滑動。
+function AdBanner({ slides, index = 0, height = 240 }) {
   const n = slides.length || 1;
-  const s = slides[index % n] || {};
-  const tone = s.tone || "var(--fluid-spectrum)";
-  const gradAnim = animate
-    ? "glaze-drift 16s var(--ease-standard) infinite, glaze-pop-in var(--dur-slow) var(--ease-fluid)"
-    : "glaze-drift 16s var(--ease-standard) infinite";
+  const slide = (s) => `<div style="flex:0 0 100%;width:100%;height:100%;position:relative;overflow:hidden;">
+      <div class="anim-drift" style="position:absolute;inset:0;background:${s.tone || "var(--fluid-spectrum)"};background-size:240% 240%;animation:glaze-drift 16s var(--ease-standard) infinite;"></div>
+      <span aria-hidden="true" style="position:absolute;inset:0;background:var(--droplet-sheen);"></span>
+      <span aria-hidden="true" style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.42),rgba(0,0,0,0) 60%);"></span>
+      <div style="position:relative;z-index:1;height:100%;display:flex;flex-direction:column;justify-content:center;gap:10px;padding:0 clamp(24px,5%,56px);max-width:620px;">
+        ${s.eyebrow ? `<span style="font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;opacity:.85;">${esc(s.eyebrow)}</span>` : ""}
+        <span style="font-family:var(--font-display);font-size:clamp(28px,4vw,44px);font-weight:800;line-height:1.04;letter-spacing:-0.8px;">${esc(s.title)}</span>
+        ${s.subtitle ? `<span style="font-size:16px;opacity:.92;max-width:440px;">${esc(s.subtitle)}</span>` : ""}
+        ${s.cta ? `<div style="margin-top:6px;">${Button({ label: s.cta, variant: "glass", size: "lg", act: "noop" })}</div>` : ""}
+      </div>
+    </div>`;
   const pills = n > 1
-    ? `<div style="position:absolute;bottom:16px;right:20px;display:flex;gap:6px;z-index:2;">${slides.map((_, k) => `<button data-act="adGoto" data-idx="${k}" aria-label="廣告 ${k + 1}" style="width:${k === index ? 26 : 8}px;height:8px;padding:0;border:none;cursor:pointer;border-radius:var(--radius-capsule);background:${k === index ? "rgba(255,255,255,.95)" : "rgba(255,255,255,.45)"};transition:width var(--dur-base) var(--ease-fluid),background var(--dur-base) var(--ease-fluid);"></button>`).join("")}</div>`
+    ? `<div style="position:absolute;bottom:16px;right:20px;display:flex;gap:6px;z-index:3;">${slides.map((_, k) => `<button data-act="adGoto" data-idx="${k}" data-ad-pill aria-label="廣告 ${k + 1}" style="width:${k === index ? 26 : 8}px;height:8px;padding:0;border:none;cursor:pointer;border-radius:var(--radius-capsule);background:${k === index ? "rgba(255,255,255,.95)" : "rgba(255,255,255,.45)"};transition:width var(--dur-base) var(--ease-fluid),background var(--dur-base) var(--ease-fluid);"></button>`).join("")}</div>`
     : "";
   return `<div class="g-ad" data-ad style="position:relative;height:${height}px;border-radius:var(--radius-2xl);overflow:hidden;border:0.5px solid var(--glass-border);box-shadow:var(--glass-shadow-raised);color:#fff;isolation:isolate;">
-    <div class="anim-drift" style="position:absolute;inset:0;background:${tone};background-size:240% 240%;animation:${gradAnim};"></div>
-    <span aria-hidden="true" style="position:absolute;inset:0;background:var(--droplet-sheen);"></span>
-    <span aria-hidden="true" style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.42),rgba(0,0,0,0) 60%);"></span>
-    <div class="${animate ? "anim-pop-in" : ""}" style="position:relative;z-index:1;height:100%;display:flex;flex-direction:column;justify-content:center;gap:10px;padding:0 clamp(24px,5%,56px);max-width:620px;">
-      ${s.eyebrow ? `<span style="font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;opacity:.85;">${esc(s.eyebrow)}</span>` : ""}
-      <span style="font-family:var(--font-display);font-size:clamp(28px,4vw,44px);font-weight:800;line-height:1.04;letter-spacing:-0.8px;">${esc(s.title)}</span>
-      ${s.subtitle ? `<span style="font-size:16px;opacity:.92;max-width:440px;">${esc(s.subtitle)}</span>` : ""}
-      ${s.cta ? `<div style="margin-top:6px;">${Button({ label: s.cta, variant: "glass", size: "lg", act: "noop" })}</div>` : ""}
+    <div class="ad-track" data-ad-track style="display:flex;width:100%;height:100%;transform:translateX(-${index * 100}%);transition:transform var(--dur-slow) var(--ease-fluid);">
+      ${slides.map(slide).join("")}
     </div>
     ${pills}
   </div>`;
@@ -132,11 +132,17 @@ const App = {
   exitStandby() { this.setState({ standby: false }); },
   toggleReview() { this.setState((s) => ({ reviewOpen: !s.reviewOpen })); },
 
-  // 廣告切換：只換 [data-ad] 元素（不整頁 render），animate=true 觸發 pop-in 過場
+  // 廣告切換（手機式滑動）：只改「既有」track 的 transform → CSS transition 左右滑；同步 pills active 樣式。
+  // 不重建元素（重建會讓初始 transform 不觸發 transition、滑動失效）。
   showAd(k) {
     this.state.adIndex = k;
-    const el = document.querySelector("[data-ad]");
-    if (el) el.outerHTML = AdBanner({ slides: this.ads(), index: k, height: 240, animate: true });
+    const track = document.querySelector("[data-ad-track]");
+    if (track) track.style.transform = `translateX(-${k * 100}%)`;
+    document.querySelectorAll("[data-ad-pill]").forEach((p, i) => {
+      const active = i === k;
+      p.style.width = active ? "26px" : "8px";
+      p.style.background = active ? "rgba(255,255,255,.95)" : "rgba(255,255,255,.45)";
+    });
   },
 
   setView(v) {

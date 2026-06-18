@@ -67,6 +67,7 @@ body {
 /* ---- 無障礙：尊重 reduced-motion（Pi 降規時也會套用） ---- */
 @media (prefers-reduced-motion: reduce) {
   .wf-fade, .wf-sheet, .bg-glows, .anim-drift { animation: none !important; }
+  .ad-track { transition: none !important; }
 }
 
 /* ---- 窄螢幕 fallback（cart rail 落到下方） ---- */
