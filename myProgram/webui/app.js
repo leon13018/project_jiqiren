@@ -87,6 +87,14 @@ function AdBanner({ slides, index = 0, height = 240 }) {
 // 商品卡行動區：純按鈕 / 純數量器 / 正向 morph（加入→數量器）/ 反向 morph（數量器→加入）。
 // morph 動畫：藍長鈕「縮短到中心 → 分裂成兩灰圓圈」，反向相反（CSS keyframes，ghost 疊在真控制項上）。
 function ActionArea(row) {
+  if (App._live) {
+    // live：本地預選數量 stepper（inc/dec 改 pending，不動 cart）+ 加入鈕（送 order）。
+    // 無 morph 動畫（demo 限定）；購物車真實數量由右側欄鏡像。
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      ${QuantityStepper({ id: row.id, value: row.pending, size: "lg" })}
+      ${Button({ label: "加入購物車", icon: "ph-bold ph-plus", variant: "primary", size: "lg", act: "add", data: { id: row.id } })}
+    </div>`;
+  }
   const id = esc(row.id);
   const rest = `<span style="font-size:13px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;white-space:nowrap;">${esc(row.remainingLabel)}</span>`;
   if (!row.justToggled) {
@@ -124,6 +132,11 @@ const App = {
   _live: false,
   // live 模式商品目錄（由後端 /api/state 的 catalog 注入；demo 模式 null → products() 走 hardcode fallback）
   _catalog: null,
+
+  // Phase 2 live 上行狀態：
+  _ws: null,                 // 現行 WebSocket（sendCommand 用；connectLive 設定 / onclose 清）
+  _pending: {},              // 商品 id → 本地預選數量（live 點餐用；送出後歸 1）
+  _awaitingConfirm: false,   // 已送 checkout、等機器人問「正確嗎」→ 顯示 [確認金額] affordance
 
   // 上輪每商品 isInCart 快照——只在「加入購物車 ↔ 數量器」切換時播 action-swap 動效（數量增減不播）
   _prevInCart: null,
@@ -175,6 +188,20 @@ const App = {
     if (n <= 0) delete cart[id]; else cart[id] = Math.min(50, n);
     this.state.cart = cart;
     this.syncCart();   // 只局部更新購物車相關區域（不整頁重畫 → 不重建玻璃 backdrop）
+  },
+
+  // ---- Phase 2 live 上行 ----
+
+  // live 上行：連線中才送（斷線 no-op，保留 Phase 1「斷線不動作、不卡死頁」修正）。
+  sendCommand(cmd) {
+    if (this._ws && this._ws.readyState === WebSocket.OPEN) {
+      this._ws.send(JSON.stringify(cmd));
+    }
+  },
+  pendingQty(id) { return this._pending[id] || 1; },
+  setPending(id, n) {
+    this._pending[id] = Math.max(1, Math.min(MAX_QTY, n));
+    this.syncCart();   // 只局部重畫 act-<id>（pending stepper 在那）
   },
 
   // 購物車變動的「底層演算法」：只更新 top bar 購物車區、各卡片 action 區、購物車欄內容；
@@ -237,6 +264,8 @@ const App = {
     this.state.standby = s.phase === "standby";
     this.state.overlay = s.phase === "checkout" ? "checkout" : s.phase === "thankyou" ? "thankyou" : null;
     this.state.paidTotal = s.paid || this.state.paidTotal;
+    // 離開 ordering（機器人進 L4 / 退場 / standby）→ 清掉本地「確認金額」affordance，防殘留。
+    if (s.phase !== "ordering") this._awaitingConfirm = false;
   },
 
   qrCells(seed) {
@@ -274,7 +303,7 @@ const App = {
       const inCart = qty > 0;
       const remaining = MAX_QTY - qty;
       return {
-        ...it, qty, isInCart: inCart, remaining,
+        ...it, qty, isInCart: inCart, remaining, pending: this.pendingQty(it.id),
         justToggled: prev ? prev[it.id] !== inCart : false, // 控制項型態（鈕↔器）有變才播動效
         remainingLabel: remaining > 0 ? `還可加 ${remaining} ${it.unit}` : "已達單筆上限",
         priceNowLabel: this.fmt(it.priceNow), priceOrigLabel: this.fmt(it.priceOrig),
@@ -309,6 +338,7 @@ const App = {
       reviewOptions,
       showReview: !this._live,   // demo 切換器只在 ?demo=1 顯示；live 模式不顯示
       reviewOpen: this.state.reviewOpen,
+      awaitingConfirm: this._awaitingConfirm,
       qrCells: this.qrCells("GLAZE|" + total + "|" + JSON.stringify(cart)),
     };
   },
@@ -404,7 +434,9 @@ function CartInner(v) {
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
         <span style="font-size:12px;color:var(--text-tertiary);">小計</span>
         <span style="font-family:var(--font-display);font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:-4px;">${l.lineLabel}</span>
-        ${QuantityStepper({ id: l.id, value: l.qty, size: "sm" })}
+        ${App._live
+          ? `<span style="font-family:var(--font-display);font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;">× ${l.qty}</span>`
+          : QuantityStepper({ id: l.id, value: l.qty, size: "sm" })}
       </div>
     </div>`;
   const body = v.hasItems
@@ -416,7 +448,9 @@ function CartInner(v) {
           <span style="font-family:var(--font-display);font-size:18px;font-weight:700;">總計</span>
           <span style="font-family:var(--font-display);font-size:27px;font-weight:800;font-variant-numeric:tabular-nums;">${v.totalLabel}</span>
         </div>
-        ${Button({ label: v.checkoutLabel, icon: "ph-bold ph-qr-code", variant: "primary", size: "lg", block: true, act: "checkout" })}
+        ${v.awaitingConfirm
+          ? Button({ label: "確認金額正確", icon: "ph-bold ph-check", variant: "primary", size: "lg", block: true, act: "confirm" })
+          : Button({ label: v.checkoutLabel, icon: "ph-bold ph-qr-code", variant: "primary", size: "lg", block: true, act: "checkout" })}
         <p style="margin:12px 0 0;text-align:center;font-size:12px;color:var(--text-tertiary);display:flex;align-items:center;justify-content:center;gap:6px;"><i class="ph ph-storefront"></i> 現場取貨 · 掃碼付款</p>
       </div>`
     : `<div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:50px 12px;text-align:center;">
@@ -550,10 +584,32 @@ function bindEvents(root) {
     const act = t.dataset.act;
     const id = t.dataset.id;
     const cur = id ? (App.state.cart[id] || 0) : 0;
-    // live 模式：WS 為鏡像狀態唯一權威，瀏覽器純被動鏡像 → 停用所有改鏡像狀態的本機觸控
-    // （exitStandby/checkout/place/finish/add/inc/dec 等都會與機器人 desync，斷線時更卡死頁），
-    //  只留 adGoto（本機廣告輪播，非鏡像狀態）。雙向留 Phase 2。
-    if (App._live && act !== "adGoto") return;
+    // live 模式：觸控只送 WS 上行命令、不改本機鏡像狀態（cart 一律等機器人 emit 才變）。
+    // 例外：adGoto（本機廣告輪播，非鏡像狀態）；inc/dec（本地預選 stepper，非 cart）；
+    //       checkout/confirm 本地只切按鈕 affordance（不碰 cart）。斷線時 sendCommand no-op。
+    if (App._live) {
+      switch (act) {
+        case "exitStandby": App.sendCommand({ type: "wake" }); break;       // 歡迎頁 → 喚醒（斷線時 sendCommand no-op，停留歡迎頁）
+        case "inc": App.setPending(id, App.pendingQty(id) + 1); break;      // 本地預選 +1
+        case "dec": App.setPending(id, App.pendingQty(id) - 1); break;      // 本地預選 −1（不低於 1）
+        case "add":
+          App.sendCommand({ type: "order", item: id, qty: App.pendingQty(id) });
+          App._pending[id] = 1;                                            // 送出後預選歸 1
+          break;
+        case "checkout":
+          App.sendCommand({ type: "checkout" });
+          App._awaitingConfirm = true; App.render();                       // 本地顯示「確認金額」affordance
+          break;
+        case "confirm":
+          App.sendCommand({ type: "confirm" });
+          App._awaitingConfirm = false;                                    // robot 進 L4 → emit checkout 接手畫面
+          break;
+        case "place": App.sendCommand({ type: "pay" }); break;             // 結帳頁「我已完成付款」→ 付款
+        case "adGoto": App.showAd(parseInt(t.dataset.idx, 10)); restartAdTimer(); break;
+        // close / finish / setView / toggleReview / stop / noop：live 忽略（overlay 由機器人 phase 驅動）
+      }
+      return;
+    }
     switch (act) {
       case "add": App.setQty(id, 1); break;
       case "inc": App.setQty(id, cur + 1); break;
@@ -617,8 +673,9 @@ async function connectLive() {
     hideReconnecting();
     _wsBackoff = 1000;   // 拿到快照即視為連上 → 重設退避
     const ws = new WebSocket(`ws://${location.host}/ws/state`);
+    App._ws = ws;   // Phase 2：sendCommand 上行用（onclose 清，斷線後 sendCommand no-op）
     ws.onmessage = (e) => { App.applyState(JSON.parse(e.data)); App.render(); };
-    ws.onclose = () => { showReconnecting(); setTimeout(connectLive, nextBackoff()); };
+    ws.onclose = () => { App._ws = null; showReconnecting(); setTimeout(connectLive, nextBackoff()); };
     ws.onerror = () => ws.close();   // 觸發 onclose 走統一重連路徑
   } catch (_) {
     showReconnecting();
