@@ -7,6 +7,7 @@
 - `vendor/` — 廠商 Hiwonder TonyPi SDK（🔒 `ActionGroupControl.py` / `Board.py` 禁改、只能 `import`；含 Pi-only 依賴）。
 - `tts_cache/` — 內容定址語音快取（預熱資產 tracked＋執行期自我增長；perf_w5）。
 - `webui/` — 點餐網頁前端（buildless 靜態，Phase 0 顯示鏡像 UI）：`index.html` + `app.js`（5 元件 + DCLogic 狀態/購物車/QR 移植 + 局部更新 `syncCart`）+ `app.css` + `tokens/`（Glaze Liquid Glass 設計語彙）+ `serve.py`（no-cache 靜態伺服器）。字型/圖示走 CDN。Pi 跑 `python3.11 myProgram/webui/serve.py 8137`、同 wifi 連 `raspberrypi.local:8137`。
+- `web/` — FastAPI 顯示鏡像 **transport** 套件（Phase 1，鏡像 `sales/` 狀態到瀏覽器）：`bus.py`（EventBus 廣播橋）+ `display.py`（cart→dict 映射）= **純 stdlib、Windows 可 pytest**；`models.py`（Pydantic DTO）+ `app.py`（路由 + StaticFiles）+ `server.py`（uvicorn 背景執行緒）= **Pi-only**（import fastapi/uvicorn/pydantic，Windows 只能 `ast.parse`）。
 - `.claude/` — 本層 CC 配置（`code_map.md` 本檔）。
 
 ## 檔案
