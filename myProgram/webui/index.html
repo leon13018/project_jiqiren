@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>機器人點餐</title>
+<!-- 設計語彙 tokens（fonts.css 內 @import 載入 Inter + Noto Sans TC CDN） -->
+<link rel="stylesheet" href="tokens/fonts.css">
+<link rel="stylesheet" href="tokens/colors.css">
+<link rel="stylesheet" href="tokens/typography.css">
+<link rel="stylesheet" href="tokens/spacing.css">
+<link rel="stylesheet" href="tokens/effects.css">
+<link rel="stylesheet" href="tokens/motion.css">
+<!-- Phosphor 圖示（Phase 0 CDN；後續在地化） -->
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<style>
+  body { margin: 0; background: var(--bg-base); color: var(--text-primary);
+    font-family: var(--font-text); padding: 40px; }
+</style>
+</head>
+<body>
+  <!-- Task 1 載入鏈驗證頁（Task 3 會以正式點餐頁覆蓋本檔） -->
+  <h1 class="t-hero" style="font-family:var(--font-display)">機器人點餐 Glaze</h1>
+  <p class="t-body">冰紅茶 NT$27 · 刮刮樂 NT$180
+    <i class="ph-fill ph-drop" style="color:var(--accent)"></i>
+    <i class="ph-bold ph-plus"></i>
+    <i class="ph-fill ph-shopping-bag" style="color:var(--accent)"></i>
+  </p>
+  <p class="t-footnote" style="color:var(--text-secondary)">繁體中文字型 / Phosphor 圖示 / OKLCH 色彩 載入鏈驗證</p>
+</body>
+</html>

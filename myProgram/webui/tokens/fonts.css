@@ -1,0 +1,9 @@
+/* ============================================================
+   GLAZE · FONTS — Phase 0 buildless / CDN 版
+   原設計自託管 SF Pro（60 個 .otf）。Phase 0 不打包 SF Pro（專利 + 體積 +
+   Pi 用不到）：英數走 Inter、中文走 Noto Sans TC，皆從 Google Fonts CDN 取。
+   字型「堆疊」定義在 typography.css（--font-*）；本檔只負責「載入」字型檔。
+   後續離線階段：把下面 @import 換成指向 ../assets/fonts/*.woff2 的 @font-face。
+   ============================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;800;900&display=swap");

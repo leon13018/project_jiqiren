@@ -1,0 +1,86 @@
+/* ============================================================
+   GLAZE · MOTION — Liquid Glass animation system
+   Apple spring-style easing, durations, and reusable keyframes
+   for the fluid glass transitions (morph, drift, ripple, pop-in).
+   ============================================================ */
+
+:root {
+  /* ---- durations ---- */
+  --dur-instant: 80ms; /* @kind other */
+  --dur-fast: 160ms; /* @kind other */
+  --dur-base: 280ms; /* @kind other */
+  --dur-slow: 420ms; /* @kind other */
+  --dur-slower: 620ms; /* @kind other */
+
+  /* ---- easing ---- */
+  /* Apple's standard ease (gentle) */
+  --ease-standard: cubic-bezier(0.4, 0.0, 0.2, 1); /* @kind other */
+  /* decelerate — things entering */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* @kind other */
+  /* accelerate — things leaving */
+  --ease-in: cubic-bezier(0.4, 0.0, 1, 1); /* @kind other */
+  /* spring overshoot for pops / quantity bumps */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* @kind other */
+  /* lively glass morph */
+  --ease-fluid: cubic-bezier(0.22, 1, 0.36, 1); /* @kind other */
+
+  /* ---- press feedback ---- */
+  --press-scale: 0.96; /* @kind other */
+  --press-scale-lg: 0.93; /* @kind other */
+}
+
+/* ============ KEYFRAMES ============ */
+
+/* drifting tonal wash — apply to fluid gradients (use 2x bg-size) */
+@keyframes glaze-drift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* glass pop-in (cards, toasts) */
+@keyframes glaze-pop-in {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* quantity bump — spring scale on count change */
+@keyframes glaze-bump {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.28); }
+  100% { transform: scale(1); }
+}
+
+/* ripple — water-drop press on glass */
+@keyframes glaze-ripple {
+  0%   { opacity: 0.5; transform: scale(0); }
+  100% { opacity: 0; transform: scale(2.6); }
+}
+
+/* shimmer sweep — loading / highlight along glass */
+@keyframes glaze-shimmer {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+}
+
+/* sheet rise — bottom sheet / cart slide */
+@keyframes glaze-sheet-up {
+  0%   { opacity: 0; transform: translateY(24px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* ============ HELPERS ============ */
+.anim-drift {
+  background-size: 220% 220%;
+  animation: glaze-drift 14s var(--ease-standard) infinite;
+}
+.anim-pop-in {
+  animation: glaze-pop-in var(--dur-base) var(--ease-fluid) both;
+}
+.anim-bump {
+  animation: glaze-bump var(--dur-base) var(--ease-spring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-drift, .anim-pop-in, .anim-bump { animation: none !important; }
+}

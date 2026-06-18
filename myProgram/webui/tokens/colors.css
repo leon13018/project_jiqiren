@@ -1,0 +1,183 @@
+/* ============================================================
+   GLAZE · COLORS
+   Apple iOS native system color model (official sRGB values),
+   extended with OKLCH-derived brand tones for the Liquid Glass
+   ordering surface. Dark is primary, light is secondary.
+   ============================================================ */
+
+:root {
+  /* ---- Apple system colors · LIGHT (vivid) ---- */
+  --sys-red: #ff3b30;
+  --sys-orange: #ff9500;
+  --sys-yellow: #ffcc00;
+  --sys-green: #34c759;
+  --sys-mint: #00c7be;
+  --sys-teal: #30b0c7;
+  --sys-cyan: #32ade6;
+  --sys-blue: #007aff;
+  --sys-indigo: #5856d6;
+  --sys-purple: #af52de;
+  --sys-pink: #ff2d55;
+  --sys-brown: #a2845e;
+
+  /* ---- Apple system grays · LIGHT ---- */
+  --gray-1: #8e8e93;
+  --gray-2: #aeaeb2;
+  --gray-3: #c7c7cc;
+  --gray-4: #d1d1d6;
+  --gray-5: #e5e5ea;
+  --gray-6: #f2f2f7;
+
+  /* ---- Brand · GLAZE (OKLCH) ---- */
+  /* sea-blue primary, blended with translucent space gray */
+  --brand: oklch(0.68 0.15 235);         /* sea blue */
+  --brand-strong: oklch(0.58 0.16 238);  /* pressed / deep */
+  --brand-soft: oklch(0.80 0.09 232);    /* tints, fills */
+  --brand-contrast: oklch(0.99 0.01 235);/* text on brand */
+
+  /* translucent "space gray" — Apple's neutral, used for frosted controls */
+  --space-gray: oklch(0.46 0.012 256);
+  --space-gray-glass: oklch(0.46 0.012 256 / 0.3);
+  --space-gray-glass-top: oklch(0.58 0.012 256 / 0.34);
+  --space-gray-glass-bot: oklch(0.34 0.012 256 / 0.44);
+
+  /* THEME gradient: translucent space gray → sea blue (the primary fill).
+     Kept see-through (lower alpha) so it reads as clear glass, not frost. */
+  --brand-gradient: linear-gradient(180deg,
+    oklch(0.54 0.014 256 / 0.42) 0%,
+    oklch(0.62 0.10 240 / 0.62) 48%,
+    oklch(0.68 0.16 235 / 0.78) 100%); /* @kind other */
+  --brand-gradient-press: linear-gradient(180deg,
+    oklch(0.48 0.014 256 / 0.5) 0%,
+    oklch(0.54 0.11 238 / 0.68) 48%,
+    oklch(0.60 0.17 236 / 0.82) 100%); /* @kind other */
+
+  /* SINGLE-HUE light gradient: one sea-blue hue, only lightness shifts
+     (top-lit → shaded base) — light/shadow modeling, no hue drift. */
+  --brand-solid: linear-gradient(180deg,
+    oklch(0.74 0.15 238 / 0.97) 0%,
+    oklch(0.68 0.16 238 / 0.99) 48%,
+    oklch(0.60 0.16 238) 100%); /* @kind other */
+  --brand-solid-press: linear-gradient(180deg,
+    oklch(0.74 0.15 235 / 0.7) 0%,
+    oklch(0.68 0.16 235 / 0.76) 48%,
+    oklch(0.60 0.17 236 / 0.82) 100%); /* @kind other */
+
+  /* fluid gradient stops used across glass + ads (cool→warm tonal drift) */
+  --tone-a: oklch(0.72 0.16 28);   /* coral */
+  --tone-b: oklch(0.74 0.17 56);   /* amber */
+  --tone-c: oklch(0.80 0.13 92);   /* gold */
+  --tone-d: oklch(0.70 0.13 200);  /* aqua */
+  --tone-e: oklch(0.62 0.18 300);  /* violet */
+
+  /* ============ SEMANTIC ALIASES · DARK (default theme) ============ */
+
+  /* base canvas */
+  --bg-base: #000000;
+  --bg-raised: #1c1c1e;          /* systemGray6 dark */
+  --bg-elevated: #2c2c2e;        /* systemGray5 dark */
+
+  /* layered dark grays (used behind glass) */
+  --surface-1: #1c1c1e;
+  --surface-2: #2c2c2e;
+  --surface-3: #3a3a3c;
+  --surface-4: #48484a;
+
+  /* dark system colors (more luminous, Apple's dark ramp) */
+  --color-red: #ff453a;
+  --color-orange: #ff9f0a;
+  --color-yellow: #ffd60a;
+  --color-green: #30d158;
+  --color-mint: #63e6e2;
+  --color-teal: #40c8e0;
+  --color-cyan: #64d2ff;
+  --color-blue: #0a84ff;
+  --color-indigo: #5e5ce6;
+  --color-purple: #bf5af2;
+  --color-pink: #ff375f;
+  --color-brown: #ac8e68;
+
+  /* labels (Apple opacity ladder on white) */
+  --text-primary: rgba(255, 255, 255, 1);
+  --text-secondary: rgba(235, 235, 245, 0.6);
+  --text-tertiary: rgba(235, 235, 245, 0.3);
+  --text-quaternary: rgba(235, 235, 245, 0.18);
+  --text-on-brand: oklch(0.99 0.01 80);
+
+  /* fills (the translucent material tints) */
+  --fill-1: rgba(120, 120, 128, 0.36);
+  --fill-2: rgba(120, 120, 128, 0.32);
+  --fill-3: rgba(120, 120, 128, 0.24);
+  --fill-4: rgba(120, 120, 128, 0.18);
+
+  /* separators / hairlines */
+  --separator: rgba(84, 84, 88, 0.6);
+  --separator-opaque: #38383a;
+
+  /* accent + status */
+  --accent: var(--brand);
+  --accent-press: var(--brand-strong);
+  --success: var(--color-green);
+  --warning: var(--color-orange);
+  --danger: var(--color-red);
+  --info: var(--color-blue);
+
+  /* ============ GLASS MATERIAL (dark) ============ */
+  /* the tint painted under the backdrop blur */
+  --glass-tint: rgba(40, 40, 44, 0.55);
+  --glass-tint-thick: rgba(28, 28, 32, 0.7);
+  --glass-tint-thin: rgba(60, 60, 66, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-border-strong: rgba(255, 255, 255, 0.24);
+  --glass-specular: rgba(255, 255, 255, 0.5);   /* top edge highlight */
+  --glass-inner-shadow: rgba(0, 0, 0, 0.45);
+  --glass-hover-tint: rgba(70, 70, 76, 0.5);
+}
+
+/* ============ LIGHT THEME (secondary) ============ */
+[data-theme="light"] {
+  --bg-base: #f2f2f7;
+  --bg-raised: #ffffff;
+  --bg-elevated: #ffffff;
+
+  --surface-1: #ffffff;
+  --surface-2: #f2f2f7;
+  --surface-3: #e5e5ea;
+  --surface-4: #d1d1d6;
+
+  --color-red: #ff3b30;
+  --color-orange: #ff9500;
+  --color-yellow: #ffcc00;
+  --color-green: #34c759;
+  --color-mint: #00c7be;
+  --color-teal: #30b0c7;
+  --color-cyan: #32ade6;
+  --color-blue: #007aff;
+  --color-indigo: #5856d6;
+  --color-purple: #af52de;
+  --color-pink: #ff2d55;
+  --color-brown: #a2845e;
+
+  --text-primary: rgba(0, 0, 0, 1);
+  --text-secondary: rgba(60, 60, 67, 0.6);
+  --text-tertiary: rgba(60, 60, 67, 0.3);
+  --text-quaternary: rgba(60, 60, 67, 0.18);
+
+  --fill-1: rgba(120, 120, 128, 0.2);
+  --fill-2: rgba(120, 120, 128, 0.16);
+  --fill-3: rgba(120, 120, 128, 0.12);
+  --fill-4: rgba(120, 120, 128, 0.08);
+
+  --separator: rgba(60, 60, 67, 0.29);
+  --separator-opaque: #c6c6c8;
+
+  /* glass on light = frosted white */
+  --glass-tint: rgba(255, 255, 255, 0.55);
+  --glass-tint-thick: rgba(255, 255, 255, 0.72);
+  --glass-tint-thin: rgba(255, 255, 255, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.7);
+  --glass-border-strong: rgba(0, 0, 0, 0.08);
+  --glass-specular: rgba(255, 255, 255, 0.9);
+  --glass-inner-shadow: rgba(0, 0, 0, 0.08);
+  --glass-hover-tint: rgba(255, 255, 255, 0.7);
+}

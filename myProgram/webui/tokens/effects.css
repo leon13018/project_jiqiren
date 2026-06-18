@@ -1,0 +1,160 @@
+/* ============================================================
+   GLAZE · EFFECTS — Liquid Glass material system
+   The Apple iOS 27 "Liquid Glass" look: backdrop blur + saturation,
+   translucent tint, specular top edge, soft ambient shadow, and
+   fluid tonal gradients. Use the .glass-* utilities or compose
+   from the tokens directly.
+   ============================================================ */
+
+:root {
+  /* ---- blur ladder (backdrop-filter) ---- */
+  --blur-thin: 12px;
+  --blur-regular: 20px;
+  --blur-thick: 34px;
+  --blur-ultra: 50px;
+  --glass-saturate: 180%; /* @kind other */
+
+  /* ---- ambient shadows (Apple soft, low-spread, layered) ---- */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.18);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.22);
+  --shadow-3: 0 10px 30px rgba(0, 0, 0, 0.30);
+  --shadow-4: 0 24px 60px rgba(0, 0, 0, 0.40);
+  --shadow-float: 0 18px 50px -8px rgba(0, 0, 0, 0.5);
+
+  /* ---- glass composite shadow (ambient + specular edge + inner) ---- */
+  --glass-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 var(--glass-specular),
+    inset 0 0 0 0.5px var(--glass-border);
+  --glass-shadow-raised:
+    0 20px 50px -10px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 var(--glass-specular),
+    inset 0 0 0 0.5px var(--glass-border-strong);
+
+  /* ---- focus ring ---- */
+  --ring: 0 0 0 4px color-mix(in oklch, var(--accent) 40%, transparent);
+
+  /* ============ CONVEX "WATER DROPLET" 3D TREATMENT ============ */
+  /* Shape-following meniscus model: the bevel is built entirely from INSET
+     box-shadows, which trace the element's border-radius at ANY contour
+     (capsule, circle, squircle, rounded-rect). The rim curves up from the
+     true base outline and the negative-spread layers fade out before the
+     center — so the flat plateau is literally an offset-shrunk copy of the
+     base shape, never a fixed rectangle/ellipse painted on top.
+     --convex-sheen is kept as a no-op layer for back-compat (the gloss now
+     lives in the shadow ladder, so it follows the shape). */
+  --convex-sheen: none; /* @kind other */
+  /* full dome: perimeter rim hairline + top crest light + underside shade,
+     each hugging the contour and fading to a flat center. */
+  --convex-inner:
+    inset 0 0 0 0.75px rgba(255,255,255,0.28),
+    inset 0 1px 0 rgba(255,255,255,0.6),
+    inset 0 2px 3px -2px rgba(255,255,255,0.7),
+    inset 0 6px 9px -7px rgba(255,255,255,0.4),
+    inset 0 -1px 0 rgba(0,0,0,0.22),
+    inset 0 -2px 3px -2px rgba(0,0,0,0.4),
+    inset 0 -7px 10px -7px rgba(0,0,0,0.32); /* @kind shadow */
+  --convex-inner-soft:
+    inset 0 0 0 0.5px rgba(255,255,255,0.2),
+    inset 0 1px 0 rgba(255,255,255,0.42),
+    inset 0 3px 5px -4px rgba(255,255,255,0.4),
+    inset 0 -1px 1px rgba(0,0,0,0.2),
+    inset 0 -4px 6px -5px rgba(0,0,0,0.24); /* @kind shadow */
+  /* small floating contact shadow under a convex control */
+  --convex-drop: 0 5px 14px -4px rgba(0,0,0,0.32), 0 2px 5px rgba(0,0,0,0.26);
+
+  /* ---- glass reflection layering (specular depth on glass surfaces) ----
+     Stacked inset highlight pools that all follow the element's radius. Light
+     gathers at the top rim and fades well before the center, with a faint
+     bottom bounce — so the glass reads as multi-layered and reflective while
+     the middle stays clear behind any label (readability preserved). */
+  --glass-reflection:
+    inset 0 1px 0 rgba(255,255,255,0.72),
+    inset 0 9px 15px -10px rgba(255,255,255,0.5),
+    inset 0 20px 22px -20px rgba(255,255,255,0.24),
+    inset 0 -9px 15px -12px rgba(255,255,255,0.15); /* @kind shadow */
+
+  /* ---- fluid gradients (the drifting tonal washes) ---- */
+  --fluid-warm: linear-gradient(135deg,
+    var(--tone-a) 0%, var(--tone-b) 45%, var(--tone-c) 100%); /* @kind other */
+  --fluid-cool: linear-gradient(135deg,
+    var(--tone-d) 0%, var(--tone-e) 100%); /* @kind other */
+  --fluid-spectrum: linear-gradient(120deg,
+    var(--tone-a), var(--tone-b), var(--tone-c), var(--tone-d), var(--tone-e)); /* @kind other */
+
+  /* radial "water droplet" sheen layered on glass */
+  --droplet-sheen:
+    radial-gradient(120% 80% at 25% 12%, rgba(255,255,255,0.35), rgba(255,255,255,0) 55%),
+    radial-gradient(90% 60% at 85% 95%, rgba(255,255,255,0.12), rgba(255,255,255,0) 60%); /* @kind other */
+}
+
+/* ============ GLASS UTILITIES ============ */
+
+/* Regular glass — the default material for cards, bars, panels */
+.glass {
+  position: relative;
+  background: var(--glass-tint);
+  backdrop-filter: blur(var(--blur-regular)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--blur-regular)) saturate(var(--glass-saturate));
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: var(--radius-lg);
+}
+
+/* Thin glass — toolbars, chips, subtle overlays */
+.glass-thin {
+  background: var(--glass-tint-thin);
+  backdrop-filter: blur(var(--blur-thin)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--blur-thin)) saturate(var(--glass-saturate));
+  border: 0.5px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-specular);
+  border-radius: var(--radius-md);
+}
+
+/* Thick glass — modals, sheets, the cart rail */
+.glass-thick {
+  background: var(--glass-tint-thick);
+  backdrop-filter: blur(var(--blur-thick)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--blur-thick)) saturate(var(--glass-saturate));
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-raised);
+  border-radius: var(--radius-xl);
+}
+
+/* Specular top-edge highlight — add as a child or ::before */
+.glass-specular::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(180deg,
+    var(--glass-specular), rgba(255, 255, 255, 0) 40%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Droplet/lens sheen overlay */
+.glass-droplet::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--droplet-sheen);
+  pointer-events: none;
+}
+
+/* Convex glass — a domed, water-droplet bulge for controls. The dome lives
+   entirely in --convex-inner (inset shadows), so it follows the element's
+   border-radius contour and flattens to an offset-shrunk plateau in the
+   center. Just give the element a (flat) tint + this class. */
+.glass-convex {
+  position: relative;
+  background: var(--glass-tint);
+  backdrop-filter: blur(var(--blur-regular)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--blur-regular)) saturate(var(--glass-saturate));
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--convex-inner), var(--convex-drop);
+}

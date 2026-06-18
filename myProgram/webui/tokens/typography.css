@@ -1,0 +1,187 @@
+/* ============================================================
+   GLAZE · TYPOGRAPHY
+   Apple iOS type system, faithfully arranged.
+
+   OPTICAL SIZING (Apple's rule): the "Text" cut is used below 20pt,
+   the "Display" cut at 20pt and above. We honour this by routing the
+   ramp's larger styles (Title 3 → Large Title → Hero) to SF Pro
+   Display and the smaller styles (Headline → Caption) to SF Pro Text.
+   "SF Pro" (variable) sits in every stack so engines that prefer the
+   continuous-weight system face can use it; -apple-system uses the
+   device's native SF; Inter is the cross-platform metric fallback.
+
+   WEIGHTS: the full Apple ladder is tokenized (Ultralight 100 →
+   Black 900). Each text style ships at its Apple DEFAULT weight, with
+   a matching `-emph` (emphasized) class for the heavier cut Apple uses
+   when a style is bolded.
+
+   PHASE 0 (buildless) 調整：font 堆疊插入 "Noto Sans TC" 作 CJK fallback
+   （SF Pro 未打包、Inter 無中文字符 → 中文落到 Noto Sans TC，免豆腐字）。
+   ============================================================ */
+
+:root {
+  /* ---- families (self-hosted first for cross-platform fidelity) ---- */
+  --font-text: "SF Pro Text", "SF Pro", -apple-system, BlinkMacSystemFont,
+    "Inter", "Noto Sans TC", system-ui, "Helvetica Neue", sans-serif;
+  --font-display: "SF Pro Display", "SF Pro", -apple-system, BlinkMacSystemFont,
+    "Inter", "Noto Sans TC", system-ui, "Helvetica Neue", sans-serif;
+  /* variable system face — continuous weights / optical size */
+  --font-system: "SF Pro", -apple-system, BlinkMacSystemFont, "Inter", "Noto Sans TC", system-ui, sans-serif;
+  /* rounded — numerals, friendly accents, the quantity + price feel */
+  --font-rounded: "SF Pro Rounded", ui-rounded, -apple-system,
+    BlinkMacSystemFont, "Inter", "Noto Sans TC", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "SFMono-Regular", "Menlo", monospace;
+
+  /* ---- full Apple weight ladder ---- */
+  --weight-ultralight: 100;
+  --weight-thin: 200;
+  --weight-light: 300;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-heavy: 800;
+  --weight-black: 900;
+
+  /* ============ iOS TYPE RAMP ============ */
+  /* size / line-height / tracking (letter-spacing) per Apple HIG.
+     Default weight noted; Display cut ≥20pt, Text cut <20pt. */
+
+  --type-large-title-size: 34px;   /* Display · Regular */
+  --type-large-title-lh: 41px;
+  --type-large-title-tracking: 0.37px;
+
+  --type-title1-size: 28px;        /* Display · Regular */
+  --type-title1-lh: 34px;
+  --type-title1-tracking: 0.36px;
+
+  --type-title2-size: 22px;        /* Display · Regular */
+  --type-title2-lh: 28px;
+  --type-title2-tracking: 0.35px;
+
+  --type-title3-size: 20px;        /* Display · Regular */
+  --type-title3-lh: 25px;
+  --type-title3-tracking: 0.38px;
+
+  --type-headline-size: 17px;      /* Text · Semibold */
+  --type-headline-lh: 22px;
+  --type-headline-tracking: -0.43px;
+
+  --type-body-size: 17px;          /* Text · Regular */
+  --type-body-lh: 22px;
+  --type-body-tracking: -0.43px;
+
+  --type-callout-size: 16px;       /* Text · Regular */
+  --type-callout-lh: 21px;
+  --type-callout-tracking: -0.31px;
+
+  --type-subhead-size: 15px;       /* Text · Regular */
+  --type-subhead-lh: 20px;
+  --type-subhead-tracking: -0.23px;
+
+  --type-footnote-size: 13px;      /* Text · Regular */
+  --type-footnote-lh: 18px;
+  --type-footnote-tracking: -0.08px;
+
+  --type-caption1-size: 12px;      /* Text · Regular */
+  --type-caption1-lh: 16px;
+  --type-caption1-tracking: 0px;
+
+  --type-caption2-size: 11px;      /* Text · Regular */
+  --type-caption2-lh: 13px;
+  --type-caption2-tracking: 0.06px;
+
+  /* ---- oversized brand display (ad / hero headlines) ---- */
+  --type-hero-size: 56px;          /* Display · Heavy */
+  --type-hero-lh: 58px;
+  --type-hero-tracking: -1px;
+}
+
+/* ============ ROLE CLASSES — Apple default weights ============ */
+.t-large-title {
+  font: var(--weight-regular) var(--type-large-title-size) / var(--type-large-title-lh) var(--font-display);
+  letter-spacing: var(--type-large-title-tracking);
+}
+.t-title1 {
+  font: var(--weight-regular) var(--type-title1-size) / var(--type-title1-lh) var(--font-display);
+  letter-spacing: var(--type-title1-tracking);
+}
+.t-title2 {
+  font: var(--weight-regular) var(--type-title2-size) / var(--type-title2-lh) var(--font-display);
+  letter-spacing: var(--type-title2-tracking);
+}
+.t-title3 {
+  font: var(--weight-regular) var(--type-title3-size) / var(--type-title3-lh) var(--font-display);
+  letter-spacing: var(--type-title3-tracking);
+}
+.t-headline {
+  font: var(--weight-semibold) var(--type-headline-size) / var(--type-headline-lh) var(--font-text);
+  letter-spacing: var(--type-headline-tracking);
+}
+.t-body {
+  font: var(--weight-regular) var(--type-body-size) / var(--type-body-lh) var(--font-text);
+  letter-spacing: var(--type-body-tracking);
+}
+.t-callout {
+  font: var(--weight-regular) var(--type-callout-size) / var(--type-callout-lh) var(--font-text);
+  letter-spacing: var(--type-callout-tracking);
+}
+.t-subhead {
+  font: var(--weight-regular) var(--type-subhead-size) / var(--type-subhead-lh) var(--font-text);
+  letter-spacing: var(--type-subhead-tracking);
+}
+.t-footnote {
+  font: var(--weight-regular) var(--type-footnote-size) / var(--type-footnote-lh) var(--font-text);
+  letter-spacing: var(--type-footnote-tracking);
+}
+.t-caption1 {
+  font: var(--weight-regular) var(--type-caption1-size) / var(--type-caption1-lh) var(--font-text);
+  letter-spacing: var(--type-caption1-tracking);
+}
+.t-caption2 {
+  font: var(--weight-regular) var(--type-caption2-size) / var(--type-caption2-lh) var(--font-text);
+  letter-spacing: var(--type-caption2-tracking);
+}
+.t-hero {
+  font: var(--weight-heavy) var(--type-hero-size) / var(--type-hero-lh) var(--font-display);
+  letter-spacing: var(--type-hero-tracking);
+}
+
+/* ============ EMPHASIZED CUTS (Apple's bolded variants) ============ */
+.t-large-title-emph { font-weight: var(--weight-bold); }
+.t-title1-emph { font-weight: var(--weight-bold); }
+.t-title2-emph { font-weight: var(--weight-bold); }
+.t-title3-emph { font-weight: var(--weight-semibold); }
+.t-body-emph,
+.t-callout-emph,
+.t-subhead-emph,
+.t-footnote-emph,
+.t-caption1-emph { font-weight: var(--weight-semibold); }
+
+/* ============ NUMERALS / ROUNDED ============ */
+/* SF Pro Rounded — prices, quantities, timers (the appetite-led, friendly
+   numeric voice). Always tabular so figures don't jitter. */
+.t-rounded { font-family: var(--font-rounded); }
+.t-numeral {
+  font-family: var(--font-rounded);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0;
+}
+.t-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============ WEIGHT + STYLE UTILITIES ============ */
+/* expose the whole ladder so any element can use any uploaded cut */
+.fw-ultralight { font-weight: var(--weight-ultralight); }
+.fw-thin { font-weight: var(--weight-thin); }
+.fw-light { font-weight: var(--weight-light); }
+.fw-regular { font-weight: var(--weight-regular); }
+.fw-medium { font-weight: var(--weight-medium); }
+.fw-semibold { font-weight: var(--weight-semibold); }
+.fw-bold { font-weight: var(--weight-bold); }
+.fw-heavy { font-weight: var(--weight-heavy); }
+.fw-black { font-weight: var(--weight-black); }
+.t-italic { font-style: italic; }
