@@ -122,9 +122,21 @@ body {
   100% { width: 100%;  background: var(--accent); color: var(--text-on-brand); opacity: 1; }
 }
 
+/* ---- 購物車列 進/退場：加入時由左往右刷入；刪除時反向（右→左）刷出 ---- */
+@keyframes cart-row-in {
+  0%   { clip-path: inset(0 100% 0 0); opacity: 0; max-height: 0; }
+  100% { clip-path: inset(0 0 0 0);    opacity: 1; max-height: 120px; }
+}
+@keyframes cart-row-out {
+  0%   { clip-path: inset(0 0 0 0);    opacity: 1; max-height: 120px; }
+  100% { clip-path: inset(0 100% 0 0); opacity: 0; max-height: 0; }
+}
+.cart-row-in  { animation: cart-row-in  0.36s var(--ease-fluid) both; overflow: hidden; }
+.cart-row-out { animation: cart-row-out 0.36s var(--ease-fluid) both; overflow: hidden; }
+
 /* ---- 無障礙：尊重 reduced-motion（Pi 降規時也會套用） ---- */
 @media (prefers-reduced-motion: reduce) {
-  .wf-fade, .wf-sheet, .bg-glows, .anim-drift { animation: none !important; }
+  .wf-fade, .wf-sheet, .bg-glows, .anim-drift, .cart-row-in, .cart-row-out { animation: none !important; }
   .ad-track { transition: none !important; }
   .morph-ghost-btn, .morph-gcL, .morph-gcR { display: none !important; }
   .morph-cL, .morph-cR, .morph-num, .morph-rest { animation: none !important; }

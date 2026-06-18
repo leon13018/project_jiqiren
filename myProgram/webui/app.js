@@ -122,6 +122,8 @@ const App = {
 
   // 上輪每商品 isInCart 快照——只在「加入購物車 ↔ 數量器」切換時播 action-swap 動效（數量增減不播）
   _prevInCart: null,
+  // 上輪購物車商品 id 集合——判斷新加入的列要播「由左往右刷入」進場
+  _prevCartIds: null,
 
   setState(patch) {
     const next = typeof patch === "function" ? patch(this.state) : patch;
@@ -231,10 +233,12 @@ const App = {
     });
     this._prevInCart = Object.fromEntries(P.map((it) => [it.id, (cart[it.id] || 0) > 0]));
 
+    const prevCart = this._prevCartIds;
     const cartRows = Object.entries(cart).map(([id, q]) => {
       const it = byId[id];
-      return { id, name: it.name, unit: it.unit, qty: q, tone: it.tone, lineLabel: this.fmt(it.priceNow * q), unitLabel: this.fmt(it.priceNow) + " / " + it.unit };
+      return { id, name: it.name, unit: it.unit, qty: q, tone: it.tone, isNew: prevCart ? !prevCart.has(id) : false, lineLabel: this.fmt(it.priceNow * q), unitLabel: this.fmt(it.priceNow) + " / " + it.unit };
     });
+    this._prevCartIds = new Set(Object.keys(cart));
 
     const currentView = this.state.standby ? "standby" : this.state.overlay === "checkout" ? "checkout" : this.state.overlay === "thankyou" ? "placed" : (count === 0 ? "empty" : "filled");
     const reviewOptions = [["filled", "含商品"], ["empty", "空購物車"], ["checkout", "結帳"], ["placed", "完成"], ["standby", "待機"]].map(([v, label]) => {
@@ -340,7 +344,7 @@ function Menu(v) {
 
 function CartRail(v) {
   const line = (l) => `
-    <div style="display:flex;align-items:center;gap:12px;padding:14px 2px;border-bottom:0.5px solid var(--separator);">
+    <div data-cart-row="${esc(l.id)}" class="${l.isNew ? "cart-row-in" : ""}" style="display:flex;align-items:center;gap:12px;padding:14px 2px;border-bottom:0.5px solid var(--separator);">
       <div class="anim-drift" style="width:52px;height:52px;flex:none;border-radius:var(--radius-md);background:${l.tone};background-size:180% 180%;box-shadow:inset 0 0 0 0.5px var(--glass-border);"></div>
       <div style="flex:1;min-width:0;">
         <div style="font-family:var(--font-display);font-size:16px;font-weight:600;letter-spacing:-0.2px;">${esc(l.name)}</div>
@@ -472,6 +476,18 @@ function ReviewSwitcher(v) {
 
 // ===== 事件委派 + 廣告輪播 =====
 
+// 購物車列退場：刪除（數量→0）時先播「右→左」wipe-out 再真的移除（reduced-motion 直接移除）。
+function animateCartRowExit(id, done) {
+  const row = document.querySelector(`[data-cart-row="${CSS.escape(id)}"]`);
+  if (!row || window.matchMedia("(prefers-reduced-motion: reduce)").matches) { done(); return; }
+  row.classList.remove("cart-row-in");
+  row.classList.add("cart-row-out");
+  let fired = false;
+  const fin = () => { if (!fired) { fired = true; done(); } };
+  row.addEventListener("animationend", fin, { once: true });
+  setTimeout(fin, 460);
+}
+
 function bindEvents(root) {
   root.onclick = (e) => {
     const t = e.target.closest("[data-act]");
@@ -482,7 +498,7 @@ function bindEvents(root) {
     switch (act) {
       case "add": App.setQty(id, 1); break;
       case "inc": App.setQty(id, cur + 1); break;
-      case "dec": App.setQty(id, cur - 1); break;
+      case "dec": if (cur - 1 <= 0) animateCartRowExit(id, () => App.setQty(id, 0)); else App.setQty(id, cur - 1); break;
       case "checkout": App.openCheckout(); break;
       case "close": App.closeOverlay(); break;
       case "place": App.placeOrder(); break;
