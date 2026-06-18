@@ -19,3 +19,4 @@
 ## 測試
 - `tests/web/test_bus.py` — EventBus 行為（publish 無 loop 只存、_broadcast 廣播 + 剔除斷線）。
 - `tests/web/test_display.py` — display→dict 映射（total 計算、thankyou 帶 paid、未知商品不 raise）。
+- `tests/web/test_commands.py` — Phase 2 `to_token` 映射全行為（各命令→token、未知/非法→None、結帳/確認 token membership、order token 反解 parse_products）。
