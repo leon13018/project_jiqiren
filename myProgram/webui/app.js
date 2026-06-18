@@ -11,6 +11,7 @@
 // ---- helpers ----
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const dataAttrs = (data) => Object.entries(data || {}).map(([k, v]) => `data-${k}="${esc(v)}"`).join(" ");
+const MAX_QTY = 50; // 單筆單品上限（對齊 sales constants MAX_QTY_PER_ITEM）
 
 // ===== 元件層（HTML 字串）=====
 
@@ -184,7 +185,12 @@ const App = {
 
     const products = P.map((it) => {
       const qty = cart[it.id] || 0;
-      return { ...it, qty, isInCart: qty > 0, priceNowLabel: this.fmt(it.priceNow), priceOrigLabel: this.fmt(it.priceOrig) };
+      const remaining = MAX_QTY - qty;
+      return {
+        ...it, qty, isInCart: qty > 0, remaining,
+        remainingLabel: remaining > 0 ? `還可加 ${remaining} ${it.unit}` : "已達單筆上限",
+        priceNowLabel: this.fmt(it.priceNow), priceOrigLabel: this.fmt(it.priceOrig),
+      };
     });
 
     const cartRows = Object.entries(cart).map(([id, q]) => {
@@ -283,7 +289,7 @@ function Menu(v) {
         </div>
         <div style="margin-top:auto;padding-top:6px;">
           ${row.isInCart
-            ? QuantityStepper({ id: row.id, value: row.qty, size: "lg" })
+            ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">${QuantityStepper({ id: row.id, value: row.qty, size: "lg" })}<span style="font-size:13px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;white-space:nowrap;">${esc(row.remainingLabel)}</span></div>`
             : Button({ label: "加入購物車", icon: "ph-bold ph-plus", variant: "primary", size: "lg", block: true, act: "add", data: { id: row.id } })}
         </div>
       </div>
