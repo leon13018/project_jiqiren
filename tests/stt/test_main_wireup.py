@@ -170,7 +170,7 @@ def test_web_mode_server_start_raises_falls_back_to_noop_display(monkeypatch, ca
     monkeypatch.setattr(sys, "argv", ["myprogram", "--web"])
     captured = _capture_logic_run(monkeypatch)
 
-    def fake_start(bus, port=8137):
+    def fake_start(bus, on_input, port=8137):
         raise OSError("port 8137 已被佔用")
 
     fake_server = types.SimpleNamespace(

@@ -6,11 +6,7 @@
 純 stdlib（無 fastapi / pydantic / 副作用）；只 import sales 常數取 token 與商品驗證。
 非法 / 未知命令一律回 None（caller 忽略，不 raise）。
 """
-from myProgram.sales.constants import (
-    PRODUCTS,
-    KEYWORDS_C2_CHECKOUT,
-    KEYWORDS_CONFIRM_YES,
-)
+from myProgram.sales.constants import PRODUCTS
 
 # 結帳 / 確認 token：取自既有 keyword 集的代表字（test 守 membership，避免日後漂移）。
 # 「結賬」∈ KEYWORDS_C2_CHECKOUT（C-2 三選一 CHECKOUT 路徑）；

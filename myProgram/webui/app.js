@@ -594,7 +594,7 @@ function bindEvents(root) {
         case "dec": App.setPending(id, App.pendingQty(id) - 1); break;      // 本地預選 −1（不低於 1）
         case "add":
           App.sendCommand({ type: "order", item: id, qty: App.pendingQty(id) });
-          App._pending[id] = 1;                                            // 送出後預選歸 1
+          App.setPending(id, 1);                                           // 送出後預選歸 1（setPending 內 clamp + syncCart 立即視覺歸位）
           break;
         case "checkout":
           App.sendCommand({ type: "checkout" });
