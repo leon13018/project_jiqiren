@@ -89,6 +89,9 @@ function AdBanner({ slides, index = 0, height = 240 }) {
 const App = {
   state: { cart: { bingcha: 2, guagua: 1 }, overlay: null, standby: false, paidTotal: 0, reviewOpen: false, adIndex: 0 },
 
+  // 上輪每商品 isInCart 快照——只在「加入購物車 ↔ 數量器」切換時播 action-swap 動效（數量增減不播）
+  _prevInCart: null,
+
   setState(patch) {
     const next = typeof patch === "function" ? patch(this.state) : patch;
     Object.assign(this.state, next);
@@ -183,15 +186,19 @@ const App = {
     const count = Object.values(cart).reduce((a, b) => a + b, 0);
     const total = this.totalOf(cart);
 
+    const prev = this._prevInCart;
     const products = P.map((it) => {
       const qty = cart[it.id] || 0;
+      const inCart = qty > 0;
       const remaining = MAX_QTY - qty;
       return {
-        ...it, qty, isInCart: qty > 0, remaining,
+        ...it, qty, isInCart: inCart, remaining,
+        justToggled: prev ? prev[it.id] !== inCart : false, // 控制項型態（鈕↔器）有變才播動效
         remainingLabel: remaining > 0 ? `還可加 ${remaining} ${it.unit}` : "已達單筆上限",
         priceNowLabel: this.fmt(it.priceNow), priceOrigLabel: this.fmt(it.priceOrig),
       };
     });
+    this._prevInCart = Object.fromEntries(P.map((it) => [it.id, (cart[it.id] || 0) > 0]));
 
     const cartRows = Object.entries(cart).map(([id, q]) => {
       const it = byId[id];
@@ -288,9 +295,9 @@ function Menu(v) {
           <span style="font-size:15px;color:var(--text-tertiary);text-decoration:line-through;font-variant-numeric:tabular-nums;">原價 ${row.priceOrigLabel}</span>
         </div>
         <div style="margin-top:auto;padding-top:6px;">
-          ${row.isInCart
+          <div class="${row.justToggled ? "action-swap" : ""}">${row.isInCart
             ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">${QuantityStepper({ id: row.id, value: row.qty, size: "lg" })}<span style="font-size:13px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;white-space:nowrap;">${esc(row.remainingLabel)}</span></div>`
-            : Button({ label: "加入購物車", icon: "ph-bold ph-plus", variant: "primary", size: "lg", block: true, act: "add", data: { id: row.id } })}
+            : Button({ label: "加入購物車", icon: "ph-bold ph-plus", variant: "primary", size: "lg", block: true, act: "add", data: { id: row.id } })}</div>
         </div>
       </div>
     </div>`;

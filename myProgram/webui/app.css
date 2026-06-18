@@ -64,9 +64,16 @@ body {
 .g-btn:active, .g-iconbtn:active, .g-step:active { transform: scale(var(--press-scale, .96)); }
 .g-btn, .g-iconbtn, .g-step { transition: transform var(--dur-fast, .16s) var(--ease-standard, ease); }
 
+/* ---- 「加入購物車」↔ 數量器 切換動效（只在型態切換時播，數量增減不播） ---- */
+@keyframes action-swap {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.action-swap { animation: action-swap var(--dur-base, .28s) var(--ease-spring, ease) both; transform-origin: center; }
+
 /* ---- 無障礙：尊重 reduced-motion（Pi 降規時也會套用） ---- */
 @media (prefers-reduced-motion: reduce) {
-  .wf-fade, .wf-sheet, .bg-glows, .anim-drift { animation: none !important; }
+  .wf-fade, .wf-sheet, .bg-glows, .anim-drift, .action-swap { animation: none !important; }
   .ad-track { transition: none !important; }
 }
 
