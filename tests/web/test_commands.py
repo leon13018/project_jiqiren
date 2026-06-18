@@ -1,7 +1,8 @@
 """web/commands.to_token 純映射行為（Windows pytest；不 import fastapi/pydantic）。"""
 from myProgram.web.commands import to_token
-from myProgram.sales.constants import KEYWORDS_C2_CHECKOUT, KEYWORDS_CONFIRM_YES
+from myProgram.sales.constants import KEYWORDS_CONFIRM_YES
 from myProgram.sales.product_parser import parse_products
+from myProgram.sales.nlu import classify_intent
 
 
 def test_wake_maps_to_c():
@@ -22,8 +23,11 @@ def test_order_token_parses_back_to_product_qty():
     assert parse_products(token) == [("刮刮樂", 2)]
 
 
-def test_checkout_token_is_member_of_keyword_set():
-    assert to_token({"type": "checkout"}) in KEYWORDS_C2_CHECKOUT
+def test_checkout_token_triggers_l3_checkout_intent():
+    # 驗實際消費路徑：L3 主迴圈 classify_intent(token,"normal") 須判「結帳」。
+    # （原測試驗 membership in KEYWORDS_C2_CHECKOUT —— 那是 C-2 子狀態才比對的集，
+    #  非主迴圈 dispatch 走的路徑，故漏抓「結賬/賬」對主路徑無效的 bug。）
+    assert classify_intent(to_token({"type": "checkout"}), "normal") == "結帳"
 
 
 def test_confirm_token_is_member_of_keyword_set():

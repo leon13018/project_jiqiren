@@ -8,10 +8,12 @@
 """
 from myProgram.sales.constants import PRODUCTS
 
-# 結帳 / 確認 token：取自既有 keyword 集的代表字（test 守 membership，避免日後漂移）。
-# 「結賬」∈ KEYWORDS_C2_CHECKOUT（C-2 三選一 CHECKOUT 路徑）；
-# 「正確」∈ KEYWORDS_CONFIRM_YES（_dialog_checkout_confirm 的 YES）。
-_CHECKOUT_TOKEN = "結賬"
+# 結帳 / 確認 token：對齊「實際消費路徑」的字（test 守行為，避免日後漂移）。
+# 「結帳」→ classify_intent(.,"normal")="結帳"：L3 主迴圈 dispatch 走 nlu._KEYWORDS_CHECKOUT
+#   （「結帳/帳」）；不是 C-2 子狀態的 KEYWORDS_C2_CHECKOUT（「結賬/賬」）——帳≠賬，
+#   選錯字主路徑會落 unclear（2026-06-19 Pi 實測修正）。
+# 「正確」∈ KEYWORDS_CONFIRM_YES（_dialog_checkout_confirm 走 KG_CONFIRM_YES 的 YES）。
+_CHECKOUT_TOKEN = "結帳"
 _CONFIRM_TOKEN = "正確"
 # 模擬硬體觸發點（TerminalSim 約定，非 sales 領域常數）：
 #   wake = 模擬 OpenCV 偵測顧客（read_terminal_key 認 'c' → L1 hawk→L2）
