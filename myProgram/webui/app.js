@@ -84,6 +84,39 @@ function AdBanner({ slides, index = 0, height = 240 }) {
   </div>`;
 }
 
+// 商品卡行動區：純按鈕 / 純數量器 / 正向 morph（加入→數量器）/ 反向 morph（數量器→加入）。
+// morph 動畫：藍長鈕「縮短到中心 → 分裂成兩灰圓圈」，反向相反（CSS keyframes，ghost 疊在真控制項上）。
+function ActionArea(row) {
+  const id = esc(row.id);
+  const rest = `<span style="font-size:13px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;white-space:nowrap;">${esc(row.remainingLabel)}</span>`;
+  if (!row.justToggled) {
+    return row.isInCart
+      ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">${QuantityStepper({ id: row.id, value: row.qty, size: "lg" })}${rest}</div>`
+      : Button({ label: "加入購物車", icon: "ph-bold ph-plus", variant: "primary", size: "lg", block: true, act: "add", data: { id: row.id } });
+  }
+  // 圓圈最終位置：− 在 left:0、+ 在 left:88（中間 44–88 為數字位）。膠囊期 + 用 translateX(-44) 貼著 −。
+  const circ = (sym, act, cls, left) => `<button class="g-step ${cls}" data-act="${act}" data-id="${id}" style="position:absolute;top:50%;margin-top:-22px;left:${left}px;width:44px;height:44px;display:grid;place-items:center;border:none;border-radius:var(--radius-capsule);background:var(--fill-2);color:var(--text-primary);cursor:pointer;z-index:2;"><i class="ph-bold ph-${sym}" style="font-size:18px;"></i></button>`;
+  if (row.isInCart) {
+    // 正向：藍長鈕 → 向左縮成「−+相連的膠囊」(88px) → +右滑分裂、數字浮現（藍→灰）
+    return `<div class="morph morph-fwd" style="position:relative;height:50px;">
+      <span class="morph-conn" aria-hidden="true"></span>
+      ${circ("minus", "dec", "morph-cL", 0)}
+      ${circ("plus", "inc", "morph-cR", 88)}
+      <span class="morph-num">${row.qty}</span>
+      <span class="morph-rest">${esc(row.remainingLabel)}</span>
+      <div class="morph-ghost-btn" aria-hidden="true"><i class="ph-bold ph-plus" style="font-size:18px;margin-right:8px;"></i>加入購物車</div>
+    </div>`;
+  }
+  // 反向：−+兩圓 → +左滑貼回成膠囊 → 灰膠囊向右展開成藍長鈕（灰→藍）
+  const ghostC = (sym, cls, left) => `<span class="${cls}" aria-hidden="true" style="position:absolute;top:50%;margin-top:-22px;left:${left}px;width:44px;height:44px;display:grid;place-items:center;border-radius:var(--radius-capsule);background:var(--fill-2);color:var(--text-primary);pointer-events:none;z-index:2;"><i class="ph-bold ph-${sym}" style="font-size:18px;"></i></span>`;
+  return `<div class="morph morph-rev" style="position:relative;height:50px;">
+    <span class="morph-conn" aria-hidden="true"></span>
+    ${ghostC("minus", "morph-gcL", 0)}
+    ${ghostC("plus", "morph-gcR", 88)}
+    <button class="g-btn morph-add" data-act="add" data-id="${id}" style="position:absolute;top:0;left:0;height:50px;display:flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:var(--radius-capsule);font-family:var(--font-text);font-size:16px;font-weight:600;cursor:pointer;overflow:hidden;white-space:nowrap;z-index:4;"><i class="ph-bold ph-plus" style="font-size:18px;"></i>加入購物車</button>
+  </div>`;
+}
+
 // ===== 狀態層（移植自設計 DCLogic；setState 改為直接重畫）=====
 
 const App = {
@@ -294,11 +327,7 @@ function Menu(v) {
           <span style="font-family:var(--font-display);font-size:27px;font-weight:800;font-variant-numeric:tabular-nums;">${row.priceNowLabel}</span>
           <span style="font-size:15px;color:var(--text-tertiary);text-decoration:line-through;font-variant-numeric:tabular-nums;">原價 ${row.priceOrigLabel}</span>
         </div>
-        <div style="margin-top:auto;padding-top:6px;">
-          <div class="${row.justToggled ? "action-swap" : ""}">${row.isInCart
-            ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">${QuantityStepper({ id: row.id, value: row.qty, size: "lg" })}<span style="font-size:13px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;white-space:nowrap;">${esc(row.remainingLabel)}</span></div>`
-            : Button({ label: "加入購物車", icon: "ph-bold ph-plus", variant: "primary", size: "lg", block: true, act: "add", data: { id: row.id } })}</div>
-        </div>
+        <div style="margin-top:auto;padding-top:6px;">${ActionArea(row)}</div>
       </div>
     </div>`;
   return `<main style="display:flex;flex-direction:column;gap:24px;min-width:0;">
