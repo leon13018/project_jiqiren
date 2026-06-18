@@ -94,12 +94,11 @@ function ActionArea(row) {
       ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">${QuantityStepper({ id: row.id, value: row.qty, size: "lg" })}${rest}</div>`
       : Button({ label: "加入購物車", icon: "ph-bold ph-plus", variant: "primary", size: "lg", block: true, act: "add", data: { id: row.id } });
   }
-  // 圓圈最終位置：− 在 left:0、+ 在 left:88（中間 44–88 為數字位）。膠囊期 + 用 translateX(-44) 貼著 −。
+  // − 最終在 left:0、+ 在 left:88（正常圓）；膠囊期各自變寬成半膠囊 [0,66] / [66,132]，恰好拼成 132px 膠囊（無重疊→無暗帶）。
   const circ = (sym, act, cls, left) => `<button class="g-step ${cls}" data-act="${act}" data-id="${id}" style="position:absolute;top:50%;margin-top:-22px;left:${left}px;width:44px;height:44px;display:grid;place-items:center;border:none;border-radius:var(--radius-capsule);background:var(--fill-2);color:var(--text-primary);cursor:pointer;z-index:2;"><i class="ph-bold ph-${sym}" style="font-size:18px;"></i></button>`;
   if (row.isInCart) {
-    // 正向：藍長鈕 → 向左縮成「−+相連的膠囊」(88px) → +右滑分裂、數字浮現（藍→灰）
+    // 正向：藍長鈕 → 向左縮成 132px 灰膠囊（正常 −到+ 寬）→ 兩半縮回成圓、中間開出數字（藍→灰）
     return `<div class="morph morph-fwd" style="position:relative;height:50px;">
-      <span class="morph-conn" aria-hidden="true"></span>
       ${circ("minus", "dec", "morph-cL", 0)}
       ${circ("plus", "inc", "morph-cR", 88)}
       <span class="morph-num">${row.qty}</span>
@@ -107,10 +106,9 @@ function ActionArea(row) {
       <div class="morph-ghost-btn" aria-hidden="true"><i class="ph-bold ph-plus" style="font-size:18px;margin-right:8px;"></i>加入購物車</div>
     </div>`;
   }
-  // 反向：−+兩圓 → +左滑貼回成膠囊 → 灰膠囊向右展開成藍長鈕（灰→藍）
+  // 反向：−/+ 兩圓各自變寬拼回 132px 灰膠囊 → 向右展開成藍長鈕（灰→藍）
   const ghostC = (sym, cls, left) => `<span class="${cls}" aria-hidden="true" style="position:absolute;top:50%;margin-top:-22px;left:${left}px;width:44px;height:44px;display:grid;place-items:center;border-radius:var(--radius-capsule);background:var(--fill-2);color:var(--text-primary);pointer-events:none;z-index:2;"><i class="ph-bold ph-${sym}" style="font-size:18px;"></i></span>`;
   return `<div class="morph morph-rev" style="position:relative;height:50px;">
-    <span class="morph-conn" aria-hidden="true"></span>
     ${ghostC("minus", "morph-gcL", 0)}
     ${ghostC("plus", "morph-gcR", 88)}
     <button class="g-btn morph-add" data-act="add" data-id="${id}" style="position:absolute;top:0;left:0;height:50px;display:flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:var(--radius-capsule);font-family:var(--font-text);font-size:16px;font-weight:600;cursor:pointer;overflow:hidden;white-space:nowrap;z-index:4;"><i class="ph-bold ph-plus" style="font-size:18px;"></i>加入購物車</button>

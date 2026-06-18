@@ -74,12 +74,7 @@ body {
   position: absolute; top: 50%; transform: translateY(-50%); right: 0; z-index: 2;
   font-size: 13px; color: var(--text-tertiary); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
-/* 連接桿：填兩圓中間，讓「相連」呈一條膠囊（雙頭圓柱體） */
-.morph-conn {
-  position: absolute; top: 50%; margin-top: -22px; left: 22px; width: 44px; height: 44px;
-  background: var(--fill-2); pointer-events: none; z-index: 1;
-}
-/* 正向藍長鈕 ghost：100%藍 → 88px灰膠囊（靠左）→ 淡出露出真膠囊 */
+/* 正向藍長鈕 ghost：100%藍 → 132px灰膠囊（靠左）→ 淡出露出真膠囊（兩半拼成） */
 .morph-ghost-btn {
   position: absolute; top: 0; left: 0; height: 50px; width: 100%;
   display: flex; align-items: center; justify-content: center;
@@ -89,36 +84,48 @@ body {
 }
 .morph-fwd .morph-ghost-btn { animation: mf-ghost 0.62s var(--ease-fluid) forwards; }
 @keyframes mf-ghost {
-  0%   { width: 100%; background: var(--accent); opacity: 1; }
-  44%  { width: 88px;  background: var(--fill-2); opacity: 1; }
-  54%  { width: 88px;  background: var(--fill-2); opacity: 0; }
-  100% { width: 88px;  opacity: 0; }
+  0%   { width: 100%;  background: var(--accent); opacity: 1; }
+  44%  { width: 132px; background: var(--fill-2); opacity: 1; }
+  54%  { width: 132px; background: var(--fill-2); opacity: 0; }
+  100% { width: 132px; opacity: 0; }
 }
-.morph-fwd .morph-cR { animation: mf-split 0.62s var(--ease-fluid) both; }   /* +圓：貼著 − → 右滑分裂 */
-@keyframes mf-split { 0%, 54% { transform: translateX(-44px); } 100% { transform: translateX(0); } }
-.morph-fwd .morph-conn { animation: mf-conn 0.62s ease forwards; }            /* 連接桿淡出 */
-@keyframes mf-conn { 0%, 54% { opacity: 1; } 80%, 100% { opacity: 0; } }
+.morph-fwd .morph-cL { animation: mf-l 0.62s var(--ease-fluid) both; }   /* 左半膠囊 [0,66] → − 圓 [0,44] */
+@keyframes mf-l {
+  0%, 52% { width: 66px; left: 0; border-radius: 22px 0 0 22px; }
+  100%    { width: 44px; left: 0; border-radius: var(--radius-capsule); }
+}
+.morph-fwd .morph-cR { animation: mf-r 0.62s var(--ease-fluid) both; }   /* 右半膠囊 [66,132] → + 圓 [88,132] */
+@keyframes mf-r {
+  0%, 52% { width: 66px; left: 66px; border-radius: 0 22px 22px 0; }
+  100%    { width: 44px; left: 88px; border-radius: var(--radius-capsule); }
+}
 .morph-fwd .morph-num, .morph-fwd .morph-rest { animation: mf-late 0.62s ease both; }  /* 數字/剩餘後段浮現 */
-@keyframes mf-late { 0%, 60% { opacity: 0; } 86%, 100% { opacity: 1; } }
+@keyframes mf-late { 0%, 58% { opacity: 0; } 86%, 100% { opacity: 1; } }
 
-/* 反向：+圓左滑貼回 −（併成膠囊）→ 灰膠囊向右展開成藍長鈕 */
-.morph-rev .morph-gcR { animation: mr-merge 0.6s var(--ease-fluid) forwards; }
-@keyframes mr-merge { 0% { transform: translateX(0); } 50%, 100% { transform: translateX(-44px); } }
-.morph-rev .morph-conn { animation: mr-conn 0.6s ease forwards; }
-@keyframes mr-conn { 0% { opacity: 0; } 50%, 100% { opacity: 1; } }
+/* 反向：兩圓各自變寬拼回 132px 灰膠囊 → 向右展開成藍長鈕 */
+.morph-rev .morph-gcL { animation: mr-l 0.6s var(--ease-fluid) forwards; }
+@keyframes mr-l {
+  0%        { width: 44px; left: 0; border-radius: var(--radius-capsule); }
+  50%, 100% { width: 66px; left: 0; border-radius: 22px 0 0 22px; }
+}
+.morph-rev .morph-gcR { animation: mr-r 0.6s var(--ease-fluid) forwards; }
+@keyframes mr-r {
+  0%        { width: 44px; left: 88px; border-radius: var(--radius-capsule); }
+  50%, 100% { width: 66px; left: 66px; border-radius: 0 22px 22px 0; }
+}
 .morph-rev .morph-add { animation: mr-add 0.6s var(--ease-fluid) both; }
 @keyframes mr-add {
-  0%   { width: 88px; background: var(--fill-2); color: transparent; opacity: 0; }
-  46%  { width: 88px; background: var(--fill-2); color: transparent; opacity: 1; }
-  62%  { width: 88px; background: var(--fill-2); color: transparent; }
-  100% { width: 100%; background: var(--accent); color: var(--text-on-brand); opacity: 1; }
+  0%   { width: 132px; background: var(--fill-2); color: transparent; opacity: 0; }
+  46%  { width: 132px; background: var(--fill-2); color: transparent; opacity: 1; }
+  62%  { width: 132px; background: var(--fill-2); color: transparent; }
+  100% { width: 100%;  background: var(--accent); color: var(--text-on-brand); opacity: 1; }
 }
 
 /* ---- 無障礙：尊重 reduced-motion（Pi 降規時也會套用） ---- */
 @media (prefers-reduced-motion: reduce) {
   .wf-fade, .wf-sheet, .bg-glows, .anim-drift { animation: none !important; }
   .ad-track { transition: none !important; }
-  .morph-ghost-btn, .morph-conn, .morph-gcL, .morph-gcR { display: none !important; }
+  .morph-ghost-btn, .morph-gcL, .morph-gcR { display: none !important; }
   .morph-cL, .morph-cR, .morph-num, .morph-rest { animation: none !important; }
   .morph-add { animation: none !important; width: 100% !important; background: var(--accent) !important; color: var(--text-on-brand) !important; opacity: 1 !important; }
 }
