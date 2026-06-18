@@ -96,7 +96,7 @@ def test_web_mode_starts_server_on_port_8137_with_web_display(monkeypatch):
 
     started = {}
 
-    def fake_start(bus, port=8137):
+    def fake_start(bus, on_input, port=8137):
         started["bus"] = bus
         started["port"] = port
         return object(), object()   # (server, thread)
@@ -115,6 +115,34 @@ def test_web_mode_starts_server_on_port_8137_with_web_display(monkeypatch):
     captured["display"]("ordering", {"冰紅茶": 2})
     assert started["bus"].last_state()["cart"] == {"冰紅茶": 2}
     assert started.get("stopped") is True   # finally 收掉 server
+
+
+def test_web_mode_wires_on_input_to_input_reader_inject(monkeypatch):
+    """`--web`：server.start 收到 on_input = input_reader.inject（觸控上行注入 seam）。"""
+    monkeypatch.setattr(sys, "argv", ["myprogram", "--web"])
+    captured = _capture_logic_run(monkeypatch)
+
+    injected = []
+    fake_input = types.SimpleNamespace(inject=lambda t: injected.append(t))
+    monkeypatch.setitem(sys.modules, "myProgram.input_reader", fake_input)
+    import myProgram
+    monkeypatch.setattr(myProgram, "input_reader", fake_input, raising=False)
+
+    started = {}
+
+    def fake_start(bus, on_input, port=8137):
+        started["on_input"] = on_input
+        started["port"] = port
+        return object(), object()
+
+    fake_server = types.SimpleNamespace(start=fake_start, stop=lambda srv: None)
+    monkeypatch.setitem(sys.modules, "myProgram.web.server", fake_server)
+
+    main_module._run_wiring()
+
+    assert started["port"] == 8137
+    started["on_input"]("c")          # 等同呼叫 input_reader.inject("c")
+    assert injected == ["c"]
 
 
 def test_web_mode_missing_deps_falls_back_to_noop_display(monkeypatch, capsys):

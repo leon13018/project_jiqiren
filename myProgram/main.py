@@ -332,9 +332,12 @@ def _run_wiring():
             from myProgram.web.bus import EventBus
             from myProgram.web.display import make_web_display
             from myProgram.web import server as web_server
+            from myProgram import input_reader
             bus = EventBus()
             display_cb = make_web_display(bus)
-            web_srv, _ = web_server.start(bus, port=8137)
+            # on_input：觸控上行 seam —— WS 收到的命令經 commands.to_token → 注入既有 input queue
+            #（與鍵盤 / STT 共用單一 queue；read_terminal_key 的 'c' 與 read_customer_input 皆讀此）
+            web_srv, _ = web_server.start(bus, input_reader.inject, port=8137)
             print("[webui] FastAPI 已啟動 → http://0.0.0.0:8137/（同 wifi 連 raspberrypi.local:8137）")
         except Exception as exc:
             # web 殼掛不開不讓機器人開不了機：依賴缺失（ImportError）或啟動失敗（port
