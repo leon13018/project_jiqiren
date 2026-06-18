@@ -155,11 +155,24 @@ const App = {
   },
 
   setQty(id, n) {
-    this.setState((s) => {
-      const cart = { ...s.cart };
-      if (n <= 0) delete cart[id]; else cart[id] = Math.min(50, n);
-      return { cart };
+    const cart = { ...this.state.cart };
+    if (n <= 0) delete cart[id]; else cart[id] = Math.min(50, n);
+    this.state.cart = cart;
+    this.syncCart();   // 只局部更新購物車相關區域（不整頁重畫 → 不重建玻璃 backdrop）
+  },
+
+  // 購物車變動的「底層演算法」：只更新 top bar 購物車區、各卡片 action 區、購物車欄內容；
+  // 不重建 ad / 商品卡 / 購物車面板的玻璃容器（避免每次 +/- 重算 4 個 backdrop-blur → 卡頓）。
+  syncCart() {
+    const v = this.renderVals();
+    const tb = document.getElementById("tb-cart");
+    if (tb) tb.innerHTML = TopBarCart(v);
+    v.products.forEach((p) => {
+      const a = document.getElementById("act-" + p.id);
+      if (a) a.innerHTML = ActionArea(p);
     });
+    const ci = document.getElementById("cart-inner");
+    if (ci) ci.innerHTML = CartInner(v);
   },
 
   openCheckout() { this.setState({ overlay: "checkout" }); },
@@ -281,6 +294,15 @@ const App = {
 
 // ===== 版面層（template 函式，搬自設計 <x-dc> 各 data-screen-label 區塊）=====
 
+// top bar 右側購物車區（總額 + 購物袋 + 數量徽章）——syncCart 只換這塊的 innerHTML
+function TopBarCart(v) {
+  return `<span style="font-family:var(--font-display);font-weight:700;font-size:17px;font-variant-numeric:tabular-nums;">${v.totalLabel}</span>
+    <div style="position:relative;width:42px;height:42px;border-radius:var(--radius-capsule);display:grid;place-items:center;background:var(--accent);color:var(--text-on-brand);">
+      <i class="ph-fill ph-shopping-bag" style="font-size:20px;"></i>
+      ${v.hasItems ? `<span style="position:absolute;top:-5px;right:-5px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:var(--color-red);color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center;box-shadow:0 0 0 2px var(--bg-base);font-variant-numeric:tabular-nums;">${v.count}</span>` : ""}
+    </div>`;
+}
+
 function TopBar(v) {
   return `<header style="position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:16px;padding:14px 28px;
     background:var(--glass-tint-thin);backdrop-filter:blur(var(--blur-thick)) saturate(var(--glass-saturate));
@@ -296,16 +318,8 @@ function TopBar(v) {
       <span style="margin-left:6px;padding:5px 12px;border-radius:var(--radius-capsule);background:var(--fill-3);font-size:13px;color:var(--text-secondary);">現場點餐</span>
     </div>
     <div style="flex:1;"></div>
-    <div style="display:flex;align-items:center;gap:14px;padding:7px 8px 7px 18px;border-radius:var(--radius-capsule);
-      background:var(--glass-tint);border:0.5px solid var(--glass-border);box-shadow:var(--glass-shadow);">
-      <span style="font-family:var(--font-display);font-weight:700;font-size:17px;font-variant-numeric:tabular-nums;">${v.totalLabel}</span>
-      <div style="position:relative;width:42px;height:42px;border-radius:var(--radius-capsule);display:grid;place-items:center;background:var(--accent);color:var(--text-on-brand);">
-        <i class="ph-fill ph-shopping-bag" style="font-size:20px;"></i>
-        ${v.hasItems ? `<span style="position:absolute;top:-5px;right:-5px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;
-          background:var(--color-red);color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center;
-          box-shadow:0 0 0 2px var(--bg-base);font-variant-numeric:tabular-nums;">${v.count}</span>` : ""}
-      </div>
-    </div>
+    <div id="tb-cart" style="display:flex;align-items:center;gap:14px;padding:7px 8px 7px 18px;border-radius:var(--radius-capsule);
+      background:var(--glass-tint);border:0.5px solid var(--glass-border);box-shadow:var(--glass-shadow);">${TopBarCart(v)}</div>
   </header>`;
 }
 
@@ -329,7 +343,7 @@ function Menu(v) {
           <span style="font-family:var(--font-display);font-size:27px;font-weight:800;font-variant-numeric:tabular-nums;">${row.priceNowLabel}</span>
           <span style="font-size:15px;color:var(--text-tertiary);text-decoration:line-through;font-variant-numeric:tabular-nums;">原價 ${row.priceOrigLabel}</span>
         </div>
-        <div style="margin-top:auto;padding-top:6px;">${ActionArea(row)}</div>
+        <div id="act-${esc(row.id)}" style="margin-top:auto;padding-top:6px;">${ActionArea(row)}</div>
       </div>
     </div>`;
   return `<main style="display:flex;flex-direction:column;gap:24px;min-width:0;">
@@ -342,7 +356,8 @@ function Menu(v) {
   </main>`;
 }
 
-function CartRail(v) {
+// 購物車面板「內容」（標題列 + 列表/空狀態）——syncCart 只換 #cart-inner 這塊，玻璃 aside 容器不重建
+function CartInner(v) {
   const line = (l) => `
     <div data-cart-row="${esc(l.id)}" class="${l.isNew ? "cart-row-in" : ""}" style="display:flex;align-items:center;gap:12px;padding:14px 2px;border-bottom:0.5px solid var(--separator);">
       <div class="anim-drift" style="width:52px;height:52px;flex:none;border-radius:var(--radius-md);background:${l.tone};background-size:180% 180%;box-shadow:inset 0 0 0 0.5px var(--glass-border);"></div>
@@ -375,15 +390,19 @@ function CartRail(v) {
         <p style="margin:0;font-size:16px;color:var(--text-secondary);max-width:200px;text-wrap:pretty;">您的購物車是空的</p>
         <p style="margin:0;font-size:13px;color:var(--text-tertiary);">點選商品加入購物車</p>
       </div>`;
-  return `<aside style="position:sticky;top:88px;align-self:start;height:fit-content;display:flex;flex-direction:column;padding:22px;
-    border-radius:var(--radius-xl);background:var(--glass-tint-thick);backdrop-filter:blur(var(--blur-thick)) saturate(var(--glass-saturate));
-    -webkit-backdrop-filter:blur(var(--blur-thick)) saturate(var(--glass-saturate));border:0.5px solid var(--glass-border);box-shadow:var(--glass-shadow-raised);">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+  return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
       <i class="ph-fill ph-shopping-bag" style="font-size:20px;color:var(--accent);"></i>
       <h3 style="margin:0;flex:1;font-family:var(--font-display);font-size:20px;font-weight:700;letter-spacing:-0.3px;">您的購物車</h3>
       ${Badge(v.count)}
     </div>
-    ${body}
+    ${body}`;
+}
+
+function CartRail(v) {
+  return `<aside style="position:sticky;top:88px;align-self:start;height:fit-content;display:flex;flex-direction:column;padding:22px;
+    border-radius:var(--radius-xl);background:var(--glass-tint-thick);backdrop-filter:blur(var(--blur-thick)) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter:blur(var(--blur-thick)) saturate(var(--glass-saturate));border:0.5px solid var(--glass-border);box-shadow:var(--glass-shadow-raised);">
+    <div id="cart-inner">${CartInner(v)}</div>
   </aside>`;
 }
 
@@ -485,7 +504,7 @@ function animateCartRowExit(id, done) {
   let fired = false;
   const fin = () => { if (!fired) { fired = true; done(); } };
   row.addEventListener("animationend", fin, { once: true });
-  setTimeout(fin, 380);
+  setTimeout(fin, 330);
 }
 
 function bindEvents(root) {
