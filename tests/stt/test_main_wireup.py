@@ -1,15 +1,22 @@
-"""read_customer_input 的 STT arm/disarm 佈線測試。
+"""read_customer_input 的 STT arm/disarm 佈線 + main.py `--web` 佈線測試。
 
 stub 手法：main.py 的 callback 內 `from myProgram import tts/stt/input_reader`
 是 lazy import——以 sys.modules 預植 stub 模組攔截（tts 在 Windows 真 import 會
 炸 edge_tts，必須 stub；若 tests/sales 已有現成 stub pattern 優先沿用）。
+
+`--web` 佈線測試（`_run_wiring`）同理用 lazy import seam：web server 殼 import
+uvicorn（Windows 裝不了）→ 以 sys.modules 預植 stub `myProgram.web.server`；
+bus / display 純 stdlib 可真 import。logic.run 一律 monkeypatch 攔 kwargs（不真跑
+狀態機）。
 """
 import sys
 import types
 
 import pytest
 
+import myProgram.main as main_module
 from myProgram.main import TerminalSim, _S1State
+from myProgram.sales import logic
 
 
 @pytest.fixture
@@ -58,3 +65,69 @@ def test_disarm_on_timeout(wired):
     _stub_input(monkeypatch, calls, None)   # read 恆 None → 倒數耗盡 timeout
     assert sim.read_customer_input(timeout=0.2) is None
     assert "arm" in calls and calls[-1] == "disarm"
+
+
+# === main.py `--web` 佈線（_run_wiring）===============================
+
+def _capture_logic_run(monkeypatch):
+    """攔 logic.run 的 kwargs（不真跑狀態機），回傳 captured dict。"""
+    captured = {}
+    monkeypatch.setattr(logic, "run", lambda **kw: captured.update(kw))
+    return captured
+
+
+def test_terminal_mode_injects_callable_display_and_no_web_import(monkeypatch):
+    """無 `--web`：display 為 callable（no-op），且不 import web server。"""
+    monkeypatch.setattr(sys, "argv", ["myprogram"])
+    captured = _capture_logic_run(monkeypatch)
+    # 乾淨狀態：確保斷言「未 import web server」前 sys.modules 無殘留
+    monkeypatch.delitem(sys.modules, "myProgram.web.server", raising=False)
+
+    main_module._run_wiring()
+
+    assert callable(captured["display"])
+    assert "myProgram.web.server" not in sys.modules
+
+
+def test_web_mode_starts_server_on_port_8137_with_web_display(monkeypatch):
+    """`--web`：呼叫 server.start(port=8137)，且注入 web 版 display（經 bus.publish）。"""
+    monkeypatch.setattr(sys, "argv", ["myprogram", "--web"])
+    captured = _capture_logic_run(monkeypatch)
+
+    started = {}
+
+    def fake_start(bus, port=8137):
+        started["bus"] = bus
+        started["port"] = port
+        return object(), object()   # (server, thread)
+
+    fake_server = types.SimpleNamespace(
+        start=fake_start,
+        stop=lambda srv: started.__setitem__("stopped", True),
+    )
+    # server.py import uvicorn（Windows 裝不了）→ 必須 stub；bus/display 純 stdlib 真 import
+    monkeypatch.setitem(sys.modules, "myProgram.web.server", fake_server)
+
+    main_module._run_wiring()
+
+    assert started["port"] == 8137
+    # web 版 display：呼叫後狀態進 bus（last_state 反映出來），與 no-op lambda 區別
+    captured["display"]("ordering", {"冰紅茶": 2})
+    assert started["bus"].last_state()["cart"] == {"冰紅茶": 2}
+    assert started.get("stopped") is True   # finally 收掉 server
+
+
+def test_web_mode_missing_deps_falls_back_to_noop_display(monkeypatch, capsys):
+    """`--web` 但 web import 失敗（Pi 沒裝 fastapi/uvicorn）→ 印錯誤 + 退回 no-op 繼續跑。"""
+    monkeypatch.setattr(sys, "argv", ["myprogram", "--web"])
+    captured = _capture_logic_run(monkeypatch)
+    # sys.modules[...] = None 讓 `from myProgram.web import server` raise ImportError
+    monkeypatch.setitem(sys.modules, "myProgram.web.server", None)
+
+    main_module._run_wiring()   # 不得 raise（graceful）
+
+    assert callable(captured["display"])
+    # 退回 no-op：呼叫不爆且無副作用
+    captured["display"]("ordering", {"冰紅茶": 2})
+    out = capsys.readouterr().out
+    assert "webui" in out.lower()   # 印了明確的 web 失敗訊息

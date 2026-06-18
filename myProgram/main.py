@@ -306,6 +306,52 @@ def _build_callbacks(state: _S1State) -> dict:
     return TerminalSim(state).callbacks()
 
 
+def _run_wiring():
+    """組 callbacks + 決定 display + （`--web` 時）啟 web server，跑 logic.run。
+
+    `--web` 旗號分流：
+    - 有旗號 → lazy import web 套件（bus / display / server），建 EventBus + web 版
+      display（狀態鏡像到瀏覽器）+ 在背景執行緒啟 FastAPI server（port 8137）。
+    - 無旗號 → display 為 no-op lambda，完全不 import web（終端模式 / Windows pytest
+      不觸發 fastapi/uvicorn import）。
+
+    缺依賴 graceful（Pi 沒裝 fastapi/uvicorn）：`--web` 但 web import 失敗 → 印明確
+    繁中錯誤、退回 no-op display 繼續跑（不讓機器人因 web 殼缺套件就開不了機）。
+
+    web import 一律在 `if web_mode:` 內（lazy）：終端模式與 Windows pytest 不得觸發
+    web import。
+    """
+    web_mode = "--web" in sys.argv
+    state = _S1State()
+    callbacks = _build_callbacks(state)
+
+    web_server = None   # server 模組（成功 import 才非 None → finally 收尾用）
+    web_srv = None      # uvicorn Server 實例
+    if web_mode:
+        try:
+            from myProgram.web.bus import EventBus
+            from myProgram.web.display import make_web_display
+            from myProgram.web import server as web_server
+        except ImportError as exc:
+            # Pi 沒裝 fastapi/uvicorn → 退回 no-op display 繼續服務客人
+            web_server = None
+            print(f"[webui] web 依賴缺失（{exc}）→ 退回無 web 模式，機器人照常運作（請於 Pi 端裝 fastapi/uvicorn）")
+            display_cb = lambda *a, **k: None
+        else:
+            bus = EventBus()
+            display_cb = make_web_display(bus)
+            web_srv, _ = web_server.start(bus, port=8137)
+            print("[webui] FastAPI 已啟動 → http://0.0.0.0:8137/（同 wifi 連 raspberrypi.local:8137）")
+    else:
+        display_cb = lambda *a, **k: None
+
+    try:
+        logic.run(**callbacks, display=display_cb)
+    finally:
+        if web_server is not None and web_srv is not None:
+            web_server.stop(web_srv)
+
+
 def main():
     """入口。
 
@@ -325,13 +371,10 @@ def main():
     print("  [L2-L5 顧客對話層] 打字=顧客語音回應 / 空 Enter=模擬 timeout")
     print("=" * 50)
 
-    state = _S1State()
-    callbacks = _build_callbacks(state)
-
-    # 終端模式 display 為 no-op（web 模式於後續 task 覆寫注入真實 web 回呼）。
-    _noop_display = lambda *a, **k: None
+    # callbacks + display 決定 + （`--web`）啟 server + logic.run 都在 _run_wiring；
+    # 終端模式 display 為 no-op，`--web` 注入 web 版 display + 啟 FastAPI server。
     try:
-        logic.run(**callbacks, display=_noop_display)
+        _run_wiring()
     except SystemExit:
         pass
     except KeyboardInterrupt:
