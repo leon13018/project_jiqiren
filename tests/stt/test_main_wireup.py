@@ -131,3 +131,30 @@ def test_web_mode_missing_deps_falls_back_to_noop_display(monkeypatch, capsys):
     captured["display"]("ordering", {"冰紅茶": 2})
     out = capsys.readouterr().out
     assert "webui" in out.lower()   # 印了明確的 web 失敗訊息
+
+
+def test_web_mode_server_start_raises_falls_back_to_noop_display(monkeypatch, capsys):
+    """`--web` 但 server.start() raise（如 port 衝突 OSError）→ 不 raise + 退回 no-op 繼續跑。
+
+    反思 web-startup-non-import-error-crash：graceful 原只包 ImportError，server 啟動
+    失敗的 OSError 等會傳出 crash 機器人。bus/display 真 import、只 stub server.start raise。
+    """
+    monkeypatch.setattr(sys, "argv", ["myprogram", "--web"])
+    captured = _capture_logic_run(monkeypatch)
+
+    def fake_start(bus, port=8137):
+        raise OSError("port 8137 已被佔用")
+
+    fake_server = types.SimpleNamespace(
+        start=fake_start,
+        stop=lambda srv: None,   # 不應被呼叫（start 失敗 → web_srv 留 None）
+    )
+    monkeypatch.setitem(sys.modules, "myProgram.web.server", fake_server)
+
+    main_module._run_wiring()   # 不得 raise（graceful 涵蓋 OSError）
+
+    assert callable(captured["display"])
+    # 退回 no-op：呼叫不爆且無副作用
+    captured["display"]("ordering", {"冰紅茶": 2})
+    out = capsys.readouterr().out
+    assert "webui" in out.lower()   # 印了明確的 web 啟動失敗訊息

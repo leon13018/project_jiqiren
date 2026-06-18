@@ -189,8 +189,11 @@ class SalesMachine:
         disp = self.callbacks.get("display")
         if disp is None:
             return
+        phase = _PHASE_BY_STATE.get(current)
+        if phase is None:
+            return                       # 未知 current → 跳過 emit，不拖垮機器人（web 顯示非關鍵）
         paid = cart_module.calc_total(self.cart) if current == "l5" else 0
-        disp(_PHASE_BY_STATE[current], dict(self.cart), paid)
+        disp(phase, dict(self.cart), paid)
 
     def run(self) -> None:
         current = "l1"

@@ -310,3 +310,15 @@ def test_machine_no_emit_when_display_absent(monkeypatch):
     monkeypatch.setattr(states_module, "run_l1", lambda **kwargs: None)
     machine = _make_machine()              # _make_callbacks 無 display 鍵
     machine.run()                          # 不應 raise（.get("display") → None → 跳過 emit）
+
+
+def test_machine_emit_unknown_state_no_raise_no_emit():
+    """_emit 對未知 current（不在 _PHASE_BY_STATE）→ 跳過 emit、不 KeyError crash。
+
+    反思 phase-map-unguarded-keyerror：current 非預期值（mock stub / 未來新狀態）
+    經 .get 取 None → return 不呼叫 disp，不拖垮機器人主迴圈（web 顯示非關鍵）。
+    """
+    called = {"n": 0}
+    machine = _make_machine(display=lambda *a, **k: called.__setitem__("n", called["n"] + 1))
+    machine._emit("unknown_state")         # 不應 raise
+    assert called["n"] == 0, "未知 current → 不呼叫 display"

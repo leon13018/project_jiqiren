@@ -332,16 +332,18 @@ def _run_wiring():
             from myProgram.web.bus import EventBus
             from myProgram.web.display import make_web_display
             from myProgram.web import server as web_server
-        except ImportError as exc:
-            # Pi 沒裝 fastapi/uvicorn → 退回 no-op display 繼續服務客人
-            web_server = None
-            print(f"[webui] web 依賴缺失（{exc}）→ 退回無 web 模式，機器人照常運作（請於 Pi 端裝 fastapi/uvicorn）")
-            display_cb = lambda *a, **k: None
-        else:
             bus = EventBus()
             display_cb = make_web_display(bus)
             web_srv, _ = web_server.start(bus, port=8137)
             print("[webui] FastAPI 已啟動 → http://0.0.0.0:8137/（同 wifi 連 raspberrypi.local:8137）")
+        except Exception as exc:
+            # web 殼掛不開不讓機器人開不了機：依賴缺失（ImportError）或啟動失敗（port
+            # 衝突 OSError 等）皆退回 no-op display 繼續服務客人。start 失敗時 web_srv
+            # 留 None → finally 不會誤呼 stop。
+            web_server = None
+            web_srv = None
+            print(f"[webui] web 啟動失敗（{exc}）→ 退回無 web 模式，機器人照常運作（請檢查 Pi 端 fastapi/uvicorn 或 8137 port）")
+            display_cb = lambda *a, **k: None
     else:
         display_cb = lambda *a, **k: None
 
