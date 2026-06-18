@@ -71,7 +71,7 @@ function AdBanner({ slides, index = 0, height = 240 }) {
 // ===== 狀態層（移植自設計 DCLogic；setState 改為直接重畫）=====
 
 const App = {
-  state: { cart: { bingcha: 2, guagua: 1 }, overlay: null, standby: false, paidTotal: 0, reviewOpen: false },
+  state: { cart: { bingcha: 2, guagua: 1 }, overlay: null, standby: false, paidTotal: 0, reviewOpen: false, adIndex: 0 },
 
   setState(patch) {
     const next = typeof patch === "function" ? patch(this.state) : patch;
@@ -172,6 +172,7 @@ const App = {
 
     return {
       ads: this.ads(),
+      adIndex: this.state.adIndex,
       products, cartRows, count,
       hasItems: count > 0, isEmpty: count === 0,
       totalLabel: this.fmt(total),
@@ -199,7 +200,6 @@ const App = {
       ${v.standby ? Standby(v) : ""}
       ${v.showReview ? ReviewSwitcher(v) : ""}`;
     bindEvents(app);
-    startAdAutoplay(app, v);
   },
 };
 
@@ -261,7 +261,7 @@ function Menu(v) {
       </div>
     </div>`;
   return `<main style="display:flex;flex-direction:column;gap:24px;min-width:0;">
-    ${AdBanner({ slides: v.ads, height: 240 })}
+    ${AdBanner({ slides: v.ads, index: v.adIndex, height: 240 })}
     <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
       <h2 style="margin:0;font-family:var(--font-display);font-size:26px;font-weight:700;letter-spacing:-0.5px;">選購商品</h2>
       <span style="font-size:14px;color:var(--text-secondary);">現場取貨 · 每項最多 50</span>
@@ -427,16 +427,19 @@ function bindEvents(root) {
   };
 }
 
-let _adTimer = null;
-function startAdAutoplay(root, v) {
-  if (_adTimer) clearInterval(_adTimer);
-  if (!v.ads || v.ads.length < 2) return;
-  let i = 0;
-  _adTimer = setInterval(() => {
-    i = (i + 1) % v.ads.length;
-    const el = root.querySelector("[data-ad]");
-    if (el) el.outerHTML = AdBanner({ slides: v.ads, index: i, height: 240 });
+// 廣告輪播：只在初次掛載啟動一次（不再於每輪 render 重設），index 存於 App.state.adIndex
+// → 點餐互動觸發的整頁 render 不會重置倒數；每輪 render 的 AdBanner 用 v.adIndex 保持連續。
+let _adStarted = false;
+function startAdAutoplay() {
+  if (_adStarted) return;
+  const ads = App.ads();
+  if (!ads || ads.length < 2) return;
+  _adStarted = true;
+  setInterval(() => {
+    App.state.adIndex = (App.state.adIndex + 1) % ads.length;
+    const el = document.querySelector("[data-ad]");
+    if (el) el.outerHTML = AdBanner({ slides: ads, index: App.state.adIndex, height: 240 });
   }, 5000);
 }
 
-document.addEventListener("DOMContentLoaded", () => App.render());
+document.addEventListener("DOMContentLoaded", () => { App.render(); startAdAutoplay(); });
