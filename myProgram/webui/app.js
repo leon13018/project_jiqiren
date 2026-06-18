@@ -56,16 +56,31 @@ function QuantityStepper({ id, value = 0, size = "lg" }) {
     ${btn("plus", "inc")}</div>`;
 }
 
-function AdBanner({ slides, index = 0, height = 240 }) {
-  const s = slides[index % slides.length];
-  return `<div class="g-ad anim-drift" data-ad
-    style="position:relative;height:${height}px;border-radius:var(--radius-2xl);overflow:hidden;
-    background:${s.tone};background-size:220% 220%;display:flex;flex-direction:column;justify-content:flex-end;
-    padding:28px;color:#fff;box-shadow:var(--glass-shadow);">
+// 廣告輪播卡（對齊設計 AdBanner.jsx）：漂移漸層 + droplet sheen + 左側暗化漸層（文字可讀）
+// + 內容（eyebrow/title/subtitle/CTA glass 鈕）+ 右下進度 pills（可點跳）。
+// animate=true → 漸層 + 內容套 glaze-pop-in 過場（只在切換時，不在整頁 render 時）。
+function AdBanner({ slides, index = 0, height = 240, animate = false }) {
+  const n = slides.length || 1;
+  const s = slides[index % n] || {};
+  const tone = s.tone || "var(--fluid-spectrum)";
+  const gradAnim = animate
+    ? "glaze-drift 16s var(--ease-standard) infinite, glaze-pop-in var(--dur-slow) var(--ease-fluid)"
+    : "glaze-drift 16s var(--ease-standard) infinite";
+  const pills = n > 1
+    ? `<div style="position:absolute;bottom:16px;right:20px;display:flex;gap:6px;z-index:2;">${slides.map((_, k) => `<button data-act="adGoto" data-idx="${k}" aria-label="廣告 ${k + 1}" style="width:${k === index ? 26 : 8}px;height:8px;padding:0;border:none;cursor:pointer;border-radius:var(--radius-capsule);background:${k === index ? "rgba(255,255,255,.95)" : "rgba(255,255,255,.45)"};transition:width var(--dur-base) var(--ease-fluid),background var(--dur-base) var(--ease-fluid);"></button>`).join("")}</div>`
+    : "";
+  return `<div class="g-ad" data-ad style="position:relative;height:${height}px;border-radius:var(--radius-2xl);overflow:hidden;border:0.5px solid var(--glass-border);box-shadow:var(--glass-shadow-raised);color:#fff;isolation:isolate;">
+    <div class="anim-drift" style="position:absolute;inset:0;background:${tone};background-size:240% 240%;animation:${gradAnim};"></div>
     <span aria-hidden="true" style="position:absolute;inset:0;background:var(--droplet-sheen);"></span>
-    <span style="position:relative;font-size:12px;font-weight:700;letter-spacing:1.5px;opacity:.9;">${esc(s.eyebrow)}</span>
-    <h3 style="position:relative;margin:6px 0 4px;font-family:var(--font-display);font-size:30px;font-weight:800;">${esc(s.title)}</h3>
-    <p style="position:relative;margin:0;font-size:15px;opacity:.92;max-width:70%;">${esc(s.subtitle)}</p></div>`;
+    <span aria-hidden="true" style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.42),rgba(0,0,0,0) 60%);"></span>
+    <div class="${animate ? "anim-pop-in" : ""}" style="position:relative;z-index:1;height:100%;display:flex;flex-direction:column;justify-content:center;gap:10px;padding:0 clamp(24px,5%,56px);max-width:620px;">
+      ${s.eyebrow ? `<span style="font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;opacity:.85;">${esc(s.eyebrow)}</span>` : ""}
+      <span style="font-family:var(--font-display);font-size:clamp(28px,4vw,44px);font-weight:800;line-height:1.04;letter-spacing:-0.8px;">${esc(s.title)}</span>
+      ${s.subtitle ? `<span style="font-size:16px;opacity:.92;max-width:440px;">${esc(s.subtitle)}</span>` : ""}
+      ${s.cta ? `<div style="margin-top:6px;">${Button({ label: s.cta, variant: "glass", size: "lg", act: "noop" })}</div>` : ""}
+    </div>
+    ${pills}
+  </div>`;
 }
 
 // ===== 狀態層（移植自設計 DCLogic；setState 改為直接重畫）=====
@@ -116,6 +131,13 @@ const App = {
   finishOrder() { this.setState({ overlay: null, cart: {} }); },
   exitStandby() { this.setState({ standby: false }); },
   toggleReview() { this.setState((s) => ({ reviewOpen: !s.reviewOpen })); },
+
+  // 廣告切換：只換 [data-ad] 元素（不整頁 render），animate=true 觸發 pop-in 過場
+  showAd(k) {
+    this.state.adIndex = k;
+    const el = document.querySelector("[data-ad]");
+    if (el) el.outerHTML = AdBanner({ slides: this.ads(), index: k, height: 240, animate: true });
+  },
 
   setView(v) {
     if (v === "filled") this.setState({ cart: { bingcha: 2, guagua: 1 }, overlay: null, standby: false });
@@ -422,24 +444,22 @@ function bindEvents(root) {
       case "exitStandby": App.exitStandby(); break;
       case "toggleReview": App.toggleReview(); break;
       case "setView": App.setView(t.dataset.view); App.setState({ reviewOpen: false }); break;
+      case "adGoto": App.showAd(parseInt(t.dataset.idx, 10)); restartAdTimer(); break;
       // "stop" / "noop" / 其他：no-op（"stop" 讓 sheet 內點擊不冒泡到 overlay 的 close）
     }
   };
 }
 
-// 廣告輪播：只在初次掛載啟動一次（不再於每輪 render 重設），index 存於 App.state.adIndex
-// → 點餐互動觸發的整頁 render 不會重置倒數；每輪 render 的 AdBanner 用 v.adIndex 保持連續。
-let _adStarted = false;
-function startAdAutoplay() {
-  if (_adStarted) return;
+// 廣告輪播：start-once（不在 render() 重設倒數，否則點餐互動會一直把倒數歸零——反思
+// adbanner-timer-reset）。每次切換換 [data-ad] outerHTML（animate 觸發 glaze-pop-in 過場）；
+// 手動點 pill（adGoto）則重啟倒數，避免剛點完馬上又自動跳。
+const AD_INTERVAL = 5000;
+let _adTimer = null;
+function restartAdTimer() {
   const ads = App.ads();
   if (!ads || ads.length < 2) return;
-  _adStarted = true;
-  setInterval(() => {
-    App.state.adIndex = (App.state.adIndex + 1) % ads.length;
-    const el = document.querySelector("[data-ad]");
-    if (el) el.outerHTML = AdBanner({ slides: ads, index: App.state.adIndex, height: 240 });
-  }, 5000);
+  if (_adTimer) clearInterval(_adTimer);
+  _adTimer = setInterval(() => App.showAd((App.state.adIndex + 1) % ads.length), AD_INTERVAL);
 }
 
-document.addEventListener("DOMContentLoaded", () => { App.render(); startAdAutoplay(); });
+document.addEventListener("DOMContentLoaded", () => { App.render(); restartAdTimer(); });
