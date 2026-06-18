@@ -358,7 +358,7 @@ function CartRail(v) {
     </div>`;
   const body = v.hasItems
     ? `<div>
-        <div style="display:flex;flex-direction:column;max-height:44vh;overflow:auto;margin:10px 0 0;border-top:0.5px solid var(--separator);">
+        <div style="display:flex;flex-direction:column;max-height:44vh;overflow:hidden auto;margin:10px 0 0;border-top:0.5px solid var(--separator);">
           ${v.cartRows.map(line).join("")}
         </div>
         <div style="display:flex;align-items:baseline;justify-content:space-between;padding:16px 2px 18px;">
