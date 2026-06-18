@@ -24,10 +24,11 @@ body {
   inset: -10%;                /* 比 viewport 大一圈：drift 位移後仍蓋滿，不露出邊緣黑邊（垂直分界線） */
   pointer-events: none;
   z-index: 0;
+  /* 位置已補償 inset:-10% 的外擴（中心 = (視窗位置+10)/1.2），讓霓虹光暈回到視窗內原位、且更明顯 */
   background:
-    radial-gradient(48% 38% at 12% 8%, oklch(0.62 0.18 300 / 0.26), transparent 70%),
-    radial-gradient(46% 40% at 92% 16%, oklch(0.72 0.16 28 / 0.22), transparent 72%),
-    radial-gradient(60% 50% at 70% 100%, oklch(0.70 0.13 200 / 0.20), transparent 72%);
+    radial-gradient(46% 36% at 18% 15%, oklch(0.62 0.18 300 / 0.34), transparent 70%),
+    radial-gradient(44% 38% at 85% 22%, oklch(0.72 0.16 28 / 0.30), transparent 72%),
+    radial-gradient(56% 46% at 67% 92%, oklch(0.70 0.13 200 / 0.28), transparent 72%);
   animation: glaze-bg-drift 24s var(--ease-standard) infinite;
 }
 
