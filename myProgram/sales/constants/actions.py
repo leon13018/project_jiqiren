@@ -19,7 +19,7 @@ __all__ = [
 ]
 
 # L1 hawk entry — 揮手向潛在顧客打招呼（廠商原生動作）
-ACTION_L1_HAWK: str = "wave_hand"
+ACTION_L1_HAWK: str = "wave_hand_01"
 
 # L2 dialog entry（cart 空，首次點餐） — 使用者自訂 .d6a
 ACTION_L2: str = "L2"
@@ -37,4 +37,4 @@ ACTION_L3_CHECKOUT_GO: str = "point_screen"
 ACTION_L4_PAY: str = "bow"
 
 # L5 致謝離場 — 揮手送客（廠商原生動作，與 L1 同動作名但語境不同）
-ACTION_L5_FAREWELL: str = "wave_hand"
+ACTION_L5_FAREWELL: str = "wave_hand_01"
