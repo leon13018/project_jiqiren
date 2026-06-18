@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glaze 元件驗證</title>
+<link rel="stylesheet" href="tokens/fonts.css">
+<link rel="stylesheet" href="tokens/colors.css">
+<link rel="stylesheet" href="tokens/typography.css">
+<link rel="stylesheet" href="tokens/spacing.css">
+<link rel="stylesheet" href="tokens/effects.css">
+<link rel="stylesheet" href="tokens/motion.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<link rel="stylesheet" href="app.css">
+<style>
+  body { background: var(--bg-base); color: var(--text-primary); font-family: var(--font-text); padding: 40px; }
+  .row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+</style>
+</head>
+<body>
+  <h2 class="t-title2" style="font-family:var(--font-display)">Glaze 元件驗證</h2>
+  <div id="probe"></div>
+  <script src="app.js"></script>
+  <script>
+    document.getElementById("probe").innerHTML = `
+      <div class="row">
+        ${Button({ label: "加入購物車", icon: "ph-bold ph-plus", variant: "primary", act: "noop" })}
+        ${Button({ label: "結帳 · NT$234", icon: "ph-bold ph-qr-code", variant: "primary", act: "noop" })}
+        ${Button({ label: "完成", variant: "glass", act: "noop" })}
+        ${IconButton({ icon: "ph ph-x", label: "關閉", act: "noop" })}
+        ${Badge("3")}
+      </div>
+      <div class="row">${QuantityStepper({ id: "x", value: 2, size: "lg" })}${QuantityStepper({ id: "y", value: 1, size: "sm" })}</div>
+      <div style="max-width:560px">${AdBanner({ slides: [
+        { eyebrow: "限時優惠", title: "冰紅茶　全面 9 折", subtitle: "透心涼，現場掃碼即享優惠價。", cta: "立即點購", tone: "var(--fluid-warm)" }
+      ] })}</div>`;
+  </script>
+</body>
+</html>
