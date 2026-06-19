@@ -1,4 +1,5 @@
 """tests/stt 共用 fakes — 零真網路、零真音訊（Windows 紅線）。"""
+import queue
 import threading
 import time
 
@@ -20,10 +21,15 @@ class FakeAudioSource:
 
 
 class FakeWs:
-    """recv() 依序回傳 messages；耗盡後阻塞直到 close()（模擬等伺服器）。"""
+    """Queue 化：recv() 阻塞至有訊息或 close()；feed() 動態餵 server 訊息；
+    sent 收所有 send（bytes 音框 + str control 如 KeepAlive/Finalize/CloseStream）。"""
+
+    _SENTINEL = object()
 
     def __init__(self, messages=()):
-        self._messages = list(messages)
+        self._q = queue.Queue()
+        for m in messages:
+            self._q.put(m)
         self._closed = threading.Event()
         self.sent = []
 
@@ -32,14 +38,19 @@ class FakeWs:
             raise RuntimeError("ws closed")
         self.sent.append(data)
 
+    def feed(self, message) -> None:
+        """動態加一筆 server 訊息（多輪 / 收音窗外測試用）。"""
+        self._q.put(message)
+
     def recv(self):
-        if self._messages:
-            return self._messages.pop(0)
-        self._closed.wait()
-        raise RuntimeError("ws closed")
+        item = self._q.get()
+        if item is FakeWs._SENTINEL:
+            raise RuntimeError("ws closed")
+        return item
 
     def close(self) -> None:
         self._closed.set()
+        self._q.put(FakeWs._SENTINEL)
 
 
 def wait_until(predicate, timeout: float = 2.0) -> bool:
