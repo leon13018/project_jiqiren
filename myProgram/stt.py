@@ -276,7 +276,9 @@ class SttWorker:
         send_stop.set()
         audio.close()
         sender.join(timeout=1.0)
-        if ws is not None:
+        # 僅 sender 已收（未卡在 ws.send 持 _send_lock）才送 Finalize；join 逾時仍 alive
+        # → 跳過，避免搶 _send_lock 掛死 disarm（連線此時多半已異常，送不送意義不大）。
+        if ws is not None and not sender.is_alive():
             try:
                 with self._send_lock:
                     ws.send(_FINALIZE_MSG)  # 沖 pending 音訊，乾淨收尾

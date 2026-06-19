@@ -1,5 +1,6 @@
 """SttWorker 生命週期 / 事件處理測試（全 fake，無網路無音訊）。"""
 import json
+import threading
 import time
 
 from tests.stt.conftest import FakeAudioSource, FakeWs, wait_until
@@ -345,4 +346,31 @@ def test_malformed_message_does_not_kill_connection():
     ws.feed(_results("正確", speech_final=True))        # 正常訊息
     assert wait_until(lambda: calls == ["正確"])        # 壞訊息被略過、loop 存活、正常訊息照注入
     assert worker._ws is not None                       # 連線未被壞訊息殺掉
+    worker.shutdown()
+
+
+def test_disarm_skips_finalize_when_sender_stuck():
+    """sender 卡死（join 逾時仍 alive）→ disarm 不送 Finalize、不掛死、~1s 內返回。"""
+    release = threading.Event()
+
+    class _BlockingAudio:
+        def __init__(self):
+            self.closed = False
+        def read(self, n):
+            release.wait(timeout=5.0)   # 卡住模擬 sender 不收（真實情境為卡在 ws.send）
+            return b""
+        def close(self):
+            self.closed = True
+
+    ws = FakeWs()
+    worker = SttWorker(sink=lambda t: None, api_key="test-key",
+                       ws_factory=lambda key: ws, audio_factory=_BlockingAudio)
+    worker.arm()
+    assert wait_until(lambda: worker._capturing)
+    start = time.monotonic()
+    worker.disarm()                                  # sender 卡在 read → join(1.0) 逾時
+    elapsed = time.monotonic() - start
+    assert elapsed < 2.0, f"disarm 不應掛死，實際 {elapsed:.2f}s"
+    assert not _control_sent(ws, "Finalize"), "sender 卡死時不應送 Finalize"
+    release.set()                                    # cleanup：放行 sender
     worker.shutdown()
