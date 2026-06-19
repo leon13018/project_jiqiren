@@ -374,3 +374,43 @@ def test_disarm_skips_finalize_when_sender_stuck():
     assert not _control_sent(ws, "Finalize"), "sender 卡死時不應送 Finalize"
     release.set()                                    # cleanup：放行 sender
     worker.shutdown()
+
+
+def test_prearm_connects_in_background():
+    """未連時 prearm 背景建線；隨後 arm 復用同一連線（ws_factory 仍 1 次）。"""
+    factory_calls = []
+    ws = FakeWs()
+    def factory(key):
+        factory_calls.append(key)
+        return ws
+    worker = SttWorker(sink=lambda t: None, api_key="test-key",
+                       ws_factory=factory, audio_factory=FakeAudioSource)
+    worker.prearm()
+    assert wait_until(lambda: worker._ws is not None)   # 背景已建線
+    worker.arm()                                        # 復用
+    worker.disarm()
+    assert factory_calls == ["test-key"]                # 只連一次
+    worker.shutdown()
+
+
+def test_prearm_noop_when_already_connected():
+    factory_calls = []
+    ws = FakeWs()
+    worker = SttWorker(sink=lambda t: None, api_key="test-key",
+                       ws_factory=lambda key: factory_calls.append(key) or ws,
+                       audio_factory=FakeAudioSource)
+    worker.arm()                                        # 已連
+    worker.prearm()                                     # no-op
+    worker.disarm()
+    assert factory_calls == ["test-key"]
+    worker.shutdown()
+
+
+def test_prearm_noop_without_key():
+    factory_calls = []
+    worker = SttWorker(sink=lambda t: None, api_key=None,
+                       ws_factory=lambda key: factory_calls.append(key),
+                       audio_factory=FakeAudioSource)
+    worker.prearm()
+    time.sleep(0.1)
+    assert factory_calls == []                          # 缺 key → 不建線

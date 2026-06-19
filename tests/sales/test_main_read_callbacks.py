@@ -94,6 +94,32 @@ def test_read_customer_input_calls_wait_idle_before_input_read(monkeypatch):
     )
 
 
+def _make_fake_stt_module(call_order):
+    fake = types.ModuleType("myProgram.stt")
+    fake.prearm = lambda: call_order.append("prearm")
+    fake.arm = lambda: call_order.append("arm")
+    fake.disarm = lambda: call_order.append("disarm")
+    return fake
+
+
+def _install_fake_stt(monkeypatch, fake):
+    monkeypatch.setitem(sys.modules, "myProgram.stt", fake)
+    monkeypatch.setattr(myProgram, "stt", fake, raising=False)
+
+
+def test_read_customer_input_calls_prearm_before_wait_idle(monkeypatch):
+    """prearm 必須在 wait_idle 之前 call（才能 overlap 提示音播放藏首輪握手）。"""
+    call_order = []
+    _install_fake_tts(monkeypatch, _make_fake_tts_module(call_order))
+    _install_fake_stt(monkeypatch, _make_fake_stt_module(call_order))
+    monkeypatch.setattr("myProgram.input_reader.read",
+                        lambda timeout: call_order.append("read") or "x")
+    callbacks = _build_callbacks(_S1State())
+    callbacks["read_customer_input"](timeout=6)
+    assert call_order.index("prearm") < call_order.index("wait_idle") < call_order.index("read")
+    assert "arm" in call_order and "disarm" in call_order
+
+
 def test_read_terminal_key_does_not_call_wait_idle(monkeypatch):
     """v3 regression：商家層 hawk polling 不應被 wait_idle 卡。
 

@@ -25,6 +25,7 @@ def wired(monkeypatch):
     fake_tts = types.SimpleNamespace(
         wait_idle=lambda max_wait=30.0: calls.append("wait_idle") or True)
     fake_stt = types.SimpleNamespace(
+        prearm=lambda: calls.append("prearm"),
         arm=lambda: calls.append("arm"),
         disarm=lambda: calls.append("disarm"))
     monkeypatch.setitem(sys.modules, "myProgram.tts", fake_tts)

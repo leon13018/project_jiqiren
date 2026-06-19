@@ -181,6 +181,14 @@ class SttWorker:
             self._capturing = True
             sender.start()
 
+    def prearm(self) -> None:
+        """非阻塞預連線：起 daemon thread 跑 _ensure_connected，讓首輪 540ms 握手藏進
+        提示音播放。快查任一成立即返（不起 thread）：已停用 / 收音中 / 缺 key / 已連。
+        _connect_lock 保證與 arm 不重複建線（後到者復用）。"""
+        if self._disabled or self._capturing or not self._api_key or self._ws is not None:
+            return
+        threading.Thread(target=self._ensure_connected, name="SttPrearm", daemon=True).start()
+
     def _connect_with_retry(self):
         """建線；非 401 失敗重試 1 次；401 → 永久停用（本次執行）。"""
         for attempt in (1, 2):
@@ -379,6 +387,11 @@ def _get_worker() -> SttWorker:
 def arm() -> None:
     """對外 API：開麥（read_customer_input 於 TTS 播完後呼叫）。"""
     _get_worker().arm()
+
+
+def prearm() -> None:
+    """對外 API：非阻塞預連線（read_customer_input 於 wait_idle 前呼叫，藏首輪握手）。"""
+    _get_worker().prearm()
 
 
 def disarm() -> None:
