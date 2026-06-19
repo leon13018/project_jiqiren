@@ -227,3 +227,22 @@ def test_timing_log_silent_when_env_unset(monkeypatch, capsys):
     assert wait_until(lambda: calls == ["好"])
     worker.disarm()
     assert "[計時]" not in capsys.readouterr().out
+
+
+def test_connect_timing_logged_when_env_set(monkeypatch, capsys):
+    monkeypatch.setenv("STT_TTS_TIMING", "1")
+    worker, ws, calls = _make_worker([])
+    worker.arm()
+    worker.disarm()
+    out = capsys.readouterr().out
+    assert "[計時]" in out and "開麥連線" in out
+
+
+def test_first_chunk_timing_logged_when_env_set(monkeypatch, capsys):
+    monkeypatch.setenv("STT_TTS_TIMING", "1")
+    worker, ws, calls = _make_worker([], chunks=[b"\x01\x02", b"\x03\x04"])
+    worker.arm()
+    assert wait_until(lambda: ws.sent == [b"\x01\x02", b"\x03\x04"])
+    worker.disarm()
+    out = capsys.readouterr().out
+    assert "[計時]" in out and "開麥→第一個音框" in out

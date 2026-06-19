@@ -109,9 +109,11 @@ class SttWorker:
                 print("[語音辨識] ⚠️ 未設定 DEEPGRAM_API_KEY，STT 停用（鍵盤輸入照常）")
                 self._disabled = True
                 return
+            _connect_t0 = time.monotonic()
             ws = self._connect_with_retry()
             if ws is None:
                 return  # 本輪放棄（已印原因）；下次 arm 再試或已永久停用
+            _timing(f"開麥連線 {(time.monotonic() - _connect_t0) * 1000:.0f}ms")
             audio = self._audio_factory()
             stop = threading.Event()
             receiver = threading.Thread(
@@ -142,11 +144,17 @@ class SttWorker:
 
     def _send_loop(self, ws, audio, stop) -> None:
         """audio.read → ws.send；EOF（disarm terminate / 裝置故障）或 stop 即止。"""
+        first = True
         try:
             while not stop.is_set():
                 chunk = audio.read(CHUNK_BYTES)
                 if not chunk:
                     break
+                if first:
+                    # 從 arm 記的 _armed_at 到第一個音框到達 ≈ arecord 冷啟動 + 首框
+                    # （CHUNK_BYTES=100ms）填充。隔離出「裝置開麥延遲」這段死時間。
+                    _timing(f"開麥→第一個音框 {time.monotonic() - self._armed_at:.2f}s（arecord 冷啟動＋首框填充）")
+                    first = False
                 ws.send(chunk)
         except Exception:
             pass  # ws 已關（disarm / 斷線）→ 靜默結束；對外回報由 receiver 負責
