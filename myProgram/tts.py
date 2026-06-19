@@ -320,11 +320,14 @@ class TtsWorker(QueueWorker):
             with self._lock:
                 self._proc = None
 
-        # 播放成功（returncode==0）：drain ALSA
-        # 給 ALSA buffer 完成尾巴音訊播放的時間，避免下一個 speak() 立刻啟動
-        # 新 mpg123 沖掉舊 buffer（症狀：「付款成功」尾巴被截）。失敗 path
-        # 不到這裡因 mpg123 沒真播完 = 無 buffer 殘留 = 不需 drain。
-        time.sleep(ALSA_DRAIN_SEC)
+        # 播放成功（returncode==0）：僅在 queue 還有下一句要播時 drain ALSA。
+        # drain 防的是「下一個 mpg123 開同一播放裝置沖掉舊 buffer 截尾」；worker 即將
+        # idle（_peek_next 為 None）→ 無下一個 mpg123 → 跳過 drain，省 turn boundary
+        # ~0.3s（playback→listen 轉場；喇叭=板載、麥=USB 不同裝置，arecord 開 capture
+        # 不會沖播放 buffer，尾巴自然播完）。連發句之間照舊 drain（防截尾，行為不變）。
+        # 失敗 path 不到這裡因 mpg123 沒真播完 = 無 buffer 殘留 = 不需 drain。
+        if self._peek_next() is not None:
+            time.sleep(ALSA_DRAIN_SEC)
 
     def wait_idle(self, max_wait: float = 30.0) -> bool:
         """阻塞至 _pending=0（worker FIFO 全跑完）或 max_wait 超時。

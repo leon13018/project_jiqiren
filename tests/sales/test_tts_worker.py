@@ -38,6 +38,8 @@ if "edge_tts" not in sys.modules:
     _fake_edge_tts.Communicate = _FakeCommunicate
     sys.modules["edge_tts"] = _fake_edge_tts
 
+from tests.stt.conftest import wait_until  # noqa: E402  跨模組 polling helper（既有）
+
 from myProgram import tts as tts_module  # noqa: E402
 from myProgram.tts import TtsWorker  # noqa: E402
 
@@ -496,3 +498,45 @@ def test_prewarm_texts_cover_fixed_and_variants():
     assert L4_A_PAY_SUCCESS_FAREWELL in texts
     assert QTY_PROMPT_TEMPLATE.format(product="冰紅茶", unit="瓶") in texts
     assert len(texts) == len(set(texts)), "清單不得重複"
+
+
+# ============================================================
+# 條件式 ALSA drain（turn boundary 提速）
+# ============================================================
+
+
+def test_drain_skipped_when_going_idle(monkeypatch):
+    """單句播完、queue 空（即將 idle）→ 不 drain（省 turn boundary ~0.3s）。"""
+    sleeps = []
+    monkeypatch.setattr(tts_module, "_synthesize", _fake_synth_noop)
+    monkeypatch.setattr(tts_module.subprocess, "Popen", lambda *a, **kw: _FakePopen(returncode=0))
+    monkeypatch.setattr(tts_module.time, "sleep", lambda s: sleeps.append(s))
+
+    worker = TtsWorker()
+    worker.say("只有一句")
+    assert worker.wait_idle(max_wait=5.0)
+    assert tts_module.ALSA_DRAIN_SEC not in sleeps, "idle 時不應 drain"
+
+
+def test_drain_kept_when_next_utterance_queued(monkeypatch):
+    """第一句播放期間第二句已排隊 → 第一句播完應 drain（防截尾，行為不變）。"""
+    sleeps = []
+    monkeypatch.setattr(tts_module, "_synthesize", _fake_synth_noop)
+    hang = threading.Event()  # 第一句 wait() 卡住，給時間 queue 第二句
+
+    popens = []
+    def make_popen(*a, **kw):
+        # 第一個 Popen hang 在 wait；其後立即 return
+        p = _FakePopen(returncode=0, wait_event=hang if not popens else None)
+        popens.append(p)
+        return p
+    monkeypatch.setattr(tts_module.subprocess, "Popen", make_popen)
+    monkeypatch.setattr(tts_module.time, "sleep", lambda s: sleeps.append(s))
+
+    worker = TtsWorker()
+    worker.say("第一句")
+    assert wait_until(lambda: len(popens) == 1)   # 第一句已進 wait()
+    worker.say("第二句")                          # 排隊（第一句 _peek_next 將見到它）
+    hang.set()                                    # 放行第一句 wait()
+    assert worker.wait_idle(max_wait=5.0)
+    assert tts_module.ALSA_DRAIN_SEC in sleeps, "有下一句時應 drain（防截尾）"
