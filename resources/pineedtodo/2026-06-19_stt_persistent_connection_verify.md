@@ -30,7 +30,7 @@
 ## 追加（2026-06-19 再後續：辨識 robustness，commit `802c646`）
 > 修「空定稿 → 整輪漏字」+ 減少拆句（spec `stt_recognition_robustness_2026-06-19`）。
 - [ ] **空定稿不再漏字**：之前 `Deepgram Results final=True ''`（空定稿）的輪，現在退用「最後非空 interim」→ 不再整輪漏字 / 莫名「不好意思我聽不太懂」。
-- [ ] **endpointing 預設 450**：中途小停頓不再被誤判「講完」而拆句；確認反應速度可接受（覺得慢 → `STT_ENDPOINTING_MS=350` 當場降，順的值告訴我我改預設）。
+- [ ] **endpointing 維持 300**（試調 450 已回歸——450 在背景音下害 Deepgram 等不到靜默、speech_final 永遠不發 → 整輪 timeout）。中途停頓拆句靠「一口氣講」+ 上面的 fallback 吸收。若仍偶發「講完零反應」→ 回報，需加 stable-interim 安全網（speech_final 不發時靠 interim 穩定偵測補發）。
 
 ## 備註（已知設計取捨）
 - hawk 待機期 keepalive 每 5s 持續送（無害，撐住連線）。
