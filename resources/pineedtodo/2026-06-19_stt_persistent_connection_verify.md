@@ -32,6 +32,14 @@
 - [ ] **空定稿不再漏字**：之前 `Deepgram Results final=True ''`（空定稿）的輪，現在退用「最後非空 interim」→ 不再整輪漏字 / 莫名「不好意思我聽不太懂」。
 - [ ] **endpointing 維持 300**（試調 450 已回歸——450 在背景音下害 Deepgram 等不到靜默、speech_final 永遠不發 → 整輪 timeout）。中途停頓拆句靠「一口氣講」+ 上面的 fallback 吸收。若仍偶發「講完零反應」→ 回報，需加 stable-interim 安全網（speech_final 不發時靠 interim 穩定偵測補發）。
 
+## 追加（2026-06-19 warm-arecord：修開頭裁頭，commits `8369fd2`→`370e0d0`）
+> 收音層搬 prearm（念提示音時就開麥暖機、sender discard 丟機器人音、arm 翻送出）；spec `stt_warm_arecord_2026-06-19`。**動到 working 收音層、已過雙 reviewer，務必 Pi 全流程驗收**。
+- [ ] **arm→首框送出趨近 0**：`[計時]` 出現 `arm→首框送出 0.0Xs（麥克風已暖）`（取代舊「開麥→第一個音框 0.14s」）= 暖機生效。
+- [ ] **搶快不裁頭**：提示音剛收尾就馬上講「紅茶三瓶刮刮樂五張」，開頭「紅茶」字頭**收得到、不被切**。
+- [ ] **無自我回授**：機器人提示音 / 尾音**不會**被當成顧客輸入冒出辨識。
+- [ ] **全流程無回歸**：點餐→結帳→付款→次客全通。
+- ⚠️ 若異常（漏首框 / 收到機器人音 / 卡住）→ 回報，可單獨 revert warm-arecord（現版 STT 為退路）。
+
 ## 備註（已知設計取捨）
 - hawk 待機期 keepalive 每 5s 持續送（無害，撐住連線）。
 - prearm 已實作（首輪握手藏進提示音）；shutdown 剛好撞首輪建線瞬間的殘留 daemon thread 屬已接受的極罕見邊界。
