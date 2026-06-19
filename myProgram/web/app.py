@@ -19,6 +19,14 @@ def _catalog() -> list:
             for n, d in PRODUCTS.items()]
 
 
+class _NoCacheStaticFiles(StaticFiles):
+    """靜態檔一律 no-cache —— 前端 app.js 更新後瀏覽器一般重整即拿新版（避免 demo 開發快取舊碼）。"""
+    async def get_response(self, path, scope):
+        resp = await super().get_response(path, scope)
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return resp
+
+
 def create_app(bus, on_input) -> FastAPI:
     app = FastAPI()
 
@@ -51,5 +59,5 @@ def create_app(bus, on_input) -> FastAPI:
             bus.remove_client(ws)
 
     # StaticFiles 掛 "/" 必須最後（greedy）；前面的 /api、/ws 路由先註冊先匹配
-    app.mount("/", StaticFiles(directory=str(_WEBUI_DIR), html=True), name="webui")
+    app.mount("/", _NoCacheStaticFiles(directory=str(_WEBUI_DIR), html=True), name="webui")
     return app

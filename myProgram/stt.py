@@ -213,7 +213,8 @@ def _default_audio_factory():
     device = os.environ.get("STT_ARECORD_DEVICE")
     if device:
         cmd[1:1] = ["-D", device]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.DEVNULL)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL)   # arecord 被 terminate 的 EINTR 臨終雜訊不上終端
     return _ArecordSource(proc)
 
 
