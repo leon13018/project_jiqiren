@@ -45,14 +45,24 @@ KEYTERMS = [
     "結帳", "取消", "繼續", "繼續選購", "幾瓶", "幾張",
 ]
 
-# Deepgram 串流端點（統領設計 §2.5 既定參數；Pi 首測若 handshake 400 → 改試
-# language=zh-Hant 並回寫 spec §2.3）。keyterm 在固定參數後 append（percent-encoded）。
-DEEPGRAM_URL = (
-    "wss://api.deepgram.com/v1/listen"
-    "?model=nova-3&language=zh-TW&encoding=linear16&sample_rate=16000"
-    "&channels=1&interim_results=true&endpointing=300&smart_format=false"
-    + "".join(f"&keyterm={quote(_kt)}" for _kt in KEYTERMS)
-)
+# endpointing 毫秒：env 旋鈕（未設 = 300，與原硬編逐字元相同）。Pi 設
+# STT_ENDPOINTING_MS=200 可 A/B「顧客講完 → speech_final」速度，不動碼。
+_ENDPOINTING_MS = int(os.environ.get("STT_ENDPOINTING_MS", "300"))
+
+
+def _build_deepgram_url(endpointing_ms: int) -> str:
+    """組 Deepgram 串流 URL；endpointing 由參數帶入，其餘參數固定。keyterm 在固定
+    參數後 append（percent-encoded）。統領設計 §2.5 既定參數；Pi 首測若 handshake
+    400 → 改試 language=zh-Hant 並回寫 spec §2.3。"""
+    return (
+        "wss://api.deepgram.com/v1/listen"
+        "?model=nova-3&language=zh-TW&encoding=linear16&sample_rate=16000"
+        f"&channels=1&interim_results=true&endpointing={endpointing_ms}&smart_format=false"
+        + "".join(f"&keyterm={quote(_kt)}" for _kt in KEYTERMS)
+    )
+
+
+DEEPGRAM_URL = _build_deepgram_url(_ENDPOINTING_MS)
 CHUNK_BYTES = 3200  # 100ms @ 16kHz 16-bit mono——粒度夠細不增 ws 訊息開銷
 
 

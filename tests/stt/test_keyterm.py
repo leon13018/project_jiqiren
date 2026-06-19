@@ -1,7 +1,7 @@
 """keyterm 詞表與 DEEPGRAM_URL 編碼測試（純模組常數，無網路無音訊）。"""
 from urllib.parse import quote
 
-from myProgram.stt import DEEPGRAM_URL, KEYTERMS
+from myProgram.stt import DEEPGRAM_URL, KEYTERMS, _build_deepgram_url
 
 
 def test_every_keyterm_percent_encoded_in_url():
@@ -34,3 +34,19 @@ def test_base_params_preserved():
     assert "model=nova-3" in DEEPGRAM_URL
     assert "language=zh-TW" in DEEPGRAM_URL
     assert "endpointing=300" in DEEPGRAM_URL
+
+
+def test_endpointing_default_300_in_built_url():
+    assert "endpointing=300" in _build_deepgram_url(300)
+
+
+def test_endpointing_override_reflected_in_built_url():
+    url = _build_deepgram_url(200)
+    assert "endpointing=200" in url
+    assert "endpointing=300" not in url
+
+
+def test_built_url_still_carries_keyterms_and_base_params():
+    url = _build_deepgram_url(250)
+    assert "model=nova-3" in url and "language=zh-TW" in url
+    assert "keyterm=" in url  # keyterm append 未被破壞
