@@ -478,7 +478,7 @@ def test_warm_capture_discards_then_sends_after_arm():
     worker.prearm()
     assert wait_until(lambda: worker._audio is audio and worker._ws is not None)
     audio.feed(b"\x01\x02")                       # 暖機期 → 丟棄
-    import time as _t; _t.sleep(0.1)
+    assert wait_until(lambda: audio._q.empty())   # sender 已讀走該框（discard 模式）= 真同步屏障
     assert ws.sent == [], "暖機期音訊不應送出"
     worker.arm()                                  # capturing=True
     audio.feed(b"\x03\x04")                       # → 送出
