@@ -120,6 +120,70 @@ def test_read_customer_input_calls_prearm_before_wait_idle(monkeypatch):
     assert "arm" in call_order and "disarm" in call_order
 
 
+def test_read_customer_input_mic_open_delay_sleeps_between_wait_idle_and_arm(monkeypatch):
+    """STT_MIC_OPEN_DELAY_MS 旋鈕生效：開麥延遲落在 wait_idle 與 arm 之間。
+
+    旋鈕 > 0 時，read_customer_input 在 tts.wait_idle()（等喇叭播完）之後、
+    stt.arm()（開 arecord）之前 sleep 該秒數，讓喇叭 ALSA 尾音排空，避免
+    arecord 把機器人尾音收進去黏吞顧客軟起音首字。
+
+    斷言鎖定「開麥延遲那次 sleep」：fake input_reader.read 第一次即回 "x" 讓
+    _tick_countdown 立即 break、不進倒數 sleep，故 mic-open delay 是唯一一次
+    time.sleep。驗 sleep 以 0.3 被呼叫，且呼叫序為 wait_idle → sleep → arm。
+    """
+    call_order = []
+    _install_fake_tts(monkeypatch, _make_fake_tts_module(call_order))
+    _install_fake_stt(monkeypatch, _make_fake_stt_module(call_order))
+    monkeypatch.setattr("myProgram.input_reader.read",
+                        lambda timeout: call_order.append("read") or "x")
+    monkeypatch.setattr("myProgram.main._MIC_OPEN_DELAY_SEC", 0.3)
+
+    sleep_calls = []
+
+    def fake_sleep(seconds):
+        sleep_calls.append(seconds)
+        call_order.append("sleep")
+
+    monkeypatch.setattr("myProgram.main.time.sleep", fake_sleep)
+
+    callbacks = _build_callbacks(_S1State())
+    callbacks["read_customer_input"](timeout=6)
+
+    assert sleep_calls == [0.3], (
+        f"開麥延遲應以 0.3 呼叫一次 time.sleep，實際：{sleep_calls}"
+    )
+    assert (
+        call_order.index("wait_idle")
+        < call_order.index("sleep")
+        < call_order.index("arm")
+    ), f"序列應 wait_idle → sleep → arm，實際：{call_order}"
+
+
+def test_read_customer_input_default_no_mic_open_delay(monkeypatch):
+    """預設 0：開麥前不插入延遲 sleep，wait_idle 後直接 arm（不改行為）。"""
+    call_order = []
+    _install_fake_tts(monkeypatch, _make_fake_tts_module(call_order))
+    _install_fake_stt(monkeypatch, _make_fake_stt_module(call_order))
+    monkeypatch.setattr("myProgram.input_reader.read",
+                        lambda timeout: call_order.append("read") or "x")
+    monkeypatch.setattr("myProgram.main._MIC_OPEN_DELAY_SEC", 0.0)
+
+    def fake_sleep(seconds):
+        call_order.append("sleep")
+
+    monkeypatch.setattr("myProgram.main.time.sleep", fake_sleep)
+
+    callbacks = _build_callbacks(_S1State())
+    callbacks["read_customer_input"](timeout=6)
+
+    assert "sleep" not in call_order, (
+        f"預設 0 不應插入開麥延遲 sleep，實際：{call_order}"
+    )
+    assert call_order.index("wait_idle") < call_order.index("arm"), (
+        f"wait_idle 後應直接 arm，實際：{call_order}"
+    )
+
+
 def test_read_terminal_key_does_not_call_wait_idle(monkeypatch):
     """v3 regression：商家層 hawk polling 不應被 wait_idle 卡。
 

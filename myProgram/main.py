@@ -20,12 +20,17 @@ vendor import 或 worker thread 啟動。
 """
 
 import math
+import os
 import sys
 import time
 
 from myProgram.sales import logic
 from myProgram.sales.constants import OPENCV_DWELL
 from myProgram.sales.nlu import normalize_input
+
+# 開麥延遲（env 旋鈕）：wait_idle 後、arm 前等這麼久讓喇叭 ALSA 尾音排空，
+# 避免 arecord 把機器人尾音收進去、黏吞顧客軟起音首字。預設 0 = 不改行為。
+_MIC_OPEN_DELAY_SEC = int(os.environ.get("STT_MIC_OPEN_DELAY_MS", "0")) / 1000.0
 
 
 class _S1State:
@@ -154,6 +159,8 @@ class TerminalSim:
         # 耗盡回 None。
         # STT Phase 1：TTS 播完才開麥（arm 冪等；缺 key 自動停用走純鍵盤）。
         # finally 保證三條路徑（拿到輸入 / timeout / 'q' sys.exit）皆收麥。
+        if _MIC_OPEN_DELAY_SEC > 0:
+            time.sleep(_MIC_OPEN_DELAY_SEC)
         stt.arm()
         try:
             if timeout is None or timeout <= 0:
