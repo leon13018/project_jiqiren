@@ -33,7 +33,7 @@ def test_base_params_preserved():
     # keyterm 是 append，既有參數不得被破壞
     assert "model=nova-3" in DEEPGRAM_URL
     assert "language=zh-TW" in DEEPGRAM_URL
-    assert "endpointing=450" in DEEPGRAM_URL
+    assert "endpointing=300" in DEEPGRAM_URL
 
 
 def test_endpointing_default_300_in_built_url():

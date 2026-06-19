@@ -52,9 +52,10 @@ KEYTERMS = [
     "結帳", "取消", "繼續", "繼續選購", "幾瓶", "幾張",
 ]
 
-# endpointing 毫秒：env 旋鈕（未設 = 450，減少中途小停頓被誤判「講完」而拆句 / 空定稿）。Pi 設
+# endpointing 毫秒：env 旋鈕（未設 = 300，實測會穩定發 speech_final）。450 實測在背景音下
+# 害 Deepgram 等不到足夠靜默、speech_final 永遠不發 → 整輪 timeout，故回歸 300。Pi 設
 # STT_ENDPOINTING_MS=350 可 A/B「顧客講完 → speech_final」速度，不動碼。
-_ENDPOINTING_MS = int(os.environ.get("STT_ENDPOINTING_MS", "450"))
+_ENDPOINTING_MS = int(os.environ.get("STT_ENDPOINTING_MS", "300"))
 
 
 def _build_deepgram_url(endpointing_ms: int) -> str:
