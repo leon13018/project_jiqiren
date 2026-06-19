@@ -314,14 +314,15 @@ def test_keepalive_sent_when_idle(monkeypatch):
     worker.shutdown()
 
 
-def test_finalize_sent_on_disarm():
-    """disarm 送 Finalize 沖尾巴。"""
+def test_finalize_not_sent_on_disarm():
+    """disarm 不送 Finalize：逐輪 mid-stream Finalize 會破壞 Deepgram 對後續 utterance
+    的 finalization（speech_final 空白、辨識整輪漏掉）。改靠 endpointing 自然 finalize。"""
     ws = FakeWs()
     worker = SttWorker(sink=lambda t: None, api_key="test-key",
                        ws_factory=lambda key: ws, audio_factory=FakeAudioSource)
     worker.arm()
     worker.disarm()
-    assert _control_sent(ws, "Finalize")
+    assert not _control_sent(ws, "Finalize")
     worker.shutdown()
 
 
@@ -350,7 +351,8 @@ def test_malformed_message_does_not_kill_connection():
 
 
 def test_disarm_skips_finalize_when_sender_stuck():
-    """sender 卡死（join 逾時仍 alive）→ disarm 不送 Finalize、不掛死、~1s 內返回。"""
+    """sender 卡死（join 逾時仍 alive）→ disarm 仍 ~1s 內返回不掛死、且不送 Finalize
+    （已移除逐輪 Finalize；卡死的 sender 不影響 disarm 收尾）。"""
     release = threading.Event()
 
     class _BlockingAudio:
