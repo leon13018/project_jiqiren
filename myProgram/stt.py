@@ -73,21 +73,19 @@ def _build_deepgram_url(endpointing_ms: int) -> str:
 DEEPGRAM_URL = _build_deepgram_url(_ENDPOINTING_MS)
 CHUNK_BYTES = 3200  # 100ms @ 16kHz 16-bit mono——粒度夠細不增 ws 訊息開銷
 
-_KEEPALIVE_INTERVAL: float = 5.0  # 秒；< Deepgram 10s idle timeout（NET-0001）。測試可 monkeypatch 縮短
-_KEEPALIVE_MSG = json.dumps({"type": "KeepAlive"})
 _CLOSE_MSG = json.dumps({"type": "CloseStream"})
 
 
 class SttWorker:
-    """Deepgram 串流 worker：整場共用一條持久連線（連線層常駐），每輪只開關 arecord（收音層）。
+    """Deepgram 串流 worker：每輪新連線（disarm 收線、下輪 prearm/arm 重連），每輪一併開關 arecord（收音層）。
 
     Thread model：
-        - 連線層（整場常駐）：_ws（持久連線）+ SttReceiver（ws.recv→閘門→sink）
-          + SttKeepAlive（idle 時送 KeepAlive 撐住）。lazy 於首次 arm 建線，死則下次
-          arm 重連，shutdown 收掉。
+        - 連線層（每輪 arm/disarm）：_ws（每輪新連線）+ SttReceiver（ws.recv→閘門→sink）。
+          lazy 於 prearm/arm 建線，死則下次 arm 重連，disarm 收掉（CloseStream + 關 ws + 收 receiver）。
+          連線只活一輪（<12s，期間音訊撐住，無需 keepalive）——棄持久連線修「用久累積辨識 lag」。
         - 收音層（每輪 arm/disarm）：arecord（_audio）+ SttSender（audio.read→ws.send）。
         - _capturing 閘門：receiver 只在收音窗注入，擋上一輪殘響 / Finalize 回覆漏入下一輪。
-        - _send_lock 序列化所有 ws.send（音框 / keepalive / finalize / close）——websockets
+        - _send_lock 序列化所有 ws.send（音框 / finalize / close）——websockets
           sync client 並發 send 非 thread-safe。
 
     注入 seams（Windows pytest 全 fake）：sink / audio_factory / ws_factory（同前）。
@@ -101,11 +99,10 @@ class SttWorker:
         self._lock = threading.Lock()        # 保護連線層狀態 + capturing 切換
         self._send_lock = threading.Lock()   # 序列化所有 ws.send
         self._connect_lock = threading.Lock()  # 序列化建線（prearm 背景 vs arm 主線程），不與 _lock 同時持有
-        # 連線層（整場常駐）
-        self._ws = None                      # 持久連線，或 None（未連 / 已死）
-        self._conn_stop = None               # Event：停 receiver + keepalive（shutdown）
+        # 連線層（每輪）
+        self._ws = None                      # 本輪連線，或 None（未連 / 已死 / 已收）
+        self._conn_stop = None               # Event：停 receiver（disarm / shutdown）
         self._receiver = None
-        self._keepalive = None
         # 收音層（每輪）
         self._audio = None
         self._sender = None
@@ -121,9 +118,9 @@ class SttWorker:
             return self._capturing
 
     def _ensure_connected(self) -> bool:
-        """確保持久連線存在：已連則復用（True）。未連則**鎖外**建線（阻塞網路 IO 不持
-        _lock，避免凍結 disarm/shutdown）+ 鎖內寫狀態 + 起常駐 receiver/keepalive（含
-        「開麥連線」計時）。連線失敗回 False。_connect_lock 序列化 prearm/arm 並發建線。"""
+        """確保本輪連線存在：已連則復用（True）。未連則**鎖外**建線（阻塞網路 IO 不持
+        _lock，避免凍結 disarm/shutdown）+ 鎖內寫狀態 + 起 receiver（含「開麥連線」計時）。
+        連線失敗回 False。_connect_lock 序列化 prearm/arm 並發建線。"""
         with self._lock:
             if self._ws is not None:
                 return True
@@ -141,16 +138,11 @@ class SttWorker:
             receiver = threading.Thread(
                 target=self._receive_loop, args=(ws, conn_stop),
                 name="SttReceiver", daemon=True)
-            keepalive = threading.Thread(
-                target=self._keepalive_loop, args=(ws, conn_stop),
-                name="SttKeepAlive", daemon=True)
             with self._lock:
                 self._ws = ws
                 self._conn_stop = conn_stop
                 self._receiver = receiver
-                self._keepalive = keepalive
             receiver.start()
-            keepalive.start()
             return True
 
     def arm(self) -> None:
@@ -227,7 +219,7 @@ class SttWorker:
         """常駐：ws.recv → JSON → speech_final（**僅 _capturing 才注入**）。speech_final
         空白時退用本句最後非空 interim（修 Deepgram 偶發空定稿整輪漏字）。
         雙層 try：外層只包 ws.recv（連線層——recv 失敗=連線死→退出重連）；內層包單訊息
-        處理（json/格式異常→印警示後 continue，**持久連線存活**）。退出時若非 shutdown
+        處理（json/格式異常→印警示後 continue，**本輪連線存活**）。退出時若非 disarm/shutdown
         觸發 → 印警示並標記 _ws 死亡（下次 arm 重連）。"""
         try:
             while not conn_stop.is_set():
@@ -262,7 +254,7 @@ class SttWorker:
                             _timing(f"開麥後 {time.monotonic() - self._armed_at:.2f}s 出辨識結果")
                             self._sink(text)
                 except Exception as e:
-                    # 單訊息處理失敗（格式不合 / json 壞）→ 略過該則，持久連線存活
+                    # 單訊息處理失敗（格式不合 / json 壞）→ 略過該則，本輪連線存活
                     print(f"[語音辨識] ⚠️ 跳過異常訊息（{type(e).__name__}）")
         except Exception as e:
             if not conn_stop.is_set():
@@ -272,50 +264,16 @@ class SttWorker:
                 if self._ws is ws:
                     self._ws = None  # 標記死亡 → 下次 arm 重連
 
-    def _keepalive_loop(self, ws, conn_stop) -> None:
-        """常駐：idle（_capturing=False）時每 _KEEPALIVE_INTERVAL 秒送 KeepAlive 撐住
-        連線（Deepgram 10s 無音訊/keepalive 即關 NET-0001）。conn_stop 設或 send 失敗即止。"""
-        while not conn_stop.wait(_KEEPALIVE_INTERVAL):
-            if self._capturing:
-                continue  # 收音中音訊自然撐住，不送
-            try:
-                with self._send_lock:
-                    ws.send(_KEEPALIVE_MSG)
-            except Exception:
-                break  # ws 死 → 退出；receiver 標記 _ws=None
-
-    def disarm(self) -> None:
-        """冪等收麥：停收音層（sender + arecord）；不送 Finalize、**連線不關**
-        （keepalive 撐住，下輪直接開麥）。"""
-        with self._lock:
-            if not self._capturing:
-                return
-            self._capturing = False
-            audio = self._audio
-            send_stop = self._send_stop
-            sender = self._sender
-            self._audio = None
-            self._send_stop = None
-            self._sender = None
-        send_stop.set()
-        audio.close()
-        sender.join(timeout=1.0)
-        # 不送 Finalize：逐輪 mid-stream Finalize 會破壞 Deepgram 對後續 utterance 的
-        # finalization（症狀：speech_final 空白、辨識整輪漏掉；Pi 2026-06-19 診斷鐵證）。
-        # 改靠 endpointing 自然 finalize（像首輪那樣 final 帶文字）+ _capturing 閘門擋跨輪殘響。
-
-    def shutdown(self) -> None:
-        """程式退出：收收音層 + 送 CloseStream + 關連線 + 收常駐 thread。"""
-        self.disarm()
+    def _close_connection(self) -> None:
+        """收本輪連線：送 CloseStream + 關 ws + 收 receiver thread。冪等（無連線 no-op）。
+        鎖內抓 ref + 清欄位，鎖外做 send/close/join（不在鎖內 block）。"""
         with self._lock:
             ws = self._ws
             conn_stop = self._conn_stop
             receiver = self._receiver
-            keepalive = self._keepalive
             self._ws = None
             self._conn_stop = None
             self._receiver = None
-            self._keepalive = None
         if conn_stop is not None:
             conn_stop.set()
         if ws is not None:
@@ -328,11 +286,36 @@ class SttWorker:
                 ws.close()
             except Exception:
                 pass
-        for th in (receiver, keepalive):
-            # is_alive 守衛：receiver-start race 下 shutdown 可能搶在 _ensure_connected
-            # 存 ref 與 start() 之間，未 start 的 thread join 會拋 RuntimeError → 跳過。
-            if th is not None and th.is_alive():
-                th.join(timeout=1.0)
+        # is_alive 守衛：receiver-start race 下 close 可能搶在 _ensure_connected 存 ref
+        # 與 start() 之間，未 start 的 thread join 會拋 RuntimeError → 跳過。
+        if receiver is not None and receiver.is_alive():
+            receiver.join(timeout=1.0)
+
+    def disarm(self) -> None:
+        """冪等收麥：停收音層（capturing 才停 sender + arecord）→ 無條件收線
+        （每輪新連線：disarm 即收，下輪 prearm/arm 重連；涵蓋 prearm 已連未 arm）。
+        不送 Finalize（靠 endpointing 自然 finalize）。"""
+        with self._lock:
+            capturing = self._capturing
+            self._capturing = False
+            audio = self._audio
+            send_stop = self._send_stop
+            sender = self._sender
+            self._audio = None
+            self._send_stop = None
+            self._sender = None
+        if capturing:
+            send_stop.set()
+            audio.close()
+            sender.join(timeout=1.0)
+            # 不送 Finalize：逐輪 mid-stream Finalize 會破壞 Deepgram 對後續 utterance 的
+            # finalization（症狀：speech_final 空白、辨識整輪漏掉；Pi 2026-06-19 診斷鐵證）。
+            # 改靠 endpointing 自然 finalize（像首輪那樣 final 帶文字）+ _capturing 閘門擋跨輪殘響。
+        self._close_connection()  # 無條件收線（含 prearm 已連但未 arm）
+
+    def shutdown(self) -> None:
+        """程式退出：等同 disarm（收收音層 + 送 CloseStream + 關連線 + 收 receiver）。"""
+        self.disarm()
 
 
 def _is_auth_error(e: Exception) -> bool:

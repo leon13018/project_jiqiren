@@ -112,7 +112,7 @@ def test_disarm_closes_audio_and_allows_rearm():
     assert audios[0].closed            # arecord 已 terminate
     worker.disarm()                    # 冪等：重複 disarm no-op
     worker.arm()                       # re-arm 起全新 session
-    assert worker.is_armed() and len(wss) == 1 and len(audios) == 2   # ws 復用、arecord 每輪重開
+    assert worker.is_armed() and len(wss) == 2 and len(audios) == 2   # 每輪新連線、arecord 每輪重開
     worker.shutdown()
 
 
@@ -258,33 +258,34 @@ def test_first_chunk_timing_logged_when_env_set(monkeypatch, capsys):
     assert "[計時]" in out and "開麥→第一個音框" in out
 
 
-def test_connection_reused_across_arm_disarm():
-    """連兩輪 arm/disarm → ws_factory 只被呼叫 1 次（整場共用一條連線）。"""
+def test_reconnects_per_turn():
+    """每輪新連線：arm→disarm→arm → ws_factory 被呼叫 2 次（disarm 收線、下輪重連）。"""
     factory_calls = []
-    ws = FakeWs()
     def factory(key):
         factory_calls.append(key)
-        return ws
+        return FakeWs()
     worker = SttWorker(sink=lambda t: None, api_key="test-key",
                        ws_factory=factory, audio_factory=FakeAudioSource)
-    worker.arm(); worker.disarm()
-    worker.arm(); worker.disarm()
-    assert factory_calls == ["test-key"]
+    worker.arm(); worker.disarm()      # 第一輪：連線 → 收線
+    worker.arm()                       # 第二輪：重連（不復用上一輪連線）
+    assert factory_calls == ["test-key", "test-key"]
     worker.shutdown()
 
 
 def test_speech_final_not_injected_when_not_capturing():
-    """收音窗外（disarm 後）到達的 speech_final 不注入；再 arm 才注入。"""
+    """_capturing 閘門：收音窗外（capturing=False，receiver 仍活）到達的 speech_final
+    不注入；capturing 回 True 才注入。每輪新連線下 disarm 即收線，故直接撥 _capturing
+    旗號模擬「receiver 活、capturing 已翻」的窗（disarm 收線前的 trailing 訊息）。"""
     calls = []
     ws = FakeWs()
     worker = SttWorker(sink=calls.append, api_key="test-key",
                        ws_factory=lambda key: ws, audio_factory=FakeAudioSource)
-    worker.arm()
-    worker.disarm()                                   # capturing=False，連線/receiver 仍在
-    ws.feed(_results("殘響", speech_final=True))       # 非收音窗
+    worker.arm()                                      # 連線 + receiver 起、capturing=True
+    worker._capturing = False                         # 模擬收音窗外（receiver 仍活）
+    ws.feed(_results("殘響", speech_final=True))       # 非收音窗 → 閘門擋住
     time.sleep(0.1)                                   # 給 receiver 處理
     assert calls == []                                # 閘門擋住
-    worker.arm()                                      # 收音窗
+    worker._capturing = True                          # 回收音窗
     ws.feed(_results("正確", speech_final=True))
     assert wait_until(lambda: calls == ["正確"])
     worker.shutdown()
@@ -313,15 +314,17 @@ def _control_sent(ws, name):
     return any(isinstance(s, str) and name in s for s in ws.sent)
 
 
-def test_keepalive_sent_when_idle(monkeypatch):
-    """disarm 後（capturing=False）keepalive thread 送 KeepAlive 撐住連線。"""
-    monkeypatch.setattr(stt_mod, "_KEEPALIVE_INTERVAL", 0.02)
+def test_disarm_closes_connection():
+    """每輪收線：arm→disarm → CloseStream 送出、_ws 歸 None、receiver thread 收掉。"""
     ws = FakeWs()
     worker = SttWorker(sink=lambda t: None, api_key="test-key",
                        ws_factory=lambda key: ws, audio_factory=FakeAudioSource)
     worker.arm()
+    receiver = worker._receiver                       # disarm 前抓 ref（disarm 會清空欄位）
     worker.disarm()
-    assert wait_until(lambda: _control_sent(ws, "KeepAlive"))
+    assert _control_sent(ws, "CloseStream")           # 優雅關閉
+    assert worker._ws is None                          # 連線收掉
+    assert receiver is not None and not receiver.is_alive()  # receiver thread 已 join
     worker.shutdown()
 
 
@@ -437,7 +440,6 @@ def test_shutdown_does_not_join_unstarted_thread():
                        ws_factory=lambda key: FakeWs(), audio_factory=FakeAudioSource)
     # 手動重現 race 窗：thread 物件已存但尚未 start
     worker._receiver = threading.Thread(target=lambda: None)
-    worker._keepalive = threading.Thread(target=lambda: None)
     worker._ws = FakeWs()
     worker._conn_stop = threading.Event()
     worker.shutdown()  # 未 start thread → 不應 RuntimeError: cannot join thread before it is started
