@@ -52,9 +52,9 @@ KEYTERMS = [
     "結帳", "取消", "繼續", "繼續選購", "幾瓶", "幾張",
 ]
 
-# endpointing 毫秒：env 旋鈕（未設 = 300，與原硬編逐字元相同）。Pi 設
-# STT_ENDPOINTING_MS=200 可 A/B「顧客講完 → speech_final」速度，不動碼。
-_ENDPOINTING_MS = int(os.environ.get("STT_ENDPOINTING_MS", "300"))
+# endpointing 毫秒：env 旋鈕（未設 = 450，減少中途小停頓被誤判「講完」而拆句 / 空定稿）。Pi 設
+# STT_ENDPOINTING_MS=350 可 A/B「顧客講完 → speech_final」速度，不動碼。
+_ENDPOINTING_MS = int(os.environ.get("STT_ENDPOINTING_MS", "450"))
 
 
 def _build_deepgram_url(endpointing_ms: int) -> str:
@@ -112,6 +112,7 @@ class SttWorker:
         # 其他
         self._capturing = False
         self._armed_at = 0.0                 # arm 時記 monotonic（計時 log 用）
+        self._last_nonempty = ""             # 本句最後非空 transcript（空 speech_final 的 fallback）
         self._disabled = False               # 缺 key / 401 → 本次執行停用（鍵盤照常）
 
     def is_armed(self) -> bool:
@@ -222,7 +223,8 @@ class SttWorker:
             pass  # ws 已關 / 死 → 靜默結束；receiver 負責標記死亡
 
     def _receive_loop(self, ws, conn_stop) -> None:
-        """常駐：ws.recv → JSON → speech_final（**僅 _capturing 才注入**）。
+        """常駐：ws.recv → JSON → speech_final（**僅 _capturing 才注入**）。speech_final
+        空白時退用本句最後非空 interim（修 Deepgram 偶發空定稿整輪漏字）。
         雙層 try：外層只包 ws.recv（連線層——recv 失敗=連線死→退出重連）；內層包單訊息
         處理（json/格式異常→印警示後 continue，**持久連線存活**）。退出時若非 shutdown
         觸發 → 印警示並標記 _ws 死亡（下次 arm 重連）。"""
@@ -233,26 +235,31 @@ class SttWorker:
                     if isinstance(msg, bytes):
                         continue  # Deepgram Results 皆 text frame；防禦略過
                     data = json.loads(msg)
-                    # 殭屍診斷埋點（env-gated）：印每則 Deepgram 訊息（含 interim）——
-                    # 殭屍輪有 interim 文字 = Deepgram 聽得到（(B) arecord 嫌疑）；
-                    # 完全無訊息 = 連線真殭屍（(A)）。_timing 自帶閘門，未設零輸出。
                     _typ = data.get("type")
-                    if _typ == "Results":
-                        _alts = data.get("channel", {}).get("alternatives", [])
-                        _txt = _alts[0].get("transcript", "") if _alts else ""
-                        _timing(f"Deepgram Results final={data.get('speech_final')} cap={self._capturing} '{_txt}'")
-                    elif _typ:
-                        _timing(f"Deepgram {_typ}")
-                    if data.get("type") != "Results" or not data.get("speech_final"):
+                    if _typ != "Results":
+                        if _typ:
+                            _timing(f"Deepgram {_typ}")
                         continue
-                    if not self._capturing:
-                        continue  # 閘門：收音窗外（上一輪殘響 / Finalize 回覆）丟棄
+                    speech_final = data.get("speech_final")
                     alts = data.get("channel", {}).get("alternatives", [])
-                    text = _normalize_transcript(alts[0].get("transcript", "")) if alts else ""
-                    if text:
-                        print(f"[語音辨識] {text}")
-                        _timing(f"開麥後 {time.monotonic() - self._armed_at:.2f}s 出辨識結果")
-                        self._sink(text)
+                    seg = alts[0].get("transcript", "") if alts else ""
+                    # 診斷埋點（env-gated）：印每則 Results（含 interim）。殭屍輪有 interim
+                    # 文字 = Deepgram 聽得到（(B) arecord 嫌疑）；完全無訊息 = 連線真殭屍（(A)）。
+                    _timing(f"Deepgram Results final={speech_final} cap={self._capturing} '{seg}'")
+                    if not self._capturing:
+                        self._last_nonempty = ""   # 跨輪 / 收音窗外：清追蹤，不洩漏到下一輪
+                        continue
+                    if seg:
+                        self._last_nonempty = seg  # 追蹤最後非空（interim 會 refine 到最佳）
+                    if speech_final:
+                        # 空白 speech_final（Deepgram 偶發定稿空、文字在 interim）→ 退用最後非空
+                        best = seg or self._last_nonempty
+                        self._last_nonempty = ""   # utterance 邊界 reset
+                        text = _normalize_transcript(best)
+                        if text:
+                            print(f"[語音辨識] {text}")
+                            _timing(f"開麥後 {time.monotonic() - self._armed_at:.2f}s 出辨識結果")
+                            self._sink(text)
                 except Exception as e:
                     # 單訊息處理失敗（格式不合 / json 壞）→ 略過該則，持久連線存活
                     print(f"[語音辨識] ⚠️ 跳過異常訊息（{type(e).__name__}）")

@@ -51,6 +51,17 @@ def test_speech_final_injected_normalized():
     worker.shutdown()
 
 
+def test_empty_speech_final_falls_back_to_last_interim():
+    """空白 speech_final（Deepgram 偶發定稿空、文字在 interim）→ 退用本句最後非空
+    interim，不再整輪漏字。"""
+    worker, ws, calls = _make_worker([])
+    worker.arm()                                          # 進收音窗（capturing=True）
+    ws.feed(_results("紅茶三瓶刮刮樂五張", speech_final=False))  # interim 帶文字
+    ws.feed(_results("", speech_final=True))              # 空白定稿 → 退用上面的 interim
+    assert wait_until(lambda: calls == ["紅茶三瓶刮刮樂五張"])
+    worker.shutdown()
+
+
 def test_interim_empty_and_nonresults_not_injected():
     worker, ws, calls = _make_worker([])
     worker.arm()                                       # 先進收音窗（capturing=True）
