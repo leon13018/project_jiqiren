@@ -27,6 +27,11 @@
 - [ ] **斷網重連仍穩**：中途斷網 → 下輪重連、不卡死（A2 建線移出鎖 → 即使建線逾時也不凍 disarm/q 退出）。
 - [ ]（選測，極端）若曾遇機器人「按 q 退不掉 / disarm 卡住」→ 現已加 join 逾時跳 Finalize 守衛，應不再掛死。
 
+## 追加（2026-06-19 再後續：辨識 robustness，commit `802c646`）
+> 修「空定稿 → 整輪漏字」+ 減少拆句（spec `stt_recognition_robustness_2026-06-19`）。
+- [ ] **空定稿不再漏字**：之前 `Deepgram Results final=True ''`（空定稿）的輪，現在退用「最後非空 interim」→ 不再整輪漏字 / 莫名「不好意思我聽不太懂」。
+- [ ] **endpointing 預設 450**：中途小停頓不再被誤判「講完」而拆句；確認反應速度可接受（覺得慢 → `STT_ENDPOINTING_MS=350` 當場降，順的值告訴我我改預設）。
+
 ## 備註（已知設計取捨）
 - hawk 待機期 keepalive 每 5s 持續送（無害，撐住連線）。
 - prearm 已實作（首輪握手藏進提示音）；shutdown 剛好撞首輪建線瞬間的殘留 daemon thread 屬已接受的極罕見邊界。
