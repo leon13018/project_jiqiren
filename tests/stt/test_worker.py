@@ -332,3 +332,17 @@ def test_closestream_sent_on_shutdown():
     worker.arm()
     worker.shutdown()
     assert _control_sent(ws, "CloseStream")
+
+
+def test_malformed_message_does_not_kill_connection():
+    """單則壞訊息（非 JSON）→ receiver 略過該則、連線存活；隨後正常 speech_final 仍注入。"""
+    calls = []
+    ws = FakeWs()
+    worker = SttWorker(sink=calls.append, api_key="test-key",
+                       ws_factory=lambda key: ws, audio_factory=FakeAudioSource)
+    worker.arm()
+    ws.feed("這不是 JSON{{{")                          # 壞訊息：json.loads 會炸
+    ws.feed(_results("正確", speech_final=True))        # 正常訊息
+    assert wait_until(lambda: calls == ["正確"])        # 壞訊息被略過、loop 存活、正常訊息照注入
+    assert worker._ws is not None                       # 連線未被壞訊息殺掉
+    worker.shutdown()

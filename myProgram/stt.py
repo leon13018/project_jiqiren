@@ -201,24 +201,30 @@ class SttWorker:
             pass  # ws 已關 / 死 → 靜默結束；receiver 負責標記死亡
 
     def _receive_loop(self, ws, conn_stop) -> None:
-        """常駐：ws.recv → JSON → speech_final（**僅 _capturing 才注入**）。退出時若非
-        shutdown 觸發 → 印警示並標記 _ws 死亡（下次 arm 重連）。"""
+        """常駐：ws.recv → JSON → speech_final（**僅 _capturing 才注入**）。
+        雙層 try：外層只包 ws.recv（連線層——recv 失敗=連線死→退出重連）；內層包單訊息
+        處理（json/格式異常→印警示後 continue，**持久連線存活**）。退出時若非 shutdown
+        觸發 → 印警示並標記 _ws 死亡（下次 arm 重連）。"""
         try:
             while not conn_stop.is_set():
                 msg = ws.recv()
-                if isinstance(msg, bytes):
-                    continue  # Deepgram Results 皆 text frame；防禦略過
-                data = json.loads(msg)
-                if data.get("type") != "Results" or not data.get("speech_final"):
-                    continue
-                if not self._capturing:
-                    continue  # 閘門：收音窗外（上一輪殘響 / Finalize 回覆）丟棄
-                alts = data.get("channel", {}).get("alternatives", [])
-                text = _normalize_transcript(alts[0].get("transcript", "")) if alts else ""
-                if text:
-                    print(f"[語音辨識] {text}")
-                    _timing(f"開麥後 {time.monotonic() - self._armed_at:.2f}s 出辨識結果")
-                    self._sink(text)
+                try:
+                    if isinstance(msg, bytes):
+                        continue  # Deepgram Results 皆 text frame；防禦略過
+                    data = json.loads(msg)
+                    if data.get("type") != "Results" or not data.get("speech_final"):
+                        continue
+                    if not self._capturing:
+                        continue  # 閘門：收音窗外（上一輪殘響 / Finalize 回覆）丟棄
+                    alts = data.get("channel", {}).get("alternatives", [])
+                    text = _normalize_transcript(alts[0].get("transcript", "")) if alts else ""
+                    if text:
+                        print(f"[語音辨識] {text}")
+                        _timing(f"開麥後 {time.monotonic() - self._armed_at:.2f}s 出辨識結果")
+                        self._sink(text)
+                except Exception as e:
+                    # 單訊息處理失敗（格式不合 / json 壞）→ 略過該則，持久連線存活
+                    print(f"[語音辨識] ⚠️ 跳過異常訊息（{type(e).__name__}）")
         except Exception as e:
             if not conn_stop.is_set():
                 print(f"[語音辨識] ⚠️ 串流中斷（{type(e).__name__}），下次開麥重連")
