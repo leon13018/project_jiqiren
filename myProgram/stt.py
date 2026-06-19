@@ -155,9 +155,8 @@ class SttWorker:
 
     def arm(self) -> None:
         """冪等開麥：已 capturing / 已停用 no-op；缺 key 印一次警告後停用。
-        建線在鎖外（不持 _lock，避免凍結 disarm/shutdown）。capturing 先翻 True 再
-        _warm_capture：prearm 已暖則 sender 直接翻送出（no-op fallback）；否則現開
-        arecord + sender（capturing 已 True → 首框即送，無漏首框 race）。"""
+        建線在鎖外（不持 _lock，避免凍結 disarm/shutdown）；首輪建線、之後只 spawn
+        arecord + sender（若 prearm 已建線則直接復用）。"""
         with self._lock:
             if self._disabled or self._capturing:
                 return
@@ -171,35 +170,25 @@ class SttWorker:
         with self._lock:
             if self._capturing:
                 return  # 防禦：理論上單 caller 不發生
-            self._armed_at = time.monotonic()
-            self._capturing = True                 # sender 翻送出（先設，再 warm → 無漏首框 race）
-        self._warm_capture()                       # 冪等：prearm 已暖則 no-op；否則現開（capturing 已 True → 直接送）
-
-    def _warm_capture(self) -> None:
-        """冪等開麥暖機：_audio 為 None 才開 arecord + 起 sender（discard/send 由
-        _capturing 控制）。單一 caller thread（主線程 prearm/arm），_audio 等於 _lock 內寫。"""
-        with self._lock:
-            if self._audio is not None:
-                return
             audio = self._audio_factory()
             send_stop = threading.Event()
             sender = threading.Thread(
-                target=self._send_loop, args=(audio, send_stop),
+                target=self._send_loop, args=(self._ws, audio, send_stop),
                 name="SttSender", daemon=True)
             self._audio = audio
             self._send_stop = send_stop
             self._sender = sender
-        sender.start()
+            self._armed_at = time.monotonic()
+            self._capturing = True
+            sender.start()
 
     def prearm(self) -> None:
-        """非阻塞預開麥 + 預連線：念提示音時就開 arecord 暖機（sender discard 模式讀+丟，
-        麥克風保持熱、pipe 排空）+ 背景建線。arm 後 sender 翻送出 → 無冷啟動裁頭。
-        快查任一成立即返：已停用 / 收音中 / 缺 key。"""
-        if self._disabled or self._capturing or not self._api_key:
+        """非阻塞預連線：起 daemon thread 跑 _ensure_connected，讓首輪 540ms 握手藏進
+        提示音播放。快查任一成立即返（不起 thread）：已停用 / 收音中 / 缺 key / 已連。
+        _connect_lock 保證與 arm 不重複建線（後到者復用）。"""
+        if self._disabled or self._capturing or not self._api_key or self._ws is not None:
             return
-        self._warm_capture()                       # 開麥暖機（capturing=False → 丟棄）
-        if self._ws is None:
-            threading.Thread(target=self._ensure_connected, name="SttPrearm", daemon=True).start()
+        threading.Thread(target=self._ensure_connected, name="SttPrearm", daemon=True).start()
 
     def _connect_with_retry(self):
         """建線；非 401 失敗重試 1 次；401 → 永久停用（本次執行）。"""
@@ -216,24 +205,19 @@ class SttWorker:
                 print(f"[語音辨識] ⚠️ 連線失敗（{type(e).__name__}: {e!r}），本輪改用鍵盤")
                 return None
 
-    def _send_loop(self, audio, send_stop) -> None:
-        """讀 arecord：capturing=False（暖機/收音窗外）讀+丟（保持 pipe 排空、麥克風熱）；
-        capturing=True 送 self._ws（經 _send_lock）。暖機讓 arm 後首框即時送、無冷啟動裁頭。
-        EOF（disarm terminate / 裝置故障）或 send_stop 即止。"""
-        first_sent = True
+    def _send_loop(self, ws, audio, send_stop) -> None:
+        """audio.read → ws.send（經 _send_lock）；EOF（disarm terminate / 裝置故障）或
+        send_stop 即止。首框到達印「開麥→第一個音框」計時。"""
+        first = True
         try:
             while not send_stop.is_set():
                 chunk = audio.read(CHUNK_BYTES)
                 if not chunk:
                     break
-                if not self._capturing:
-                    continue  # 丟棄模式：讀+丟（機器人提示音不送 Deepgram，無自我回授）
-                ws = self._ws
-                if ws is None:
-                    continue  # capturing 但連線未就緒（罕見）→ 丟
-                if first_sent:
-                    _timing(f"arm→首框送出 {time.monotonic() - self._armed_at:.2f}s（麥克風已暖，應趨近 0）")
-                    first_sent = False
+                if first:
+                    # arm 記的 _armed_at 到第一個音框 ≈ arecord 冷啟動 + 首框填充
+                    _timing(f"開麥→第一個音框 {time.monotonic() - self._armed_at:.2f}s（arecord 冷啟動＋首框填充）")
+                    first = False
                 with self._send_lock:
                     ws.send(chunk)
         except Exception:
@@ -302,10 +286,9 @@ class SttWorker:
 
     def disarm(self) -> None:
         """冪等收麥：停收音層（sender + arecord）；不送 Finalize、**連線不關**
-        （keepalive 撐住，下輪直接開麥）。判定用 _audio（涵蓋 prearm 暖機但未 arm
-        也要收 sender）。"""
+        （keepalive 撐住，下輪直接開麥）。"""
         with self._lock:
-            if self._audio is None:
+            if not self._capturing:
                 return
             self._capturing = False
             audio = self._audio
