@@ -17,7 +17,7 @@
 - `tts_prewarm.py` — TTS 預熱腳本（固定文案一次合成進 tts_cache；Pi 端 `python3.11 -m myProgram.tts_prewarm`）。
 - `action.py` — 機器人動作組 worker（呼叫 vendor SDK 播動作；繼承 `QueueWorker`）。
 - `input_reader.py` — 非阻塞鍵盤輸入 worker（producer，不繼承 QueueWorker；`inject` 供 STT 注入共用單 queue）。
-- `stt.py` — 語音辨識 worker（Deepgram Nova-3 串流，websockets 同步 client；producer 形狀無常駐 thread，`arm`/`disarm` session 生命週期；arecord 音源；speech_final 文字注入 input queue；stt_p1）。
+- `stt.py` — 語音辨識 worker（Deepgram Nova-3 串流，websockets 同步 client；**整場共用一條持久連線＋常駐 receiver/keepalive thread**，每輪只 `arm`/`disarm` arecord 收音層、`_capturing` 閘門 + `_send_lock` 序列化、死則下次 arm 重連；arecord 音源；speech_final 文字注入 input queue；stt_p1 + 持久連線重構）。
 - `__init__.py` — 套件標記。
 - `__main__.py` — `python -m myProgram` 進入點。
 - `CLAUDE.md` — 本層導引。
