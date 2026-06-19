@@ -88,11 +88,14 @@ function AdBanner({ slides, index = 0, height = 240 }) {
 // morph 動畫：藍長鈕「縮短到中心 → 分裂成兩灰圓圈」，反向相反（CSS keyframes，ghost 疊在真控制項上）。
 function ActionArea(row) {
   if (App._live) {
-    // live：本地預選數量 stepper（inc/dec 改 pending，不動 cart）+ 加入鈕（送 order）。
-    // 無 morph 動畫（demo 限定）；購物車真實數量由右側欄鏡像。
-    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-      ${QuantityStepper({ id: row.id, value: row.pending, size: "lg" })}
-      ${Button({ label: "加入購物車", icon: "ph-bold ph-plus", variant: "primary", size: "lg", act: "add", data: { id: row.id } })}
+    // live：剩餘數量標籤 + 本地預選數量 stepper（inc/dec 改 pending，不動 cart）+ 加入鈕（送 order）。
+    // 無 morph 動畫（demo 限定）；購物車真實數量由右側欄鏡像。剩餘標籤沿用 demo rest 字級/色。
+    return `<div style="display:flex;flex-direction:column;gap:8px;">
+      <span style="font-size:13px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;white-space:nowrap;">${esc(row.remainingLabel)}</span>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        ${QuantityStepper({ id: row.id, value: row.pending, size: "lg" })}
+        ${Button({ label: "加入購物車", icon: "ph-bold ph-plus", variant: "primary", size: "lg", act: "add", data: { id: row.id } })}
+      </div>
     </div>`;
   }
   const id = esc(row.id);
