@@ -198,6 +198,12 @@ const App = {
       this._ws.send(JSON.stringify(cmd));
     }
   },
+
+  // 斷線 → 立即回待機歡迎畫面（不凍結卡當前頁）；重連後 applyState(機器人狀態) 自動接手恢復 phase。
+  resetToWelcome() {
+    this._awaitingConfirm = false;                      // 清掉「確認金額」本地 affordance（若斷在結帳兩拍中途）
+    this.setState({ standby: true, overlay: null });    // setState 內 render() → 顯示 Standby() 歡迎畫面
+  },
   pendingQty(id) { return this._pending[id] || 1; },
   setPending(id, n) {
     this._pending[id] = Math.max(1, Math.min(MAX_QTY, n));
@@ -675,9 +681,10 @@ async function connectLive() {
     const ws = new WebSocket(`ws://${location.host}/ws/state`);
     App._ws = ws;   // Phase 2：sendCommand 上行用（onclose 清，斷線後 sendCommand no-op）
     ws.onmessage = (e) => { App.applyState(JSON.parse(e.data)); App.render(); };
-    ws.onclose = () => { App._ws = null; showReconnecting(); setTimeout(connectLive, nextBackoff()); };
+    ws.onclose = () => { App._ws = null; App.resetToWelcome(); showReconnecting(); setTimeout(connectLive, nextBackoff()); };
     ws.onerror = () => ws.close();   // 觸發 onclose 走統一重連路徑
   } catch (_) {
+    App.resetToWelcome();                     // 初次連不上也先顯示歡迎畫面，不卡空白頁
     showReconnecting();
     setTimeout(connectLive, nextBackoff());   // /api/state 失敗（server 還沒起）→ 退避重試
   }
