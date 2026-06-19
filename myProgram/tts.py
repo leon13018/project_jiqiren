@@ -117,6 +117,13 @@ def _print_failure(stage: str, detail_lines: list) -> None:
     print(f"[語音] 此字略過，繼續下一字")
 
 
+def _timing(msg: str) -> None:
+    """STT_TTS_TIMING 設了才印計時行（量測用，預設靜默；可隨時移除）。
+    與 stt.py 同名 helper 各自內聯——兩模組無共享依賴，2 行不抽 util（YAGNI）。"""
+    if os.environ.get("STT_TTS_TIMING"):
+        print(f"[語音][計時] {msg}")
+
+
 class TtsWorker(QueueWorker):
     """同步 TTS daemon worker：FIFO queue + lock-protected current Popen。
 
@@ -215,20 +222,26 @@ class TtsWorker(QueueWorker):
         """
         # 階段 1：取得 mp3——prefetch 標記 → 內容定址快取 → 現場合成（三層 fallback）
         cache_path = _cache_path_for(text)
+        _synth_ms = 0.0  # 計時 log 用；僅現場合成分支量測（prefetch / cache 命中為 0）
         if self._prefetched is not None and self._prefetched[0] == text:
+            source = "prefetch"
             mp3_path = self._prefetched[1]
             self._prefetched = None
         elif os.path.exists(cache_path):
             # perf_w5：快取命中——零合成零網路（固定文案預熱後 demo 斷網也能播）
+            source = "cache"
             self._prefetched = None
             mp3_path = cache_path
         else:
+            source = "synth"
             # 防禦：FIFO 單消費者下 prefetch 內容必等於下一句，mismatch 理論不可達；
             # 若出現（未來改動引入）丟棄重合成即可，行為仍正確
             self._prefetched = None
             tmp_path = cache_path + ".tmp"
             try:
+                _synth_t0 = time.monotonic()
                 self._loop_obj.run_until_complete(_synthesize(text, tmp_path))
+                _synth_ms = (time.monotonic() - _synth_t0) * 1000
             except Exception as e:
                 # edge_tts 可能 raise NoAudioReceived / WebSocketException / asyncio 相關錯
                 # 不確定具體類型 → 統一 catch Exception，但訊息要詳細
@@ -283,7 +296,9 @@ class TtsWorker(QueueWorker):
                         # 屆時才走既有 noisy 失敗 path——避免同一句印兩次失敗訊息
             # 等播完（不持 lock — shutdown 可在此期間 terminate）。terminate
             # 觸發時 wait 返回非 0 returncode（Linux 上 SIGTERM 是 -15）。
+            _play_t0 = time.monotonic()
             returncode = self._proc.wait()
+            _play_ms = (time.monotonic() - _play_t0) * 1000
             if returncode != 0:
                 # check=True 等效手寫：模擬 subprocess.CalledProcessError 行為。
                 # 走 except 分支印 noisy 訊息（shutdown 觸發的 SIGTERM 也會走這
@@ -326,8 +341,12 @@ class TtsWorker(QueueWorker):
         # ~0.3s（playback→listen 轉場；喇叭=板載、麥=USB 不同裝置，arecord 開 capture
         # 不會沖播放 buffer，尾巴自然播完）。連發句之間照舊 drain（防截尾，行為不變）。
         # 失敗 path 不到這裡因 mpg123 沒真播完 = 無 buffer 殘留 = 不需 drain。
-        if self._peek_next() is not None:
+        drained = self._peek_next() is not None
+        if drained:
             time.sleep(ALSA_DRAIN_SEC)
+        _timing(f"{text!r} 來源={source} play={_play_ms:.0f}ms"
+                + (f" synth={_synth_ms:.0f}ms" if source == "synth" else "")
+                + f" drain={'on' if drained else 'off'}")
 
     def wait_idle(self, max_wait: float = 30.0) -> bool:
         """阻塞至 _pending=0（worker FIFO 全跑完）或 max_wait 超時。

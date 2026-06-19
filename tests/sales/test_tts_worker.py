@@ -540,3 +540,27 @@ def test_drain_kept_when_next_utterance_queued(monkeypatch):
     hang.set()                                    # 放行第一句 wait()
     assert worker.wait_idle(max_wait=5.0)
     assert tts_module.ALSA_DRAIN_SEC in sleeps, "有下一句時應 drain（防截尾）"
+
+
+# ============================================================
+# 選用式計時 log（STT_TTS_TIMING env-gated）
+# ============================================================
+
+
+def test_tts_timing_log_emitted_when_env_set(monkeypatch, capsys):
+    monkeypatch.setenv("STT_TTS_TIMING", "1")
+    _make_fast_fakes(monkeypatch)
+    worker = TtsWorker()
+    worker.say("計時測試句")
+    assert worker.wait_idle(max_wait=5.0)
+    out = capsys.readouterr().out
+    assert "[計時]" in out and "play=" in out
+
+
+def test_tts_timing_log_silent_when_env_unset(monkeypatch, capsys):
+    monkeypatch.delenv("STT_TTS_TIMING", raising=False)
+    _make_fast_fakes(monkeypatch)
+    worker = TtsWorker()
+    worker.say("計時測試句")
+    assert worker.wait_idle(max_wait=5.0)
+    assert "[計時]" not in capsys.readouterr().out
