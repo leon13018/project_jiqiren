@@ -100,6 +100,7 @@ class SttWorker:
         self._ws_factory = ws_factory or _default_ws_factory
         self._lock = threading.Lock()        # 保護連線層狀態 + capturing 切換
         self._send_lock = threading.Lock()   # 序列化所有 ws.send
+        self._connect_lock = threading.Lock()  # 序列化建線（prearm 背景 vs arm 主線程），不與 _lock 同時持有
         # 連線層（整場常駐）
         self._ws = None                      # 持久連線，或 None（未連 / 已死）
         self._conn_stop = None               # Event：停 receiver + keepalive（shutdown）
@@ -119,33 +120,42 @@ class SttWorker:
             return self._capturing
 
     def _ensure_connected(self) -> bool:
-        """確保持久連線存在：已連則復用（True）；未連則建線 + 起常駐 receiver/keepalive
-        （含「開麥連線」計時）。連線失敗回 False。呼叫者（arm）持 _lock。"""
-        if self._ws is not None:
+        """確保持久連線存在：已連則復用（True）。未連則**鎖外**建線（阻塞網路 IO 不持
+        _lock，避免凍結 disarm/shutdown）+ 鎖內寫狀態 + 起常駐 receiver/keepalive（含
+        「開麥連線」計時）。連線失敗回 False。_connect_lock 序列化 prearm/arm 並發建線。"""
+        with self._lock:
+            if self._ws is not None:
+                return True
+        with self._connect_lock:
+            with self._lock:
+                if self._ws is not None:
+                    return True  # 等鎖期間 prearm/另一 arm 已建好 → 復用
+            # 鎖外建線（_lock 已釋放）——阻塞 IO 不凍結 disarm/shutdown
+            _connect_t0 = time.monotonic()
+            ws = self._connect_with_retry()
+            if ws is None:
+                return False
+            _timing(f"開麥連線 {(time.monotonic() - _connect_t0) * 1000:.0f}ms")
+            conn_stop = threading.Event()
+            receiver = threading.Thread(
+                target=self._receive_loop, args=(ws, conn_stop),
+                name="SttReceiver", daemon=True)
+            keepalive = threading.Thread(
+                target=self._keepalive_loop, args=(ws, conn_stop),
+                name="SttKeepAlive", daemon=True)
+            with self._lock:
+                self._ws = ws
+                self._conn_stop = conn_stop
+                self._receiver = receiver
+                self._keepalive = keepalive
+            receiver.start()
+            keepalive.start()
             return True
-        _connect_t0 = time.monotonic()
-        ws = self._connect_with_retry()
-        if ws is None:
-            return False
-        _timing(f"開麥連線 {(time.monotonic() - _connect_t0) * 1000:.0f}ms")
-        conn_stop = threading.Event()
-        receiver = threading.Thread(
-            target=self._receive_loop, args=(ws, conn_stop),
-            name="SttReceiver", daemon=True)
-        keepalive = threading.Thread(
-            target=self._keepalive_loop, args=(ws, conn_stop),
-            name="SttKeepAlive", daemon=True)
-        self._ws = ws
-        self._conn_stop = conn_stop
-        self._receiver = receiver
-        self._keepalive = keepalive
-        receiver.start()
-        keepalive.start()
-        return True
 
     def arm(self) -> None:
         """冪等開麥：已 capturing / 已停用 no-op；缺 key 印一次警告後停用。
-        首輪建線（580ms），之後只 spawn arecord + sender（~140ms）。"""
+        建線在鎖外（不持 _lock，避免凍結 disarm/shutdown）；首輪建線、之後只 spawn
+        arecord + sender（若 prearm 已建線則直接復用）。"""
         with self._lock:
             if self._disabled or self._capturing:
                 return
@@ -153,8 +163,12 @@ class SttWorker:
                 print("[語音辨識] ⚠️ 未設定 DEEPGRAM_API_KEY，STT 停用（鍵盤輸入照常）")
                 self._disabled = True
                 return
-            if not self._ensure_connected():
-                return  # 連線失敗（已印原因）；本輪走鍵盤
+        # 連線在鎖外（_ensure_connected 內自持 _connect_lock；失敗已印原因）
+        if not self._ensure_connected():
+            return  # 本輪走鍵盤
+        with self._lock:
+            if self._capturing:
+                return  # 防禦：理論上單 caller 不發生
             audio = self._audio_factory()
             send_stop = threading.Event()
             sender = threading.Thread(
