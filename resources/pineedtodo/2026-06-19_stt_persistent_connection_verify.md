@@ -20,6 +20,13 @@
 - 「五張」開頭裁切問題是否解決（體感）。
 - 若撞 Deepgram session 上限（長時間後連線莫名斷且不重連）→ 回報，改 per-conversation（回 hawk 即關、新客重連）。
 
+## 追加（2026-06-19 後續：hardening + prearm，commits `f6b3c3f`→`d69e61f`）
+> 修 3 個併發 freeze-risk + prearm 首連線（spec/plan `stt_conn_harden_prearm_2026-06-19`）。
+- [ ] **prearm 藏首輪握手**：`STT_TTS_TIMING=1` 跑 → **第一輪也看不到開頭裁切感**（540ms 握手藏進 L2 提示音播放；「開麥連線」log 可能在提示音播放期間就印出、而非播完才印）。
+- [ ] **正常多輪無回歸**：辨識、結帳收尾、付款全鏈路與之前一致（hardening 不改行為）。
+- [ ] **斷網重連仍穩**：中途斷網 → 下輪重連、不卡死（A2 建線移出鎖 → 即使建線逾時也不凍 disarm/q 退出）。
+- [ ]（選測，極端）若曾遇機器人「按 q 退不掉 / disarm 卡住」→ 現已加 join 逾時跳 Finalize 守衛，應不再掛死。
+
 ## 備註（已知設計取捨）
-- **第一輪仍付 ~580ms 握手**（lazy 首連）；要連第一輪都即時需 prearm（暫不做，YAGNI）。
 - hawk 待機期 keepalive 每 5s 持續送（無害，撐住連線）。
+- prearm 已實作（首輪握手藏進提示音）；shutdown 剛好撞首輪建線瞬間的殘留 daemon thread 屬已接受的極罕見邊界。
