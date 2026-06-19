@@ -255,7 +255,7 @@ def test_first_chunk_timing_logged_when_env_set(monkeypatch, capsys):
     assert wait_until(lambda: ws.sent == [b"\x01\x02", b"\x03\x04"])
     worker.shutdown()
     out = capsys.readouterr().out
-    assert "[計時]" in out and "開麥→第一個音框" in out
+    assert "[計時]" in out and "arm→首框送出" in out
 
 
 def test_connection_reused_across_arm_disarm():
