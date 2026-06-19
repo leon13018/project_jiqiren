@@ -204,3 +204,26 @@ def test_module_api_lazy_singleton(monkeypatch):
     assert stt_mod._worker is not None
     stt_mod.disarm()
     stt_mod.shutdown()
+
+
+def test_timing_log_emitted_on_speech_final_when_env_set(monkeypatch, capsys):
+    monkeypatch.setenv("STT_TTS_TIMING", "1")
+    worker, ws, calls = _make_worker([
+        _results("好", speech_final=True),
+    ])
+    worker.arm()
+    assert wait_until(lambda: calls == ["好"])
+    worker.disarm()
+    out = capsys.readouterr().out
+    assert "[計時]" in out and "開麥後" in out
+
+
+def test_timing_log_silent_when_env_unset(monkeypatch, capsys):
+    monkeypatch.delenv("STT_TTS_TIMING", raising=False)
+    worker, ws, calls = _make_worker([
+        _results("好", speech_final=True),
+    ])
+    worker.arm()
+    assert wait_until(lambda: calls == ["好"])
+    worker.disarm()
+    assert "[計時]" not in capsys.readouterr().out

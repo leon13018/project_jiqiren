@@ -21,6 +21,7 @@ import json
 import os
 import subprocess
 import threading
+import time
 from urllib.parse import quote
 
 # 去頭尾用標點集（中英常見 + 空白）；句中標點保留——只防 strict-short 比對
@@ -31,6 +32,12 @@ _PUNCT = "。，、！？；：．,!?;: \t\r\n"
 def _normalize_transcript(text: str) -> str:
     """去頭尾標點與空白（句中不動）；全標點輸入歸空字串（caller 不注入）。"""
     return text.strip(_PUNCT)
+
+
+def _timing(msg: str) -> None:
+    """STT_TTS_TIMING 設了才印計時行（量測用，預設靜默；可隨時移除）。"""
+    if os.environ.get("STT_TTS_TIMING"):
+        print(f"[計時] {msg}")
 
 
 # Keyterm prompting 詞表（Nova-3 contextual biasing）——點餐場景高頻詞，引導模型
@@ -87,6 +94,7 @@ class SttWorker:
         self._lock = threading.Lock()
         self._session = None      # (stop_event, audio, ws, receiver, sender)
         self._disabled = False    # 缺 key / 401 → 本次執行停用（鍵盤照常）
+        self._armed_at = 0.0      # arm 時記 monotonic（計時 log 用）
 
     def is_armed(self) -> bool:
         with self._lock:
@@ -112,6 +120,7 @@ class SttWorker:
             sender = threading.Thread(
                 target=self._send_loop, args=(ws, audio, stop),
                 name="SttSender", daemon=True)
+            self._armed_at = time.monotonic()
             self._session = (stop, audio, ws, receiver, sender)
             receiver.start()
             sender.start()
@@ -156,6 +165,7 @@ class SttWorker:
                 text = _normalize_transcript(alts[0].get("transcript", "")) if alts else ""
                 if text:
                     print(f"[語音辨識] {text}")
+                    _timing(f"開麥後 {time.monotonic() - self._armed_at:.2f}s 出辨識結果")
                     self._sink(text)
         except Exception as e:
             if not stop.is_set():
