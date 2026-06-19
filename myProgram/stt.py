@@ -234,6 +234,16 @@ class SttWorker:
                     if isinstance(msg, bytes):
                         continue  # Deepgram Results 皆 text frame；防禦略過
                     data = json.loads(msg)
+                    # 殭屍診斷埋點（env-gated）：印每則 Deepgram 訊息（含 interim）——
+                    # 殭屍輪有 interim 文字 = Deepgram 聽得到（(B) arecord 嫌疑）；
+                    # 完全無訊息 = 連線真殭屍（(A)）。_timing 自帶閘門，未設零輸出。
+                    _typ = data.get("type")
+                    if _typ == "Results":
+                        _alts = data.get("channel", {}).get("alternatives", [])
+                        _txt = _alts[0].get("transcript", "") if _alts else ""
+                        _timing(f"Deepgram Results final={data.get('speech_final')} cap={self._capturing} '{_txt}'")
+                    elif _typ:
+                        _timing(f"Deepgram {_typ}")
                     if data.get("type") != "Results" or not data.get("speech_final"):
                         continue
                     if not self._capturing:
@@ -318,7 +328,9 @@ class SttWorker:
             except Exception:
                 pass
         for th in (receiver, keepalive):
-            if th is not None:
+            # is_alive 守衛：receiver-start race 下 shutdown 可能搶在 _ensure_connected
+            # 存 ref 與 start() 之間，未 start 的 thread join 會拋 RuntimeError → 跳過。
+            if th is not None and th.is_alive():
                 th.join(timeout=1.0)
 
 

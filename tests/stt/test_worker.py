@@ -406,6 +406,30 @@ def test_prearm_noop_when_already_connected():
     worker.shutdown()
 
 
+def test_diagnostic_logs_interim_when_timing_set(monkeypatch, capsys):
+    """殭屍診斷埋點：STT_TTS_TIMING 設時 receiver 把每則 Deepgram 訊息（含 interim）
+    印出——用以判定殭屍輪有無 interim 文字（(B) arecord 嫌疑 vs (A) 連線真殭屍）。"""
+    monkeypatch.setenv("STT_TTS_TIMING", "1")
+    worker, ws, calls = _make_worker([])
+    worker.arm()                                       # 進收音窗（capturing=True）
+    ws.feed(_results("紅茶", speech_final=False))       # interim（現狀被早 continue 掉看不到）
+    assert wait_until(lambda: "Deepgram Results final=False" in capsys.readouterr().out)
+    worker.shutdown()
+
+
+def test_shutdown_does_not_join_unstarted_thread():
+    """receiver-start race：shutdown 搶在 _ensure_connected 存 ref 與 start() 之間時，
+    join 未 start 的 thread 不應拋 RuntimeError（is_alive 守衛跳過未 start thread）。"""
+    worker = SttWorker(sink=lambda t: None, api_key="test-key",
+                       ws_factory=lambda key: FakeWs(), audio_factory=FakeAudioSource)
+    # 手動重現 race 窗：thread 物件已存但尚未 start
+    worker._receiver = threading.Thread(target=lambda: None)
+    worker._keepalive = threading.Thread(target=lambda: None)
+    worker._ws = FakeWs()
+    worker._conn_stop = threading.Event()
+    worker.shutdown()  # 未 start thread → 不應 RuntimeError: cannot join thread before it is started
+
+
 def test_prearm_noop_without_key():
     factory_calls = []
     worker = SttWorker(sink=lambda t: None, api_key=None,
