@@ -51,3 +51,4 @@
 
 - Python 3.11.9 source build（edge-tts 依賴，原 Pi OS 內建版本不足；2026-05-23 加裝 tk-dev / tcl-dev 後 rebuild，使 `_tkinter` 編進 stdlib）
 - DEEPGRAM_API_KEY 環境變數（STT Deepgram 串流金鑰，寫入 `~/.bashrc`；STT Phase 1 已 Pi 實測通過）
+- STT_ARECORD_DEVICE=plughw:CARD=ArrayUAC10 環境變數（ReSpeaker 開麥裝置，寫入 `~/.bashrc`；plughw 降混成單聲道，未設則 arecord `-c 1` 撞「Channels count non available」。2026-06-19 使用者確認設妥、Channels 錯誤消失）

@@ -55,6 +55,15 @@
 
 **下一步**：觸控閉環完成 → demo 準備 / 真 OpenCV·掃碼器接線（屆時 `wake`/`pay` 映射改真觸發、與 sim token 解耦）。
 
+### 3. Phase 2 後 UX 修補（2026-06-19 Pi 實測迭代）
+
+Pi 實機 demo 操作中陸續發現並修掉的小問題（皆走 brainstorm → mini-spec → plan → worktree，純前端 / Pi-only 小改）：
+
+- **斷線回歡迎畫面**（spec `webui_disconnect_reset_2026-06-19_design.md`，ff-merge `6026288`）：WS 任何階段斷線 → `App.resetToWelcome()`（`connectLive` 的 `onclose` + `catch` 各呼叫）立即退回待機歡迎畫面，不再凍結卡點餐 / 結帳頁；重連後 `applyState(機器人狀態)` 自動接手恢復 phase。**一斷線立即跳、無寬限期**。
+- **StaticFiles `no-cache` + arecord stderr 收斂**（spec `webui_nocache_and_arecord_stderr_2026-06-19_spec.md`，ff-merge `43df926`）：① `app.py` `_NoCacheStaticFiles` 子類別覆寫 `get_response` 加 `Cache-Control: no-cache` —— **修「前端更新 push/pull 到 Pi 後、筆電瀏覽器仍跑舊 app.js（快取）」的根因**（Phase 1 換 FastAPI StaticFiles 後掉了 Phase 0 `serve.py` 原有的 no-cache；首次部署後仍需硬重整一次越過舊快取，之後一般重整即新）。② `stt.py` arecord `Popen` 加 `stderr=DEVNULL` —— `q` 退出 / disarm 時 arecord 被 `terminate()` 的 `pcm_read` EINTR 臨終雜訊不上終端（裝置 `STT_ARECORD_DEVICE=plughw:CARD=ArrayUAC10` 已由使用者設妥、Channels 錯誤已消失，此 EINTR 為無害關機訊息）。
+- **live 商品卡補回剩餘數量標籤**（spec `webui_live_remaining_label_2026-06-19_spec.md`，ff-merge `07e0b1b`）：Phase 2 重寫 `ActionArea` live 分支時漏帶 demo 的「還可加 N / 已達單筆上限」標籤（非遮擋）。live 分支改 flex-column、標籤獨立一行在 stepper+加入 上方（沿用既有 `remainingLabel` + demo 字級色）。**選 Option A**（不重做 demo 的 morph 動畫——morph 是購物車狀態驅動、與 live 的「本地預選 + 一次送出」模型不合，Option B 否決）。
+- **附帶（robot action，非 webui）**：揮手動作組 `wave_hand → wave_hand_01`（spec `wave_hand_01_2026-06-19_spec.md`，ff-merge `afbe38c`）：`ACTION_L1_HAWK` / `ACTION_L5_FAREWELL` 兩常數值替換；Pi 端須有 `wave_hand_01.d6a`。
+
 ## 流程 / 沉澱
 - **零新 Python 依賴**：字型 / 圖示走 CDN、伺服器用 stdlib `http.server` → Pi 不必 pip / apt（Phase 0 需 Pi 有網路抓 CDN；離線在地化留待後續）。
 - **cwd-pinned worktree 收尾**：本弧在釘住 cwd 的 worktree 內，收尾用 `git -C 主checkout` 做 ff-merge + push（協議 `worktree.md`）；worktree 空殼因自鎖留待新 session 清。
