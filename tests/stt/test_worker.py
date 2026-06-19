@@ -1,5 +1,6 @@
 """SttWorker 生命週期 / 事件處理測試（全 fake，無網路無音訊）。"""
 import json
+import queue
 import threading
 import time
 
@@ -451,3 +452,50 @@ def test_prearm_noop_without_key():
     worker.prearm()
     time.sleep(0.1)
     assert factory_calls == []                          # 缺 key → 不建線
+
+
+class _BlockingAudio:
+    """read 阻塞至 feed 或 close（模擬連續 arecord，不會立即 EOF）。"""
+    def __init__(self):
+        self._q = queue.Queue()
+        self.closed = False
+    def feed(self, chunk):
+        self._q.put(chunk)
+    def read(self, n):
+        item = self._q.get()
+        return b"" if item is None else item
+    def close(self):
+        self.closed = True
+        self._q.put(None)
+
+
+def test_warm_capture_discards_then_sends_after_arm():
+    """prearm 暖機期（capturing=False）讀到的音丟棄不送；arm 後（capturing=True）才送。"""
+    audio = _BlockingAudio()
+    ws = FakeWs()
+    worker = SttWorker(sink=lambda t: None, api_key="test-key",
+                       ws_factory=lambda key: ws, audio_factory=lambda: audio)
+    worker.prearm()
+    assert wait_until(lambda: worker._audio is audio and worker._ws is not None)
+    audio.feed(b"\x01\x02")                       # 暖機期 → 丟棄
+    import time as _t; _t.sleep(0.1)
+    assert ws.sent == [], "暖機期音訊不應送出"
+    worker.arm()                                  # capturing=True
+    audio.feed(b"\x03\x04")                       # → 送出
+    assert wait_until(lambda: b"\x03\x04" in ws.sent)
+    assert b"\x01\x02" not in ws.sent             # 暖機期那框始終沒送
+    worker.shutdown()
+
+
+def test_prearm_warmed_sender_stopped_by_disarm():
+    """prearm 暖機但未 arm → disarm 仍收掉 sender（_audio is None 判定）。"""
+    audio = _BlockingAudio()
+    worker = SttWorker(sink=lambda t: None, api_key="test-key",
+                       ws_factory=lambda key: FakeWs(), audio_factory=lambda: audio)
+    worker.prearm()
+    assert wait_until(lambda: worker._sender is not None and worker._sender.is_alive())
+    sender = worker._sender                        # disarm 會把 _sender 清 None，先抓 handle
+    worker.disarm()                               # 未 arm（capturing=False），_audio 非 None → 仍收
+    assert worker._audio is None and worker._sender is None and audio.closed
+    assert wait_until(lambda: not sender.is_alive())  # sender thread 確實被收（不殘留）
+    worker.shutdown()
