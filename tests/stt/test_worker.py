@@ -295,3 +295,40 @@ def test_dead_connection_reconnects_on_next_arm():
     worker.arm()                                      # 重連
     assert wait_until(lambda: len(wss) == 2)
     worker.shutdown()
+
+
+def _control_sent(ws, name):
+    return any(isinstance(s, str) and name in s for s in ws.sent)
+
+
+def test_keepalive_sent_when_idle(monkeypatch):
+    """disarm 後（capturing=False）keepalive thread 送 KeepAlive 撐住連線。"""
+    monkeypatch.setattr(stt_mod, "_KEEPALIVE_INTERVAL", 0.02)
+    ws = FakeWs()
+    worker = SttWorker(sink=lambda t: None, api_key="test-key",
+                       ws_factory=lambda key: ws, audio_factory=FakeAudioSource)
+    worker.arm()
+    worker.disarm()
+    assert wait_until(lambda: _control_sent(ws, "KeepAlive"))
+    worker.shutdown()
+
+
+def test_finalize_sent_on_disarm():
+    """disarm 送 Finalize 沖尾巴。"""
+    ws = FakeWs()
+    worker = SttWorker(sink=lambda t: None, api_key="test-key",
+                       ws_factory=lambda key: ws, audio_factory=FakeAudioSource)
+    worker.arm()
+    worker.disarm()
+    assert _control_sent(ws, "Finalize")
+    worker.shutdown()
+
+
+def test_closestream_sent_on_shutdown():
+    """shutdown 送 CloseStream 優雅關閉。"""
+    ws = FakeWs()
+    worker = SttWorker(sink=lambda t: None, api_key="test-key",
+                       ws_factory=lambda key: ws, audio_factory=FakeAudioSource)
+    worker.arm()
+    worker.shutdown()
+    assert _control_sent(ws, "CloseStream")
