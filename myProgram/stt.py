@@ -72,18 +72,25 @@ def _build_deepgram_url(endpointing_ms: int) -> str:
 DEEPGRAM_URL = _build_deepgram_url(_ENDPOINTING_MS)
 CHUNK_BYTES = 3200  # 100ms @ 16kHz 16-bit mono——粒度夠細不增 ws 訊息開銷
 
+_KEEPALIVE_INTERVAL: float = 5.0  # 秒；< Deepgram 10s idle timeout（NET-0001）。測試可 monkeypatch 縮短
+_KEEPALIVE_MSG = json.dumps({"type": "KeepAlive"})
+_FINALIZE_MSG = json.dumps({"type": "Finalize"})
+_CLOSE_MSG = json.dumps({"type": "CloseStream"})
+
 
 class SttWorker:
-    """Deepgram 串流 worker：arm 起 session（sender+receiver threads）、disarm 終止。
+    """Deepgram 串流 worker：整場共用一條持久連線（連線層常駐），每輪只開關 arecord（收音層）。
 
-    Thread model：主線程呼叫 arm()/disarm()/shutdown()（_lock 保護 session 狀態）；
-    session 內 SttSender（audio.read→ws.send）與 SttReceiver（ws.recv→sink）皆
-    daemon=True。無常駐 thread——未 arm 時本 worker 零活動。
+    Thread model：
+        - 連線層（整場常駐）：_ws（持久連線）+ SttReceiver（ws.recv→閘門→sink）
+          + SttKeepAlive（idle 時送 KeepAlive 撐住）。lazy 於首次 arm 建線，死則下次
+          arm 重連，shutdown 收掉。
+        - 收音層（每輪 arm/disarm）：arecord（_audio）+ SttSender（audio.read→ws.send）。
+        - _capturing 閘門：receiver 只在收音窗注入，擋上一輪殘響 / Finalize 回覆漏入下一輪。
+        - _send_lock 序列化所有 ws.send（音框 / keepalive / finalize / close）——websockets
+          sync client 並發 send 非 thread-safe。
 
-    注入 seams（Windows pytest 全 fake）：
-        sink：speech_final 文字輸出口（production = input_reader.inject）
-        audio_factory：回傳具 read(n)->bytes / close() 的音源（production = arecord）
-        ws_factory：接 api_key 回傳具 send/recv/close 的連線（production = websockets）
+    注入 seams（Windows pytest 全 fake）：sink / audio_factory / ws_factory（同前）。
     """
 
     def __init__(self, sink, api_key=None, audio_factory=None, ws_factory=None):
@@ -91,44 +98,77 @@ class SttWorker:
         self._api_key = api_key
         self._audio_factory = audio_factory or _default_audio_factory
         self._ws_factory = ws_factory or _default_ws_factory
-        self._lock = threading.Lock()
-        self._session = None      # (stop_event, audio, ws, receiver, sender)
-        self._disabled = False    # 缺 key / 401 → 本次執行停用（鍵盤照常）
-        self._armed_at = 0.0      # arm 時記 monotonic（計時 log 用）
+        self._lock = threading.Lock()        # 保護連線層狀態 + capturing 切換
+        self._send_lock = threading.Lock()   # 序列化所有 ws.send
+        # 連線層（整場常駐）
+        self._ws = None                      # 持久連線，或 None（未連 / 已死）
+        self._conn_stop = None               # Event：停 receiver + keepalive（shutdown）
+        self._receiver = None
+        self._keepalive = None
+        # 收音層（每輪）
+        self._audio = None
+        self._sender = None
+        self._send_stop = None
+        # 其他
+        self._capturing = False
+        self._armed_at = 0.0                 # arm 時記 monotonic（計時 log 用）
+        self._disabled = False               # 缺 key / 401 → 本次執行停用（鍵盤照常）
 
     def is_armed(self) -> bool:
         with self._lock:
-            return self._session is not None
+            return self._capturing
+
+    def _ensure_connected(self) -> bool:
+        """確保持久連線存在：已連則復用（True）；未連則建線 + 起常駐 receiver/keepalive
+        （含「開麥連線」計時）。連線失敗回 False。呼叫者（arm）持 _lock。"""
+        if self._ws is not None:
+            return True
+        _connect_t0 = time.monotonic()
+        ws = self._connect_with_retry()
+        if ws is None:
+            return False
+        _timing(f"開麥連線 {(time.monotonic() - _connect_t0) * 1000:.0f}ms")
+        conn_stop = threading.Event()
+        receiver = threading.Thread(
+            target=self._receive_loop, args=(ws, conn_stop),
+            name="SttReceiver", daemon=True)
+        keepalive = threading.Thread(
+            target=self._keepalive_loop, args=(ws, conn_stop),
+            name="SttKeepAlive", daemon=True)
+        self._ws = ws
+        self._conn_stop = conn_stop
+        self._receiver = receiver
+        self._keepalive = keepalive
+        receiver.start()
+        keepalive.start()
+        return True
 
     def arm(self) -> None:
-        """冪等開麥：已 armed / 已停用 no-op；缺 key 印一次警告後停用。"""
+        """冪等開麥：已 capturing / 已停用 no-op；缺 key 印一次警告後停用。
+        首輪建線（580ms），之後只 spawn arecord + sender（~140ms）。"""
         with self._lock:
-            if self._disabled or self._session is not None:
+            if self._disabled or self._capturing:
                 return
             if not self._api_key:
                 print("[語音辨識] ⚠️ 未設定 DEEPGRAM_API_KEY，STT 停用（鍵盤輸入照常）")
                 self._disabled = True
                 return
-            _connect_t0 = time.monotonic()
-            ws = self._connect_with_retry()
-            if ws is None:
-                return  # 本輪放棄（已印原因）；下次 arm 再試或已永久停用
-            _timing(f"開麥連線 {(time.monotonic() - _connect_t0) * 1000:.0f}ms")
+            if not self._ensure_connected():
+                return  # 連線失敗（已印原因）；本輪走鍵盤
             audio = self._audio_factory()
-            stop = threading.Event()
-            receiver = threading.Thread(
-                target=self._receive_loop, args=(ws, stop),
-                name="SttReceiver", daemon=True)
+            send_stop = threading.Event()
             sender = threading.Thread(
-                target=self._send_loop, args=(ws, audio, stop),
+                target=self._send_loop, args=(self._ws, audio, send_stop),
                 name="SttSender", daemon=True)
+            self._audio = audio
+            self._send_stop = send_stop
+            self._sender = sender
             self._armed_at = time.monotonic()
-            self._session = (stop, audio, ws, receiver, sender)
-            receiver.start()
+            self._capturing = True
             sender.start()
 
     def _connect_with_retry(self):
-        """建線；非 401 失敗重試 1 次；401 → 永久停用（本次執行）。Task 6 補測。"""
+        """建線；非 401 失敗重試 1 次；401 → 永久停用（本次執行）。"""
         for attempt in (1, 2):
             try:
                 return self._ws_factory(self._api_key)
@@ -142,33 +182,37 @@ class SttWorker:
                 print(f"[語音辨識] ⚠️ 連線失敗（{type(e).__name__}: {e!r}），本輪改用鍵盤")
                 return None
 
-    def _send_loop(self, ws, audio, stop) -> None:
-        """audio.read → ws.send；EOF（disarm terminate / 裝置故障）或 stop 即止。"""
+    def _send_loop(self, ws, audio, send_stop) -> None:
+        """audio.read → ws.send（經 _send_lock）；EOF（disarm terminate / 裝置故障）或
+        send_stop 即止。首框到達印「開麥→第一個音框」計時。"""
         first = True
         try:
-            while not stop.is_set():
+            while not send_stop.is_set():
                 chunk = audio.read(CHUNK_BYTES)
                 if not chunk:
                     break
                 if first:
-                    # 從 arm 記的 _armed_at 到第一個音框到達 ≈ arecord 冷啟動 + 首框
-                    # （CHUNK_BYTES=100ms）填充。隔離出「裝置開麥延遲」這段死時間。
+                    # arm 記的 _armed_at 到第一個音框 ≈ arecord 冷啟動 + 首框填充
                     _timing(f"開麥→第一個音框 {time.monotonic() - self._armed_at:.2f}s（arecord 冷啟動＋首框填充）")
                     first = False
-                ws.send(chunk)
+                with self._send_lock:
+                    ws.send(chunk)
         except Exception:
-            pass  # ws 已關（disarm / 斷線）→ 靜默結束；對外回報由 receiver 負責
+            pass  # ws 已關 / 死 → 靜默結束；receiver 負責標記死亡
 
-    def _receive_loop(self, ws, stop) -> None:
-        """ws.recv → JSON → speech_final 的 transcript 正規化後注入 sink。"""
+    def _receive_loop(self, ws, conn_stop) -> None:
+        """常駐：ws.recv → JSON → speech_final（**僅 _capturing 才注入**）。退出時若非
+        shutdown 觸發 → 印警示並標記 _ws 死亡（下次 arm 重連）。"""
         try:
-            while not stop.is_set():
+            while not conn_stop.is_set():
                 msg = ws.recv()
                 if isinstance(msg, bytes):
-                    continue  # Deepgram Results 皆為 text frame；防禦略過
+                    continue  # Deepgram Results 皆 text frame；防禦略過
                 data = json.loads(msg)
                 if data.get("type") != "Results" or not data.get("speech_final"):
                     continue
+                if not self._capturing:
+                    continue  # 閘門：收音窗外（上一輪殘響 / Finalize 回覆）丟棄
                 alts = data.get("channel", {}).get("alternatives", [])
                 text = _normalize_transcript(alts[0].get("transcript", "")) if alts else ""
                 if text:
@@ -176,33 +220,76 @@ class SttWorker:
                     _timing(f"開麥後 {time.monotonic() - self._armed_at:.2f}s 出辨識結果")
                     self._sink(text)
         except Exception as e:
-            if not stop.is_set():
-                # 非 disarm 觸發的中斷（伺服器斷線等）——印警示；不自動重連，
-                # 下次 arm 重建 session。timeout 既有 reprompt 流程兜底。
-                print(f"[語音辨識] ⚠️ 串流中斷（{type(e).__name__}），本輪改用鍵盤")
+            if not conn_stop.is_set():
+                print(f"[語音辨識] ⚠️ 串流中斷（{type(e).__name__}），下次開麥重連")
+        finally:
+            with self._lock:
+                if self._ws is ws:
+                    self._ws = None  # 標記死亡 → 下次 arm 重連
+
+    def _keepalive_loop(self, ws, conn_stop) -> None:
+        """常駐：idle（_capturing=False）時每 _KEEPALIVE_INTERVAL 秒送 KeepAlive 撐住
+        連線（Deepgram 10s 無音訊/keepalive 即關 NET-0001）。conn_stop 設或 send 失敗即止。"""
+        while not conn_stop.wait(_KEEPALIVE_INTERVAL):
+            if self._capturing:
+                continue  # 收音中音訊自然撐住，不送
+            try:
+                with self._send_lock:
+                    ws.send(_KEEPALIVE_MSG)
+            except Exception:
+                break  # ws 死 → 退出；receiver 標記 _ws=None
 
     def disarm(self) -> None:
-        """冪等收麥：stop → 殺音源（sender 讀到 EOF 止）→ 關 ws（解 receiver 阻塞）。
-
-        join(timeout=1) 讓 session 結束具確定性（測試 / re-arm 安全）；threads 為
-        daemon，極端卡住也不擋程式退出（對齊 S6 教訓：不嘗試強解 blocking IO）。
-        """
+        """冪等收麥：停收音層（sender + arecord）+ 送 Finalize 沖尾巴；**連線不關**
+        （keepalive 撐住，下輪直接開麥）。"""
         with self._lock:
-            if self._session is None:
+            if not self._capturing:
                 return
-            stop, audio, ws, receiver, sender = self._session
-            self._session = None
-            stop.set()
-            audio.close()
+            self._capturing = False
+            audio = self._audio
+            send_stop = self._send_stop
+            sender = self._sender
+            ws = self._ws
+            self._audio = None
+            self._send_stop = None
+            self._sender = None
+        send_stop.set()
+        audio.close()
+        sender.join(timeout=1.0)
+        if ws is not None:
+            try:
+                with self._send_lock:
+                    ws.send(_FINALIZE_MSG)  # 沖 pending 音訊，乾淨收尾
+            except Exception:
+                pass
+
+    def shutdown(self) -> None:
+        """程式退出：收收音層 + 送 CloseStream + 關連線 + 收常駐 thread。"""
+        self.disarm()
+        with self._lock:
+            ws = self._ws
+            conn_stop = self._conn_stop
+            receiver = self._receiver
+            keepalive = self._keepalive
+            self._ws = None
+            self._conn_stop = None
+            self._receiver = None
+            self._keepalive = None
+        if conn_stop is not None:
+            conn_stop.set()
+        if ws is not None:
+            try:
+                with self._send_lock:
+                    ws.send(_CLOSE_MSG)
+            except Exception:
+                pass
             try:
                 ws.close()
             except Exception:
-                pass  # 已斷線的 ws close 可能 raise——cleanup 路徑安全吞掉
-        for th in (receiver, sender):
-            th.join(timeout=1.0)
-
-    def shutdown(self) -> None:
-        self.disarm()
+                pass
+        for th in (receiver, keepalive):
+            if th is not None:
+                th.join(timeout=1.0)
 
 
 def _is_auth_error(e: Exception) -> bool:

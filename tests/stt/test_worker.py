@@ -1,8 +1,10 @@
 """SttWorker 生命週期 / 事件處理測試（全 fake，無網路無音訊）。"""
 import json
+import time
 
 from tests.stt.conftest import FakeAudioSource, FakeWs, wait_until
 
+import myProgram.stt as stt_mod
 from myProgram.stt import SttWorker
 
 
@@ -40,32 +42,30 @@ def _make_worker(messages, chunks=(), ws_factory=None):
 
 
 def test_speech_final_injected_normalized():
-    worker, ws, calls = _make_worker([
-        _results("我要紅茶", speech_final=False),     # interim → 忽略
-        _results("我要紅茶兩杯。", speech_final=True),  # final → 注入（去句號）
-    ])
-    worker.arm()
+    worker, ws, calls = _make_worker([])
+    worker.arm()                                       # 先進收音窗（capturing=True）
+    ws.feed(_results("我要紅茶", speech_final=False))   # interim → 忽略
+    ws.feed(_results("我要紅茶兩杯。", speech_final=True))  # final → 注入（去句號）
     assert wait_until(lambda: calls == ["我要紅茶兩杯"])
-    worker.disarm()
+    worker.shutdown()
 
 
 def test_interim_empty_and_nonresults_not_injected():
-    worker, ws, calls = _make_worker([
-        json.dumps({"type": "Metadata"}),              # 非 Results → 忽略
-        _results("", speech_final=True),               # 空 transcript → 忽略
-        _results("。", speech_final=True),             # 正規化後空 → 忽略
-        _results("好", speech_final=True),             # 唯一有效
-    ])
-    worker.arm()
+    worker, ws, calls = _make_worker([])
+    worker.arm()                                       # 先進收音窗（capturing=True）
+    ws.feed(json.dumps({"type": "Metadata"}))          # 非 Results → 忽略
+    ws.feed(_results("", speech_final=True))           # 空 transcript → 忽略
+    ws.feed(_results("。", speech_final=True))         # 正規化後空 → 忽略
+    ws.feed(_results("好", speech_final=True))         # 唯一有效
     assert wait_until(lambda: calls == ["好"])
-    worker.disarm()
+    worker.shutdown()
 
 
 def test_sender_streams_audio_chunks():
     worker, ws, calls = _make_worker([], chunks=[b"\x01\x02", b"\x03\x04"])
     worker.arm()
     assert wait_until(lambda: ws.sent == [b"\x01\x02", b"\x03\x04"])
-    worker.disarm()
+    worker.shutdown()
 
 
 def test_arm_idempotent_single_session():
@@ -77,7 +77,7 @@ def test_arm_idempotent_single_session():
     worker.arm()
     worker.arm()  # 已 armed → no-op
     assert factory_calls == ["test-key"]
-    worker.disarm()
+    worker.shutdown()
 
 
 def test_disarm_closes_audio_and_allows_rearm():
@@ -100,8 +100,8 @@ def test_disarm_closes_audio_and_allows_rearm():
     assert audios[0].closed            # arecord 已 terminate
     worker.disarm()                    # 冪等：重複 disarm no-op
     worker.arm()                       # re-arm 起全新 session
-    assert worker.is_armed() and len(wss) == 2 and len(audios) == 2
-    worker.disarm()
+    assert worker.is_armed() and len(wss) == 1 and len(audios) == 2   # ws 復用、arecord 每輪重開
+    worker.shutdown()
 
 
 def test_shutdown_equals_disarm():
@@ -130,7 +130,7 @@ def test_connect_retry_once_then_success():
                        ws_factory=flaky_factory, audio_factory=FakeAudioSource)
     worker.arm()
     assert worker.is_armed() and len(attempts) == 2
-    worker.disarm()
+    worker.shutdown()
 
 
 def test_connect_fail_twice_gives_up_but_not_disabled(capsys):
@@ -167,7 +167,7 @@ def test_stream_interruption_warns(capsys):
     ws.close()                         # 模擬伺服器端斷線（stop 未設 → 應印警示）
     time.sleep(0.2)                    # receiver 反應時間（recv 在 close 後立即 raise）
     assert "串流中斷" in capsys.readouterr().out
-    worker.disarm()
+    worker.shutdown()
 
 
 def test_default_audio_factory_command(monkeypatch):
@@ -208,24 +208,22 @@ def test_module_api_lazy_singleton(monkeypatch):
 
 def test_timing_log_emitted_on_speech_final_when_env_set(monkeypatch, capsys):
     monkeypatch.setenv("STT_TTS_TIMING", "1")
-    worker, ws, calls = _make_worker([
-        _results("好", speech_final=True),
-    ])
-    worker.arm()
+    worker, ws, calls = _make_worker([])
+    worker.arm()                                       # 先進收音窗（capturing=True）
+    ws.feed(_results("好", speech_final=True))
     assert wait_until(lambda: calls == ["好"])
-    worker.disarm()
+    worker.shutdown()
     out = capsys.readouterr().out
     assert "[計時]" in out and "開麥後" in out
 
 
 def test_timing_log_silent_when_env_unset(monkeypatch, capsys):
     monkeypatch.delenv("STT_TTS_TIMING", raising=False)
-    worker, ws, calls = _make_worker([
-        _results("好", speech_final=True),
-    ])
-    worker.arm()
+    worker, ws, calls = _make_worker([])
+    worker.arm()                                       # 先進收音窗（capturing=True）
+    ws.feed(_results("好", speech_final=True))
     assert wait_until(lambda: calls == ["好"])
-    worker.disarm()
+    worker.shutdown()
     assert "[計時]" not in capsys.readouterr().out
 
 
@@ -233,7 +231,7 @@ def test_connect_timing_logged_when_env_set(monkeypatch, capsys):
     monkeypatch.setenv("STT_TTS_TIMING", "1")
     worker, ws, calls = _make_worker([])
     worker.arm()
-    worker.disarm()
+    worker.shutdown()
     out = capsys.readouterr().out
     assert "[計時]" in out and "開麥連線" in out
 
@@ -243,6 +241,57 @@ def test_first_chunk_timing_logged_when_env_set(monkeypatch, capsys):
     worker, ws, calls = _make_worker([], chunks=[b"\x01\x02", b"\x03\x04"])
     worker.arm()
     assert wait_until(lambda: ws.sent == [b"\x01\x02", b"\x03\x04"])
-    worker.disarm()
+    worker.shutdown()
     out = capsys.readouterr().out
     assert "[計時]" in out and "開麥→第一個音框" in out
+
+
+def test_connection_reused_across_arm_disarm():
+    """連兩輪 arm/disarm → ws_factory 只被呼叫 1 次（整場共用一條連線）。"""
+    factory_calls = []
+    ws = FakeWs()
+    def factory(key):
+        factory_calls.append(key)
+        return ws
+    worker = SttWorker(sink=lambda t: None, api_key="test-key",
+                       ws_factory=factory, audio_factory=FakeAudioSource)
+    worker.arm(); worker.disarm()
+    worker.arm(); worker.disarm()
+    assert factory_calls == ["test-key"]
+    worker.shutdown()
+
+
+def test_speech_final_not_injected_when_not_capturing():
+    """收音窗外（disarm 後）到達的 speech_final 不注入；再 arm 才注入。"""
+    calls = []
+    ws = FakeWs()
+    worker = SttWorker(sink=calls.append, api_key="test-key",
+                       ws_factory=lambda key: ws, audio_factory=FakeAudioSource)
+    worker.arm()
+    worker.disarm()                                   # capturing=False，連線/receiver 仍在
+    ws.feed(_results("殘響", speech_final=True))       # 非收音窗
+    time.sleep(0.1)                                   # 給 receiver 處理
+    assert calls == []                                # 閘門擋住
+    worker.arm()                                      # 收音窗
+    ws.feed(_results("正確", speech_final=True))
+    assert wait_until(lambda: calls == ["正確"])
+    worker.shutdown()
+
+
+def test_dead_connection_reconnects_on_next_arm():
+    """連線死亡（ws.close）→ 標記 _ws None → 下次 arm 重連（ws_factory 再呼叫）。"""
+    wss = []
+    def factory(key):
+        w = FakeWs()
+        wss.append(w)
+        return w
+    worker = SttWorker(sink=lambda t: None, api_key="test-key",
+                       ws_factory=factory, audio_factory=FakeAudioSource)
+    worker.arm()
+    assert wait_until(lambda: len(wss) == 1)
+    wss[0].close()                                    # 模擬斷線 → receiver recv 拋出
+    assert wait_until(lambda: worker._ws is None)     # 標記死亡
+    worker.disarm()
+    worker.arm()                                      # 重連
+    assert wait_until(lambda: len(wss) == 2)
+    worker.shutdown()
