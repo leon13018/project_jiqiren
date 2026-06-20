@@ -52,3 +52,18 @@
 ## 流程沉澱
 - 全程純 git worktree + sales-coder 派發 + 三段 reviewer（連線生命週期 / 併發改動務必跑）；多次「reviewer 找到 flaky test 屏障 → 改真 `wait_until`」「sales-coder 停下回報 race → coordinator 裁決」。
 - **revert 紀律 dogfood**：warm-arecord / endpointing 450 / persistent 三次「試 → Pi 實測否證 → 乾淨 revert」，每次保留可用版為退路。
+
+## 辨識準確度突破（2026-06-20）：收音改抽 ch0 處理聲道 → 整體大幅改善 ✅
+首字長征收手後，使用者轉報「**整體辨識極度不準**」（整句/數量/品名/意圖全失準，非僅首字）。主 agent SSH 在 Pi 做**同源 A/B**（使用者錄一句 6 聲道，主 agent 拆聲道各跑 Deepgram nova-3）一槍定位：
+
+| 聲道處理 | RMS | Deepgram（zh-TW＋keyterm）|
+|---|---|---|
+| **ch0 處理聲道** | **1542** | 我要三瓶冰紅茶和五張刮刮樂然後結帳 ✅ 近完美 |
+| 6 聲道全降混（舊定版 `-c 1` plughw） | 324 | 我**撈**三瓶…缺「和」❌；配 `zh` →「五幺三品冰红茶五脏瓜瓜」亂碼 |
+| 4 麥混音 | 294 | 近完美 |
+
+**根因**：ReSpeaker XVF-3000 原生只出 6 聲道（ch0 處理過 / ch1-4 生麥 / ch5 回授）；舊定版 `arecord -c 1` plughw **把 6 條全降混** → 稀釋乾淨響亮的 ch0（音量掉 1/5）+ 相位互抵 → 整句糊掉。**推翻 2026-06-17「ch0 較差」舊結論**（舊測疑非同源 / 把 by-ear「聲音怪怪的」誤當辨識差）。
+
+**修法**（spec `stt_ch0_capture_2026-06-20`，ff-merge `b4a2761`）：`arecord -c 6` + `_ArecordSource.read` 反交錯只抽 ch0 送 Deepgram（URL `channels=1` 不變）；env 旋鈕 `STT_CAPTURE_CHANNELS`(6)/`STT_ASR_CHANNEL`(0) 留 A/B 後路。reviewer 抓 pipe 非 frame 對齊切斷 → 加 frame 對齊截斷防護 + 短讀測試（fast-follow，同 `b4a2761`）。**Pi by-ear 驗收 ✅ 整體辨識大幅改善**。語言 zh-TW / keyterm / endpointing 皆已正確不動；Pi 端 `plughw:CARD=ArrayUAC10` 配 `-c 6` 直通、零設定變更。
+
+**沉澱**：① 「邏輯對卻不動 / 一直不準」先用 `curl /api/state` 或 SSH 同源 A/B 把問題夾在某一層再修（多元件邊界取證）。② **by-ear 聽感 ≠ ASR WER**——聲道選擇用 Deepgram 轉錄當客觀指標、別憑聽感。③ 同源比對（同一段錄音拆多版本）才公平，推翻舊結論前先這樣再證。
