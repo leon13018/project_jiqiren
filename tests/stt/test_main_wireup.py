@@ -148,17 +148,18 @@ def test_web_mode_wires_on_input_to_input_reader_inject(monkeypatch):
     assert injected == ["c"]
 
 
-def test_web_mode_missing_deps_falls_back_to_noop_display(monkeypatch, capsys):
-    """`--web` 但 web import 失敗（Pi 沒裝 fastapi/uvicorn）→ 印錯誤 + 退回 no-op 繼續跑。"""
+def test_web_mode_missing_deps_keeps_bus_display_and_prints_error(monkeypatch, capsys):
+    """`--web` 但 web server import 失敗（Pi 沒裝 fastapi/uvicorn）→ boot thread 內印錯誤、
+    display 維持 bus-backed、機器人照常跑（背景化後不再退回 no-op）。"""
     monkeypatch.setattr(sys, "argv", ["myprogram", "--web"])
     captured = _capture_logic_run(monkeypatch)
-    # sys.modules[...] = None 讓 `from myProgram.web import server` raise ImportError
+    # sys.modules[...] = None 讓 boot thread 內 `from myProgram.web import server` raise ImportError
     monkeypatch.setitem(sys.modules, "myProgram.web.server", None)
 
-    main_module._run_wiring()   # 不得 raise（graceful）
+    main_module._run_wiring()   # 不得 raise（boot thread try/except graceful）
 
     assert callable(captured["display"])
-    # 退回 no-op：呼叫不爆且無副作用
+    # display 維持 bus-backed：呼叫不爆（publish 到無 client/loop 的 bus 只存 last_state，無害）
     captured["display"]("ordering", {"冰紅茶": 2})
     out = capsys.readouterr().out
     assert "webui" in out.lower()   # 印了明確的 web 失敗訊息
@@ -235,11 +236,12 @@ def test_web_mode_logic_run_not_blocked_by_slow_server_start(monkeypatch):
     assert "start_done" in events
 
 
-def test_web_mode_server_start_raises_falls_back_to_noop_display(monkeypatch, capsys):
-    """`--web` 但 server.start() raise（如 port 衝突 OSError）→ 不 raise + 退回 no-op 繼續跑。
+def test_web_mode_server_start_raises_keeps_bus_display_and_prints_error(monkeypatch, capsys):
+    """`--web` 但 server.start() raise（如 port 衝突 OSError）→ 不 raise + display 維持 bus-backed 繼續跑。
 
     反思 web-startup-non-import-error-crash：graceful 原只包 ImportError，server 啟動
-    失敗的 OSError 等會傳出 crash 機器人。bus/display 真 import、只 stub server.start raise。
+    失敗的 OSError 等會傳出 crash 機器人。背景化後 boot thread 的 try/except 涵蓋；
+    bus/display 真 import、只 stub server.start raise。
     """
     monkeypatch.setattr(sys, "argv", ["myprogram", "--web"])
     captured = _capture_logic_run(monkeypatch)
@@ -249,14 +251,14 @@ def test_web_mode_server_start_raises_falls_back_to_noop_display(monkeypatch, ca
 
     fake_server = types.SimpleNamespace(
         start=fake_start,
-        stop=lambda srv: None,   # 不應被呼叫（start 失敗 → web_srv 留 None）
+        stop=lambda srv: None,   # 不應被呼叫（start 失敗 → srv_holder 留空）
     )
     monkeypatch.setitem(sys.modules, "myProgram.web.server", fake_server)
 
-    main_module._run_wiring()   # 不得 raise（graceful 涵蓋 OSError）
+    main_module._run_wiring()   # 不得 raise（boot thread try/except 涵蓋 OSError）
 
     assert callable(captured["display"])
-    # 退回 no-op：呼叫不爆且無副作用
+    # display 維持 bus-backed：呼叫不爆（publish 到無 client/loop 的 bus 只存 last_state，無害）
     captured["display"]("ordering", {"冰紅茶": 2})
     out = capsys.readouterr().out
     assert "webui" in out.lower()   # 印了明確的 web 啟動失敗訊息
