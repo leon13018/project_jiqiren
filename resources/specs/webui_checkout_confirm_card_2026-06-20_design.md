@@ -171,3 +171,28 @@ _dialog_checkout_confirm 讀到"繼續" → KG_C2_CONTINUE → "continue_keep_ca
 - 確認卡片 ↔ QR 卡之間若想要更細緻的 morph 過場 → 視 demo 體感再議（目前沿用既有 `wf-fade` 淡入即可，YAGNI）。
 - 「返回購物車」在 live 是否要 robot speak 一句更貼切的回點餐提示（vs 重用 C-2 ack）→ SDD 文案階段定。
 - 確認卡片是否顯示折扣 / 原價小計等更多明細 → 目前對齊 QR 卡明細（品名 ×數量 + 小計 + 總計），不擴充。
+
+---
+
+## v2 變更（2026-06-20，Pi 實測後修正）：confirm 改機器人 phase 驅動
+
+**狀態：** v1 上線後 Pi by-ear 實測發現 bug → 根因調查 → 與使用者敲定改法 → 走 SDD。
+
+### 現象 / 根因
+Pi live 實測：顧客在 L3 講「這樣就好了」（結帳意圖短語 → 走結帳）進入機器人語音確認「…正確嗎？」，但**畫面沒跳確認卡片**。
+
+根因（證據）：v1 設計把 live 確認卡片綁在前端本地旗號 `_awaitingConfirm`，而它**只在使用者點 UI「結帳」按鈕時才被設 true**。但結帳確認（`_dialog_checkout_confirm`）整段跑在 **dialog 機台狀態內**（`machine._PHASE_BY_STATE` 只在進層 emit，dialog→`ordering`），**沒有任何「機器人正在等結帳確認」的訊號**。語音 /「沉默 6 秒 C-2 自動結帳」/「結帳意圖短語」這些**非 UI 觸發**路徑下，前端收不到訊號 → 卡片永不出現。前端光憑 DisplayState（phase/cart/total）無法區分「ordering 等加單」vs「ordering 等結帳確認」→ **後端非發訊號不可**。
+
+**v1「後端零改」假設錯誤**：只 cover「UI 按鈕發起結帳」，cover 不到語音 / 自動結帳（而語音正是本功能主場景）。
+
+### 修正設計（phase 驅動，取代本地旗號）
+1. **sales（`l2_l3_dialog.py`）**：`_dialog_checkout_confirm` 進入時 `io.display("checkout_confirm", dict(cart))` 發訊號（`DialogIO.display` 既有，dialog_io.py:25）。離開各路徑既有 emit 自然收掉卡片：yes→L4 emit `checkout`；繼續 / timeout / no→main_loop emit `ordering`；cancel→退 L1 emit `standby`。
+2. **web（`models.py`）**：DisplayState phase Literal 加 `"checkout_confirm"`（`/api/state` 快照驗證需要；WS push 走 raw dict 不驗但仍需契約一致）。
+3. **webui（`app.js`）**：`applyState` 把 `checkout_confirm`→overlay `"confirm"`；`showConfirm` 簡化為 `overlay === "confirm"`（demo/live 統一）；**移除整個 `_awaitingConfirm` 機制**（field / resetToWelcome / applyState 清旗號 / 3 處 bindEvents）；live 的 `checkout`/`confirm`/`back` 改回「純送命令、不動本地狀態」——回歸 live 既有「觸控只送命令、狀態等機器人 emit」哲學（`_awaitingConfirm` 本就是違反此哲學的 pre-existing 異物）。
+
+**效果**：語音 / 自動結帳 / UI 按鈕三種觸發都跳卡片；demo 不受影響（走 overlay 非 WS）。代價：反轉 v1「後端零改」→ 後端 sales + models 也動（走 SDD 三段）。
+
+### 測試
+- sales（`tests/sales/`，可跑）：`run_dialog` 注入 display callback，餵結帳意圖 → 斷言 display 收到 `("checkout_confirm", cart)`。
+- models（Pi-only pydantic，Windows 不可 import）：`ast.parse` 語法 + Pi runtime；無 Windows 單元測試。
+- app.js：`node --check` + Pi by-ear 重驗（語音「這樣就好了」→ 跳卡片）。
