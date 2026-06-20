@@ -66,3 +66,14 @@ def test_order_non_int_qty_returns_none():
     assert to_token({"type": "order", "item": "冰紅茶", "qty": "3"}) is None
     # bool 是 int 子型別（True==1）→ 須明確擋掉，避免 {"qty": true} 變成 "冰紅茶1"
     assert to_token({"type": "order", "item": "冰紅茶", "qty": True}) is None
+
+
+def test_resume_maps_to_continue_token():
+    assert to_token({"type": "resume"}) == "繼續"
+
+
+def test_resume_token_matches_c2_continue_keyword():
+    # 守 token 語意：resume 產出的字串須被 sales C-2 CONTINUE keyword group 命中
+    # （結帳確認卡片「返回購物車」→ _dialog_checkout_confirm 走 continue_keep_cart）
+    from myProgram.sales.constants import KG_C2_CONTINUE
+    assert KG_C2_CONTINUE.matches(to_token({"type": "resume"}))

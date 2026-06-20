@@ -15,6 +15,8 @@ from myProgram.sales.constants import PRODUCTS
 # 「正確」∈ KEYWORDS_CONFIRM_YES（_dialog_checkout_confirm 走 KG_CONFIRM_YES 的 YES）。
 _CHECKOUT_TOKEN = "結帳"
 _CONFIRM_TOKEN = "正確"
+# 結帳確認卡片「返回購物車」→ 顧客「繼續」意圖（對齊 sales KG_C2_CONTINUE strict-short「繼續」）。
+_RESUME_TOKEN = "繼續"
 # 模擬硬體觸發點（TerminalSim 約定，非 sales 領域常數）：
 #   wake = 模擬 OpenCV 偵測顧客（read_terminal_key 認 'c' → L1 hawk→L2）
 #   pay  = 模擬掃碼付款（read_customer_input 認 's' → L4→L5）
@@ -37,6 +39,8 @@ def to_token(cmd):
         return _CHECKOUT_TOKEN
     if ctype == "confirm":
         return _CONFIRM_TOKEN
+    if ctype == "resume":
+        return _RESUME_TOKEN
     if ctype == "order":
         item = cmd.get("item")
         qty = cmd.get("qty")
