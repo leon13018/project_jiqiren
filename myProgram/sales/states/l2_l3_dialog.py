@@ -736,6 +736,10 @@ def _dialog_checkout_confirm(io, cart) -> bool:
     """
     summary = _build_order_summary(cart)
     prompt = L3_CHECKOUT_CONFIRM_TEMPLATE.format(summary=summary)
+    # WebUI v2：進結帳確認 → emit checkout_confirm phase（此步在 dialog 機台狀態內，
+    # machine 不會發 phase）；語音 / 沉默自動結帳 / UI 三種觸發皆經此 → 前端據此跳確認卡片。
+    if io.display is not None:
+        io.display("checkout_confirm", dict(cart))
     io.speak(prompt)
     unclear_count = 0
 

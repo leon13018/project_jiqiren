@@ -7590,3 +7590,37 @@ def test_c2_checkout_confirm_continue_keeps_cart() -> None:
         f"C-2「繼續」不應清 cart，實際：{dict(cart)}"
     )
     assert next_state == "L4", f"後續再結帳確認應進 L4，實際：{next_state!r}"
+
+
+# ============================================================
+# L3-C-CONFIRM-PHASE（2026-06-20 v2：進結帳確認 emit checkout_confirm）
+### Scenario: 進結帳語音確認子狀態 → emit display("checkout_confirm", cart) 讓前端跳卡片
+# ============================================================
+
+def test_checkout_confirm_emits_checkout_confirm_phase() -> None:
+    """語音/自動/UI 三種結帳觸發都會經 _dialog_checkout_confirm；進入時須 emit
+    checkout_confirm phase（前端靠此顯示確認卡片，非靠 UI 本地旗號）。"""
+    display_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # 「結帳」→ checkout_flow → _dialog_checkout_confirm（emit checkout_confirm）→「對」→ L4
+    customer_input = FakeCustomerInput(["結帳", "對"])
+
+    states.run_dialog(
+        speak=lambda text: None,
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+        display=lambda phase, c, paid=0: display_calls.append((phase, dict(c))),
+    )
+
+    phases = [p for (p, _c) in display_calls]
+    assert "checkout_confirm" in phases, (
+        f"進結帳確認應 emit checkout_confirm phase，實際：{phases}"
+    )
+    # emit 時 cart 應含商品（顧客看明細確認）
+    cc = next((c for (p, c) in display_calls if p == "checkout_confirm"), None)
+    assert cc == {"冰紅茶": 1}, f"checkout_confirm emit 的 cart 應含明細，實際：{cc}"
