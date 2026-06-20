@@ -562,3 +562,45 @@ def test_arecord_source_eof_returns_empty():
     import myProgram.stt as stt_mod
     src = stt_mod._ArecordSource(_FakeProcStream(b""), channels=6, ch_index=0)
     assert src.read(6) == b""
+
+
+class _SmallReadStream:
+    """stdout.read(k) 每次最多回 cap bytes（< 要求量）→ 逼 _readexact 多次迭代讀滿。
+    模擬 OS pipe 短讀：arecord 寫對齊、但讀端邊界不保證。"""
+    def __init__(self, data: bytes, cap: int = 8):
+        self._buf = io.BytesIO(data)
+        self._cap = cap
+        self.stdout = self
+
+    def read(self, k: int) -> bytes:
+        return self._buf.read(min(k, self._cap))
+
+    def poll(self): return None
+    def terminate(self): pass
+
+
+def test_arecord_source_short_reads_loop_until_full():
+    """pipe 短讀：stdout.read 每次只回 ≤8 bytes → _readexact 迴圈讀滿，read(n)
+    仍正確抽出完整 ch0 序列（無漏、無錯）。"""
+    import myProgram.stt as stt_mod
+    frames = [(100, 1, 2, 3, 4, 5),
+              (200, 6, 7, 8, 9, 10),
+              (300, 11, 12, 13, 14, 15),
+              (400, 16, 17, 18, 19, 20)]
+    data = _interleave(frames)           # 4 frame × 12 bytes = 48 bytes（每次最多 8 → 多次迭代）
+    src = stt_mod._ArecordSource(_SmallReadStream(data, cap=8), channels=6, ch_index=0)
+    out = src.read(8)                     # 想要 4 個單聲道 sample = 8 bytes
+    got = array.array("h"); got.frombytes(out)
+    assert list(got) == [100, 200, 300, 400]
+
+
+def test_arecord_source_truncates_non_frame_aligned_tail():
+    """pipe 在非 frame 邊界切斷（完整數個 6 聲道 frame + 多出 5 bytes 半個 frame）→
+    read 不丟 ValueError、只回完整 frame 的 ch0、丟棄不足一 frame 的尾段。"""
+    import myProgram.stt as stt_mod
+    data = _interleave([(100, 1, 2, 3, 4, 5),
+                        (200, 6, 7, 8, 9, 10)]) + b"\x01\x02\x03\x04\x05"  # +5 bytes 半 frame
+    src = stt_mod._ArecordSource(_FakeProcStream(data), channels=6, ch_index=0)
+    out = src.read(8)                     # 想要 4 frame（48 > 29 bytes）→ EOF 拿到 2 frame + 5 殘 bytes
+    got = array.array("h"); got.frombytes(out)
+    assert list(got) == [100, 200]        # 兩完整 frame 的 ch0；半 frame 尾段丟棄、不丟 ValueError

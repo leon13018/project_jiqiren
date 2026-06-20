@@ -369,10 +369,13 @@ class _ArecordSource:
             return self._proc.stdout.read(n)   # 直通：零反交錯開銷
         # 多聲道：讀滿 n//2 個 frame（frame 對齊）→ array 切片抽第 _ch 條 → 回單聲道 bytes
         raw = self._readexact((n // 2) * self._frame_bytes)
-        if not raw:
+        # pipe 可能在非 frame 邊界切斷（arecord 寫對齊、讀端 read() 邊界不保證）→ 截到整 frame，
+        # 丟棄不足一 frame 的尾段（否則奇數 byte 數會讓 frombytes 丟 ValueError）。
+        usable = len(raw) - (len(raw) % self._frame_bytes)
+        if not usable:
             return b""
         samples = array.array("h")
-        samples.frombytes(raw)
+        samples.frombytes(raw[:usable])
         return array.array("h", samples[self._ch::self._channels]).tobytes()
 
     def _readexact(self, want: int) -> bytes:
