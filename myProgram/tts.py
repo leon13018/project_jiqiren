@@ -388,7 +388,7 @@ class TtsWorker(QueueWorker):
         """非阻塞查詢 worker 是否閒置（_pending == 0），立即返回不等待。
 
         給 L1 hawk polling loop 用：hawk 不可呼叫阻塞的 wait_idle（max_wait=30s 與
-        0.1s polling cadence 衝突會卡死 loop + OpenCV 失效），但叫賣輪播需「上一句
+        0.1s polling cadence 衝突會卡死 hawk loop（輪播停、't' 收不到）），但叫賣輪播需「上一句
         播完才起算間距」→ 用本方法非阻塞瞬讀。只在 _cv mutex 下讀一個 int，
         不 wait、立即返回。_pending==0 ⟺ 當前所有句 synth+play+drain 全完成。
         """

@@ -19,7 +19,7 @@ TDD（Stage 3）由 subagent 把這些 scenarios 搬到 tests/sales/test_states.
     - 測試用純函式 lambda + inline class stub，不用 mock library
 
 L2 與既有層的關係：
-    - L1 鏈路 C OpenCV 偵測到人後 → 進 L2
+    - L1 鏈路 C 顧客觸控「開始點餐」後 → 進 L2
     - L2 鏈路 A 拒絕後 → 套 L0 子例程 A 回 L1
     - L2 鏈路 C 點到商品 → cart 加商品 → 進 L3
     - think_count 屬 L2 內部 state：ENTRY init 0，鏈路 A / C 觸發時 reset 0
@@ -41,7 +41,7 @@ L2 與既有層的關係：
 
 ## L2-ENTRY-001
 ### Scenario: 進入 L2 即播詢問語音並初始化 think_count
-### Given 從 L1 叫賣模式 OpenCV 偵測到人進入 L2
+### Given 從 L1 叫賣模式 顧客觸控「開始點餐」進入 L2
 ### When run_l2 啟動執行進入時動作
 ### Then 系統 speak「您好，請問需要購買什麼東西嗎？」且 think_count 初始化為 0，
 ###      開始等待顧客回應最多 WAIT_NO_RESPONSE（6）秒

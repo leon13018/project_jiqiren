@@ -43,7 +43,7 @@ WAIT_NO_RESPONSE: int = 6
 QTY_FOLLOWUP_TIMEOUT: int = 12
 
 # DnC（L2 cart-empty 詢問需求）專用 timeout（2026-05-26 加，比通用值寬鬆）
-# 顧客被 OpenCV 偵測到後可能還在挑商品 / 看招牌；給 12s 比 6s 更實際。
+# 顧客觸控「開始點餐」後可能還在挑商品 / 看招牌；給 12s 比 6s 更實際。
 # 不影響 L3 / B-3 沉默 / L4 等子流程（仍走 WAIT_NO_RESPONSE）。
 DNC_TIMEOUT: int = 12
 

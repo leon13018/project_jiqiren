@@ -4,7 +4,7 @@ S6 範圍（incremental-rebuild 第 6 步）：
     - 對外 API：`read(timeout) -> str | None` + `shutdown() -> None`
     - 行為：reader thread 持續 `sys.stdin.buffer.readline()` 把 line push 進 queue；
       caller `read(timeout)` 從 queue 取，timeout 內無輸入返回 None
-    - 為 S7 / STT / 真 OpenCV 並行鋪基礎 — 主線程不再被 `input()` 阻塞
+    - 為 S7 / STT 並行 + hawk 觸控 polling 鋪基礎 — 主線程不再被 `input()` 阻塞
     - 順便根治 stdin TextIOWrapper buffer multibyte 殘留 bug
       （移除 main.py 內 `sys.stdin.reconfigure(...)` hack）
 
@@ -13,9 +13,9 @@ S6 動機（S1-S5 同步 `input()` 實機踩到的問題）：
        `input()` 不支援 timeout，顧客只要不打字主線程就阻塞，`deadline -
        time.monotonic()` 永遠 check 不到。production 顧客若不掃碼也不打字會
        永遠卡在 L4。
-    2. l1.py hawk 主迴圈 OpenCV polling 是欺騙性的 — 順序寫「dwell check +
-       read 鍵」但 `read_terminal_key()` 內部 `input()` 阻塞時 OpenCV 完全 stuck；
-       真接入 cv2 自然偵測時必失效。
+    2. l1.py hawk 主迴圈靠 `read_terminal_key(timeout=0.1)` polling 跑叫賣輪播
+       + 偵測 't' 觸控（開始點餐）；`read_terminal_key()` 內部若用阻塞 `input()`
+       會卡死整個 poll loop — 輪播停、't' 收不到。
     3. stdin TextIOWrapper buffer 殘留 partial UTF-8 序列把新一輪 leading byte
        誤判為 continuation（2026-05-27 Pi 實測「刮刮樂冰紅茶」於 0xe5 byte
        raise「invalid continuation byte」）。S6 改用 `sys.stdin.buffer.readline()`
