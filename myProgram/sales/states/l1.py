@@ -273,9 +273,13 @@ def _run_l1_hawk(
             if _handle_q_press(exit_program, print_terminal):
                 continue  # 第一次 q，繼續叫賣 + 等下一個鍵
             return None  # 第二次 q：exit_program 已被呼叫
+        if key == "t":
+            # 觸控「開始點餐」（web wake → token "t" 同走鍵盤路徑）→ 轉 L2
+            return "L2"
         # 2026-05-28 hot fix：polling 模式下 "" = timeout 無輸入，**不該 reset
         # confirm**（之前 Pi 實機踩到：第一次 q 設 _q_confirm_pending=True 後
         # 100ms 內 polling 又返回 ""→reset→第二次 q 又被當第一次，連按 q 永遠
-        # 退不出）。只在「真實非 q 鍵」時 reset 避免「q → 1 → q」誤觸退出。
-        if key != "":
+        # 退不出）。只在「真實非 q/t 鍵」時 reset 避免「q → 1 → q」誤觸退出
+        # （'t' 已消費並轉 L2，不會走到這、但條件一併排除以對齊語義）。
+        if key not in ("", "t"):
             _reset_q_confirm()

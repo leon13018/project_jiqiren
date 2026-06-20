@@ -107,7 +107,7 @@ class TerminalSim:
         內 `if text == L1_HAWK_ENTRY_PROMPT` magic string 偵測（解耦常數值）。
         """
         if not _QUIET:
-            print(">>> [模擬提示] 叫賣模式只接受兩個鍵：'c' = 模擬 OpenCV 偵測顧客 → 轉 L2；'q' = 退出程式。其他輸入會被忽略。<<<")
+            print(">>> [模擬提示] 叫賣模式：'t' = 開始點餐（模擬觸控）→ 轉 L2；'q' = 退出程式。其他輸入會被忽略。<<<")
 
     def read_terminal_key(self, timeout=None):
         """讀商家鍵盤輸入（嚴格匹配整段；多字元自動失配被 caller 忽略）。
@@ -408,7 +408,7 @@ def main():
     print("=" * 50)
     print("操作小抄（chat-driven 模擬）：")
     print("  [L1 商家層] 1=叫賣 / 2=待機 / 3=客服 / q=退出")
-    print("    └ 進叫賣後按 'c' 模擬 OpenCV 偵測顧客 → 轉 L2 對話")
+    print("    └ 進叫賣後按 't' = 開始點餐（模擬觸控）→ 轉 L2 對話")
     print("    └ 進待機後按 'r' 回主選單（其他鍵無效）")
     print("    └ 進客服印電話後自動回主選單")
     print("  [L2-L5 顧客對話層] 打字=顧客語音回應 / 空 Enter=模擬 timeout")

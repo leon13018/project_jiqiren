@@ -5,8 +5,8 @@ from myProgram.sales.product_parser import parse_products
 from myProgram.sales.nlu import classify_intent
 
 
-def test_wake_maps_to_c():
-    assert to_token({"type": "wake"}) == "c"
+def test_wake_maps_to_t():
+    assert to_token({"type": "wake"}) == "t"
 
 
 def test_pay_maps_to_s():

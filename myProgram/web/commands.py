@@ -18,11 +18,11 @@ _CONFIRM_TOKEN = "正確"
 # 結帳確認卡片「返回購物車」→ 顧客「繼續」意圖（對齊 sales KG_C2_CONTINUE strict-short「繼續」）。
 _RESUME_TOKEN = "繼續"
 # 模擬硬體觸發點（TerminalSim 約定，非 sales 領域常數）：
-#   wake = 模擬 OpenCV 偵測顧客（read_terminal_key 認 'c' → L1 hawk→L2）
+#   wake = 觸控「開始點餐」（read_terminal_key 認 't' → L1 hawk→L2）
 #   pay  = 模擬掃碼付款（read_customer_input 認 's' → L4→L5）
-# 本專案目前無真 OpenCV / 掃碼器 → 這兩個就是實際觸發點。未來接真硬體時改這兩個
+# 本專案目前無真掃碼器 → 這兩個就是實際觸發點。未來接真硬體時改這兩個
 # 映射（與領域 token 解耦），對話層不受影響。
-_WAKE_TOKEN = "c"
+_WAKE_TOKEN = "t"
 _PAY_TOKEN = "s"
 
 

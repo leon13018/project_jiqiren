@@ -491,6 +491,35 @@ def test_l1_c_hawk_opencv_dwell_threshold_triggers_l2() -> None:
     assert result == "L2", f"dwell ≥ OPENCV_DWELL 應回傳 'L2'，實際：{result}"
 
 
+def test_l1_hawk_t_key_triggers_l2() -> None:
+    """觸控「開始點餐」：hawk loop 讀到 't' 鍵 → 回傳 'L2'。
+
+    web wake 觸控 → token 't' 走同一鍵盤路徑（read_terminal_key 回 't'），
+    與終端按 't' 等價。沿用既有 'q' 鍵處理 pattern（同層 if 分支）。
+    """
+    # Arrange：dwell 一直 0.0 不靠 opencv 觸發；餵 't' 模擬觸控
+    opencv = FakeOpencv(dwell_value=0.0)
+    kbd = FakeKeyboardInput(["t"])
+
+    # Act
+    result = states.run_l1(
+        print_terminal=lambda text: None,
+        read_terminal_key=kbd.read,
+        opencv_dwell_seconds=opencv.dwell_seconds,
+        opencv_disable=opencv.disable,
+        opencv_enable=opencv.enable,
+        speak=lambda text: None,
+        exit_program=lambda: None,
+        tts_is_idle=lambda: True,
+        show_hawk_help=lambda *a, **k: None,
+        enter_hawk_immediately=True,
+        do_action=lambda *a, **k: None,
+    )
+
+    # Assert：run_l1 應回傳 'L2'
+    assert result == "L2", f"按 't' 應回傳 'L2'，實際：{result}"
+
+
 # ============================================================
 # L1-C-003
 # Scenario: 叫賣模式 OpenCV 瞬時偵測未達 OPENCV_DWELL 不觸發轉 L2
