@@ -227,6 +227,7 @@ const App = {
     if (ci) ci.innerHTML = CartInner(v);
   },
 
+  openConfirm() { this.setState({ overlay: "confirm" }); },
   openCheckout() { this.setState({ overlay: "checkout" }); },
   closeOverlay() { this.setState({ overlay: null }); },
   placeOrder() { this.setState((s) => ({ overlay: "thankyou", paidTotal: this.totalOf(s.cart) })); },
@@ -250,6 +251,7 @@ const App = {
   setView(v) {
     if (v === "filled") this.setState({ cart: { bingcha: 2, guagua: 1 }, overlay: null, standby: false });
     else if (v === "empty") this.setState({ cart: {}, overlay: null, standby: false });
+    else if (v === "confirm") this.setState((s) => ({ cart: Object.keys(s.cart).length ? s.cart : { bingcha: 2, guagua: 1 }, overlay: "confirm", standby: false }));
     else if (v === "checkout") this.setState((s) => ({ cart: Object.keys(s.cart).length ? s.cart : { bingcha: 2, guagua: 1 }, overlay: "checkout", standby: false }));
     else if (v === "placed") this.setState((s) => { const c = Object.keys(s.cart).length ? s.cart : { bingcha: 2, guagua: 1 }; return { overlay: "thankyou", standby: false, paidTotal: this.totalOf(c) }; });
     else if (v === "standby") this.setState({ overlay: null, standby: true });
@@ -327,8 +329,8 @@ const App = {
     });
     this._prevCartIds = new Set(Object.keys(cart));
 
-    const currentView = this.state.standby ? "standby" : this.state.overlay === "checkout" ? "checkout" : this.state.overlay === "thankyou" ? "placed" : (count === 0 ? "empty" : "filled");
-    const reviewOptions = [["filled", "含商品"], ["empty", "空購物車"], ["checkout", "結帳"], ["placed", "完成"], ["standby", "待機"]].map(([v, label]) => {
+    const currentView = this.state.standby ? "standby" : this.state.overlay === "confirm" ? "confirm" : this.state.overlay === "checkout" ? "checkout" : this.state.overlay === "thankyou" ? "placed" : (count === 0 ? "empty" : "filled");
+    const reviewOptions = [["filled", "含商品"], ["empty", "空購物車"], ["confirm", "確認"], ["checkout", "結帳"], ["placed", "完成"], ["standby", "待機"]].map(([v, label]) => {
       const active = v === currentView;
       return { v, label, bg: active ? "var(--accent)" : "var(--fill-2)", color: active ? "var(--text-on-brand)" : "var(--text-primary)", border: active ? "transparent" : "var(--glass-border)" };
     });
@@ -341,13 +343,13 @@ const App = {
       totalLabel: this.fmt(total),
       checkoutLabel: "結帳 · " + this.fmt(total),
       paidLabel: this.fmt(this.state.paidTotal),
+      showConfirm: this.state.overlay === "confirm" || (this._live && this._awaitingConfirm),
       showCheckout: this.state.overlay === "checkout",
       showThankyou: this.state.overlay === "thankyou",
       standby: this.state.standby,
       reviewOptions,
       showReview: !this._live,   // demo 切換器只在 ?demo=1 顯示；live 模式不顯示
       reviewOpen: this.state.reviewOpen,
-      awaitingConfirm: this._awaitingConfirm,
       qrCells: this.qrCells("GLAZE|" + total + "|" + JSON.stringify(cart)),
     };
   },
@@ -359,6 +361,7 @@ const App = {
       <div class="bg-glows" aria-hidden="true"></div>
       ${TopBar(v)}
       <div class="body-grid">${Menu(v)}${CartRail(v)}</div>
+      ${v.showConfirm ? ConfirmSheet(v) : ""}
       ${v.showCheckout ? CheckoutSheet(v) : ""}
       ${v.showThankyou ? ThankYou(v) : ""}
       ${v.standby ? Standby(v) : ""}
@@ -457,9 +460,7 @@ function CartInner(v) {
           <span style="font-family:var(--font-display);font-size:18px;font-weight:700;">總計</span>
           <span style="font-family:var(--font-display);font-size:27px;font-weight:800;font-variant-numeric:tabular-nums;">${v.totalLabel}</span>
         </div>
-        ${v.awaitingConfirm
-          ? Button({ label: "確認金額正確", icon: "ph-bold ph-check", variant: "primary", size: "lg", block: true, act: "confirm" })
-          : Button({ label: v.checkoutLabel, icon: "ph-bold ph-qr-code", variant: "primary", size: "lg", block: true, act: "checkout" })}
+        ${Button({ label: v.checkoutLabel, icon: "ph-bold ph-qr-code", variant: "primary", size: "lg", block: true, act: "checkout" })}
         <p style="margin:12px 0 0;text-align:center;font-size:12px;color:var(--text-tertiary);display:flex;align-items:center;justify-content:center;gap:6px;"><i class="ph ph-storefront"></i> 現場取貨 · 掃碼付款</p>
       </div>`
     : `<div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:50px 12px;text-align:center;">
@@ -485,10 +486,19 @@ function CartRail(v) {
   </aside>`;
 }
 
-function CheckoutSheet(v) {
+// 商品明細列 + 總計（ConfirmSheet 與 CheckoutSheet 共用，消除重複）
+function OrderSummary(v) {
   const line = (l) => `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 0;border-bottom:0.5px solid var(--separator);">
     <span style="font-size:15px;">${esc(l.name)} <span style="color:var(--text-secondary);font-variant-numeric:tabular-nums;">× ${l.qty}</span></span>
     <span style="font-family:var(--font-display);font-weight:700;font-variant-numeric:tabular-nums;">${l.lineLabel}</span></div>`;
+  return `<div style="display:flex;flex-direction:column;margin:8px 0 2px;border-top:0.5px solid var(--separator);">${v.cartRows.map(line).join("")}</div>
+    <div style="display:flex;align-items:baseline;justify-content:space-between;padding:14px 0 18px;">
+      <span style="font-family:var(--font-display);font-size:18px;font-weight:700;">總計</span>
+      <span style="font-family:var(--font-display);font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;">${v.totalLabel}</span>
+    </div>`;
+}
+
+function CheckoutSheet(v) {
   const qr = v.qrCells.map((c) => `<span style="background:${c.bg};"></span>`).join("");
   return `<div class="wf-fade" data-act="close" style="position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
     padding:24px;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);">
@@ -500,11 +510,7 @@ function CheckoutSheet(v) {
         <h3 style="margin:0;font-family:var(--font-display);font-size:24px;font-weight:700;letter-spacing:-0.3px;">結帳</h3>
         ${IconButton({ icon: "ph ph-x", label: "關閉", act: "close" })}
       </div>
-      <div style="display:flex;flex-direction:column;margin:8px 0 2px;border-top:0.5px solid var(--separator);">${v.cartRows.map(line).join("")}</div>
-      <div style="display:flex;align-items:baseline;justify-content:space-between;padding:14px 0 18px;">
-        <span style="font-family:var(--font-display);font-size:18px;font-weight:700;">總計</span>
-        <span style="font-family:var(--font-display);font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;">${v.totalLabel}</span>
-      </div>
+      ${OrderSummary(v)}
       <div style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:20px;border-radius:var(--radius-xl);background:var(--fill-3);border:0.5px solid var(--glass-border);">
         <div style="padding:14px;background:#fff;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.3);">
           <div style="width:204px;height:204px;display:grid;grid-template-columns:repeat(21,1fr);grid-template-rows:repeat(21,1fr);">${qr}</div>
@@ -513,6 +519,29 @@ function CheckoutSheet(v) {
         <p style="margin:0;font-size:13px;color:var(--text-secondary);text-align:center;">掃描上方 QR 條碼，付款完成後即可取貨</p>
       </div>
       <div style="margin-top:18px;">${Button({ label: "我已完成付款", icon: "ph-bold ph-check", variant: "primary", size: "lg", block: true, act: "place" })}</div>
+    </div>
+  </div>`;
+}
+
+// 結帳前確認卡片：商品明細 + 總計 + 確認結帳 / 返回購物車。
+// 遮罩、X、返回鈕統一 act="back"（demo→關卡片回購物車；live→送 resume 繼續點餐）。
+function ConfirmSheet(v) {
+  return `<div class="wf-fade" data-act="back" style="position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
+    padding:24px;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);">
+    <div class="wf-sheet" data-act="stop" style="width:min(560px,100%);max-height:90vh;overflow:auto;background:var(--glass-tint-thick);
+      backdrop-filter:blur(var(--blur-thick)) saturate(var(--glass-saturate));-webkit-backdrop-filter:blur(var(--blur-thick)) saturate(var(--glass-saturate));
+      border:0.5px solid var(--glass-border);border-radius:var(--radius-2xl);box-shadow:var(--glass-shadow-raised);padding:22px 26px 30px;color:var(--text-primary);">
+      <div style="width:40px;height:5px;border-radius:999px;background:var(--text-quaternary);margin:0 auto 18px;"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <h3 style="margin:0;font-family:var(--font-display);font-size:24px;font-weight:700;letter-spacing:-0.3px;">請確認訂單</h3>
+        ${IconButton({ icon: "ph ph-x", label: "返回購物車", act: "back" })}
+      </div>
+      <p style="margin:2px 0 0;font-size:14px;color:var(--text-secondary);">請確認以下餐點與金額，確認後將顯示付款 QR 條碼。</p>
+      ${OrderSummary(v)}
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        ${Button({ label: "確認結帳", icon: "ph-bold ph-check", variant: "primary", size: "lg", block: true, act: "confirm" })}
+        ${Button({ label: "返回購物車", icon: "ph-bold ph-arrow-left", variant: "glass", size: "lg", block: true, act: "back" })}
+      </div>
     </div>
   </div>`;
 }
@@ -613,6 +642,10 @@ function bindEvents(root) {
           App.sendCommand({ type: "confirm" });
           App._awaitingConfirm = false;                                    // robot 進 L4 → emit checkout 接手畫面
           break;
+        case "back":
+          App.sendCommand({ type: "resume" });             // 返回購物車 → 機器人「繼續點餐」保留 cart
+          App._awaitingConfirm = false; App.render();      // 立即關卡片回點餐畫面（cart 由既有鏡像保留）
+          break;
         case "place": App.sendCommand({ type: "pay" }); break;             // 結帳頁「我已完成付款」→ 付款
         case "adGoto": App.showAd(parseInt(t.dataset.idx, 10)); restartAdTimer(); break;
         // close / finish / setView / toggleReview / stop / noop：live 忽略（overlay 由機器人 phase 驅動）
@@ -623,7 +656,9 @@ function bindEvents(root) {
       case "add": App.setQty(id, 1); break;
       case "inc": App.setQty(id, cur + 1); break;
       case "dec": if (cur - 1 <= 0) animateCartRowExit(id, () => App.setQty(id, 0)); else App.setQty(id, cur - 1); break;
-      case "checkout": App.openCheckout(); break;
+      case "checkout": App.openConfirm(); break;
+      case "confirm": App.openCheckout(); break;
+      case "back": App.closeOverlay(); break;
       case "close": App.closeOverlay(); break;
       case "place": App.placeOrder(); break;
       case "finish": App.finishOrder(); break;
