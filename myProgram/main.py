@@ -32,6 +32,11 @@ from myProgram.sales.nlu import normalize_input
 # 避免 arecord 把機器人尾音收進去、黏吞顧客軟起音首字。預設 0 = 不改行為。
 _MIC_OPEN_DELAY_SEC = int(os.environ.get("STT_MIC_OPEN_DELAY_MS", "0")) / 1000.0
 
+# 早麥（env 旗標）：STT_EARLY_MIC=1 時，read_customer_input 在提示音播放期間（wait_idle
+# 前）就 arm(capture=False) 開 arecord 串流暖機，wait_idle 後才 arm() 翻注入閘。提示音的
+# 辨識被 _capturing 閘擋、不進訂單。預設 0 = 不早麥、不改行為。
+_EARLY_MIC = bool(int(os.environ.get("STT_EARLY_MIC", "0")))
+
 
 class _S1State:
     """wire-up 共享 state（OpenCV 模擬狀態 — 'c' 鍵觸發）。"""
@@ -150,19 +155,18 @@ class TerminalSim:
         from myProgram import stt
         stt.prearm()   # 非阻塞預連線：首輪 540ms 握手藏進下面 wait_idle 的提示音播放
         from myProgram import tts
-        tts.wait_idle()
         from myProgram import input_reader
 
-        # timeout is None / <= 0 不適用倒數（read_customer_input caller 不會傳；守備性
-        # fallback 走原 single read 保證向後相容）。否則走 _tick_countdown：每秒對齊
-        # 整秒邊界印 `timeout = N`，input_reader.read 拿到 input 即中斷回傳，deadline
-        # 耗盡回 None。
-        # STT Phase 1：TTS 播完才開麥（arm 冪等；缺 key 自動停用走純鍵盤）。
-        # finally 保證三條路徑（拿到輸入 / timeout / 'q' sys.exit）皆收麥。
-        if _MIC_OPEN_DELAY_SEC > 0:
-            time.sleep(_MIC_OPEN_DELAY_SEC)
-        stt.arm()
+        # STT Phase 1：提示音播完才翻注入閘；STT_EARLY_MIC=1 時提前在播放期間就開麥串流
+        # 暖機（arm(capture=False)，提示音辨識被 _capturing 閘擋、不進訂單）。
+        # try/finally 保證四條路徑（早麥開了 / 拿到輸入 / timeout / 'q' sys.exit）皆收麥。
         try:
+            if _EARLY_MIC:
+                stt.arm(capture=False)   # 早麥：提示音播放期間開 arecord 串流暖機（不注入）
+            tts.wait_idle()
+            if _MIC_OPEN_DELAY_SEC > 0:
+                time.sleep(_MIC_OPEN_DELAY_SEC)
+            stt.arm()                    # capture=True：翻注入閘（早麥則復用已開 arecord）
             if timeout is None or timeout <= 0:
                 raw = input_reader.read(timeout)
             else:

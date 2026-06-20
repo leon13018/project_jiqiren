@@ -97,7 +97,7 @@ def test_read_customer_input_calls_wait_idle_before_input_read(monkeypatch):
 def _make_fake_stt_module(call_order):
     fake = types.ModuleType("myProgram.stt")
     fake.prearm = lambda: call_order.append("prearm")
-    fake.arm = lambda: call_order.append("arm")
+    fake.arm = lambda capture=True: call_order.append("arm" if capture else "arm_early")
     fake.disarm = lambda: call_order.append("disarm")
     return fake
 
@@ -250,3 +250,33 @@ def test_sleep_calls_wait_idle_before_actual_sleep(monkeypatch):
     assert call_order[1].startswith("sleep("), (
         f"wait_idle 後應接 sleep（polling loop），實際：{call_order}"
     )
+
+
+def test_early_mic_arms_capture_false_before_wait_idle(monkeypatch):
+    """STT_EARLY_MIC=1：arm(capture=False) 在 wait_idle 前（提示音播放期間開麥暖機），
+    arm(capture=True) 在 wait_idle 後（翻注入閘）。"""
+    monkeypatch.setattr("myProgram.main._EARLY_MIC", True)
+    call_order = []
+    _install_fake_tts(monkeypatch, _make_fake_tts_module(call_order))
+    _install_fake_stt(monkeypatch, _make_fake_stt_module(call_order))
+    monkeypatch.setattr("myProgram.input_reader.read",
+                        lambda timeout: call_order.append("read") or "x")
+    callbacks = _build_callbacks(_S1State())
+    callbacks["read_customer_input"](timeout=6)
+    assert call_order.index("arm_early") < call_order.index("wait_idle") < call_order.index("arm")
+    assert call_order.index("arm") < call_order.index("read")
+    assert "disarm" in call_order
+
+
+def test_default_no_early_mic_single_arm(monkeypatch):
+    """預設（_EARLY_MIC=False）：無 arm_early，wait_idle 後才 arm（不改行為）。"""
+    monkeypatch.setattr("myProgram.main._EARLY_MIC", False)
+    call_order = []
+    _install_fake_tts(monkeypatch, _make_fake_tts_module(call_order))
+    _install_fake_stt(monkeypatch, _make_fake_stt_module(call_order))
+    monkeypatch.setattr("myProgram.input_reader.read",
+                        lambda timeout: call_order.append("read") or "x")
+    callbacks = _build_callbacks(_S1State())
+    callbacks["read_customer_input"](timeout=6)
+    assert "arm_early" not in call_order
+    assert call_order.index("wait_idle") < call_order.index("arm") < call_order.index("read")
