@@ -453,3 +453,23 @@ def test_prearm_noop_without_key():
     worker.prearm()
     time.sleep(0.1)
     assert factory_calls == []                          # 缺 key → 不建線
+
+
+def test_preroll_silence_warms_stream_before_audio(monkeypatch):
+    """STT_PREROLL_MS>0：_send_loop 先送對應靜音框暖 Deepgram，再串真實音訊。
+    200ms @ 16kHz/16-bit mono = 6400 bytes = 2 × CHUNK_BYTES(3200) 靜音框。"""
+    monkeypatch.setattr(stt_mod, "_PREROLL_MS", 200, raising=False)
+    worker, ws, calls = _make_worker([], chunks=[b"\x01\x02", b"\x03\x04"])
+    worker.arm()
+    silence = b"\x00" * stt_mod.CHUNK_BYTES
+    assert wait_until(lambda: ws.sent == [silence, silence, b"\x01\x02", b"\x03\x04"])
+    worker.shutdown()
+
+
+def test_no_preroll_when_default_zero(monkeypatch):
+    """預設 0：不送任何靜音前綴，第一個送出的就是真實音框（不改行為）。"""
+    monkeypatch.setattr(stt_mod, "_PREROLL_MS", 0, raising=False)
+    worker, ws, calls = _make_worker([], chunks=[b"\x01\x02", b"\x03\x04"])
+    worker.arm()
+    assert wait_until(lambda: ws.sent == [b"\x01\x02", b"\x03\x04"])
+    worker.shutdown()

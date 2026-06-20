@@ -57,6 +57,10 @@ KEYTERMS = [
 # STT_ENDPOINTING_MS=350 可 A/B「顧客講完 → speech_final」速度，不動碼。
 _ENDPOINTING_MS = int(os.environ.get("STT_ENDPOINTING_MS", "300"))
 
+# pre-roll 暖機毫秒：每輪開麥先送這麼多 ms 靜音給 Deepgram 暖串流，顧客首字才不落在
+# 暖機窗被吞（Pi 實證「等 1s 再講不掉字」= 暖機需求）。預設 0 = 不送、不改行為。
+_PREROLL_MS = int(os.environ.get("STT_PREROLL_MS", "0"))
+
 
 def _build_deepgram_url(endpointing_ms: int) -> str:
     """組 Deepgram 串流 URL；endpointing 由參數帶入，其餘參數固定。keyterm 在固定
@@ -199,9 +203,21 @@ class SttWorker:
 
     def _send_loop(self, ws, audio, send_stop) -> None:
         """audio.read → ws.send（經 _send_lock）；EOF（disarm terminate / 裝置故障）或
-        send_stop 即止。首框到達印「開麥→第一個音框」計時。"""
+        send_stop 即止。首框到達印「開麥→第一個音框」計時。
+
+        pre-roll：while 收音前先 burst 送 _PREROLL_MS 毫秒靜音暖 Deepgram 串流，讓顧客
+        首字不落在暖機窗被吞（預設 0 = 不送）。送零非真實等待 → 不增 turn / 辨識延遲。"""
         first = True
         try:
+            if _PREROLL_MS > 0:
+                silence = b"\x00" * CHUNK_BYTES
+                total = int(16000 * 2 * _PREROLL_MS / 1000)  # 16kHz × 2byte(S16_LE) × mono
+                sent = 0
+                while sent < total and not send_stop.is_set():
+                    n = min(CHUNK_BYTES, total - sent)
+                    with self._send_lock:
+                        ws.send(silence[:n])
+                    sent += n
             while not send_stop.is_set():
                 chunk = audio.read(CHUNK_BYTES)
                 if not chunk:
