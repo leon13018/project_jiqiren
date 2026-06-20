@@ -149,10 +149,12 @@ class SttWorker:
             receiver.start()
             return True
 
-    def arm(self) -> None:
-        """冪等開麥：已 capturing / 已停用 no-op；缺 key 印一次警告後停用。
-        建線在鎖外（不持 _lock，避免凍結 disarm/shutdown）；首輪建線、之後只 spawn
-        arecord + sender（若 prearm 已建線則直接復用）。"""
+    def arm(self, capture: bool = True) -> None:
+        """開麥。capture=True（預設）：開收音層（若未開）+ 進注入窗（_capturing=True）——
+        既有單呼叫行為完全不變。capture=False：只開收音層串流（音流進 Deepgram 暖機），
+        _capturing 仍 False、不注入 —— 供「早麥」於提示音播放期間先開麥暖串流；隨後
+        arm()（capture=True）翻 _capturing 開始注入，**不重開 arecord**（復用早麥已開的收音層）。
+        建線在鎖外（不持 _lock，避免凍結 disarm/shutdown）。"""
         with self._lock:
             if self._disabled or self._capturing:
                 return
@@ -165,18 +167,21 @@ class SttWorker:
             return  # 本輪走鍵盤
         with self._lock:
             if self._capturing:
-                return  # 防禦：理論上單 caller 不發生
-            audio = self._audio_factory()
-            send_stop = threading.Event()
-            sender = threading.Thread(
-                target=self._send_loop, args=(self._ws, audio, send_stop),
-                name="SttSender", daemon=True)
-            self._audio = audio
-            self._send_stop = send_stop
-            self._sender = sender
-            self._armed_at = time.monotonic()
-            self._capturing = True
-            sender.start()
+                return  # 防禦：等鎖期間已進注入窗
+            if self._audio is None:
+                # 收音層未開才開（首次 arm，或早麥 arm(capture=False)）
+                audio = self._audio_factory()
+                send_stop = threading.Event()
+                sender = threading.Thread(
+                    target=self._send_loop, args=(self._ws, audio, send_stop),
+                    name="SttSender", daemon=True)
+                self._audio = audio
+                self._send_stop = send_stop
+                self._sender = sender
+                self._armed_at = time.monotonic()
+                sender.start()
+            if capture:
+                self._capturing = True
 
     def prearm(self) -> None:
         """非阻塞預連線：起 daemon thread 跑 _ensure_connected，讓首輪 540ms 握手藏進
@@ -308,11 +313,11 @@ class SttWorker:
             receiver.join(timeout=1.0)
 
     def disarm(self) -> None:
-        """冪等收麥：停收音層（capturing 才停 sender + arecord）→ 無條件收線
-        （每輪新連線：disarm 即收，下輪 prearm/arm 重連；涵蓋 prearm 已連未 arm）。
+        """冪等收麥：收音層開著就收（停 sender + arecord）→ 無條件收線。
+        清理閘判 `_audio` 是否開著（非 `_capturing`）—— 早麥可能開了 arecord 卻因 q/例外
+        未進注入窗（_capturing 從未 True），仍須收掉收音層、不洩漏。
         不送 Finalize（靠 endpointing 自然 finalize）。"""
         with self._lock:
-            capturing = self._capturing
             self._capturing = False
             audio = self._audio
             send_stop = self._send_stop
@@ -320,13 +325,12 @@ class SttWorker:
             self._audio = None
             self._send_stop = None
             self._sender = None
-        if capturing:
+        if audio is not None:
             send_stop.set()
             audio.close()
             sender.join(timeout=1.0)
             # 不送 Finalize：逐輪 mid-stream Finalize 會破壞 Deepgram 對後續 utterance 的
             # finalization（症狀：speech_final 空白、辨識整輪漏掉；Pi 2026-06-19 診斷鐵證）。
-            # 改靠 endpointing 自然 finalize（像首輪那樣 final 帶文字）+ _capturing 閘門擋跨輪殘響。
         self._close_connection()  # 無條件收線（含 prearm 已連但未 arm）
 
     def shutdown(self) -> None:

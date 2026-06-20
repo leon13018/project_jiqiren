@@ -473,3 +473,37 @@ def test_no_preroll_when_default_zero(monkeypatch):
     worker.arm()
     assert wait_until(lambda: ws.sent == [b"\x01\x02", b"\x03\x04"])
     worker.shutdown()
+
+
+def test_arm_capture_false_streams_without_injecting():
+    """arm(capture=False)：開收音層串流（音流出去）但 _capturing=False → speech_final
+    不注入；隨後 arm()（capture=True）翻 _capturing → 注入。"""
+    worker, ws, calls = _make_worker([], chunks=[b"\x01\x02"])
+    worker.arm(capture=False)                       # 早麥：串流暖機、不注入
+    assert wait_until(lambda: ws.sent == [b"\x01\x02"])   # 音流出去（收音層已開）
+    assert not worker.is_armed()                    # _capturing 仍 False
+    ws.feed(_results("機器人提示", speech_final=True))    # 早麥窗 → 閘擋住
+    time.sleep(0.1)
+    assert calls == []
+    worker.arm()                                    # capture=True → 翻注入
+    assert worker.is_armed()
+    ws.feed(_results("顧客紅茶", speech_final=True))
+    assert wait_until(lambda: calls == ["顧客紅茶"])
+    worker.shutdown()
+
+
+def test_arm_capture_true_after_false_does_not_reopen_audio():
+    """早麥 arm(capture=False) 已開 arecord；隨後 arm() 不重開（audio_factory 仍 1 次）、
+    只翻 _capturing。"""
+    audios = []
+    def audio_factory():
+        a = FakeAudioSource()
+        audios.append(a)
+        return a
+    worker = SttWorker(sink=lambda t: None, api_key="test-key",
+                       ws_factory=lambda key: FakeWs(), audio_factory=audio_factory)
+    worker.arm(capture=False)
+    assert wait_until(lambda: len(audios) == 1)
+    worker.arm()                                    # 不重開 arecord
+    assert len(audios) == 1 and worker.is_armed()
+    worker.shutdown()
