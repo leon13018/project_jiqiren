@@ -37,6 +37,11 @@ _MIC_OPEN_DELAY_SEC = int(os.environ.get("STT_MIC_OPEN_DELAY_MS", "0")) / 1000.0
 # 辨識被 _capturing 閘擋、不進訂單。預設 0 = 不早麥、不改行為。
 _EARLY_MIC = bool(int(os.environ.get("STT_EARLY_MIC", "0")))
 
+# 倒數印行 toggle（env 旗標）：預設 0 = 隱藏 read_customer_input 的 `timeout = N` 與
+# sleep 的 `wait = N` 每秒倒數行（demo 終端乾淨）；=1 才印（debug 視覺時間感）。
+# 只抑制視覺印行——計時 / timeout / 等待秒數一秒不差。
+_SHOW_COUNTDOWN = bool(int(os.environ.get("SALES_SHOW_COUNTDOWN", "0")))
+
 
 class _S1State:
     """wire-up 共享 state（OpenCV 模擬狀態 — 'c' 鍵觸發）。"""
@@ -57,6 +62,9 @@ def _tick_countdown(total: float, label: str, wait_tick):
     統一 read_customer_input（可被輸入打斷）/ sleep（跑滿不可打斷）兩個倒數迴圈：
     差異只在注入的 wait_tick（input_reader.read 可中斷 / time.sleep 恆回 None）。
     每秒對齊整秒邊界，time 用 module-global lookup（測試 patch 全域時鐘 seam）。
+
+    倒數印行受 `_SHOW_COUNTDOWN`（env `SALES_SHOW_COUNTDOWN`）控制、預設不印；
+    計時 / 中斷邏輯不受影響，只抑制視覺印行。
     """
     deadline = time.monotonic() + total
     while True:
@@ -64,7 +72,8 @@ def _tick_countdown(total: float, label: str, wait_tick):
         if remaining <= 0:
             return None
         ticks = math.ceil(remaining)
-        print(f"{label} = {ticks}")
+        if _SHOW_COUNTDOWN:
+            print(f"{label} = {ticks}")
         got = wait_tick(remaining - (ticks - 1))
         if got is not None:
             return got

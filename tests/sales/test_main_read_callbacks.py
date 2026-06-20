@@ -40,7 +40,7 @@ import sys
 import types
 
 import myProgram
-from myProgram.main import _build_callbacks, _S1State
+from myProgram.main import _build_callbacks, _S1State, _tick_countdown
 
 
 def _make_fake_tts_module(wait_idle_calls):
@@ -280,3 +280,22 @@ def test_default_no_early_mic_single_arm(monkeypatch):
     callbacks["read_customer_input"](timeout=6)
     assert "arm_early" not in call_order
     assert call_order.index("wait_idle") < call_order.index("arm") < call_order.index("read")
+
+
+def test_tick_countdown_hidden_by_default(monkeypatch, capsys):
+    """預設 _SHOW_COUNTDOWN=False：_tick_countdown 不印 `label = N` 倒數行。
+
+    wait_tick 首次即回非 None 讓 loop 一圈即 break（已過印行點），capsys 仍空
+    → 證明印行被 _SHOW_COUNTDOWN 閘掉；回傳值證明計時 / 中斷邏輯不受影響。
+    """
+    monkeypatch.setattr("myProgram.main._SHOW_COUNTDOWN", False)
+    got = _tick_countdown(5, "timeout", lambda s: "x")
+    assert got == "x"
+    assert capsys.readouterr().out == ""
+
+
+def test_tick_countdown_shown_when_flag_on(monkeypatch, capsys):
+    """_SHOW_COUNTDOWN=True：_tick_countdown 印 `label = N` 倒數行（debug 視覺）。"""
+    monkeypatch.setattr("myProgram.main._SHOW_COUNTDOWN", True)
+    _tick_countdown(5, "timeout", lambda s: "x")
+    assert "timeout = " in capsys.readouterr().out
