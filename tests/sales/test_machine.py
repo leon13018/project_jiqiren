@@ -45,7 +45,7 @@ def _make_callbacks(**overrides):
         do_action=lambda *a, **k: None,
         read_customer_input=lambda *a, **k: None,
         sleep=lambda *a, **k: None,
-        schedule=lambda *a, **k: None,
+        tts_is_idle=lambda: True,
         exit_program=lambda *a, **k: None,
         show_hawk_help=lambda *a, **k: None,
         speak_and_wait=lambda *a, **k: None,

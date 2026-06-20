@@ -18,7 +18,8 @@ TDD（Stage 3）會由 subagent 把這些 scenarios 搬到 tests/sales/test_*.py
         - speak(text) — 播叫賣語音（叫賣模式用，雖 L1 規格寫「無語音」但叫賣是例外，
           因 L1 鏈路 C 明寫「播一組叫賣術語」）
         - exit_program() — 全域 q 觸發
-        - schedule(seconds, callback) — 排程（叫賣輪播用，沿用 L0 子例程 A pattern）
+        - tts_is_idle() -> bool — 非阻塞查 TTS 是否播完當前句（叫賣輪播「上一句
+          播完才起算 HAWK_INTERVAL 間距」用，2026-06-20 取代舊 schedule 死抽象）
     - 測試用純函式 lambda 收集呼叫紀錄，不用 mock library
 
 L1 vs L0 子例程 A 的關鍵差異：

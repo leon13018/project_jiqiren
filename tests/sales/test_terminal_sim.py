@@ -24,7 +24,7 @@ EXPECTED_KEYS = {
     "do_action",
     "read_customer_input",
     "sleep",
-    "schedule",
+    "tts_is_idle",
     "exit_program",
     "show_hawk_help",
 }

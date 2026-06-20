@@ -9,12 +9,9 @@
     - L5-ENTRY-003：進入 L5 清空 cart 完成交易重置
     - L5-A-001：等待 THANK_DELAY 秒後自動套用子例程 A 回 L1
 
-設計：callback 注入（speak / mute_opencv / unmute_opencv / schedule）。
-      測試用純函式 lambda + FakeScheduler stub，不用 mock library。
-
-FakeScheduler：
-    - schedule(seconds, callback)：登記「delay 秒後執行 callback」
-    - tick(seconds)：推進時間，觸發到期的 callback（含連鎖觸發）
+設計：callback 注入（speak / mute_opencv / unmute_opencv / tts_is_idle）。
+      測試用純函式 lambda，不用 mock library。hawk 輪播走真實 polling loop +
+      fake_monotonic（patch l1.time.monotonic）驅動，不再用 scheduler stub。
 """
 
 import pytest
@@ -76,43 +73,6 @@ from myProgram.sales import cart as cart_module
 
 
 # ============================================================
-# FakeScheduler（純函式 stub，不用 mock library）
-# ============================================================
-
-class FakeScheduler:
-    """模擬時間推進的排程器 stub。
-
-    用途：讓測試可控制「時間推進」，不需 time.sleep。
-    """
-
-    def __init__(self) -> None:
-        # 儲存 (到期時刻, callback) 的列表
-        self._events: list = []
-        self._now: float = 0.0
-
-    def schedule(self, seconds: float, callback) -> None:
-        """登記 seconds 秒後執行 callback。"""
-        self._events.append((self._now + seconds, callback))
-
-    def tick(self, seconds: float) -> None:
-        """推進時間 seconds 秒，觸發所有到期的 callback（按時序）。"""
-        self._now += seconds
-        # 反覆掃描直到無新到期事件（callback 本身可能再次呼叫 schedule）
-        changed = True
-        while changed:
-            changed = False
-            pending = sorted(
-                [(t, cb) for t, cb in self._events if t <= self._now],
-                key=lambda x: x[0],
-            )
-            for due_time, cb in pending:
-                if (due_time, cb) in self._events:
-                    self._events.remove((due_time, cb))
-                    cb()
-                    changed = True
-
-
-# ============================================================
 # L0-SUB-A-001（2026-05-25 重構後）
 # ============================================================
 
@@ -143,7 +103,7 @@ def test_sub_a_mutes_opencv_on_trigger() -> None:
 ### Scenario: 子例程 A 只 mute 不 unmute、不叫賣（防 unmute_opencv / 叫賣 callback 偷被加回來）
 ### Given 子例程 A 已觸發
 ### When 任何時點檢查
-### Then run_subroutine_a 的 signature 不該再接受 unmute_opencv / speak / schedule callbacks
+### Then run_subroutine_a 的 signature 不該再接受 unmute_opencv / speak / 叫賣 callbacks
 def test_sub_a_only_calls_mute_no_unmute_no_speak() -> None:
     # Arrange
     import inspect
@@ -153,7 +113,7 @@ def test_sub_a_only_calls_mute_no_unmute_no_speak() -> None:
     params = set(sig.parameters.keys())
     assert params == {"mute_opencv"}, (
         f"run_subroutine_a 應只接受 mute_opencv，實際 {params}。"
-        "若加回 unmute_opencv / speak / schedule = 違反方案 A 規格（"
+        "若加回 unmute_opencv / speak / 叫賣 callback = 違反方案 A 規格（"
         "L0_共通.md 子例程 A 段）：主選單期間不該被自動 unmute / 不該背景叫賣"
     )
 
@@ -223,7 +183,7 @@ def test_l1_entry_prints_mode_select_menu() -> None:
         opencv_enable=lambda: None,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
-        schedule=FakeScheduler().schedule,
+        tts_is_idle=lambda: True,
         show_hawk_help=lambda *a, **k: None,
         do_action=lambda *a, **k: None,
     )
@@ -260,7 +220,7 @@ def test_l1_a_service_mode_prints_phone_and_returns_to_menu() -> None:
         opencv_enable=lambda: None,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
-        schedule=FakeScheduler().schedule,
+        tts_is_idle=lambda: True,
         show_hawk_help=lambda *a, **k: None,
         do_action=lambda *a, **k: None,
     )
@@ -298,7 +258,7 @@ def test_l1_b_standby_mode_prints_prompt_and_stays_idle() -> None:
         opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
-        schedule=FakeScheduler().schedule,
+        tts_is_idle=lambda: True,
         show_hawk_help=lambda *a, **k: None,
         do_action=lambda *a, **k: None,
     )
@@ -334,7 +294,7 @@ def test_l1_b_standby_r_returns_to_menu() -> None:
         opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
-        schedule=FakeScheduler().schedule,
+        tts_is_idle=lambda: True,
         show_hawk_help=lambda *a, **k: None,
         do_action=lambda *a, **k: None,
     )
@@ -372,7 +332,7 @@ def test_l1_b_standby_q_exits_program() -> None:
         opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
-        schedule=FakeScheduler().schedule,
+        tts_is_idle=lambda: True,
         show_hawk_help=lambda *a, **k: None,
         do_action=lambda *a, **k: None,
     )
@@ -405,7 +365,7 @@ def test_l1_b_standby_opencv_disabled() -> None:
         opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: None,
-        schedule=FakeScheduler().schedule,
+        tts_is_idle=lambda: True,
         show_hawk_help=lambda *a, **k: None,
         do_action=lambda *a, **k: None,
     )
@@ -437,7 +397,6 @@ def test_l1_enter_hawk_immediately_skips_mode_menu() -> None:
     printed: list = []
     speak_calls: list = []
     opencv = FakeOpencv(dwell_value=0.0)
-    scheduler = FakeScheduler()
     # OpenCV dwell 一直 0.0 不觸發 L2；按 q q（C14：兩次 q）退出
     kbd = FakeKeyboardInput(["q", "q"])
 
@@ -449,7 +408,7 @@ def test_l1_enter_hawk_immediately_skips_mode_menu() -> None:
         opencv_enable=opencv.enable,
         speak=lambda text: speak_calls.append(text),
         exit_program=lambda: None,
-        schedule=scheduler.schedule,
+        tts_is_idle=lambda: True,
         show_hawk_help=lambda *a, **k: None,
         enter_hawk_immediately=True,
         do_action=lambda *a, **k: None,
@@ -471,7 +430,6 @@ def test_l1_c_hawk_mode_starts_immediately_without_mute_buffer() -> None:
     printed: list = []
     speak_calls: list = []
     opencv = FakeOpencv(dwell_value=0.0)
-    scheduler = FakeScheduler()
     # 輸入 1 進叫賣模式，OpenCV dwell 一直 0.0（不觸發 L2），按 q q（C14）退出
     key_sequence = ["1", "q", "q"]
     kbd = FakeKeyboardInput(key_sequence)
@@ -485,7 +443,7 @@ def test_l1_c_hawk_mode_starts_immediately_without_mute_buffer() -> None:
         opencv_enable=opencv.enable,
         speak=lambda text: speak_calls.append(text),
         exit_program=lambda: None,
-        schedule=scheduler.schedule,
+        tts_is_idle=lambda: True,
         show_hawk_help=lambda *a, **k: None,
         do_action=lambda *a, **k: None,
     )
@@ -524,7 +482,7 @@ def test_l1_c_hawk_opencv_dwell_threshold_triggers_l2() -> None:
         opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: None,
-        schedule=FakeScheduler().schedule,
+        tts_is_idle=lambda: True,
         show_hawk_help=lambda *a, **k: None,
         do_action=lambda *a, **k: None,
     )
@@ -558,7 +516,7 @@ def test_l1_c_hawk_opencv_brief_detection_filtered() -> None:
         opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
-        schedule=FakeScheduler().schedule,
+        tts_is_idle=lambda: True,
         show_hawk_help=lambda *a, **k: None,
         do_action=lambda *a, **k: None,
     )
@@ -592,7 +550,7 @@ def test_l1_c_hawk_non_q_keys_ignored() -> None:
         opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
-        schedule=FakeScheduler().schedule,
+        tts_is_idle=lambda: True,
         show_hawk_help=lambda *a, **k: None,
         do_action=lambda *a, **k: None,
     )
@@ -626,7 +584,7 @@ def test_l1_c_hawk_q_exits_program() -> None:
         opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
-        schedule=FakeScheduler().schedule,
+        tts_is_idle=lambda: True,
         show_hawk_help=lambda *a, **k: None,
         do_action=lambda *a, **k: None,
     )
@@ -658,7 +616,7 @@ def test_l1_menu_q_exits_program() -> None:
         opencv_enable=lambda: None,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
-        schedule=FakeScheduler().schedule,
+        tts_is_idle=lambda: True,
         show_hawk_help=lambda *a, **k: None,
         do_action=lambda *a, **k: None,
     )
@@ -693,7 +651,7 @@ def test_l1_menu_q_nonq_q_does_not_exit() -> None:
         opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
-        schedule=FakeScheduler().schedule,
+        tts_is_idle=lambda: True,
         show_hawk_help=lambda *a, **k: None,
         do_action=lambda *a, **k: None,
     )
@@ -728,7 +686,7 @@ def test_l1_hawk_q_nonq_q_does_not_exit() -> None:
         opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
-        schedule=FakeScheduler().schedule,
+        tts_is_idle=lambda: True,
         show_hawk_help=lambda *a, **k: None,
         do_action=lambda *a, **k: None,
     )
@@ -773,7 +731,7 @@ def test_l1_hawk_q_polling_empty_then_q_should_exit() -> None:
         opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
-        schedule=FakeScheduler().schedule,
+        tts_is_idle=lambda: True,
         show_hawk_help=lambda *a, **k: None,
         do_action=lambda *a, **k: None,
     )
@@ -5171,7 +5129,7 @@ def test_l1_main_loop_calls_opencv_disable_each_iteration() -> None:
         opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: None,
-        schedule=FakeScheduler().schedule,
+        tts_is_idle=lambda: True,
         show_hawk_help=lambda *a, **k: None,
         do_action=lambda *a, **k: None,
     )
@@ -5196,7 +5154,7 @@ def test_l1_service_mode_calls_opencv_disable() -> None:
         opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: None,
-        schedule=FakeScheduler().schedule,
+        tts_is_idle=lambda: True,
         show_hawk_help=lambda *a, **k: None,
         do_action=lambda *a, **k: None,
     )
@@ -6382,7 +6340,7 @@ def test_l1_hawk_entry_calls_do_action_with_action_l1_hawk() -> None:
         opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: None,
-        schedule=FakeScheduler().schedule,
+        tts_is_idle=lambda: True,
         show_hawk_help=lambda *a, **k: None,
         do_action=lambda name: do_action_calls.append(name),
     )
@@ -6398,38 +6356,163 @@ def test_l1_hawk_entry_calls_do_action_with_action_l1_hawk() -> None:
 
 
 def test_l1_hawk_subsequent_rounds_do_not_call_do_action() -> None:
-    """L1 hawk schedule 後續輪播(_schedule_hawk_l1)**不**跑動作 — servo 過熱防護。
+    """L1 hawk 後續輪播**不**跑動作 — servo 過熱防護。
 
-    FakeScheduler tick 模擬 4 次 HAWK_INTERVAL(每次觸發一次後續 speak 輪播)；
-    do_action 應仍只被呼叫 1 次(entry 那次)，不受 schedule 輪播觸發。
+    走真實 polling loop（tts_is_idle=lambda: True + fake_monotonic 推進 → 喊滿
+    ≥4 句後續輪播）；do_action 應仍只被呼叫 1 次(entry 那次)，不受輪播觸發。
     """
+    from unittest.mock import patch
+
     # Arrange
     do_action_calls: list = []
-    opencv = FakeOpencv(dwell_value=OPENCV_DWELL)
-    kbd = FakeKeyboardInput(["1"])
-    scheduler = FakeScheduler()
+    speak_calls: list = []
+    # 喊滿 entry[0] + ≥4 句後續輪播後 OpenCV 觸發轉 L2
+    TARGET = 5
+
+    def dwell() -> float:
+        return OPENCV_DWELL if len(speak_calls) >= TARGET else 0.0
+
+    kbd = FakeKeyboardInput([])
+
+    _t = [0.0]
+    def fake_monotonic() -> float:
+        _t[0] += HAWK_INTERVAL
+        return _t[0]
 
     # Act
-    states.run_l1(
-        print_terminal=lambda text: None,
-        read_terminal_key=kbd.read,
-        opencv_dwell_seconds=opencv.dwell_seconds,
-        opencv_disable=opencv.disable,
-        opencv_enable=opencv.enable,
-        speak=lambda text: None,
-        exit_program=lambda: None,
-        schedule=scheduler.schedule,
-        show_hawk_help=lambda *a, **k: None,
-        do_action=lambda name: do_action_calls.append(name),
+    with patch("myProgram.sales.states.l1.time.monotonic", side_effect=fake_monotonic):
+        states.run_l1(
+            print_terminal=lambda text: None,
+            read_terminal_key=kbd.read,
+            opencv_dwell_seconds=dwell,
+            opencv_disable=lambda: None,
+            opencv_enable=lambda: None,
+            speak=lambda text: speak_calls.append(text),
+            exit_program=lambda: None,
+            tts_is_idle=lambda: True,
+            show_hawk_help=lambda *a, **k: None,
+            enter_hawk_immediately=True,
+            do_action=lambda name: do_action_calls.append(name),
+        )
+
+    # 後續輪播確實喊了 ≥4 句（驗證真的跑過多輪輪播，非空轉）
+    assert len(speak_calls) >= TARGET, (
+        f"應喊滿 entry + ≥4 句後續輪播，實際 {speak_calls}"
     )
-
-    # 推進 4 個 HAWK_INTERVAL，連鎖觸發後續輪播 callback
-    scheduler.tick(HAWK_INTERVAL * 4 + 1)
-
     # Assert：do_action 仍只跑了 1 次(entry)，輪播未追加
     assert do_action_calls == [ACTION_L1_HAWK], (
         f"後續輪播不應觸發 do_action(servo 過熱防護)；"
         f"預期僅 1 次 entry 呼叫，實際 do_action_calls={do_action_calls}"
+    )
+
+
+# ============================================================
+# L0-SUB-A-003/004：hawk 輪播自驅（polling loop + tts_is_idle 閘門）
+# 2026-06-20 hawk_loop spec：取代 _schedule_hawk_l1（死抽象，production 從不觸發）。
+# 走真實 polling loop（非 FakeScheduler 假驅動）→ 會抓到原 production bug。
+# ============================================================
+
+
+def test_l1_hawk_cycles_slogans_via_poll_loop() -> None:
+    """hawk polling loop 自驅輪播：依序喊 slogan[0][1]...[5] 再 % len wrap 回 [0]。
+
+    走真實 loop（tts_is_idle=lambda: True 永遠閒置 + fake_monotonic 每次呼叫推進
+    HAWK_INTERVAL → 每「等播完→起算間距→到期」兩圈喊一句）。OpenCV 在喊滿
+    entry[0] + 一輪 wrap（共 7 句、第 7 句即 % len 回 [0]）後觸發 dwell → return L2。
+
+    這會抓到原 production bug：舊版靠 _schedule_hawk_l1 + schedule no-op，實機從不循環；
+    本測試不經 FakeScheduler 假路徑，純跑 polling loop。
+    """
+    from unittest.mock import patch
+
+    speak_calls: list = []
+    # 喊滿 7 句（entry[0] + [1..5] + wrap[0]）後 OpenCV 觸發轉 L2
+    TARGET = len(HAWK_SLOGANS) + 1  # 7
+
+    def dwell() -> float:
+        return OPENCV_DWELL if len(speak_calls) >= TARGET else 0.0
+
+    # 大量空 read（polling timeout），不干擾輪播
+    kbd = FakeKeyboardInput([])
+
+    # fake_monotonic：每次呼叫 += HAWK_INTERVAL → 每圈到期（gap 一設下圈即過期）
+    _t = [0.0]
+    def fake_monotonic() -> float:
+        _t[0] += HAWK_INTERVAL
+        return _t[0]
+
+    with patch("myProgram.sales.states.l1.time.monotonic", side_effect=fake_monotonic):
+        result = states.run_l1(
+            print_terminal=lambda text: None,
+            read_terminal_key=kbd.read,
+            opencv_dwell_seconds=dwell,
+            opencv_disable=lambda: None,
+            opencv_enable=lambda: None,
+            speak=lambda text: speak_calls.append(text),
+            exit_program=lambda: None,
+            tts_is_idle=lambda: True,
+            show_hawk_help=lambda *a, **k: None,
+            enter_hawk_immediately=True,
+            do_action=lambda *a, **k: None,
+        )
+
+    assert result == "L2", "OpenCV dwell 觸發應 return 'L2'"
+    # entry 立即喊 [0]，後續依序 [1][2][3][4][5] 再 % len wrap 回 [0]
+    expected = [HAWK_SLOGANS[i % len(HAWK_SLOGANS)] for i in range(TARGET)]
+    assert speak_calls == expected, (
+        f"hawk 輪播應依序喊 slogan 再 % len wrap，預期 {expected}，實際 {speak_calls}"
+    )
+
+
+def test_l1_hawk_waits_for_tts_idle_before_counting_gap() -> None:
+    """間距自「上一句播完」起算：tts_is_idle 回 True 前不喊下一句。
+
+    tts_is_idle 前 N 次回 False（模擬上一句還在播）→ gap_deadline 維持 None、
+    不起算間距、不喊下一句 → speak_calls 只有 entry[0]。idle 回 True 後且間距到
+    才喊 [1]。
+    """
+    from unittest.mock import patch
+
+    speak_calls: list = []
+    idle_calls = [0]
+    IDLE_AFTER = 5  # 前 5 次 is_idle 回 False（播放中），第 6 次起 True
+
+    def tts_is_idle() -> bool:
+        idle_calls[0] += 1
+        return idle_calls[0] > IDLE_AFTER
+
+    # 喊到 [1]（entry[0] + 下一句）後 OpenCV 觸發退出
+    def dwell() -> float:
+        return OPENCV_DWELL if len(speak_calls) >= 2 else 0.0
+
+    kbd = FakeKeyboardInput([])
+
+    _t = [0.0]
+    def fake_monotonic() -> float:
+        _t[0] += HAWK_INTERVAL
+        return _t[0]
+
+    with patch("myProgram.sales.states.l1.time.monotonic", side_effect=fake_monotonic):
+        states.run_l1(
+            print_terminal=lambda text: None,
+            read_terminal_key=kbd.read,
+            opencv_dwell_seconds=dwell,
+            opencv_disable=lambda: None,
+            opencv_enable=lambda: None,
+            speak=lambda text: speak_calls.append(text),
+            exit_program=lambda: None,
+            tts_is_idle=tts_is_idle,
+            show_hawk_help=lambda *a, **k: None,
+            enter_hawk_immediately=True,
+            do_action=lambda *a, **k: None,
+        )
+
+    # is_idle 在第 6 次（idle_calls > 5）才回 True；在那之前不該喊下一句
+    assert speak_calls[0] == HAWK_SLOGANS[0], "entry 應立即喊 [0]"
+    assert speak_calls[1] == HAWK_SLOGANS[1], "idle True + 間距到才喊下一句 [1]"
+    # is_idle 至少被查詢 > IDLE_AFTER 次（前面 False 期間沒喊下一句）
+    assert idle_calls[0] > IDLE_AFTER, (
+        f"idle 回 True 前應持續查詢且不喊下一句，is_idle 查詢次數 {idle_calls[0]}"
     )
 
 

@@ -83,7 +83,7 @@ class L1State(State):
             speak=cb["speak"],
             do_action=cb["do_action"],
             exit_program=cb["exit_program"],
-            schedule=cb["schedule"],
+            tts_is_idle=cb["tts_is_idle"],
             show_hawk_help=cb["show_hawk_help"],
             enter_hawk_immediately=machine.enter_hawk_immediately,
         )

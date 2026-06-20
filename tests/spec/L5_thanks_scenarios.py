@@ -22,7 +22,7 @@ callback 集合（subagent 自決細節）：
     - do_action(name) — 動作 TBD（stub no-op）
     - mute_opencv(seconds) — 屏蔽 OpenCV
     - cart — 既有 cart dict（L5 內 clear_cart）
-    - sleep / read_customer_input(timeout) / schedule — 等 3s 的時間排程（任一可選，
+    - sleep / read_customer_input(timeout) — 等 3s 的時間延遲（任一可選，
       推薦 sleep callback 因 L5 不需中斷 + 語義最明確）
 
 回傳：tuple `("L1_via_subroutine_a", 0, 0)`（沿用 L4 三態 return tuple shape，

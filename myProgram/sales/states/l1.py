@@ -4,8 +4,10 @@
 
 callback 集合：
     print_terminal / read_terminal_key / opencv_dwell_seconds / opencv_disable /
-    opencv_enable / speak / exit_program / schedule / show_hawk_help
+    opencv_enable / speak / exit_program / tts_is_idle / show_hawk_help
 """
+
+import time
 
 from myProgram.sales.constants import (
     HAWK_SLOGANS,
@@ -60,7 +62,7 @@ def run_l1(
     opencv_enable,
     speak,
     exit_program,
-    schedule,
+    tts_is_idle,
     show_hawk_help,
     do_action,
     enter_hawk_immediately: bool = False,
@@ -78,7 +80,8 @@ def run_l1(
         opencv_enable: callback() -> None — 開啟 OpenCV
         speak: callback(text: str) -> None — 播語音（叫賣用）
         exit_program: callback() -> None — 終止程式
-        schedule: callback(seconds, fn) -> None — 排程（叫賣輪播用）
+        tts_is_idle: callback() -> bool — 非阻塞查詢 TTS 是否已播完當前句（叫賣
+            輪播「上一句播完才起算 HAWK_INTERVAL 間距」用，取代舊 schedule 死抽象）
         show_hawk_help: callback() -> None — 印叫賣模式操作提示（B21：取代原
             print_terminal magic string 偵測，由 hawk 鏈路顯式呼叫）
         do_action: callback(name: str) — 同步阻塞跑廠商動作組（S3 加，2026-05-27）。
@@ -105,7 +108,7 @@ def run_l1(
             speak=speak,
             do_action=do_action,
             exit_program=exit_program,
-            schedule=schedule,
+            tts_is_idle=tts_is_idle,
             show_hawk_help=show_hawk_help,
         )
 
@@ -161,7 +164,7 @@ def run_l1(
                 speak=speak,
                 do_action=do_action,
                 exit_program=exit_program,
-                schedule=schedule,
+                tts_is_idle=tts_is_idle,
                 show_hawk_help=show_hawk_help,
             )
         # 其他鍵：重印選單（q / 1 / 2 / 3 已在上面處理；非 q 鍵已 reset confirm）
@@ -218,11 +221,15 @@ def _run_l1_hawk(
     opencv_enable,
     speak,
     exit_program,
-    schedule,
+    tts_is_idle,
     show_hawk_help,
     do_action,
 ):
-    """鏈路 C — 叫賣模式：立即播第 1 組 + OpenCV 開 → 等 OpenCV 觸發或 q 退出。
+    """鏈路 C — 叫賣模式：立即播第 1 組 + OpenCV 開 → polling loop 自驅輪播。
+
+    輪播由本 loop 自驅（取代舊 _schedule_hawk_l1 + schedule 死抽象，後者唯一
+    production 實作是 no-op，實機從不循環）：每句間距自「上一句 TTS 播完」起算
+    HAWK_INTERVAL 秒，到期才喊下一句，`% len(HAWK_SLOGANS)` 輪替。
 
     Returns:
         'L2' — OpenCV dwell ≥ OPENCV_DWELL 觸發轉 L2
@@ -235,18 +242,27 @@ def _run_l1_hawk(
     # 開啟 OpenCV
     opencv_enable()
     # S3：hawk entry 同步動作（揮手向潛在顧客打招呼）— 只在 entry 跑一次，
-    # 後續 _schedule_hawk_l1 輪播不跑動作（servo 過熱風險，循環動作留給 S5 worker）
+    # 後續輪播不跑動作（servo 過熱風險，循環動作留給 S5 worker）
     do_action(ACTION_L1_HAWK)
     # 立即播第 1 組叫賣（無 OPENCV_MUTE 緩衝）
     speak(HAWK_SLOGANS[0])
-    # 排程後續叫賣輪播（從索引 1 開始，延遲 HAWK_INTERVAL 秒）
-    _schedule_hawk_l1(speak=speak, schedule=schedule, hawk_index=1)
+    hawk_index = 1
+    # gap_deadline 隱式編碼兩態：None＝正在等當前句播完；非 None＝正在數間距。
+    gap_deadline = None
 
-    # 主迴圈：檢查 OpenCV dwell / 讀鍵
+    # 主迴圈：檢查 OpenCV dwell / 自驅輪播 / 讀鍵
     while True:
-        # 檢查 OpenCV dwell（有無顧客持續停留）
+        # 檢查 OpenCV dwell（有無顧客持續停留）— 排在喊話 / 等播完判斷之前
         if opencv_dwell_seconds() >= OPENCV_DWELL:
             return "L2"
+        # 自驅輪播：上一句播完才起算 HAWK_INTERVAL 間距，到期喊下一句、回「等播完」態
+        if gap_deadline is None:
+            if tts_is_idle():  # 上一句播完了 → 開始算間距
+                gap_deadline = time.monotonic() + HAWK_INTERVAL
+        elif time.monotonic() >= gap_deadline:  # 間距到 → 喊下一句
+            speak(HAWK_SLOGANS[hawk_index % len(HAWK_SLOGANS)])
+            hawk_index += 1
+            gap_deadline = None
         # 讀鍵（hawk 模式必須跟 OpenCV polling 並行，顯式傳 timeout=0.1
         # 走 polling cadence；無輸入返回 ""，下一輪 check dwell + 再讀。
         # 2026-05-28 hot fix：之前 read_terminal_key default=0.1 連累主選單 /
@@ -263,12 +279,3 @@ def _run_l1_hawk(
         # 退不出）。只在「真實非 q 鍵」時 reset 避免「q → 1 → q」誤觸退出。
         if key != "":
             _reset_q_confirm()
-
-
-def _schedule_hawk_l1(speak, schedule, hawk_index: int) -> None:
-    """叫賣輪播排程（L1 叫賣模式，不需 unmute_opencv）。"""
-    def _on_due():
-        speak(HAWK_SLOGANS[hawk_index % 6])
-        _schedule_hawk_l1(speak=speak, schedule=schedule, hawk_index=hawk_index + 1)
-
-    schedule(HAWK_INTERVAL, _on_due)

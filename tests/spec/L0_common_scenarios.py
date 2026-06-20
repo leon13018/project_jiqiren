@@ -12,7 +12,7 @@ TDD（Stage 3）會由 subagent 把這些 scenarios 搬到 tests/sales/test_*.py
 
 設計約束（選項 C）：
     - 禁 import 廠商 SDK（ActionGroupControl / Board）
-    - 對外動作 speak / mute_opencv / schedule 走 callback 注入
+    - 對外動作 speak / mute_opencv / tts_is_idle 走 callback 注入
     - 測試用純函式 lambda 收集呼叫紀錄，不用 mock library
 """
 
@@ -348,7 +348,7 @@ def test_cart_clear_empties_container() -> None:
 #   1. 觸發後立即屏蔽 OpenCV OPENCV_MUTE (12s) 秒（不偵測 / 不叫賣）
 #   2. OPENCV_MUTE 秒後恢復 OpenCV + 立即播第 1 組叫賣
 #   3. 後續每 HAWK_INTERVAL (12s) 秒換下一組，依 6 組 mod 6 輪流
-# 設計：對外動作以 callback 注入（mute_opencv / unmute_opencv / speak / schedule）
+# 設計：對外動作以 callback 注入（mute_opencv / unmute_opencv / speak / tts_is_idle）
 
 ## L0-SUB-A-001
 ### Scenario: 子例程觸發後立即屏蔽 OpenCV

@@ -285,9 +285,14 @@ class TerminalSim:
             return
         _tick_countdown(seconds, "wait", lambda s: time.sleep(s))
 
-    def schedule(self, seconds, fn):
-        """不真排程，僅印警告（單線程不能背景跑）。"""
-        print(f"[schedule] 排程 {seconds}s 後執行 {fn.__name__}（不真排程，立即跳過）")
+    def tts_is_idle(self):
+        """非阻塞查詢 TTS 是否閒置（hawk 輪播「上一句播完才起算間距」用）。
+
+        lazy import 對齊既有 speak callback pattern（Windows pytest 不觸發
+        edge_tts import）。取代舊 schedule no-op 死抽象。
+        """
+        from myProgram import tts
+        return tts.is_idle()
 
     def exit_program(self):
         print("[系統] 程式結束")
@@ -307,7 +312,7 @@ class TerminalSim:
             "do_action": self.do_action,
             "read_customer_input": self.read_customer_input,
             "sleep": self.sleep,
-            "schedule": self.schedule,
+            "tts_is_idle": self.tts_is_idle,
             "exit_program": self.exit_program,
             "show_hawk_help": self.show_hawk_help,
         }

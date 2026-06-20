@@ -15,7 +15,6 @@ TDD（Stage 3）由 subagent 把這些 scenarios 搬到 tests/sales/test_states.
         - do_action(name) — 動作（規格 TBD，stub 可 no-op）
         - print_terminal(text) — 客服印電話
         - read_customer_input(timeout: float) -> str | None — 等顧客回應；超時回 None
-        - schedule(seconds, callback) — 排程（B-3 沉默用，沿用 L0-SUB-A pattern）
         - 觸發子例程 A：由 run_l2 return 值或 callback 通知主迴圈
     - 測試用純函式 lambda + inline class stub，不用 mock library
 
