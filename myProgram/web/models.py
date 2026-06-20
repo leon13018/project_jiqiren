@@ -12,7 +12,7 @@ class Product(BaseModel):
 
 
 class DisplayState(BaseModel):
-    phase: Literal["standby", "ordering", "checkout", "thankyou"]
+    phase: Literal["standby", "ordering", "checkout_confirm", "checkout", "thankyou"]
     cart: dict[str, int]
     total: int
     paid: int = 0
