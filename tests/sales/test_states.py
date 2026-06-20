@@ -7530,3 +7530,63 @@ def test_dialog_no_emit_when_display_none() -> None:
     )  # 不傳 display → io.display=None → main_loop emit guard 跳過
 
     assert next_state == "L4"  # 不 raise，行為與既有完全一致
+
+
+# ============================================================
+# L3-C-CONFIRM-CONTINUE（2026-06-20 加：結帳確認卡片「返回購物車」）
+### Scenario: 結帳確認子狀態顧客講「繼續」→ 保留 cart、回主迴圈續點餐
+# ============================================================
+
+def test_l3_checkout_confirm_continue_keeps_cart_and_resumes() -> None:
+    """主迴圈結帳 path：確認時「繼續」→ speak L3_C2_CONTINUE_ACK、cart 不清、回主迴圈；
+    再次「結帳」→「對」可正常進 L4（證明 cart 完整保留 + 重入迴圈）。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # 結帳 → confirm → 繼續（返回）→ 結帳 → 對（yes）→ L4
+    customer_input = FakeCustomerInput(["結帳", "繼續", "結帳", "對"])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    assert L3_C2_CONTINUE_ACK in speak_calls, (
+        f"確認時講「繼續」應 speak L3_C2_CONTINUE_ACK，實際：{speak_calls}"
+    )
+    assert cart_module.get_quantity(cart, "冰紅茶") == 1, (
+        f"「繼續」不應清 cart，實際：{dict(cart)}"
+    )
+    assert next_state == "L4", f"後續再結帳確認應進 L4，實際：{next_state!r}"
+
+
+def test_c2_checkout_confirm_continue_keeps_cart() -> None:
+    """C-2 path（silent timeout → confirm）：確認時「繼續」→ 同樣保留 cart、回主迴圈。"""
+    speak_calls: list = []
+    cart = cart_module.new_cart()
+    cart_module.add_item(cart, "冰紅茶", 1)
+    # None → DyC 第一段；None → C-2 第二段 timeout → confirm；繼續 → 返回；結帳 → 對 → L4
+    customer_input = FakeCustomerInput([None, None, "繼續", "結帳", "對"])
+
+    next_state, _ = states.run_dialog(
+        speak=lambda text: speak_calls.append(text),
+        print_terminal=lambda text: None,
+        read_customer_input=customer_input.read,
+        cart=cart,
+        think_count=0,
+        opencv_disable=lambda: None,
+        do_action=lambda *a, **k: None,
+    )
+
+    assert L3_C2_CONTINUE_ACK in speak_calls, (
+        f"C-2 confirm 講「繼續」應 speak L3_C2_CONTINUE_ACK，實際：{speak_calls}"
+    )
+    assert cart_module.get_quantity(cart, "冰紅茶") == 1, (
+        f"C-2「繼續」不應清 cart，實際：{dict(cart)}"
+    )
+    assert next_state == "L4", f"後續再結帳確認應進 L4，實際：{next_state!r}"

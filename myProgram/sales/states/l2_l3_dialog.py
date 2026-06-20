@@ -344,6 +344,7 @@ class DialogSession:
 
         "yes" → speak GO + do_action(GO) + ("L4", 0)
         "cancel_to_l1" → exit_a（cancel_confirm YES 直退 L1，不回 main loop）
+        "continue_keep_cart" → speak L3_C2_CONTINUE_ACK + return None（不清 cart，回主迴圈續點餐）
         其他 → _handle_checkout_confirm_result（清 cart + 通知）+ None
         """
         result = _dialog_checkout_confirm(io=self.io, cart=self.cart)
@@ -356,6 +357,10 @@ class DialogSession:
         if result == "cancel_to_l1":
             # 2026-05-30 加：cancel_confirm YES → 直退 L1（不回 main loop）
             return self.exit_a()
+        if result == "continue_keep_cart":
+            # 2026-06-20 加：結帳確認卡片「返回購物車」→ 不清 cart、回主迴圈繼續點餐
+            self.io.speak(L3_C2_CONTINUE_ACK)
+            return None
         # 否認 / timeout / 亂答上限 → 清空 cart + 對應通知
         _handle_checkout_confirm_result(result, self.cart, self.io)
         return None
@@ -727,6 +732,7 @@ def _dialog_checkout_confirm(io, cart) -> bool:
                          caller 必須走 exit_a 直退 L1，不可進 _handle_checkout_confirm_result
                          （此路徑跳過 clear cart 通知 + L2 entry 重啟，由 exit_a
                           統一 speak L3_REJECT_THANKS。修 Pi demo 兩輪 YES 才退 L1 bug）
+        "continue_keep_cart" — 顧客在 confirm 內講「繼續」（KG_C2_CONTINUE）；caller 保留 cart、回主迴圈
     """
     summary = _build_order_summary(cart)
     prompt = L3_CHECKOUT_CONFIRM_TEMPLATE.format(summary=summary)
@@ -756,6 +762,10 @@ def _dialog_checkout_confirm(io, cart) -> bool:
             return "no_explicit"
         if KG_CONFIRM_YES.matches(response):
             return "yes"
+        # 2026-06-20：結帳確認卡片「返回購物車」→ 顧客講「繼續」（KG_C2_CONTINUE strict-short）
+        # → 保留 cart、回主迴圈續點餐（沿用 C-2 CONTINUE 語意，零新 keyword）
+        if KG_C2_CONTINUE.matches(response):
+            return "continue_keep_cart"
         unclear_count += 1
         if unclear_count >= CHECKOUT_CONFIRM_UNCLEAR_MAX:
             return "no_unclear_exhausted"
