@@ -22,6 +22,7 @@ vendor import 或 worker thread 啟動。
 import math
 import os
 import sys
+import threading
 import time
 
 from myProgram.sales import logic
@@ -273,54 +274,91 @@ def _build_callbacks() -> dict:
     return TerminalSim().callbacks()
 
 
+def _prewarm_workers():
+    """背景預熱 worker 模組（tts / action / stt），消除首次互動的 lazy import 頓挫。
+
+    這三個 worker 的 import 很笨重（edge_tts / vendor-lazy / websockets + 各自的
+    worker singleton 啟 daemon thread），原本在首次 speak / do_action /
+    read_customer_input 時才同步 lazy import，造成按 '1' 進 hawk 首句叫賣 / 首輪
+    收音的 import 頓。改在 startup 由背景 daemon thread 提前 import 暖機。
+
+    best-effort：任一模組 import 失敗（缺套件 / 環境問題）只 swallow——預熱純加速、
+    無新行為，import 本來就會在 lazy path 發生，屆時自然 fail-fast。
+    """
+    import importlib
+    for name in ("tts", "action", "stt"):
+        try:
+            importlib.import_module(f"myProgram.{name}")
+        except Exception:
+            pass   # best-effort：預熱失敗不影響——lazy import path 屆時自然 fail-fast
+
+
 def _run_wiring():
-    """組 callbacks + 決定 display + （`--web` 時）啟 web server，跑 logic.run。
+    """組 callbacks + 決定 display + （`--web` 時）背景啟 web server，跑 logic.run。
 
     `--web` 旗號分流：
-    - 有旗號 → lazy import web 套件（bus / display / server），建 EventBus + web 版
-      display（狀態鏡像到瀏覽器）+ 在背景執行緒啟 FastAPI server（port 8137）。
+    - 有旗號 → 主執行緒只建**輕量** stdlib 部件（EventBus / web 版 display /
+      input_reader）—— 瞬間完成、menu 立即可互動。**笨重** import（`myProgram.web.
+      server` 觸發 fastapi/uvicorn/pydantic，Pi 上要好幾秒）+ `server.start` 移到
+      `webui-boot` 背景 daemon thread，**不擋 logic.run（menu）**。
     - 無旗號 → display 為 no-op lambda，完全不 import web（終端模式 / Windows pytest
       不觸發 fastapi/uvicorn import）。
 
-    缺依賴 graceful（Pi 沒裝 fastapi/uvicorn）：`--web` 但 web import 失敗 → 印明確
-    繁中錯誤、退回 no-op display 繼續跑（不讓機器人因 web 殼缺套件就開不了機）。
+    display_cb 恆 bus-backed（`--web` 時）：早期 menu emit（standby phase）走
+    bus.publish → loop 未綁時只存 last_state（EventBus 設計），browser 連上經
+    /api/state 取 last snapshot → 不丟失。server 沒起來（啟動失敗）時 publish 到無
+    client 的 bus 也無害，故**不**退回 no-op。
 
-    web import 一律在 `if web_mode:` 內（lazy）：終端模式與 Windows pytest 不得觸發
+    啟動失敗 graceful（Pi 沒裝 fastapi/uvicorn / port 衝突）：背景 thread 內
+    try/except 印明確繁中錯誤，機器人照常運作（不讓機器人因 web 殼開不了機）。
+
+    web import 一律在背景 thread 內（lazy）：終端模式與 Windows pytest 不得觸發
     web import。
     """
     web_mode = "--web" in sys.argv
     callbacks = _build_callbacks()
 
-    web_server = None   # server 模組（成功 import 才非 None → finally 收尾用）
-    web_srv = None      # uvicorn Server 實例
+    srv_holder = {}   # boot thread 寫 "srv"（uvicorn Server 實例）；主執行緒 finally 讀
     if web_mode:
-        try:
-            from myProgram.web.bus import EventBus
-            from myProgram.web.display import make_web_display
-            from myProgram.web import server as web_server
-            from myProgram import input_reader
-            bus = EventBus()
-            display_cb = make_web_display(bus)
-            # on_input：觸控上行 seam —— WS 收到的命令經 commands.to_token → 注入既有 input queue
-            #（與鍵盤 / STT 共用單一 queue；read_terminal_key 的 't' 與 read_customer_input 皆讀此）
-            web_srv, _ = web_server.start(bus, input_reader.inject, port=8137)
-            print("[webui] FastAPI 已啟動 → http://0.0.0.0:8137/（同 wifi 連 raspberrypi.local:8137）")
-        except Exception as exc:
-            # web 殼掛不開不讓機器人開不了機：依賴缺失（ImportError）或啟動失敗（port
-            # 衝突 OSError 等）皆退回 no-op display 繼續服務客人。start 失敗時 web_srv
-            # 留 None → finally 不會誤呼 stop。
-            web_server = None
-            web_srv = None
-            print(f"[webui] web 啟動失敗（{exc}）→ 退回無 web 模式，機器人照常運作（請檢查 Pi 端 fastapi/uvicorn 或 8137 port）")
-            display_cb = lambda *a, **k: None
+        from myProgram.web.bus import EventBus
+        from myProgram.web.display import make_web_display
+        from myProgram import input_reader
+        bus = EventBus()
+        display_cb = make_web_display(bus)
+
+        def _start_web():
+            """背景 daemon thread：笨重 web import + 啟 FastAPI server（不擋 menu）。"""
+            try:
+                from myProgram.web import server
+                # on_input：觸控上行 seam —— WS 收到的命令經 commands.to_token → 注入既有
+                # input queue（與鍵盤 / STT 共用單一 queue；read_terminal_key 的 't' 與
+                # read_customer_input 皆讀此）。
+                srv, _ = server.start(bus, input_reader.inject, port=8137)
+                srv_holder["srv"] = srv
+                print("[webui] FastAPI 已啟動 → http://0.0.0.0:8137/（同 wifi 連 raspberrypi.local:8137）")
+            except Exception as exc:
+                # web 殼掛不開不讓機器人開不了機：依賴缺失（ImportError）或啟動失敗（port
+                # 衝突 OSError 等）皆 graceful。srv_holder 留空 → finally 不會誤呼 stop。
+                print(f"[webui] web 啟動失敗（{exc}）→ 機器人照常運作（請檢查 Pi 端 fastapi/uvicorn 或 8137 port）")
+
+        boot = threading.Thread(target=_start_web, name="webui-boot", daemon=True)
+        boot.start()
     else:
         display_cb = lambda *a, **k: None
+        boot = None
 
     try:
         logic.run(**callbacks, display=display_cb)
     finally:
-        if web_server is not None and web_srv is not None:
-            web_server.stop(web_srv)
+        # 等 boot thread 完成才讀 srv_holder（確保啟動結果落定）；非 None 才 stop。
+        # srv 非 None ⇒ server import + start 已成功 → 此處 import server 必不炸；
+        # 啟動失敗時 srv_holder 留空 → 不 import / 不 stop（graceful）。
+        if boot is not None:
+            boot.join()
+            srv = srv_holder.get("srv")
+            if srv is not None:
+                from myProgram.web import server
+                server.stop(srv)
 
 
 def main():
@@ -342,8 +380,13 @@ def main():
     print("  [L2-L5 顧客對話層] 打字=顧客語音回應 / 空 Enter=模擬 timeout")
     print("=" * 50)
 
-    # callbacks + display 決定 + （`--web`）啟 server + logic.run 都在 _run_wiring；
-    # 終端模式 display 為 no-op，`--web` 注入 web 版 display + 啟 FastAPI server。
+    # 背景預熱 worker（tts / action / stt）：提前在 daemon thread import 暖機，消除
+    # 按 '1' 進 hawk 首次 speak / do_action / read 的 lazy import 頓挫（純加速、無新
+    # 行為）。daemon=True 隨 process die；best-effort 失敗已在 _prewarm_workers 內吞。
+    threading.Thread(target=_prewarm_workers, name="worker-prewarm", daemon=True).start()
+
+    # callbacks + display 決定 + （`--web`）背景啟 server + logic.run 都在 _run_wiring；
+    # 終端模式 display 為 no-op，`--web` 注入 web 版 display + 背景啟 FastAPI server。
     try:
         _run_wiring()
     except SystemExit:

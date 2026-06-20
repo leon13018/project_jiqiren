@@ -10,6 +10,8 @@ bus / display 純 stdlib 可真 import。logic.run 一律 monkeypatch 攔 kwargs
 狀態機）。
 """
 import sys
+import threading
+import time
 import types
 
 import pytest
@@ -160,6 +162,77 @@ def test_web_mode_missing_deps_falls_back_to_noop_display(monkeypatch, capsys):
     captured["display"]("ordering", {"冰紅茶": 2})
     out = capsys.readouterr().out
     assert "webui" in out.lower()   # 印了明確的 web 失敗訊息
+
+
+def test_prewarm_workers_swallows_import_error(monkeypatch):
+    """_prewarm_workers best-effort：某 worker import 拋錯被吞、不 propagate。
+
+    背景預熱純加速；某模組 import 失敗（缺套件 / 環境問題）不該炸主流程——
+    lazy import path 屆時自然 fail-fast。monkeypatch importlib.import_module 對
+    任一 name 拋錯 → _prewarm_workers() 不得 raise。
+    """
+    import importlib
+
+    def boom(name, *a, **k):
+        raise RuntimeError(f"預熱 import 故意失敗：{name}")
+
+    monkeypatch.setattr(importlib, "import_module", boom)
+
+    # 不得 raise（best-effort 吞錯）
+    main_module._prewarm_workers()
+
+
+def test_prewarm_workers_imports_each_worker(monkeypatch):
+    """_prewarm_workers 對 tts / action / stt 各跑一次 import_module（暖三個 worker）。"""
+    import importlib
+
+    imported = []
+    monkeypatch.setattr(importlib, "import_module",
+                        lambda name, *a, **k: imported.append(name))
+
+    main_module._prewarm_workers()
+
+    assert imported == ["myProgram.tts", "myProgram.action", "myProgram.stt"]
+
+
+def test_web_mode_logic_run_not_blocked_by_slow_server_start(monkeypatch):
+    """`--web` 非阻塞契約：logic.run 立即跑，不等笨重的 server.start 完成。
+
+    根因修復核心——笨重 web import + server.start 移到背景 daemon thread，
+    menu（logic.run）立即可互動。本測試讓 server.start 卡 0.5s（模擬 Pi 上
+    fastapi/uvicorn 笨重 import + 啟動），驗 logic.run 在 server.start 仍進行中
+    就已被呼叫（即 start 在背景 thread、非主執行緒阻塞 logic.run 之前）。
+    """
+    monkeypatch.setattr(sys, "argv", ["myprogram", "--web"])
+
+    events = []
+    start_running = threading.Event()
+    start_done = threading.Event()
+
+    def slow_start(bus, on_input, port=8137):
+        start_running.set()
+        time.sleep(0.5)          # 模擬笨重啟動
+        start_done.set()
+        events.append("start_done")
+        return object(), object()
+
+    def fake_logic_run(**kw):
+        # logic.run 被呼叫時 server.start 應已啟動（thread spawn）但尚未完成
+        start_running.wait(timeout=2)
+        events.append(f"logic_run start_done={start_done.is_set()}")
+
+    fake_server = types.SimpleNamespace(start=slow_start, stop=lambda srv: None)
+    monkeypatch.setitem(sys.modules, "myProgram.web.server", fake_server)
+    monkeypatch.setattr(logic, "run", fake_logic_run)
+
+    main_module._run_wiring()
+
+    # logic.run 在 server.start 尚未完成時即被呼叫（非阻塞契約）
+    assert events[0] == "logic_run start_done=False", (
+        f"logic.run 應在 server.start 進行中即被呼叫，實際事件序：{events}"
+    )
+    # finally 仍等 boot thread 完成、收掉 server（不漏 stop）
+    assert "start_done" in events
 
 
 def test_web_mode_server_start_raises_falls_back_to_noop_display(monkeypatch, capsys):
