@@ -379,6 +379,17 @@ class TtsWorker(QueueWorker):
                 self._cv.wait(timeout=remaining)
             return True
 
+    def is_idle(self) -> bool:
+        """非阻塞查詢 worker 是否閒置（_pending == 0），立即返回不等待。
+
+        給 L1 hawk polling loop 用：hawk 不可呼叫阻塞的 wait_idle（max_wait=30s 與
+        0.1s polling cadence 衝突會卡死 loop + OpenCV 失效），但叫賣輪播需「上一句
+        播完才起算間距」→ 用本方法非阻塞瞬讀。只在 _cv mutex 下讀一個 int，
+        不 wait、立即返回。_pending==0 ⟺ 當前所有句 synth+play+drain 全完成。
+        """
+        with self._cv:
+            return self._pending == 0
+
     def shutdown(self) -> None:
         """程式退出 cleanup：terminate 當前 mpg123 + 清空 queue。
 
@@ -449,6 +460,15 @@ def wait_idle(max_wait: float = 30.0) -> bool:
     deadline 前確保 TTS 不還在隊列裡。
     """
     return _worker.wait_idle(max_wait=max_wait)
+
+
+def is_idle() -> bool:
+    """對外 API：非阻塞查詢 TTS 是否已播完當前所有句（_pending==0）。
+
+    使用情境：L1 hawk polling loop「上一句播完才起算 HAWK_INTERVAL 間距」用。
+    非阻塞瞬讀，不像 wait_idle 會阻塞等播完。
+    """
+    return _worker.is_idle()
 
 
 def shutdown() -> None:

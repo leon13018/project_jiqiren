@@ -313,6 +313,60 @@ def test_wait_idle_default_max_wait_is_30_seconds():
 
 
 # ============================================================
+# is_idle：非阻塞瞬讀 _pending（hawk 輪播「上一句播完才起算間距」用）
+# ============================================================
+
+
+def test_is_idle_true_when_no_pending(monkeypatch):
+    """新建 worker、_pending=0 時 is_idle() 立即返回 True。"""
+    _make_fast_fakes(monkeypatch)
+    worker = TtsWorker()
+
+    assert worker.is_idle() is True, "pending=0 應回 True"
+
+
+def test_is_idle_false_while_processing_and_returns_immediately(monkeypatch):
+    """say + worker hang 在 popen.wait（處理中）→ is_idle() 回 False，且立即返回不阻塞。
+
+    用 R1 regression 的 hang seam：say 後 worker get text 但卡在 popen.wait()，
+    _pending 仍 > 0。is_idle 必須非阻塞瞬讀回 False（不像 wait_idle 會等到
+    max_wait timeout）——立即性用 elapsed < 0.1s 斷言。
+    """
+    monkeypatch.setattr(tts_module, "_synthesize", _fake_synth_noop)
+
+    hang_event = threading.Event()  # worker wait() 卡在此 event
+
+    def make_hanging_popen(*a, **kw):
+        return _FakePopen(returncode=0, wait_event=hang_event)
+
+    monkeypatch.setattr(tts_module.subprocess, "Popen", make_hanging_popen)
+    monkeypatch.setattr(tts_module.time, "sleep", lambda s: None)
+
+    worker = TtsWorker()
+    worker.say("X")
+    # 等 worker 真的 inc _pending（say 已原子 inc，但保險等到 worker 卡進 wait）
+    assert wait_until(lambda: worker._pending > 0), "worker 應有 pending 處理中"
+
+    start = time.monotonic()
+    result = worker.is_idle()
+    elapsed = time.monotonic() - start
+
+    assert result is False, "處理中（_pending > 0）is_idle 應回 False"
+    assert elapsed < 0.1, (
+        f"is_idle 應非阻塞立即返回（< 100ms），實際 {elapsed:.3f}s — "
+        f"不可像 wait_idle 阻塞等 max_wait"
+    )
+
+    # cleanup：unblock worker
+    hang_event.set()
+
+
+def test_module_level_is_idle_delegates_to_worker():
+    """module-level is_idle() 委派 _worker.is_idle()（對外 API）。"""
+    assert tts_module.is_idle() == tts_module._worker.is_idle()
+
+
+# ============================================================
 # perf_w2 F-4：1-deep prefetch（雙 buffer）
 # ============================================================
 
