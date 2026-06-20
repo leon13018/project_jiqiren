@@ -116,7 +116,7 @@ def test_session_policy_recomputed_not_cached_after_cart_changes() -> None:
 # 行為抽查：空 cart main_loop timeout → L2 on_timeout hook（hawk voice + 退 L1）
 # ============================================================
 
-def test_main_loop_empty_cart_timeout_returns_subroutine_a_with_hawk_voice() -> None:
+def test_main_loop_empty_cart_timeout_returns_enter_hawk_with_hawk_voice() -> None:
     speak_calls: list = []
     io = DialogIO(
         speak=lambda text: speak_calls.append(text),
@@ -128,5 +128,5 @@ def test_main_loop_empty_cart_timeout_returns_subroutine_a_with_hawk_voice() -> 
 
     result = session.main_loop()
 
-    assert result == ("L1_via_subroutine_a", 0)
+    assert result == ("L1_enter_hawk", 0)
     assert L2_TIMEOUT_TO_HAWK_VOICE in speak_calls

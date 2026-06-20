@@ -23,7 +23,7 @@ def run_l5(
            的 L4_A_PAY_SUCCESS_FAREWELL 單句，L5 不再 speak）
         2. 清空 cart（交易完成重置）
         3. sleep THANK_DELAY 秒（純等待，不接受任何顧客輸入）
-        4. 套用子例程 A 回 L1（return ("L1_via_subroutine_a", 0, 0)）
+        4. 回 L1 直接 hawk 連續叫賣（return ("L1_enter_hawk", 0, 0)）
 
     Args:
         cart: 購物車 dict（L5 內清空）
@@ -33,7 +33,7 @@ def run_l5(
             + sleep，確保顧客看到完整揮手後再進入致謝靜默期。
 
     Returns:
-        ("L1_via_subroutine_a", 0, 0)
+        ("L1_enter_hawk", 0, 0)
     """
     # S3：揮手送客動作（在 clear_cart 之前 — 規格表明示順序）
     do_action(ACTION_L5_FAREWELL)
@@ -41,6 +41,6 @@ def run_l5(
     # ENTRY-003：清空 cart（交易完成）
     cart_module.clear_cart(cart)
 
-    # A-001：純等待 THANK_DELAY 秒（不接受任何顧客輸入）後套用子例程 A
+    # A-001：純等待 THANK_DELAY 秒（不接受任何顧客輸入）後回 L1 直接 hawk
     sleep(THANK_DELAY)
-    return ("L1_via_subroutine_a", 0, 0)
+    return ("L1_enter_hawk", 0, 0)

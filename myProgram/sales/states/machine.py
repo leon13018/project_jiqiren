@@ -1,12 +1,12 @@
 """SalesMachine — L1→dialog→L4→L5 主迴圈的 State pattern 實作（W5，2026-06-10）。
 
 職責：
-    - 把 logic.py 主迴圈的字串 tuple 魔法值（("L4", 0) / ("L1_via_subroutine_a", …)）+
+    - 把 logic.py 主迴圈的字串 tuple 魔法值（("L4", 0) / ("L1_enter_hawk", …)）+
       if/elif 調度鏈，改寫成教科書 State pattern：State(ABC) 子類別 + Transition + SalesMachine。
     - tuple 魔法值死在各 State.run 內部（各 states.run_* 對外回傳 shape 不變——它們被測試直接呼叫）。
 
 設計約束：
-    - **mock seam = `myProgram.sales.states` 模組屬性**：所有 run_* / run_subroutine_a 一律
+    - **mock seam = `myProgram.sales.states` 模組屬性**：所有 run_* 一律
       晚綁定 `states.run_*(...)`（模組屬性呼叫），禁 `from ... import run_l1` 捕引用
       （test_machine / test_logic 用 monkeypatch.setattr(states_module, "run_*", stub) 替換）。
     - kwargs 逐字照抄現行 logic.py 各呼叫點（測試 stub 嚴格 keyword-only）。
@@ -32,8 +32,8 @@ _PHASE_BY_STATE = {"l1": "standby", "dialog": "ordering", "l4": "checkout", "l5"
 @dataclass(frozen=True)
 class Transition:
     """狀態轉移結果——取代主迴圈的字串 tuple 魔法值。"""
-    next_state: str                 # "dialog" / "l4" / "l5" / "l1"
-    via_subroutine_a: bool = False  # True = 先跑子例程 A + 下輪 L1 直接 hawk
+    next_state: str            # "dialog" / "l4" / "l5" / "l1"
+    enter_hawk: bool = False   # True = 下輪 L1 直接 hawk（交易完成後續連續叫賣）
 
 
 class State(ABC):
@@ -66,7 +66,7 @@ class L1State(State):
 
     L1 入口流程：
     - 首次進 L1：顯示主選單，商家選 1/2/3
-    - subroutine_a 後續 L1：跳過主選單直接進 hawk（連續叫賣，2026-05-26 加）
+    - 交易完成後續 L1：跳過主選單直接進 hawk（連續叫賣，2026-05-26 加）
       涵蓋 4 個出口：dialog reject / dialog timeout / L4 cancel / L5 完成
     """
     entry_invariant = "empty"
@@ -77,9 +77,6 @@ class L1State(State):
         result = states.run_l1(
             print_terminal=cb["print_terminal"],
             read_terminal_key=cb["read_terminal_key"],
-            opencv_dwell_seconds=cb["opencv_dwell_seconds"],
-            opencv_disable=cb["opencv_disable"],
-            opencv_enable=cb["opencv_enable"],
             speak=cb["speak"],
             do_action=cb["do_action"],
             exit_program=cb["exit_program"],
@@ -107,14 +104,13 @@ class DialogState(State):
             read_customer_input=cb["read_customer_input"],
             cart=machine.cart,
             think_count=0,
-            opencv_disable=cb["opencv_disable"],
             do_action=cb["do_action"],
             speak_and_wait=cb["speak_and_wait"],
             display=cb.get("display"),
         )
-        if next_state == "L1_via_subroutine_a":
+        if next_state == "L1_enter_hawk":
             _assert_cart_empty(machine.cart, "dialog 退出後（dialog A 已視情況清 cart）")
-            return Transition("l1", via_subroutine_a=True)
+            return Transition("l1", enter_hawk=True)
         # next_state == "L4"
         return Transition("l4")
 
@@ -131,16 +127,15 @@ class L4State(State):
             print_terminal=cb["print_terminal"],
             read_customer_input=cb["read_customer_input"],
             cart=machine.cart,
-            opencv_disable=cb["opencv_disable"],
             do_action=cb["do_action"],
             speak_and_wait=cb["speak_and_wait"],
         )
-        if next_state == "L1_via_subroutine_a":
+        if next_state == "L1_enter_hawk":
             # L4 非 L5 路徑必清 cart（_l4_exit_to_l1 兩呼叫點 / _l4_service_mode 退出三條
             # 皆 clear_cart；掃碼 → L5 走 elif 分支由 L5 自身 clear，不踩此 assert）
             # （2026-05-26 P3.C 修訂：原「L4-B/C/D 已清 cart」漏列 _l4_service_mode 掃碼→L5 路徑）
             _assert_cart_empty(machine.cart, "L4 非掃碼退出後（L4 三條清 cart 路徑）")
-            return Transition("l1", via_subroutine_a=True)
+            return Transition("l1", enter_hawk=True)
         # next_state == "L5"
         return Transition("l5")
 
@@ -156,18 +151,17 @@ class L5State(State):
             cart=machine.cart,
             sleep=cb["sleep"],
             do_action=cb["do_action"],
-        )  # 回傳值無條件忽略（L5 後恆走 subroutine_a 回 L1）
+        )  # 回傳值無條件忽略（L5 後恆回 L1 直接 hawk）
         _assert_cart_empty(machine.cart, "L5 退出後（L5 應已清 cart）")
-        return Transition("l1", via_subroutine_a=True)
+        return Transition("l1", enter_hawk=True)
 
 
 class SalesMachine:
     """L1→dialog→L4→L5 主迴圈：持 cart + callbacks + enter_hawk 旗號；每次進狀態先驗 cart invariant。
 
     等價性（invariant 檢查時點 vs 現行 logic）：進每層前 assert 放主迴圈進場、
-    「L1_via_subroutine_a 返回後」assert 放各 State 的轉移分支——時序與現行逐一對應：
-    dialog/L4 退出 assert 在 sub_a 之前、L5 後 assert 在 sub_a 之前。
-    子例程 A 簡化（2026-05-25：只 mute 12s 緩衝，不再 unmute / 不再叫賣）。
+    「L1_enter_hawk 返回後」assert 放各 State 的轉移分支——時序與現行逐一對應：
+    dialog/L4 退出 assert 在轉移前、L5 後 assert 在轉移前。
     """
     def __init__(self, callbacks: dict, cart):
         self.callbacks = callbacks          # logic.run 收到的 callback（含 speak_and_wait）
@@ -212,7 +206,7 @@ class SalesMachine:
             result = state.run(self)
             if result is None:
                 return None
-            if result.via_subroutine_a:
-                states.run_subroutine_a(mute_opencv=self.callbacks["mute_opencv"])  # 晚綁定
+            if result.enter_hawk:
+                # 交易完成後續：下輪 L1 跳過主選單直接進 hawk（連續叫賣不中斷）
                 self.enter_hawk_immediately = True
             current = result.next_state

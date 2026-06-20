@@ -1,8 +1,8 @@
 """時間常數與計數常數（P8 拆分自 constants.py）。
 
 包含所有與時間（秒）或循環次數相關的常數：
-    WAIT_NO_RESPONSE / DNC_TIMEOUT / DYC_TIMEOUT / HAWK_INTERVAL / OPENCV_MUTE /
-    THANK_DELAY / UNCLEAR_MAX / OPENCV_DWELL /
+    WAIT_NO_RESPONSE / DNC_TIMEOUT / DYC_TIMEOUT / HAWK_INTERVAL /
+    THANK_DELAY / UNCLEAR_MAX /
     CHECKOUT_CONFIRM_TIMEOUT / CHECKOUT_CONFIRM_UNCLEAR_MAX /
     L4_TOTAL_BUDGET / L4_QR_REFRESH_INTERVAL / L4_C_CONFIRM_TIMEOUT /
     CANCEL_CONFIRM_TIMEOUT
@@ -14,11 +14,9 @@ __all__ = [
     "DNC_TIMEOUT",
     "DYC_TIMEOUT",
     "HAWK_INTERVAL",
-    "OPENCV_MUTE",
     "THANK_DELAY",
     "C2_DECISION_TIMEOUT",
     "UNCLEAR_MAX",
-    "OPENCV_DWELL",
     "CHECKOUT_CONFIRM_TIMEOUT",
     "CHECKOUT_CONFIRM_UNCLEAR_MAX",
     "L4_TOTAL_BUDGET",
@@ -57,10 +55,6 @@ DYC_TIMEOUT: int = 12
 # L1 叫賣模式每一輪間隔
 HAWK_INTERVAL: int = 12
 
-# 「回 L1 叫賣」時屏蔽 OpenCV 偵測的時長，避免折返顧客被重複招呼
-# （2026-05-26 從 12 → 6：實測 12s 對展演節奏太久；6s 已足夠擋掉「同一顧客剛走又走回」）
-OPENCV_MUTE: int = 6
-
 # L5 致謝完成後等待時長
 THANK_DELAY: int = 3
 
@@ -75,9 +69,6 @@ C2_DECISION_TIMEOUT: int = 6
 # L3: 達上限 → 進「最終確認」子狀態
 # （L4 不再使用此常數；2026-05-30 重構移除 L4 unclear_count 機制 → 改用單一 budget）
 UNCLEAR_MAX: int = 3
-
-# OpenCV 偵測到人持續多久才視為有效觸發（防路人 / 光影誤觸）
-OPENCV_DWELL: float = 1.5
 
 # L3 結帳前 confirm 子狀態專用 timeout / 亂答上限（2026-05-26 加，比通用值寬鬆）
 # 通用 WAIT_NO_RESPONSE=6s / UNCLEAR_MAX=3 對「結帳前確認金額」這步驟過於嚴格 —

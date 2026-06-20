@@ -12,7 +12,7 @@
 
 各 run_? return shape（states 對外契約文檔）：
     - run_l1 → str | None ("L2" / None — 字串保留沿用，但語義 = "進 dialog"）
-    - run_dialog → tuple[str, int]（next_state ∈ {"L4", "L1_via_subroutine_a"}, next_think_count）
+    - run_dialog → tuple[str, int]（next_state ∈ {"L4", "L1_enter_hawk"}, next_think_count）
     - run_l4 / run_l5 → tuple[str, int, int]（next_state, 0, 0 — 兩個 0 占位，保留 3-tuple shape）
 """
 
@@ -24,10 +24,6 @@ def run(
     *,
     print_terminal,
     read_terminal_key,
-    opencv_dwell_seconds,
-    opencv_disable,
-    opencv_enable,
-    mute_opencv,
     speak,
     do_action,
     read_customer_input,
@@ -38,20 +34,16 @@ def run(
     speak_and_wait=None,
     display=None,
 ) -> None:
-    """S1 v2 主迴圈 facade：組 callbacks + 建 SalesMachine（L1 → dialog → L4 → L5 → 子例程 A → L1 cycle）。
+    """S1 v2 主迴圈 facade：組 callbacks + 建 SalesMachine（L1 → dialog → L4 → L5 → L1 cycle）。
 
     L1 入口流程：
     - 首次進 L1：顯示主選單，商家選 1/2/3
-    - subroutine_a 後續 L1：跳過主選單直接進 hawk（連續叫賣，2026-05-26 加）
+    - 交易完成後續 L1：跳過主選單直接進 hawk（連續叫賣，2026-05-26 加）
       涵蓋 4 個出口：dialog reject / dialog timeout / L4 cancel / L5 完成
     """
     callbacks = dict(
         print_terminal=print_terminal,
         read_terminal_key=read_terminal_key,
-        opencv_dwell_seconds=opencv_dwell_seconds,
-        opencv_disable=opencv_disable,
-        opencv_enable=opencv_enable,
-        mute_opencv=mute_opencv,
         speak=speak,
         do_action=do_action,
         read_customer_input=read_customer_input,

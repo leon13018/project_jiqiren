@@ -9,7 +9,7 @@ S4 範圍（incremental-rebuild 第 4 步）：
 S4 動機（S2 同步阻塞實機踩到的問題）：
     1. L1 hawk speak 期間商家按 q 想退出 → 主線程被 mpg123.wait() 卡死、input()
        沒在跑、q 只能存 stdin buffer 等 speak 播完才響應（3-5s 延遲）
-    2. 主線程被阻塞時 opencv 也無法 poll（為 S6 真 opencv 偵測鋪路）
+    2. 主線程被阻塞時無法及時響應其他輪詢（如 hawk 叫賣輪播 / 讀鍵）
     3. 程式結束時最後一段 mpg123 仍在播完才停（沒 cleanup）
 
 設計準則（依 `.claude/rules/incremental-rebuild.md` S4 段）：

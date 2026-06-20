@@ -12,7 +12,7 @@ TDD（Stage 3）由 subagent 把這些 scenarios 搬到 tests/sales/test_states.
     - 禁 import 廠商 SDK
     - 對外動作走 callback 注入（沿用 L2 set + 不需新增）：
         - speak / do_action / print_terminal / read_customer_input(timeout) / cart / think_count
-    - 觸發子例程 A：由 run_l3 return ("L1_via_subroutine_a", 0)
+    - 觸發回 L1 直接 hawk：由 run_l3 return ("L1_enter_hawk", 0)
     - 進 L4：由 run_l3 return ("L4", 0)
     - 測試用純函式 lambda + inline class stub，不用 mock library
 
@@ -60,7 +60,7 @@ def test_l3_entry_speaks_followup_and_inits_think_count() -> None:
 ### Then 系統 speak 拒絕語音（建議「好的，取消這次購物，謝謝光臨」），
 ###      **清空 cart**（整單作廢），套用 L0 子例程 A 回 L1 叫賣
 ###      注意：L3-A 不含 6s timeout trigger（差異於 L2-A；timeout 在 L3 走 C-2）
-def test_l3_a_reject_keyword_clears_cart_and_triggers_subroutine_a() -> None:
+def test_l3_a_reject_keyword_clears_cart_and_triggers_enter_hawk() -> None:
     pass
 
 

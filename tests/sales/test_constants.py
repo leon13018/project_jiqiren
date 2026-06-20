@@ -19,17 +19,13 @@ import myProgram.sales.constants as const
 ### Scenario: 時間常數值符合規格書定義
 ### Given 載入 sales 模組的常數
 ### When 讀取所有時間常數
-### Then WAIT_NO_RESPONSE=6 / HAWK_INTERVAL=12 / OPENCV_MUTE=6 /
-###      THANK_DELAY=3 / OPENCV_DWELL=1.5
-###      （OPENCV_MUTE 2026-05-26 從 12 → 6，12s 對展演節奏太久，
-###       6s 已足夠擋掉「同一顧客剛走又走回」）
+### Then WAIT_NO_RESPONSE=6 / HAWK_INTERVAL=12 / THANK_DELAY=3
 ###      （2026-05-30 L4 重構簡化：移除 L4_MAX_LOOPS — loop_count 機制廢除）
+###      （2026-06-20 移除整套偵測模擬層：相關計時常數一併刪除）
 def test_time_constants_match_spec() -> None:
     assert const.WAIT_NO_RESPONSE == 6
     assert const.HAWK_INTERVAL == 12
-    assert const.OPENCV_MUTE == 6
     assert const.THANK_DELAY == 3
-    assert const.OPENCV_DWELL == 1.5
     assert const.C2_DECISION_TIMEOUT == 6
 
 

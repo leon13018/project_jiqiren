@@ -8,11 +8,11 @@ TDD（Stage 3）會由 subagent 把這些 scenarios 搬到 tests/sales/test_*.py
     - L0-CONST / L0-PROD / L0-HAWK → myProgram/sales/constants.py
     - L0-NLU / L0-QTY              → myProgram/sales/nlu.py
     - L0-CART                       → myProgram/sales/cart.py
-    - L0-SUB-A                      → myProgram/sales/states.py（callback 注入）
+    - L0-HAWK-LOOP                  → myProgram/sales/states.py（callback 注入）
 
 設計約束（選項 C）：
     - 禁 import 廠商 SDK（ActionGroupControl / Board）
-    - 對外動作 speak / mute_opencv / tts_is_idle 走 callback 注入
+    - 對外動作 speak / tts_is_idle 走 callback 注入
     - 測試用純函式 lambda 收集呼叫紀錄，不用 mock library
 """
 
@@ -25,8 +25,8 @@ TDD（Stage 3）會由 subagent 把這些 scenarios 搬到 tests/sales/test_*.py
 ### Scenario: 時間常數值符合規格書定義
 ### Given 載入 sales 模組的常數
 ### When 讀取所有時間常數
-### Then WAIT_NO_RESPONSE=6 / HAWK_INTERVAL=12 / OPENCV_MUTE=12 /
-###      THANK_DELAY=3 / AUTO_CHECKOUT_NOTICE=10 / L4_MAX_LOOPS=6 / OPENCV_DWELL=1.5
+### Then WAIT_NO_RESPONSE=6 / HAWK_INTERVAL=12 / THANK_DELAY=3 /
+###      AUTO_CHECKOUT_NOTICE=10 / L4_MAX_LOOPS=6
 def test_time_constants_match_spec() -> None:
     pass
 
@@ -342,45 +342,11 @@ def test_cart_clear_empties_container() -> None:
 
 
 # ============================================================
-# L0-SUB-A：「回 L1 叫賣」共通子例程
+# L0-HAWK-LOOP：「回 L1 叫賣」連續輪播
 # ============================================================
-# 規格步驟（見 L0_共通.md）：
-#   1. 觸發後立即屏蔽 OpenCV OPENCV_MUTE (12s) 秒（不偵測 / 不叫賣）
-#   2. OPENCV_MUTE 秒後恢復 OpenCV + 立即播第 1 組叫賣
+# 規格步驟（見 L0_共通.md，2026-06-20 移除偵測模擬層後）：
+#   1. 交易完成後回 L1 直接 hawk（enter_hawk_immediately）連續叫賣
+#   2. 立即播第 1 組叫賣
 #   3. 後續每 HAWK_INTERVAL (12s) 秒換下一組，依 6 組 mod 6 輪流
-# 設計：對外動作以 callback 注入（mute_opencv / unmute_opencv / speak / tts_is_idle）
-
-## L0-SUB-A-001
-### Scenario: 子例程觸發後立即屏蔽 OpenCV
-### Given 子例程 A 已準備好（callback 注入）
-### When 觸發子例程 A
-### Then mute_opencv 被呼叫一次（屏蔽生效）
-def test_sub_a_mutes_opencv_on_trigger() -> None:
-    pass
-
-
-## L0-SUB-A-002
-### Scenario: OPENCV_MUTE 秒後 OpenCV 恢復且立即播第 1 組叫賣
-### Given 子例程 A 已觸發，模擬時間推進
-### When 經過 OPENCV_MUTE (12) 秒
-### Then unmute_opencv 被呼叫且第 1 組叫賣（索引 0）被 speak
-def test_sub_a_unmute_and_first_hawk_after_mute_window() -> None:
-    pass
-
-
-## L0-SUB-A-003
-### Scenario: 第一輪叫賣後每 HAWK_INTERVAL 秒換下一組
-### Given 子例程 A 已播第 1 組叫賣
-### When 再經過 HAWK_INTERVAL (12) 秒
-### Then 第 2 組叫賣（索引 1）被 speak
-def test_sub_a_advances_to_next_hawk_after_interval() -> None:
-    pass
-
-
-## L0-SUB-A-004
-### Scenario: 連續輪替超過 6 組時以 mod 6 回到第 1 組
-### Given 子例程 A 已連續播第 1~6 組叫賣
-### When 觸發第 7 次叫賣
-### Then 第 1 組叫賣（索引 0，6 mod 6）再次被 speak
-def test_sub_a_wraps_around_after_six_hawks() -> None:
-    pass
+# 設計：對外動作以 callback 注入（speak / tts_is_idle）
+# （hawk 輪播行為實測已搬至 tests/sales/test_states.py）

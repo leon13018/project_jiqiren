@@ -29,7 +29,7 @@ callback 集合（W2 oop_w2：束成 DialogIO io 物件，私有函式收 io 單
  （quality_fix_w2 後單點）。L3 內後續加單仍不重跑動作 — 符合「每層只 entry 一次」精神）
 
 Return shape：(next_state, next_think_count)
-    next_state ∈ {"L4", "L1_via_subroutine_a"}
+    next_state ∈ {"L4", "L1_enter_hawk"}
     ※ L2/L3 之間的 transition 已被內化（無 "L3" return 給 logic.py）
 """
 
@@ -114,7 +114,6 @@ def run_dialog(
     cart,
     think_count: int = 0,
     *,
-    opencv_disable,
     do_action,
     speak_and_wait=None,
     display=None,
@@ -132,9 +131,6 @@ def run_dialog(
         read_customer_input: callback(timeout: float) -> str | None — 等顧客回應
         cart: 購物車 dict（caller 傳入；本層做 in-place 修改 + 視情況 clear）
         think_count: 想一下次數（caller 持有，預設 0）
-        opencv_disable: callback() — 關閉 OpenCV 偵測。dialog 進入後不再需要偵測
-            （顧客已在面前對話），預設 no-op 給單元測試方便；production wire-up
-            必須傳真實 callback（2026-05-25 OpenCV 作用域規格修訂）。
         do_action: callback(name: str) — 同步阻塞跑廠商動作組（S3 加，2026-05-27；
             同日修：cart empty→non-empty transition 也觸發 ACTION_L3）。
             觸發點：(1) entry — cart 空 → ACTION_L2；cart 非空 → ACTION_L3；
@@ -144,10 +140,10 @@ def run_dialog(
 
     Returns:
         (next_state, next_think_count)
-        next_state ∈ {"L4", "L1_via_subroutine_a"}
+        next_state ∈ {"L4", "L1_enter_hawk"}
         next_think_count: 退出時 reset 0
     """
-    # W2：facade 第一步建 io 束（全欄注入）；opencv_disable 不入 io（只在 facade 進場用一次）
+    # W2：facade 第一步建 io 束（全欄注入）
     io = DialogIO(
         speak=speak,
         read_customer_input=read_customer_input,
@@ -156,9 +152,6 @@ def run_dialog(
         speak_and_wait=speak_and_wait,
         display=display,
     )
-
-    # 進入 dialog → OpenCV 已用完任務（觸發進 dialog 後不再偵測），明示關閉
-    opencv_disable()
 
     # S3：entry 同步動作（cart 空 = L2 進場揮手；cart 非空 = L3 進場另一動作）
     # 先動作再 speak entry prompt：動作做完顧客眼神對齊機器，再聽指引較順
@@ -219,7 +212,7 @@ class L2Policy(ModePolicy):
         # L2 模式：timeout 不算「拒絕」而是「無回應」→ 中性提示後回 L1 叫賣
         # （speak L2_REJECT_THANKS=「謝謝光臨」會誤導旁人；保留給明確拒絕意圖用）
         session.io.speak(L2_TIMEOUT_TO_HAWK_VOICE)
-        return ("L1_via_subroutine_a", 0)
+        return ("L1_enter_hawk", 0)
 
     def on_think_exhausted(self, session) -> tuple:
         # L2 B-3：第 3 次想一下 → 鏈路 A
@@ -327,7 +320,7 @@ class DialogSession:
         else:
             self.io.speak(L3_REJECT_THANKS)
             cart_module.clear_cart(self.cart)
-        return ("L1_via_subroutine_a", 0)
+        return ("L1_enter_hawk", 0)
 
     def _reenter_speak(self, control) -> None:
         """invalid-qty 子追問 timeout/cancel 後的 re-prompt：prefix + 當前 cart entry。
@@ -563,12 +556,12 @@ class DialogSession:
     def main_loop(self) -> tuple:
         """dialog 主迴圈 core — 由 run_dialog 與 c2 重入共用。
 
-        進入前的準備（opencv_disable / entry prompt speak）由 caller 負責；
+        進入前的準備（entry prompt speak）由 caller 負責；
         本函式直接進主等待迴圈（入口 unclear_count 歸 0：每次（重）入主迴圈
         unclear 從 0 起算，含 c2 CONTINUE 重入）。
 
         Returns:
-            (next_state, next_think_count)；next_state ∈ {"L4", "L1_via_subroutine_a"}
+            (next_state, next_think_count)；next_state ∈ {"L4", "L1_enter_hawk"}
 
         無 wall-clock budget 是設計選擇（INTENTIONAL，2026-05-26 review B22）：
             - 跟 L4 (60s) 不同，dialog 沒有整體 wall-clock 上限
@@ -609,7 +602,7 @@ class DialogSession:
         - 期間 read_customer_input，**亂答忽略不重置計時** — remaining 不斷縮短
         - Three-way dispatcher（CANCEL 優先：顧客錢包 conservative）：
             - CANCEL（KEYWORDS_C2_CANCEL + strict-short ["取消"]）→ exit_a：
-              清 cart + speak L3_REJECT_THANKS + return ("L1_via_subroutine_a", 0)
+              清 cart + speak L3_REJECT_THANKS + return ("L1_enter_hawk", 0)
             - CONTINUE（KEYWORDS_C2_CONTINUE + strict-short ["繼續"]）→ speak L3_C2_CONTINUE_ACK + main_loop：
               不清 cart，重入 dialog 主迴圈讓顧客繼續加單（ack 維持對話上下文，
               2026-05-30 加：main loop 不重播 entry prompt，無 ack 顧客失去語音回饋 → 沉默 → 又被 DYC_TIMEOUT 抓回 C-2）

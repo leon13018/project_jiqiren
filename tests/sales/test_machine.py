@@ -2,7 +2,7 @@
 
 對應 spec：resources/specs/oop_w5_2026-06-10_spec.md（§2-1/§2-2/§2-3）。
 覆蓋（類別層，與 test_logic 同 mock seam = states 模組屬性）：
-    1. Transition frozen（賦值 raise）+ via_subroutine_a 預設 False + 相等性
+    1. Transition frozen（賦值 raise）+ enter_hawk 預設 False + 相等性
     2. 各 State 轉移映射（stub 對應 states.run_*）
     3. L5State 忽略回傳值（stub 回非標準字串仍 Transition("l1", True)）
     4. L1State consume-reset 旗號（run 後 stub 收到 True 且 machine 旗號變 False）
@@ -29,7 +29,7 @@ from myProgram.sales.states.machine import (
 
 
 # ============================================================
-# 共用 callback stub 工廠（與 test_logic 一致的 13 個 no-op）
+# 共用 callback stub 工廠（與 test_logic 一致的 no-op）
 # ============================================================
 
 def _make_callbacks(**overrides):
@@ -37,10 +37,6 @@ def _make_callbacks(**overrides):
     defaults = dict(
         print_terminal=lambda *a, **k: None,
         read_terminal_key=lambda *a, **k: None,
-        opencv_dwell_seconds=lambda *a, **k: None,
-        opencv_disable=lambda *a, **k: None,
-        opencv_enable=lambda *a, **k: None,
-        mute_opencv=lambda *a, **k: None,
         speak=lambda *a, **k: None,
         do_action=lambda *a, **k: None,
         read_customer_input=lambda *a, **k: None,
@@ -65,11 +61,11 @@ def _make_machine(cart=None, **cb_overrides):
 # Test 1：Transition frozen + 預設值 + 相等性
 # ============================================================
 
-def test_transition_via_subroutine_a_defaults_false():
-    """Transition 不指定 via_subroutine_a 時預設 False。"""
+def test_transition_enter_hawk_defaults_false():
+    """Transition 不指定 enter_hawk 時預設 False。"""
     t = Transition("dialog")
     assert t.next_state == "dialog"
-    assert t.via_subroutine_a is False
+    assert t.enter_hawk is False
 
 
 def test_transition_is_frozen():
@@ -80,8 +76,8 @@ def test_transition_is_frozen():
 
 
 def test_transition_equality():
-    """同 next_state + 同 via_subroutine_a 的 Transition 相等。"""
-    assert Transition("l1", via_subroutine_a=True) == Transition("l1", True)
+    """同 next_state + 同 enter_hawk 的 Transition 相等。"""
+    assert Transition("l1", enter_hawk=True) == Transition("l1", True)
     assert Transition("dialog") != Transition("l4")
 
 
@@ -108,7 +104,7 @@ def test_l1state_none_terminates(monkeypatch):
 def test_dialogstate_l4_maps_to_l4(monkeypatch):
     """DialogState：run_dialog stub 回 ("L4", 0) → Transition("l4")。"""
     def stub_run_dialog(*, speak, print_terminal, read_customer_input, cart,
-                        think_count, opencv_disable, do_action, speak_and_wait=None,
+                        think_count, do_action, speak_and_wait=None,
                         display=None):
         cart["冰紅茶"] = 1  # L4 路徑不清 cart
         return ("L4", 0)
@@ -119,25 +115,25 @@ def test_dialogstate_l4_maps_to_l4(monkeypatch):
     assert result == Transition("l4")
 
 
-def test_dialogstate_subroutine_a_maps_to_l1_via_sub(monkeypatch):
-    """DialogState：run_dialog stub 清 cart 回 ("L1_via_subroutine_a", 0)
-    → Transition("l1", via_subroutine_a=True)。"""
+def test_dialogstate_enter_hawk_maps_to_l1_enter_hawk(monkeypatch):
+    """DialogState：run_dialog stub 清 cart 回 ("L1_enter_hawk", 0)
+    → Transition("l1", enter_hawk=True)。"""
     def stub_run_dialog(*, speak, print_terminal, read_customer_input, cart,
-                        think_count, opencv_disable, do_action, speak_and_wait=None,
+                        think_count, do_action, speak_and_wait=None,
                         display=None):
         cart.clear()
-        return ("L1_via_subroutine_a", 0)
+        return ("L1_enter_hawk", 0)
 
     monkeypatch.setattr(states_module, "run_dialog", stub_run_dialog)
     machine = _make_machine()
     result = DialogState().run(machine)
-    assert result == Transition("l1", via_subroutine_a=True)
+    assert result == Transition("l1", enter_hawk=True)
 
 
 def test_l4state_l5_maps_to_l5(monkeypatch):
     """L4State：run_l4 stub 回 ("L5", 0, 0) → Transition("l5")。"""
     def stub_run_l4(*, speak, print_terminal, read_customer_input, cart,
-                    opencv_disable, do_action, speak_and_wait=None):
+                    do_action, speak_and_wait=None):
         return ("L5", 0, 0)  # L5 路徑不清 cart
 
     monkeypatch.setattr(states_module, "run_l4", stub_run_l4)
@@ -146,23 +142,23 @@ def test_l4state_l5_maps_to_l5(monkeypatch):
     assert result == Transition("l5")
 
 
-def test_l4state_non_scan_maps_to_l1_via_sub(monkeypatch):
-    """L4State：run_l4 stub 清 cart 回 ("L1_via_subroutine_a", 0, 0)
-    → Transition("l1", via_subroutine_a=True)。"""
+def test_l4state_non_scan_maps_to_l1_enter_hawk(monkeypatch):
+    """L4State：run_l4 stub 清 cart 回 ("L1_enter_hawk", 0, 0)
+    → Transition("l1", enter_hawk=True)。"""
     def stub_run_l4(*, speak, print_terminal, read_customer_input, cart,
-                    opencv_disable, do_action, speak_and_wait=None):
+                    do_action, speak_and_wait=None):
         cart.clear()
-        return ("L1_via_subroutine_a", 0, 0)
+        return ("L1_enter_hawk", 0, 0)
 
     monkeypatch.setattr(states_module, "run_l4", stub_run_l4)
     machine = _make_machine()
     result = L4State().run(machine)
-    assert result == Transition("l1", via_subroutine_a=True)
+    assert result == Transition("l1", enter_hawk=True)
 
 
-def test_l5state_always_maps_to_l1_via_sub_ignoring_return(monkeypatch):
+def test_l5state_always_maps_to_l1_enter_hawk_ignoring_return(monkeypatch):
     """L5State：run_l5 stub 清 cart 回非標準字串 ("L1", 0, 0)（回傳值被忽略）
-    → 仍 Transition("l1", via_subroutine_a=True)。"""
+    → 仍 Transition("l1", enter_hawk=True)。"""
     def stub_run_l5(*, cart, sleep, do_action):
         cart.clear()
         return ("L1", 0, 0)  # 非標準字串；應被忽略
@@ -170,7 +166,7 @@ def test_l5state_always_maps_to_l1_via_sub_ignoring_return(monkeypatch):
     monkeypatch.setattr(states_module, "run_l5", stub_run_l5)
     machine = _make_machine()
     result = L5State().run(machine)
-    assert result == Transition("l1", via_subroutine_a=True)
+    assert result == Transition("l1", enter_hawk=True)
 
 
 # ============================================================
@@ -251,7 +247,7 @@ def test_machine_emits_phase_on_state_entry(monkeypatch):
     進 l5 帶 paid = calc_total(cart)（清 cart 前算）。
 
     驅動一輪完整 cycle：l1（空）→ dialog（加 冰紅茶×2）→ l4 → l5（清 cart）
-    → subroutine_a → l1（空）→ 終止。
+    → 回 l1（空）→ 終止。
     emit 在每層進場（invariant 檢查後、state.run 前）→ cart 快照為「進該層當下」狀態：
         standby  (l1, cart 空)
         ordering (dialog, cart 空 — dialog stub 進場後才加單)
@@ -268,27 +264,23 @@ def test_machine_emits_phase_on_state_entry(monkeypatch):
         return "L2" if l1_count["n"] == 1 else None  # 第二次進 l1 終止
 
     def stub_run_dialog(*, speak, print_terminal, read_customer_input, cart,
-                        think_count, opencv_disable, do_action, speak_and_wait=None,
+                        think_count, do_action, speak_and_wait=None,
                         display=None):
         cart["冰紅茶"] = 2  # 顧客點兩瓶；L4 路徑不清 cart
         return ("L4", 0)
 
     def stub_run_l4(*, speak, print_terminal, read_customer_input, cart,
-                    opencv_disable, do_action, speak_and_wait=None):
+                    do_action, speak_and_wait=None):
         return ("L5", 0, 0)  # 掃碼成功 → L5（不清 cart，L5 負責）
 
     def stub_run_l5(*, cart, sleep, do_action):
         cart.clear()  # L5 清 cart（正常行為）
         return ("L1", 0, 0)
 
-    def stub_run_subroutine_a(**kwargs):
-        pass
-
     monkeypatch.setattr(states_module, "run_l1", stub_run_l1)
     monkeypatch.setattr(states_module, "run_dialog", stub_run_dialog)
     monkeypatch.setattr(states_module, "run_l4", stub_run_l4)
     monkeypatch.setattr(states_module, "run_l5", stub_run_l5)
-    monkeypatch.setattr(states_module, "run_subroutine_a", stub_run_subroutine_a)
 
     cb = _make_callbacks(
         display=lambda phase, cart, paid=0: calls.append((phase, dict(cart), paid)),

@@ -14,18 +14,17 @@ TDD（Stage 3）由 subagent 把這些 scenarios 搬到 tests/sales/test_states.
 L5 設計約束（最簡單一層）：
     - **唯一進入**：L4 鏈路 A 掃碼成功
     - **無顧客互動**：3s 等待期間不接受任何顧客輸入（除全域 q 退出，屬主迴圈級）
-    - **唯一出口**：3s 後自動套用 L0 子例程 A 回 L1
+    - **唯一出口**：3s 後自動回 L1 直接 hawk 連續叫賣
     - **cart 清空**：L5 進入時清空（規格敲定 — vs L4-A 不清，由 L5 統一負責）
 
 callback 集合（subagent 自決細節）：
     - speak(text) — 致謝語音
     - do_action(name) — 動作 TBD（stub no-op）
-    - mute_opencv(seconds) — 屏蔽 OpenCV
     - cart — 既有 cart dict（L5 內 clear_cart）
     - sleep / read_customer_input(timeout) — 等 3s 的時間延遲（任一可選，
       推薦 sleep callback 因 L5 不需中斷 + 語義最明確）
 
-回傳：tuple `("L1_via_subroutine_a", 0, 0)`（沿用 L4 三態 return tuple shape，
+回傳：tuple `("L1_enter_hawk", 0, 0)`（沿用 L4 三態 return tuple shape，
 loop_count 與 unclear_count reset 為 0）
 """
 
@@ -54,16 +53,16 @@ def test_l5_entry_clears_cart() -> None:
 
 
 # ============================================================
-# L5-A：致謝完成 → 套子例程 A 回 L1
+# L5-A：致謝完成 → 回 L1 直接 hawk
 # ============================================================
 
 ## L5-A-001
-### Scenario: 等待 THANK_DELAY 秒後自動套用子例程 A 回 L1
-### Given L5 進入時動作完成（已 mute / speak / 清空 cart）
+### Scenario: 等待 THANK_DELAY 秒後自動回 L1 直接 hawk 連續叫賣
+### Given L5 進入時動作完成（已 speak / 清空 cart）
 ### When 等待 THANK_DELAY（3）秒過後
-### Then 自動套用 L0 子例程 A 回 L1 叫賣，
-###      回傳 ("L1_via_subroutine_a", 0, 0)（沿用 L4 三態 return tuple shape，
+### Then 自動回 L1 直接 hawk 叫賣，
+###      回傳 ("L1_enter_hawk", 0, 0)（沿用 L4 三態 return tuple shape，
 ###      loop_count + unclear_count 皆 reset 為 0）
 ###      （本層無顧客互動，3s 期間不解析任何關鍵字，除全域 q 屬主迴圈級）
-def test_l5_a_returns_to_l1_via_subroutine_a_after_thank_delay() -> None:
+def test_l5_a_returns_to_l1_enter_hawk_after_thank_delay() -> None:
     pass

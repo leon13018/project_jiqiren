@@ -58,7 +58,6 @@ def run_l4(
     read_customer_input,
     cart,
     *,
-    opencv_disable,
     do_action,
     speak_and_wait=None,
 ) -> tuple:
@@ -83,11 +82,6 @@ def run_l4(
         read_customer_input: callback(timeout: float) -> str | None — 等顧客回應
         cart: 購物車 dict（從 L3 帶來）
 
-        opencv_disable: callback() — 關閉 OpenCV 偵測。L4 結帳期間不需要偵測
-            （顧客已在面前掃碼），預設 no-op 給單元測試方便；production wire-up
-            必須傳真實 callback（2026-05-25 OpenCV 作用域規格修訂）。
-            注意：dialog 進入時已 disable 過；本處 disable 是 defence-in-depth，
-            涵蓋未來「不經 dialog 直接進 L4」的可能架構。
         do_action: callback(name: str) — 同步阻塞跑廠商動作組（S3 加，2026-05-27）。
             L4 內**只**在鏈路 A 掃碼付款成功（speak L4_A_PAY_SUCCESS_FAREWELL 後）觸發
             ACTION_L4_PAY（鞠躬）；兩處進入鏈路 A 都會跑：
@@ -97,9 +91,9 @@ def run_l4(
 
     Returns:
         (next_state, 0, 0) — 兩個 0 占位，保留 3-tuple shape 與 logic.py 相容；
-        next_state ∈ {"L1_via_subroutine_a", "L5"}
+        next_state ∈ {"L1_enter_hawk", "L5"}
     """
-    # W2：facade 第一步建 io 束（全欄注入）；opencv_disable 不入 io（只在 facade 進場用一次）
+    # W2：facade 第一步建 io 束（全欄注入）
     io = DialogIO(
         speak=speak,
         read_customer_input=read_customer_input,
@@ -107,9 +101,6 @@ def run_l4(
         do_action=do_action,
         speak_and_wait=speak_and_wait,
     )
-
-    # 進入 L4 → OpenCV 不需要（顧客已在掃碼），明示關閉（防呆）
-    opencv_disable()
 
     # 進入時動作：計算總額、印明細（= 第 1 個循環刷新的視覺面）、speak 總額語音
     total = cart_module.calc_total(cart)
@@ -240,7 +231,7 @@ def _l4_exit_to_l1(io, cart, notice: str) -> tuple:
     """
     io.speak(notice)
     cart_module.clear_cart(cart)
-    return ("L1_via_subroutine_a", 0, 0)
+    return ("L1_enter_hawk", 0, 0)
 
 
 def _l4_pay_success(io) -> tuple:
@@ -353,4 +344,4 @@ def _l4_service_mode(io, cart) -> tuple | None:
         return _l4_pay_success(io)
     # result == "no" → 清 cart 退 L1
     cart_module.clear_cart(cart)
-    return ("L1_via_subroutine_a", 0, 0)
+    return ("L1_enter_hawk", 0, 0)

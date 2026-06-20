@@ -3,7 +3,7 @@
 純單線程對話模擬（語音 / 動作 / input 由各 worker 背景 thread 處理），可端對端
 走 L1→L2→L3→L4→L5→子例程 A→L1 cycle；所有對外動作以 [標記] 文字印出。
 
-callback wire 方式：`TerminalSim(state).callbacks()` 回傳 dict，展開傳
+callback wire 方式：`TerminalSim().callbacks()` 回傳 dict，展開傳
 `logic.run(**callbacks)`，不預先包 Context dataclass；本檔不持有業務 state
 （cart / counters），全部由 logic.run 內部管理。
 
@@ -13,7 +13,7 @@ action` / `tts`），頂層不 import 廠商 SDK 也不 import worker 模組 →
 vendor import 或 worker thread 啟動。
 
 操作說明（chat-driven trick）：
-    - L1 hawk 模式：輸入 'c' → 模擬 OpenCV 偵測到顧客 → 下次 check 轉 L2
+    - L1 hawk 模式：輸入 't' → 模擬觸控「開始點餐」→ 轉 L2
     - L2-L5 顧客輸入：空 Enter → 模擬 timeout
     - 任何時刻按 'q' → L1 主迴圈呼叫 exit_program 退出
     - Ctrl+C → KeyboardInterrupt 退出
@@ -25,7 +25,6 @@ import sys
 import time
 
 from myProgram.sales import logic
-from myProgram.sales.constants import OPENCV_DWELL
 from myProgram.sales.nlu import normalize_input
 
 # 開麥延遲（env 旋鈕）：wait_idle 後、arm 前等這麼久讓喇叭 ALSA 尾音排空，
@@ -42,24 +41,11 @@ _EARLY_MIC = bool(int(os.environ.get("STT_EARLY_MIC", "0")))
 # 只抑制視覺印行——計時 / timeout / 等待秒數一秒不差。
 _SHOW_COUNTDOWN = bool(int(os.environ.get("SALES_SHOW_COUNTDOWN", "0")))
 
-# 安靜模式（env 旗標）：SALES_QUIET=1 藏終端正常機器人狀態 echo（[模擬提示]/[模擬]/
-# [opencv]，demo 時跟 web 鏡像 + 實體機器人重複是雜訊），保留導航（print_terminal
+# 安靜模式（env 旗標）：SALES_QUIET=1 藏終端正常機器人狀態 echo（[模擬提示]/[模擬]
+# 等，demo 時跟 web 鏡像 + 實體機器人重複是雜訊），保留導航（print_terminal
 # 螢幕文字 / 選單 / 進入叫賣模式）與錯誤行。各模組各自讀（沿用 STT_TTS_TIMING
 # precedent，不新增跨模組 import）。預設 0 = 全顯示，不改行為；只抑制 echo print。
 _QUIET = bool(int(os.environ.get("SALES_QUIET", "0")))
-
-
-class _S1State:
-    """wire-up 共享 state（OpenCV 模擬狀態 — 'c' 鍵觸發）。"""
-
-    def __init__(self):
-        self.opencv_enabled = False
-        self.opencv_dwell = 0.0  # 'c' 鍵 → 設為 OPENCV_DWELL+0.5，下次讀觸發 L2
-        # mute 時間戳 — 由 mute_opencv 設 time.monotonic() + seconds；
-        # opencv_dwell_seconds 在 mute 期間強制回 0，即使 opencv_enabled=True 也擋偵測。
-        # 這確保子例程 A 的 buffer 真實生效：hawk 重進 enable 後，buffer 內偵測仍被吃掉，
-        # 避免「同一顧客剛走又被馬上拉回 dialog」。
-        self.opencv_mute_until = 0.0
 
 
 def _tick_countdown(total: float, label: str, wait_tick):
@@ -86,14 +72,11 @@ def _tick_countdown(total: float, label: str, wait_tick):
 
 
 class TerminalSim:
-    """終端模擬 callback 集：14 個 bound methods 餵 logic.run(**callbacks())。
+    """終端模擬 callback 集：10 個 bound methods 餵 logic.run(**callbacks())。
 
-    持 _S1State（OpenCV 模擬狀態）；各 method 對應一個對外 callback。method 內的
-    lazy import（tts / action / input_reader）原樣保留 — Windows pytest seam。
+    無內部 state；各 method 對應一個對外 callback。method 內的 lazy import
+    （tts / action / input_reader）原樣保留 — Windows pytest seam。
     """
-
-    def __init__(self, state: _S1State) -> None:
-        self._state = state
 
     # === 終端 I/O ===
     def print_terminal(self, text):
@@ -116,16 +99,16 @@ class TerminalSim:
 
         **預設 timeout=None（無限阻塞等鍵）**：適用主選單 / standby 兩個 caller
         — 它們期待「使用者按鍵才繼續」語意，busy polling 會每 100ms 重印 banner
-        造成洗版。hawk 主迴圈必須跟 OpenCV polling 並行，**caller 顯式傳 timeout=0.1**
+        造成洗版。hawk 主迴圈必須跟叫賣輪播並行，**caller 顯式傳 timeout=0.1**
         走 polling cadence（見 l1._run_l1_hawk）。
 
         timeout 內無輸入 → input_reader 返回 None → 本函式回 ""（對齊既有「無輸入」
         語意，caller 走 fallback）。
 
-        特殊 'c' 鍵（嚴格相等才觸發）：模擬 OpenCV 偵測到顧客 → 設 dwell ≥ OPENCV_DWELL。
-        其他：回傳完整輸入（不截首字元）。caller 用 `key == "1"` / `"2"` / `"3"` / `"q"` /
-        `"r"` 嚴格比對；像「123」/「3434」/「2543333」這類多字元亂打**自然不匹配任何
-        單字元 menu key → 自動 ignored**。
+        回傳完整輸入（不截首字元）。caller 用 `key == "1"` / `"2"` / `"3"` / `"q"` /
+        `"r"` / `"t"` 嚴格比對；像「123」/「3434」/「2543333」這類多字元亂打**自然
+        不匹配任何單字元 menu key → 自動 ignored**。't'（觸控開始點餐 / web wake）
+        原樣回傳，由 L1 hawk loop 自己比 `key == "t"` → 轉 L2。
         """
         # Lazy import：對齊 tts.speak / action.do 的 lazy import pattern；
         # input_reader 雖無 vendor 依賴（純 stdlib），對齊結構讓 Windows pytest
@@ -137,19 +120,6 @@ class TerminalSim:
             return ""
         raw = raw.strip().lower()
         raw = normalize_input(raw)  # 商家若用全形輸入法「１」也能對應到 "1"
-        if raw == "c":
-            # mute 期間 'c' 不設 dwell（嚴格行為，對齊 print 字面）：否則設 dwell 會殘留
-            # 到 mute 結束 → opencv_dwell_seconds 自動觸發 L2，與 print「擋下，請等 mute
-            # 結束再按 'c'」訊息矛盾。mute 內 'c' 完全忽略，商家須等 mute 結束後再按一次。
-            remaining = self._state.opencv_mute_until - time.monotonic()
-            if remaining > 0:
-                if not _QUIET:
-                    print(f"[模擬] 收到 'c'，但 opencv 還在 mute 期間（剩 {remaining:.1f}s）→ 已忽略，請等 mute 結束後再按 'c' 才會觸發 L2")
-            else:
-                self._state.opencv_dwell = OPENCV_DWELL + 0.5
-                if not _QUIET:
-                    print("[模擬] OpenCV 偵測到顧客 → 已自動觸發 L2（hawk loop 下次迭代立即 check opencv，無需再按鍵）")
-            return ""  # 不返回有效鍵；由 L1 hawk 主迴圈下次 check opencv
         return raw  # 整段不截（依賴 caller `== "1"` 嚴格比對）；截首字元會把「123」誤進叫賣模式
 
     def read_customer_input(self, timeout):
@@ -201,43 +171,6 @@ class TerminalSim:
             print("[系統] 程式結束（顧客層 q 退出）")
             sys.exit(0)
         return None if raw == "" else raw
-
-    # === OpenCV 模擬 ===
-    def opencv_enable(self):
-        self._state.opencv_enabled = True
-        if not _QUIET:
-            print("[opencv] 已開啟偵測")
-
-    def opencv_disable(self):
-        self._state.opencv_enabled = False
-        self._state.opencv_dwell = 0.0
-        if not _QUIET:
-            print("[opencv] 已關閉偵測")
-
-    def opencv_dwell_seconds(self):
-        if not self._state.opencv_enabled:
-            return 0.0
-        # mute 期間（time.monotonic() < mute_until）即使 enabled 也擋偵測，
-        # 確保子例程 A buffer 真實生效，避免剛走的顧客被馬上拉回。
-        if time.monotonic() < self._state.opencv_mute_until:
-            return 0.0
-        # 一次性消耗：回報後重置（避免持續觸發）
-        if self._state.opencv_dwell >= OPENCV_DWELL:
-            triggered = self._state.opencv_dwell
-            self._state.opencv_dwell = 0.0
-            return triggered
-        return 0.0
-
-    def mute_opencv(self, seconds):
-        # 真實設 state（無背景 timer，純設旗號）：除 flag 外另記 mute_until 時間戳；
-        # opencv_dwell_seconds 在 mute 期間強制回 0，即使後續 opencv_enable() 把 flag
-        # 設回 True 也不會偵測，確保 buffer 真實生效（避免 hawk 重進 enable 馬上 override
-        # flag → 子例程 A / L5 致謝期屏蔽失效）。
-        self._state.opencv_enabled = False
-        self._state.opencv_dwell = 0.0
-        self._state.opencv_mute_until = time.monotonic() + seconds
-        if not _QUIET:
-            print(f"[opencv] mute {seconds}s（生效到 {seconds}s 後；期間 detection 全部回 0）")
 
     # === 對外動作 ===
     def speak(self, text):
@@ -320,14 +253,10 @@ class TerminalSim:
         sys.exit(0)
 
     def callbacks(self) -> dict:
-        """回傳 callback dict（14 鍵，餵 logic.run(**callbacks)）；值為 bound methods。"""
+        """回傳 callback dict（10 鍵，餵 logic.run(**callbacks)）；值為 bound methods。"""
         return {
             "print_terminal": self.print_terminal,
             "read_terminal_key": self.read_terminal_key,
-            "opencv_dwell_seconds": self.opencv_dwell_seconds,
-            "opencv_disable": self.opencv_disable,
-            "opencv_enable": self.opencv_enable,
-            "mute_opencv": self.mute_opencv,
             "speak": self.speak,
             "speak_and_wait": self.speak_and_wait,
             "do_action": self.do_action,
@@ -339,9 +268,9 @@ class TerminalSim:
         }
 
 
-def _build_callbacks(state: _S1State) -> dict:
+def _build_callbacks() -> dict:
     """建立 chat-driven callback 集合（facade — 委派 TerminalSim）。"""
-    return TerminalSim(state).callbacks()
+    return TerminalSim().callbacks()
 
 
 def _run_wiring():
@@ -360,8 +289,7 @@ def _run_wiring():
     web import。
     """
     web_mode = "--web" in sys.argv
-    state = _S1State()
-    callbacks = _build_callbacks(state)
+    callbacks = _build_callbacks()
 
     web_server = None   # server 模組（成功 import 才非 None → finally 收尾用）
     web_srv = None      # uvicorn Server 實例
@@ -374,7 +302,7 @@ def _run_wiring():
             bus = EventBus()
             display_cb = make_web_display(bus)
             # on_input：觸控上行 seam —— WS 收到的命令經 commands.to_token → 注入既有 input queue
-            #（與鍵盤 / STT 共用單一 queue；read_terminal_key 的 'c' 與 read_customer_input 皆讀此）
+            #（與鍵盤 / STT 共用單一 queue；read_terminal_key 的 't' 與 read_customer_input 皆讀此）
             web_srv, _ = web_server.start(bus, input_reader.inject, port=8137)
             print("[webui] FastAPI 已啟動 → http://0.0.0.0:8137/（同 wifi 連 raspberrypi.local:8137）")
         except Exception as exc:

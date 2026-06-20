@@ -15,7 +15,7 @@ import types
 import pytest
 
 import myProgram.main as main_module
-from myProgram.main import TerminalSim, _S1State
+from myProgram.main import TerminalSim
 from myProgram.sales import logic
 
 
@@ -33,7 +33,7 @@ def wired(monkeypatch):
     import myProgram
     monkeypatch.setattr(myProgram, "tts", fake_tts, raising=False)
     monkeypatch.setattr(myProgram, "stt", fake_stt, raising=False)
-    sim = TerminalSim(_S1State())
+    sim = TerminalSim()
     return sim, calls, monkeypatch
 
 

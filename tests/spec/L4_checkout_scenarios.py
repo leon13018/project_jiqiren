@@ -13,7 +13,7 @@ TDD（Stage 3）由 subagent 把這些 scenarios 搬到 tests/sales/test_states.
     - 對外動作走 callback 注入：
         - speak / do_action / print_terminal / read_customer_input(timeout) -> str | None
         - cart / loop_count（caller 注入）/ unclear_count（caller 注入）
-    - 觸發子例程 A：return ("L1_via_subroutine_a", 0, 0)
+    - 觸發回 L1 直接 hawk：return ("L1_enter_hawk", 0, 0)
     - 進 L5：return ("L5", 0, 0)
     - 測試用純函式 lambda + inline class stub（沿用 FakeCustomerInput）
 
@@ -78,7 +78,7 @@ def test_l4_a_scan_success_speaks_and_goes_l5() -> None:
 ### Then 系統 speak 取消語音（建議「好的，取消這次交易，謝謝光臨」），
 ###      **清空 cart**（整單作廢），套用 L0 子例程 A 回 L1 叫賣
 ###      （規格：loop_count 任何值下，拒絕鏈路 B 行為一致）
-def test_l4_b_reject_keyword_clears_cart_and_triggers_subroutine_a() -> None:
+def test_l4_b_reject_keyword_clears_cart_and_triggers_enter_hawk() -> None:
     pass
 
 

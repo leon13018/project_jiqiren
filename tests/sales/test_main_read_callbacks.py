@@ -40,7 +40,7 @@ import sys
 import types
 
 import myProgram
-from myProgram.main import _build_callbacks, _S1State, _tick_countdown, TerminalSim
+from myProgram.main import _build_callbacks, _tick_countdown, TerminalSim
 
 
 def _make_fake_tts_module(wait_idle_calls):
@@ -86,7 +86,7 @@ def test_read_customer_input_calls_wait_idle_before_input_read(monkeypatch):
         lambda timeout: call_order.append("read") or "x",
     )
 
-    callbacks = _build_callbacks(_S1State())
+    callbacks = _build_callbacks()
     callbacks["read_customer_input"](timeout=6)
 
     assert call_order == ["wait_idle", "read"], (
@@ -114,7 +114,7 @@ def test_read_customer_input_calls_prearm_before_wait_idle(monkeypatch):
     _install_fake_stt(monkeypatch, _make_fake_stt_module(call_order))
     monkeypatch.setattr("myProgram.input_reader.read",
                         lambda timeout: call_order.append("read") or "x")
-    callbacks = _build_callbacks(_S1State())
+    callbacks = _build_callbacks()
     callbacks["read_customer_input"](timeout=6)
     assert call_order.index("prearm") < call_order.index("wait_idle") < call_order.index("read")
     assert "arm" in call_order and "disarm" in call_order
@@ -146,7 +146,7 @@ def test_read_customer_input_mic_open_delay_sleeps_between_wait_idle_and_arm(mon
 
     monkeypatch.setattr("myProgram.main.time.sleep", fake_sleep)
 
-    callbacks = _build_callbacks(_S1State())
+    callbacks = _build_callbacks()
     callbacks["read_customer_input"](timeout=6)
 
     assert sleep_calls == [0.3], (
@@ -173,7 +173,7 @@ def test_read_customer_input_default_no_mic_open_delay(monkeypatch):
 
     monkeypatch.setattr("myProgram.main.time.sleep", fake_sleep)
 
-    callbacks = _build_callbacks(_S1State())
+    callbacks = _build_callbacks()
     callbacks["read_customer_input"](timeout=6)
 
     assert "sleep" not in call_order, (
@@ -187,9 +187,9 @@ def test_read_customer_input_default_no_mic_open_delay(monkeypatch):
 def test_read_terminal_key_does_not_call_wait_idle(monkeypatch):
     """v3 regression：商家層 hawk polling 不應被 wait_idle 卡。
 
-    L1 hawk 主迴圈以 timeout=0.1s polling 跟 OpenCV 並行；若加 wait_idle，
+    L1 hawk 主迴圈以 timeout=0.1s polling 跟叫賣輪播並行；若加 wait_idle，
     其 max_wait=30s 會把 hawk polling cadence 完全卡死（規格 hawk 12s 內
-    TTS 大半都卡）。商家層 speak 多是 status notification（「已開啟偵測」），
+    TTS 大半都卡）。商家層 speak 多是 status notification，
     不需要顧客式「等播完再倒數」語意。
     """
     wait_idle_calls = []
@@ -199,7 +199,7 @@ def test_read_terminal_key_does_not_call_wait_idle(monkeypatch):
         lambda timeout: None,
     )
 
-    callbacks = _build_callbacks(_S1State())
+    callbacks = _build_callbacks()
     callbacks["read_terminal_key"](timeout=0.1)
 
     assert wait_idle_calls == [], (
@@ -239,7 +239,7 @@ def test_sleep_calls_wait_idle_before_actual_sleep(monkeypatch):
 
     monkeypatch.setattr("time.sleep", fake_sleep)
 
-    callbacks = _build_callbacks(_S1State())
+    callbacks = _build_callbacks()
     callbacks["sleep"](3)
 
     # wait_idle 必須先於任何 sleep；後續 3 次 sleep(1.0) 是 polling loop
@@ -261,7 +261,7 @@ def test_early_mic_arms_capture_false_before_wait_idle(monkeypatch):
     _install_fake_stt(monkeypatch, _make_fake_stt_module(call_order))
     monkeypatch.setattr("myProgram.input_reader.read",
                         lambda timeout: call_order.append("read") or "x")
-    callbacks = _build_callbacks(_S1State())
+    callbacks = _build_callbacks()
     callbacks["read_customer_input"](timeout=6)
     assert call_order.index("arm_early") < call_order.index("wait_idle") < call_order.index("arm")
     assert call_order.index("arm") < call_order.index("read")
@@ -276,7 +276,7 @@ def test_default_no_early_mic_single_arm(monkeypatch):
     _install_fake_stt(monkeypatch, _make_fake_stt_module(call_order))
     monkeypatch.setattr("myProgram.input_reader.read",
                         lambda timeout: call_order.append("read") or "x")
-    callbacks = _build_callbacks(_S1State())
+    callbacks = _build_callbacks()
     callbacks["read_customer_input"](timeout=6)
     assert "arm_early" not in call_order
     assert call_order.index("wait_idle") < call_order.index("arm") < call_order.index("read")
@@ -302,7 +302,7 @@ def test_tick_countdown_shown_when_flag_on(monkeypatch, capsys):
 
 
 # ============================================================
-# SALES_QUIET：藏終端正常機器人 echo（[模擬提示]/[模擬]/[opencv]），
+# SALES_QUIET：藏終端正常機器人 echo（[模擬提示]/[模擬]），
 # 保留導航（print_terminal 螢幕文字 / 進入叫賣模式 / 選單）。
 # seam：monkeypatch myProgram.main._QUIET（對齊 _SHOW_COUNTDOWN / _EARLY_MIC patch pattern）。
 # ============================================================
@@ -311,61 +311,19 @@ def test_tick_countdown_shown_when_flag_on(monkeypatch, capsys):
 def test_show_hawk_help_hidden_when_quiet(monkeypatch, capsys):
     """_QUIET=True → show_hawk_help() 不印 `[模擬提示]`。"""
     monkeypatch.setattr("myProgram.main._QUIET", True)
-    TerminalSim(_S1State()).show_hawk_help()
+    TerminalSim().show_hawk_help()
     assert "[模擬提示]" not in capsys.readouterr().out
 
 
 def test_show_hawk_help_shown_when_not_quiet(monkeypatch, capsys):
     """預設 _QUIET=False → show_hawk_help() 照印 `[模擬提示]`（行為不變）。"""
     monkeypatch.setattr("myProgram.main._QUIET", False)
-    TerminalSim(_S1State()).show_hawk_help()
+    TerminalSim().show_hawk_help()
     assert "[模擬提示]" in capsys.readouterr().out
-
-
-def test_read_terminal_key_sim_echo_hidden_when_quiet(monkeypatch, capsys):
-    """_QUIET=True → read_terminal_key 觸發 L2 的 `[模擬]` echo 不印。
-
-    input_reader.read 注入回 "c"、opencv 非 mute → 走觸發 L2 分支印 `[模擬] OpenCV 偵測到顧客`。
-    """
-    monkeypatch.setattr("myProgram.main._QUIET", True)
-    monkeypatch.setattr("myProgram.input_reader.read", lambda timeout: "c")
-    TerminalSim(_S1State()).read_terminal_key(timeout=0.1)
-    assert "[模擬]" not in capsys.readouterr().out
-
-
-def test_read_terminal_key_sim_echo_shown_when_not_quiet(monkeypatch, capsys):
-    """預設 _QUIET=False → read_terminal_key 觸發 L2 照印 `[模擬]`（行為不變）。"""
-    monkeypatch.setattr("myProgram.main._QUIET", False)
-    monkeypatch.setattr("myProgram.input_reader.read", lambda timeout: "c")
-    TerminalSim(_S1State()).read_terminal_key(timeout=0.1)
-    assert "[模擬]" in capsys.readouterr().out
-
-
-def test_opencv_echo_hidden_when_quiet(monkeypatch, capsys):
-    """_QUIET=True → opencv_enable/disable/mute_opencv 三條 `[opencv]` echo 全不印。"""
-    monkeypatch.setattr("myProgram.main._QUIET", True)
-    sim = TerminalSim(_S1State())
-    sim.opencv_enable()
-    sim.opencv_disable()
-    sim.mute_opencv(3)
-    assert "[opencv]" not in capsys.readouterr().out
-
-
-def test_opencv_echo_shown_when_not_quiet(monkeypatch, capsys):
-    """預設 _QUIET=False → opencv 三條 `[opencv]` 照印（行為不變）。"""
-    monkeypatch.setattr("myProgram.main._QUIET", False)
-    sim = TerminalSim(_S1State())
-    sim.opencv_enable()
-    sim.opencv_disable()
-    sim.mute_opencv(3)
-    out = capsys.readouterr().out
-    assert "[opencv] 已開啟偵測" in out
-    assert "[opencv] 已關閉偵測" in out
-    assert "[opencv] mute 3s" in out
 
 
 def test_print_terminal_navigation_kept_when_quiet(monkeypatch, capsys):
     """_QUIET=True 也不藏導航：print_terminal('進入叫賣模式') 仍印（導航保留是 spec 核心）。"""
     monkeypatch.setattr("myProgram.main._QUIET", True)
-    TerminalSim(_S1State()).print_terminal("進入叫賣模式")
+    TerminalSim().print_terminal("進入叫賣模式")
     assert "進入叫賣模式" in capsys.readouterr().out

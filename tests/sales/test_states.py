@@ -1,15 +1,12 @@
 """test_states.py — 測試 myProgram/sales/states.py。
 
 對應 BDD scenarios：
-    - L0-SUB-A-001：子例程觸發後立即屏蔽 OpenCV
-    - L0-SUB-A-002：OPENCV_MUTE 秒後 OpenCV 恢復且立即播第 1 組叫賣
-    - L0-SUB-A-003：第一輪叫賣後每 HAWK_INTERVAL 秒換下一組
-    - L0-SUB-A-004：連續輪替超過 6 組時以 mod 6 回到第 1 組
+    - L0-HAWK：hawk 叫賣輪播（第一輪後每 HAWK_INTERVAL 秒換下一組，mod 6 wrap）
     - L5-ENTRY-002：進入 L5 播致謝語音
     - L5-ENTRY-003：進入 L5 清空 cart 完成交易重置
-    - L5-A-001：等待 THANK_DELAY 秒後自動套用子例程 A 回 L1
+    - L5-A-001：等待 THANK_DELAY 秒後回 L1 直接 hawk
 
-設計：callback 注入（speak / mute_opencv / unmute_opencv / tts_is_idle）。
+設計：callback 注入（speak / tts_is_idle）。
       測試用純函式 lambda，不用 mock library。hawk 輪播走真實 polling loop +
       fake_monotonic（patch l1.time.monotonic）驅動，不再用 scheduler stub。
 """
@@ -20,8 +17,6 @@ import myProgram.sales.states as states
 from myProgram.sales.constants import (
     HAWK_SLOGANS,
     HAWK_INTERVAL,
-    OPENCV_MUTE,
-    OPENCV_DWELL,
     WAIT_NO_RESPONSE,
     C2_DECISION_TIMEOUT,
     SERVICE_PHONE,
@@ -76,52 +71,6 @@ from myProgram.sales import cart as cart_module
 # L0-SUB-A-001（2026-05-25 重構後）
 # ============================================================
 
-## L0-SUB-A-001
-### Scenario: 子例程觸發後立即屏蔽 OpenCV OPENCV_MUTE 秒
-### Given 子例程 A 已準備好（callback 注入）
-### When 觸發子例程 A
-### Then mute_opencv 被呼叫一次（屏蔽生效）
-def test_sub_a_mutes_opencv_on_trigger() -> None:
-    # Arrange
-    mute_calls: list = []
-
-    # Act
-    states.run_subroutine_a(
-        mute_opencv=lambda secs: mute_calls.append(secs),
-    )
-
-    # Assert：觸發後立即屏蔽 OpenCV
-    assert len(mute_calls) == 1
-    assert mute_calls[0] == OPENCV_MUTE
-
-
-# ============================================================
-# L0-SUB-A-002（2026-05-25 改成 regression：方案 A 後子例程 A 不再 unmute / 不再叫賣）
-# ============================================================
-
-## L0-SUB-A-002
-### Scenario: 子例程 A 只 mute 不 unmute、不叫賣（防 unmute_opencv / 叫賣 callback 偷被加回來）
-### Given 子例程 A 已觸發
-### When 任何時點檢查
-### Then run_subroutine_a 的 signature 不該再接受 unmute_opencv / speak / 叫賣 callbacks
-def test_sub_a_only_calls_mute_no_unmute_no_speak() -> None:
-    # Arrange
-    import inspect
-    sig = inspect.signature(states.run_subroutine_a)
-
-    # Assert：signature 只剩 mute_opencv（2026-05-25 方案 A 重構）
-    params = set(sig.parameters.keys())
-    assert params == {"mute_opencv"}, (
-        f"run_subroutine_a 應只接受 mute_opencv，實際 {params}。"
-        "若加回 unmute_opencv / speak / 叫賣 callback = 違反方案 A 規格（"
-        "L0_共通.md 子例程 A 段）：主選單期間不該被自動 unmute / 不該背景叫賣"
-    )
-
-
-# ============================================================
-# L1 測試用 stub class
-# ============================================================
-
 class FakeKeyboardInput:
     """模擬鍵盤輸入序列。每次 read() 回下一個 key。
 
@@ -135,29 +84,6 @@ class FakeKeyboardInput:
 
     def read(self, timeout=None) -> str:
         return self._keys.pop(0) if self._keys else ""
-
-
-class FakeOpencv:
-    """模擬 OpenCV dwell 偵測 + 開關狀態。"""
-
-    def __init__(self, dwell_value: float = 0.0) -> None:
-        self.dwell_value = dwell_value
-        self.enabled = True
-        self.enable_calls = 0
-        self.disable_calls = 0
-
-    def dwell_seconds(self) -> float:
-        """回傳 dwell 偵測秒數（OpenCV 關閉時永遠回 0.0）。"""
-        return self.dwell_value if self.enabled else 0.0
-
-    def disable(self) -> None:
-        self.enabled = False
-        self.disable_calls += 1
-
-    def enable(self) -> None:
-        self.enabled = True
-        self.enable_calls += 1
-
 
 # ============================================================
 # L1-ENTRY-001
@@ -178,9 +104,6 @@ def test_l1_entry_prints_mode_select_menu() -> None:
     states.run_l1(
         print_terminal=lambda text: printed.append(text),
         read_terminal_key=kbd.read,
-        opencv_dwell_seconds=lambda: 0.0,
-        opencv_disable=lambda: None,
-        opencv_enable=lambda: None,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
         tts_is_idle=lambda: True,
@@ -215,9 +138,6 @@ def test_l1_a_service_mode_prints_phone_and_returns_to_menu() -> None:
     states.run_l1(
         print_terminal=lambda text: printed.append(text),
         read_terminal_key=kbd.read,
-        opencv_dwell_seconds=lambda: 0.0,
-        opencv_disable=lambda: None,
-        opencv_enable=lambda: None,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
         tts_is_idle=lambda: True,
@@ -247,15 +167,11 @@ def test_l1_b_standby_mode_prints_prompt_and_stays_idle() -> None:
     # 輸入 2 進待機，接著 q q（C14：兩次 q 退出）
     kbd = FakeKeyboardInput(["2", "q", "q"])
     exit_calls: list = []
-    opencv = FakeOpencv()
 
     # Act
     states.run_l1(
         print_terminal=lambda text: printed.append(text),
         read_terminal_key=kbd.read,
-        opencv_dwell_seconds=opencv.dwell_seconds,
-        opencv_disable=opencv.disable,
-        opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
         tts_is_idle=lambda: True,
@@ -283,15 +199,11 @@ def test_l1_b_standby_r_returns_to_menu() -> None:
     # 進待機（2），按 r 回選單，按 q q（C14：兩次 q）退出
     kbd = FakeKeyboardInput(["2", "r", "q", "q"])
     exit_calls: list = []
-    opencv = FakeOpencv()
 
     # Act
     states.run_l1(
         print_terminal=lambda text: printed.append(text),
         read_terminal_key=kbd.read,
-        opencv_dwell_seconds=opencv.dwell_seconds,
-        opencv_disable=opencv.disable,
-        opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
         tts_is_idle=lambda: True,
@@ -302,10 +214,6 @@ def test_l1_b_standby_r_returns_to_menu() -> None:
     # Assert：按 r 後選單應再印一次
     menu_count = sum(1 for p in printed if "請選擇模式" in p)
     assert menu_count >= 2, "按 r 後應回選單（選單至少印兩次）"
-    # 2026-05-25 規格修訂：r 回選單不再自動 opencv_enable（主選單預設不偵測，只叫賣啟動）
-    assert opencv.enable_calls == 0, (
-        f"按 r 回選單不應 opencv_enable（主選單預設不偵測），實際 enable_calls={opencv.enable_calls}"
-    )
 
 
 # ============================================================
@@ -319,7 +227,6 @@ def test_l1_b_standby_r_returns_to_menu() -> None:
 def test_l1_b_standby_q_exits_program() -> None:
     # Arrange
     exit_calls: list = []
-    opencv = FakeOpencv()
     # 進待機（2），待機中按 q q（C14：兩次 q 才真退）
     kbd = FakeKeyboardInput(["2", "q", "q"])
 
@@ -327,9 +234,6 @@ def test_l1_b_standby_q_exits_program() -> None:
     states.run_l1(
         print_terminal=lambda text: None,
         read_terminal_key=kbd.read,
-        opencv_dwell_seconds=opencv.dwell_seconds,
-        opencv_disable=opencv.disable,
-        opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
         tts_is_idle=lambda: True,
@@ -342,70 +246,23 @@ def test_l1_b_standby_q_exits_program() -> None:
 
 
 # ============================================================
-# L1-B-004
-# Scenario: 待機模式期間 OpenCV 完全關閉不偵測 / 不觸發 L2
-# Given 程式進入 L1 待機模式
-# When 在待機期間有人持續站在相機前（即使 dwell ≥ OPENCV_DWELL 秒）
-# Then OpenCV 已被關閉，dwell_seconds 在待機中永遠回 0.0，不觸發 L2
-# ============================================================
-
-def test_l1_b_standby_opencv_disabled() -> None:
-    # Arrange
-    # FakeOpencv 在 disabled 狀態下 dwell_seconds() 回 0.0
-    opencv = FakeOpencv(dwell_value=999.0)  # 模擬人一直站著
-    # 進待機（2），待機中按 q q（C14：兩次 q 才真退）
-    kbd = FakeKeyboardInput(["2", "q", "q"])
-
-    # Act
-    states.run_l1(
-        print_terminal=lambda text: None,
-        read_terminal_key=kbd.read,
-        opencv_dwell_seconds=opencv.dwell_seconds,
-        opencv_disable=opencv.disable,
-        opencv_enable=opencv.enable,
-        speak=lambda text: None,
-        exit_program=lambda: None,
-        tts_is_idle=lambda: True,
-        show_hawk_help=lambda *a, **k: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # Assert：待機時 OpenCV 被 disable（disable_calls == 1）
-    assert opencv.disable_calls >= 1, "進入待機時應關閉 OpenCV"
-    # FakeOpencv.enabled == False 期間 dwell_seconds() 回 0.0，無法觸發 L2
-    # （此斷言驗證 FakeOpencv stub 行為與 OpenCV 語義一致）
-    opencv_tmp = FakeOpencv(dwell_value=999.0)
-    opencv_tmp.disable()
-    assert opencv_tmp.dwell_seconds() == 0.0, "OpenCV 關閉後 dwell_seconds 應回 0.0"
-
-
-# ============================================================
-# L1-C-001
-# Scenario: 商家輸入 1 進入叫賣模式立即播第 1 組叫賣並開啟 OpenCV
-# Given L1 選單顯示中
-# When 商家輸入「1」
-# Then 印「進入叫賣模式」，立即 speak 第 1 組叫賣，OpenCV 被開啟
-#      （不套用 L0 子例程 A 的 OPENCV_MUTE 緩衝）
+# L1-C-ENTER-HAWK：enter_hawk_immediately 跳過主選單直接進 hawk
 # ============================================================
 
 def test_l1_enter_hawk_immediately_skips_mode_menu() -> None:
     """2026-05-26 加：enter_hawk_immediately=True 跳過主選單直接進 hawk。
 
-    用途：logic.py 在 subroutine_a 後（dialog reject / L4 cancel / L5 完成）
+    用途：logic.py 在交易完成後（dialog reject / L4 cancel / L5 完成）
     設此 flag → 連續叫賣，不顯示「請選擇模式：1/2/3」主選單。
     """
     printed: list = []
     speak_calls: list = []
-    opencv = FakeOpencv(dwell_value=0.0)
-    # OpenCV dwell 一直 0.0 不觸發 L2；按 q q（C14：兩次 q）退出
+    # 按 q q（C14：兩次 q）退出
     kbd = FakeKeyboardInput(["q", "q"])
 
     states.run_l1(
         print_terminal=lambda text: printed.append(text),
         read_terminal_key=kbd.read,
-        opencv_dwell_seconds=opencv.dwell_seconds,
-        opencv_disable=opencv.disable,
-        opencv_enable=opencv.enable,
         speak=lambda text: speak_calls.append(text),
         exit_program=lambda: None,
         tts_is_idle=lambda: True,
@@ -429,8 +286,7 @@ def test_l1_c_hawk_mode_starts_immediately_without_mute_buffer() -> None:
     # Arrange
     printed: list = []
     speak_calls: list = []
-    opencv = FakeOpencv(dwell_value=0.0)
-    # 輸入 1 進叫賣模式，OpenCV dwell 一直 0.0（不觸發 L2），按 q q（C14）退出
+    # 輸入 1 進叫賣模式，按 q q（C14）退出
     key_sequence = ["1", "q", "q"]
     kbd = FakeKeyboardInput(key_sequence)
 
@@ -438,9 +294,6 @@ def test_l1_c_hawk_mode_starts_immediately_without_mute_buffer() -> None:
     states.run_l1(
         print_terminal=lambda text: printed.append(text),
         read_terminal_key=kbd.read,
-        opencv_dwell_seconds=opencv.dwell_seconds,
-        opencv_disable=opencv.disable,
-        opencv_enable=opencv.enable,
         speak=lambda text: speak_calls.append(text),
         exit_program=lambda: None,
         tts_is_idle=lambda: True,
@@ -456,40 +309,14 @@ def test_l1_c_hawk_mode_starts_immediately_without_mute_buffer() -> None:
     assert len(speak_calls) >= 1, "應立即播第 1 組叫賣"
     assert speak_calls[0] == HAWK_SLOGANS[0], "第一個 speak 應為 HAWK_SLOGANS[0]"
 
-    # Assert 3：OpenCV 被開啟（enable_calls >= 1）
-    assert opencv.enable_calls >= 1, "進入叫賣模式應開啟 OpenCV"
-
 
 # ============================================================
 # L1-C-002
-# Scenario: 叫賣模式 OpenCV 偵測人持續 ≥ OPENCV_DWELL 秒觸發轉 L2
-# Given 程式處於 L1 叫賣模式運行中，OpenCV 偵測啟用
-# When 相機框內持續有人 ≥ OPENCV_DWELL（1.5）秒
+# Scenario: 叫賣模式按 't'（觸控開始點餐）觸發轉 L2
+# Given 程式處於 L1 叫賣模式運行中
+# When 商家/顧客按 't'（或 web wake 注入 token 't'）
 # Then 觸發轉 L2（run_l1 回傳 'L2'）
 # ============================================================
-
-def test_l1_c_hawk_opencv_dwell_threshold_triggers_l2() -> None:
-    # Arrange
-    # OpenCV 立即回報 dwell ≥ OPENCV_DWELL（模擬顧客已在鏡頭前足夠久）
-    opencv = FakeOpencv(dwell_value=OPENCV_DWELL)
-
-    # Act
-    result = states.run_l1(
-        print_terminal=lambda text: None,
-        read_terminal_key=lambda: "1",  # 第一次讀 1 進叫賣，後續不應被呼叫（已轉 L2）
-        opencv_dwell_seconds=opencv.dwell_seconds,
-        opencv_disable=opencv.disable,
-        opencv_enable=opencv.enable,
-        speak=lambda text: None,
-        exit_program=lambda: None,
-        tts_is_idle=lambda: True,
-        show_hawk_help=lambda *a, **k: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # Assert：run_l1 應回傳 'L2'
-    assert result == "L2", f"dwell ≥ OPENCV_DWELL 應回傳 'L2'，實際：{result}"
-
 
 def test_l1_hawk_t_key_triggers_l2() -> None:
     """觸控「開始點餐」：hawk loop 讀到 't' 鍵 → 回傳 'L2'。
@@ -497,17 +324,13 @@ def test_l1_hawk_t_key_triggers_l2() -> None:
     web wake 觸控 → token 't' 走同一鍵盤路徑（read_terminal_key 回 't'），
     與終端按 't' 等價。沿用既有 'q' 鍵處理 pattern（同層 if 分支）。
     """
-    # Arrange：dwell 一直 0.0 不靠 opencv 觸發；餵 't' 模擬觸控
-    opencv = FakeOpencv(dwell_value=0.0)
+    # Arrange：餵 't' 模擬觸控
     kbd = FakeKeyboardInput(["t"])
 
     # Act
     result = states.run_l1(
         print_terminal=lambda text: None,
         read_terminal_key=kbd.read,
-        opencv_dwell_seconds=opencv.dwell_seconds,
-        opencv_disable=opencv.disable,
-        opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: None,
         tts_is_idle=lambda: True,
@@ -522,50 +345,14 @@ def test_l1_hawk_t_key_triggers_l2() -> None:
 
 # ============================================================
 # L1-C-003
-# Scenario: 叫賣模式 OpenCV 瞬時偵測未達 OPENCV_DWELL 不觸發轉 L2
-# Given 程式處於 L1 叫賣模式運行中，OpenCV 偵測啟用
-# When 相機框內偵測到人但持續 < OPENCV_DWELL（1.5）秒
-# Then 不觸發轉 L2，繼續叫賣（按 q 才退出）
-# ============================================================
-
-def test_l1_c_hawk_opencv_brief_detection_filtered() -> None:
-    # Arrange
-    # dwell < OPENCV_DWELL，不觸發 L2
-    opencv = FakeOpencv(dwell_value=OPENCV_DWELL - 0.1)
-    exit_calls: list = []
-    # 進叫賣（1），dwell 不達閾值，按 q q（C14：兩次 q）退出
-    kbd = FakeKeyboardInput(["1", "q", "q"])
-
-    # Act
-    result = states.run_l1(
-        print_terminal=lambda text: None,
-        read_terminal_key=kbd.read,
-        opencv_dwell_seconds=opencv.dwell_seconds,
-        opencv_disable=opencv.disable,
-        opencv_enable=opencv.enable,
-        speak=lambda text: None,
-        exit_program=lambda: exit_calls.append(True),
-        tts_is_idle=lambda: True,
-        show_hawk_help=lambda *a, **k: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # Assert：未達閾值不轉 L2（exit_program 被呼叫，result 為 None）
-    assert result != "L2", "dwell < OPENCV_DWELL 不應觸發 L2"
-    assert len(exit_calls) == 1, "應呼叫 exit_program（連按兩次 q 退出）"
-
-
-# ============================================================
-# L1-C-004
-# Scenario: 叫賣模式運行中按 1 / 2 / 3 或其他非 q 鍵不切換模式
+# Scenario: 叫賣模式非 q/t 鍵不切換模式
 # Given 程式處於 L1 叫賣模式運行中
-# When 商家輸入「1」 / 「2」 / 「3」或其他非 q 鍵
-# Then 不切換模式，繼續留在叫賣模式（直到 q 退出）
+# When 商家輸入非 q/t 鍵
+# Then 不觸發轉 L2，繼續叫賣（按 q 才退出）
 # ============================================================
 
 def test_l1_c_hawk_non_q_keys_ignored() -> None:
     # Arrange
-    opencv = FakeOpencv(dwell_value=0.0)  # 不觸發 L2
     exit_calls: list = []
     # 進叫賣（1），在叫賣模式中按 1 / 2 / 3 / x，最後按 q q（C14：兩次 q）退
     kbd = FakeKeyboardInput(["1", "1", "2", "3", "x", "q", "q"])
@@ -574,9 +361,6 @@ def test_l1_c_hawk_non_q_keys_ignored() -> None:
     result = states.run_l1(
         print_terminal=lambda text: None,
         read_terminal_key=kbd.read,
-        opencv_dwell_seconds=opencv.dwell_seconds,
-        opencv_disable=opencv.disable,
-        opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
         tts_is_idle=lambda: True,
@@ -599,7 +383,6 @@ def test_l1_c_hawk_non_q_keys_ignored() -> None:
 
 def test_l1_c_hawk_q_exits_program() -> None:
     # Arrange
-    opencv = FakeOpencv(dwell_value=0.0)  # 不觸發 L2
     exit_calls: list = []
     # 進叫賣（1），在叫賣中按 q q（C14：兩次 q 才真退）
     kbd = FakeKeyboardInput(["1", "q", "q"])
@@ -608,9 +391,6 @@ def test_l1_c_hawk_q_exits_program() -> None:
     states.run_l1(
         print_terminal=lambda text: None,
         read_terminal_key=kbd.read,
-        opencv_dwell_seconds=opencv.dwell_seconds,
-        opencv_disable=opencv.disable,
-        opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
         tts_is_idle=lambda: True,
@@ -640,9 +420,6 @@ def test_l1_menu_q_exits_program() -> None:
     states.run_l1(
         print_terminal=lambda text: None,
         read_terminal_key=kbd.read,
-        opencv_dwell_seconds=lambda: 0.0,
-        opencv_disable=lambda: None,
-        opencv_enable=lambda: None,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
         tts_is_idle=lambda: True,
@@ -667,7 +444,6 @@ def test_l1_menu_q_nonq_q_does_not_exit() -> None:
     """
     exit_calls: list = []
     printed: list = []
-    opencv = FakeOpencv(dwell_value=0.0)
     # 主選單：q（confirm pending=True，print 提示）→ 1（reset confirm；進 hawk）→
     # hawk 內：q（pending=True，提示）→ q（pending=False，exit）
     kbd = FakeKeyboardInput(["q", "1", "q", "q"])
@@ -675,9 +451,6 @@ def test_l1_menu_q_nonq_q_does_not_exit() -> None:
     states.run_l1(
         print_terminal=lambda text: printed.append(text),
         read_terminal_key=kbd.read,
-        opencv_dwell_seconds=opencv.dwell_seconds,
-        opencv_disable=opencv.disable,
-        opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
         tts_is_idle=lambda: True,
@@ -703,16 +476,12 @@ def test_l1_hawk_q_nonq_q_does_not_exit() -> None:
     """
     exit_calls: list = []
     printed: list = []
-    opencv = FakeOpencv(dwell_value=0.0)  # 不觸發 L2
     # 1（進 hawk）→ q（pending=True 提示）→ 1（非 q，reset）→ q（pending=True 提示）→ q（exit）
     kbd = FakeKeyboardInput(["1", "q", "1", "q", "q"])
 
     states.run_l1(
         print_terminal=lambda text: printed.append(text),
         read_terminal_key=kbd.read,
-        opencv_dwell_seconds=opencv.dwell_seconds,
-        opencv_disable=opencv.disable,
-        opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
         tts_is_idle=lambda: True,
@@ -749,15 +518,11 @@ def test_l1_hawk_q_polling_empty_then_q_should_exit() -> None:
     """
     exit_calls: list = []
     printed: list = []
-    opencv = FakeOpencv(dwell_value=0.0)  # 不觸發 L2
     kbd = FakeKeyboardInput(["1", "q", "", "", "", "q"])
 
     states.run_l1(
         print_terminal=lambda text: printed.append(text),
         read_terminal_key=kbd.read,
-        opencv_dwell_seconds=opencv.dwell_seconds,
-        opencv_disable=opencv.disable,
-        opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: exit_calls.append(True),
         tts_is_idle=lambda: True,
@@ -803,7 +568,7 @@ class FakeCustomerInput:
 # ============================================================
 # L2-ENTRY-001
 # Scenario: 進入 L2 即播詢問語音並初始化 think_count
-# Given 從 L1 叫賣模式 OpenCV 偵測到人進入 L2
+# Given 從 L1 叫賣模式按 't'（觸控開始點餐）進入 L2
 # When run_l2 啟動執行進入時動作
 # Then 系統 speak「您好，請問需要購買什麼東西嗎？」且 think_count 初始化為 0，
 #      開始等待顧客回應最多 WAIT_NO_RESPONSE（6）秒
@@ -824,7 +589,6 @@ def test_l2_entry_speaks_greeting_and_inits_think_count() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -846,7 +610,7 @@ def test_l2_entry_speaks_greeting_and_inits_think_count() -> None:
 # Then 系統 speak「謝謝光臨」並套用 L0 子例程 A 回 L1 叫賣
 # ============================================================
 
-def test_l2_a_timeout_no_response_triggers_reject_and_subroutine_a() -> None:
+def test_l2_a_timeout_no_response_triggers_reject_and_enter_hawk() -> None:
     # Arrange
     speak_calls: list = []
     cart = cart_module.new_cart()
@@ -861,7 +625,6 @@ def test_l2_a_timeout_no_response_triggers_reject_and_subroutine_a() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -872,8 +635,8 @@ def test_l2_a_timeout_no_response_triggers_reject_and_subroutine_a() -> None:
     assert L2_REJECT_THANKS not in speak_calls, (
         f"timeout 不應 speak L2_REJECT_THANKS（那是明確拒絕意圖才用），實際：{speak_calls}"
     )
-    assert next_state == "L1_via_subroutine_a", (
-        f"timeout 應回傳 'L1_via_subroutine_a'，實際：{next_state!r}"
+    assert next_state == "L1_enter_hawk", (
+        f"timeout 應回傳 'L1_enter_hawk'，實際：{next_state!r}"
     )
     assert next_think_count == 0, "鏈路 A 退出時 think_count 應 reset 為 0"
 
@@ -886,7 +649,7 @@ def test_l2_a_timeout_no_response_triggers_reject_and_subroutine_a() -> None:
 # Then 系統 speak「謝謝光臨」並套用 L0 子例程 A 回 L1 叫賣
 # ============================================================
 
-def test_l2_a_reject_keyword_triggers_subroutine_a() -> None:
+def test_l2_a_reject_keyword_triggers_enter_hawk() -> None:
     """L2 拒絕意圖經 cancel_confirm gate 後退 L1（2026-05-29 cross-L cancel）。
 
     Flow：「不要」→ classify 拒絕 → cancel_confirm prompt → 「是的」確認取消 → exit_a。
@@ -905,7 +668,6 @@ def test_l2_a_reject_keyword_triggers_subroutine_a() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -916,8 +678,8 @@ def test_l2_a_reject_keyword_triggers_subroutine_a() -> None:
     assert L2_REJECT_THANKS in speak_calls, (
         f"cancel_confirm YES 後應 speak L2_REJECT_THANKS，實際：{speak_calls}"
     )
-    assert next_state == "L1_via_subroutine_a", (
-        f"應回傳 'L1_via_subroutine_a'，實際：{next_state!r}"
+    assert next_state == "L1_enter_hawk", (
+        f"應回傳 'L1_enter_hawk'，實際：{next_state!r}"
     )
     assert next_think_count == 0, "鏈路 A 退出時 think_count 應 reset 為 0"
 
@@ -946,7 +708,6 @@ def test_l2_b1_unknown_input_speaks_clarification_and_stays_in_l2() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -955,7 +716,7 @@ def test_l2_b1_unknown_input_speaks_clarification_and_stays_in_l2() -> None:
         f"不明輸入應 speak L2_B1_CLARIFY，實際：{speak_calls}"
     )
     # run_l2 最終因 None timeout 走鏈路 A 退出（驗證有進入 L2 循環第二次）
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -981,7 +742,6 @@ def test_l2_b1_unclear_max_triggers_reject_thanks() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -994,7 +754,7 @@ def test_l2_b1_unclear_max_triggers_reject_thanks() -> None:
         f"前 {UNCLEAR_MAX-1} 次應 speak L2_B1_CLARIFY，實際：{speak_calls}"
     )
     # 走鏈路 A
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -1021,7 +781,6 @@ def test_l2_b1_reset_on_known_intent() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1032,7 +791,7 @@ def test_l2_b1_reset_on_known_intent() -> None:
         f"unclear_count 已 reset，不應觸發 reject_voice。speak={speak_calls}"
     )
     # 退出原因是 timeout（鏈路 A 由 None 觸發）
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -1061,7 +820,6 @@ def test_l2_b2_service_keyword_enters_confirm_yes_returns_to_l2_loop() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1079,7 +837,7 @@ def test_l2_b2_service_keyword_enters_confirm_yes_returns_to_l2_loop() -> None:
         f"客服 YES 後應重 speak L2_ENTRY_PROMPT，實際:{speak_calls}"
     )
     # 自動回 L2 循環，第二次輸入 None → A → 退出
-    assert next_state == "L1_via_subroutine_a", (
+    assert next_state == "L1_enter_hawk", (
         "B-2 後應回 L2 循環（最終因 timeout 觸發 A 退出）"
     )
 
@@ -1104,7 +862,6 @@ def test_l2_b2_service_keyword_silent_exits_l1() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1112,7 +869,7 @@ def test_l2_b2_service_keyword_silent_exits_l1() -> None:
     assert L2_REJECT_THANKS in speak_calls, (
         f"L2 客服 silent 應 speak L2_REJECT_THANKS，實際:{speak_calls}"
     )
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -1140,7 +897,6 @@ def test_l2_b3_silence_service_intent_enters_confirm_yes_respeaks_prompt() -> No
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1154,7 +910,7 @@ def test_l2_b3_silence_service_intent_enters_confirm_yes_respeaks_prompt() -> No
     assert speak_calls.count(L2_ENTRY_PROMPT) >= 2, (
         f"客服 YES 後應重 speak L2_ENTRY_PROMPT，實際 speak_calls：{speak_calls}"
     )
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -1177,7 +933,6 @@ def test_l2_b3_silence_service_intent_silent_exits_l1() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1185,7 +940,7 @@ def test_l2_b3_silence_service_intent_silent_exits_l1() -> None:
     assert L2_REJECT_THANKS in speak_calls, (
         f"L2 客服 silent 應 speak L2_REJECT_THANKS，實際:{speak_calls}"
     )
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -1211,7 +966,6 @@ def test_l2_b3_first_think_increments_count_and_enters_silence() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1254,7 +1008,6 @@ def test_l2_b3_silence_interrupted_by_response_reruns_dispatch() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1292,7 +1045,6 @@ def test_l2_b3_silence_timeout_reasks_and_resumes_main_loop() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1301,7 +1053,7 @@ def test_l2_b3_silence_timeout_reasks_and_resumes_main_loop() -> None:
         f"沉默 timeout 後應 speak L2_B3_REASK，實際：{speak_calls}"
     )
     # 回主等待後 None → A → L1
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -1327,7 +1079,6 @@ def test_l2_b3_second_think_still_silence_below_threshold() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1340,7 +1091,7 @@ def test_l2_b3_second_think_still_silence_below_threshold() -> None:
     assert L2_B3_THIRD_REJECT not in speak_calls, (
         "think_count==2 不應觸發 L2_B3_THIRD_REJECT"
     )
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -1366,7 +1117,6 @@ def test_l2_b3_third_think_skips_silence_and_triggers_reject() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=2,  # 已累積 2 次
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1375,7 +1125,7 @@ def test_l2_b3_third_think_skips_silence_and_triggers_reject() -> None:
         f"第 3 次想一下應 speak L2_B3_THIRD_REJECT，實際：{speak_calls}"
     )
     assert L2_REJECT_THANKS in speak_calls, "應接著 speak L2_REJECT_THANKS（鏈路 A）"
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
     assert next_think_count == 0, "鏈路 A 退出時 think_count 應 reset 為 0"
 
 
@@ -1405,7 +1155,6 @@ def test_l2_c_iced_tea_default_quantity_adds_cart_and_goes_l3() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1441,7 +1190,6 @@ def test_l2_c_iced_tea_with_chinese_quantity_parses_and_adds() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1476,7 +1224,6 @@ def test_l2_c_qty_followup_gibberish_speaks_clarify_then_uses_next_quantity() ->
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1509,7 +1256,6 @@ def test_l2_c_qty_followup_service_intent_enters_confirm_yes_respeaks_qty_prompt
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1553,11 +1299,10 @@ def test_l2_c_qty_followup_service_intent_confirm_no_skips_product() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
     assert cart_module.is_empty(cart), (
         f"客服 confirm NO 應 skip 該商品，cart 應為空，實際：{cart}"
     )
@@ -1590,11 +1335,10 @@ def test_l2_c_qty_followup_service_intent_confirm_silent_skips_product() -> None
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
     assert cart_module.is_empty(cart), (
         f"客服 confirm silent 應 skip 該商品，cart 應為空，實際：{cart}"
     )
@@ -1627,12 +1371,11 @@ def test_l2_c_qty_followup_reject_cancels_addition_and_reprompts_l2() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
     # cancel 後 cart 未變（紅茶未加），最後 None timeout → L1
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
     assert cart_module.is_empty(cart), f"cancel 後 cart 應為空，實際：{cart}"
     # 2026-05-30 合成 speak：cancel notice 與 L2_B3_REASK 拼成單一 speak，用 substring search
     notice = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="冰紅茶")
@@ -1660,7 +1403,6 @@ def test_l2_c_qty_followup_timeout_skips_product_and_reprompts_l2() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1674,7 +1416,7 @@ def test_l2_c_qty_followup_timeout_skips_product_and_reprompts_l2() -> None:
         f"timeout skip 應 speak 合成「{notice}，{L2_B3_REASK}」，實際：{speak_calls}"
     )
     # 最後 None → L2-A timeout 退 L1
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 def test_l2_c_qty_followup_multi_product_all_cancel_combined_speak() -> None:
@@ -1698,7 +1440,6 @@ def test_l2_c_qty_followup_multi_product_all_cancel_combined_speak() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1723,7 +1464,7 @@ def test_l2_c_qty_followup_multi_product_all_cancel_combined_speak() -> None:
     assert L2_B3_REASK not in speak_calls, (
         f"L2_B3_REASK 不該獨立 speak（應合成），實際：{speak_calls}"
     )
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 def test_format_cancel_prefix_count_format_for_n_3() -> None:
@@ -1783,7 +1524,6 @@ def test_l3_b3_qty_followup_timeout_skips_product_and_reprompts_l3() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1819,7 +1559,6 @@ def test_l2_c_iced_tea_no_quantity_asks_then_uses_followup() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1851,7 +1590,6 @@ def test_l2_c_scratch_card_adds_cart_and_goes_l3() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1885,7 +1623,6 @@ def test_l2_prio_checkout_intent_in_l2_falls_through_to_b1() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1894,7 +1631,7 @@ def test_l2_prio_checkout_intent_in_l2_falls_through_to_b1() -> None:
         f"L2 應跳過結帳意圖走 B-1，speak L2_B1_CLARIFY，實際：{speak_calls}"
     )
     # 最終因 None timeout → A 退出
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -1928,7 +1665,6 @@ def test_l3_entry_speaks_followup_and_inits_think_count() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1947,7 +1683,7 @@ def test_l3_entry_speaks_followup_and_inits_think_count() -> None:
 ### Then 系統 speak 拒絕語音，清空 cart，套 L0 子例程 A 回 L1
 # ============================================================
 
-def test_l3_a_reject_keyword_clears_cart_and_triggers_subroutine_a() -> None:
+def test_l3_a_reject_keyword_clears_cart_and_triggers_enter_hawk() -> None:
     """L3 拒絕意圖經 cancel_confirm gate 後清 cart 退 L1（2026-05-29 cross-L cancel）。"""
     # Arrange
     speak_calls: list = []
@@ -1964,7 +1700,6 @@ def test_l3_a_reject_keyword_clears_cart_and_triggers_subroutine_a() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -1978,8 +1713,8 @@ def test_l3_a_reject_keyword_clears_cart_and_triggers_subroutine_a() -> None:
     assert cart_module.is_empty(cart), (
         f"拒絕後 cart 應清空，實際：{cart}"
     )
-    assert next_state == "L1_via_subroutine_a", (
-        f"應回傳 'L1_via_subroutine_a'，實際：{next_state!r}"
+    assert next_state == "L1_enter_hawk", (
+        f"應回傳 'L1_enter_hawk'，實際：{next_state!r}"
     )
     assert next_think_count == 0, "鏈路 A 退出時 think_count 應 reset 為 0"
 
@@ -2009,7 +1744,6 @@ def test_l3_b1_unknown_input_speaks_clarification_and_stays_in_l3() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2047,7 +1781,6 @@ def test_l3_b1_unclear_max_final_confirmation_cancel() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2056,7 +1789,7 @@ def test_l3_b1_unclear_max_final_confirmation_cancel() -> None:
     # 鏈路 A 拒絕語音 + cart 清空
     assert L3_REJECT_THANKS in speak_calls
     assert len(cart) == 0, f"cart 應清空，實際：{dict(cart)}"
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -2084,7 +1817,6 @@ def test_l3_b1_unclear_max_final_confirmation_continue_then_checkout() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2116,14 +1848,13 @@ def test_l3_b1_unclear_max_final_confirmation_timeout_cancels() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
     # Assert：拒絕語音 + cart 清空
     assert L3_REJECT_THANKS in speak_calls
     assert len(cart) == 0
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -2156,7 +1887,6 @@ def test_l3_b1_reset_on_known_intent() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2203,7 +1933,6 @@ def test_l3_b4_silence_service_intent_enters_confirm_yes_respeaks_reask() -> Non
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2243,7 +1972,6 @@ def test_l3_b4_silence_service_intent_silent_clears_cart_exits_l1() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2252,7 +1980,7 @@ def test_l3_b4_silence_service_intent_silent_clears_cart_exits_l1() -> None:
         f"L3 客服 silent 應 speak L3_REJECT_THANKS，實際:{speak_calls}"
     )
     assert cart_module.is_empty(cart), f"L3 客服 silent → 清 cart，實際:{cart}"
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -2280,7 +2008,6 @@ def test_l3_b1_final_confirmation_gibberish_then_timeout() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2289,7 +2016,7 @@ def test_l3_b1_final_confirmation_gibberish_then_timeout() -> None:
     # 最終 timeout → 取消
     assert L3_REJECT_THANKS in speak_calls
     assert len(cart) == 0
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -2319,7 +2046,6 @@ def test_l3_b2_service_keyword_enters_confirm_yes_returns_to_l3_loop() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2357,7 +2083,6 @@ def test_l3_b2_service_keyword_silent_clears_cart_exits_l1() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2366,7 +2091,7 @@ def test_l3_b2_service_keyword_silent_clears_cart_exits_l1() -> None:
         f"L3 客服 silent 應 speak L3_REJECT_THANKS，實際:{speak_calls}"
     )
     assert cart_module.is_empty(cart), f"L3 客服 silent → 清 cart，實際:{cart}"
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 def test_l3_b2_service_keyword_no_clears_cart_exits_l1() -> None:
@@ -2384,7 +2109,6 @@ def test_l3_b2_service_keyword_no_clears_cart_exits_l1() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2393,7 +2117,7 @@ def test_l3_b2_service_keyword_no_clears_cart_exits_l1() -> None:
         f"L3 客服 NO 應 speak L3_REJECT_THANKS，實際:{speak_calls}"
     )
     assert cart_module.is_empty(cart), f"L3 客服 NO → 清 cart，實際:{cart}"
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -2423,7 +2147,6 @@ def test_l3_b3_product_default_quantity_adds_cart_and_stays_in_l3() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2462,7 +2185,6 @@ def test_l3_b3_qty_followup_reject_cancels_addition_and_reprompts_l3() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2502,7 +2224,6 @@ def test_l3_b3_qty_followup_checkout_as_skip_speaks_cancelled_notice() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2541,7 +2262,6 @@ def test_l3_b3_qty_followup_attempts_cap_speaks_cancelled_notice() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2574,7 +2294,6 @@ def test_l3_b3_product_no_quantity_asks_then_uses_followup() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2605,7 +2324,6 @@ def test_l3_b3_product_with_quantity_accumulates_existing() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2640,7 +2358,6 @@ def test_l3_b4_first_think_increments_count_and_enters_silence() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2681,7 +2398,6 @@ def test_l3_b4_silence_interrupted_by_response_reruns_dispatch() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2717,7 +2433,6 @@ def test_l3_b4_silence_timeout_reasks_and_resumes_main_loop() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2755,7 +2470,6 @@ def test_l3_b4_second_think_still_silence_below_threshold() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2793,7 +2507,6 @@ def test_l3_b4_fourth_think_skips_silence_and_triggers_c2_second_stage() -> None
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=3,  # 已累積 3 次（C13: 第 4 次才觸發 C-2）
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2830,7 +2543,6 @@ def test_l3_c1_checkout_keyword_speaks_and_goes_l4() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2865,7 +2577,6 @@ def test_l3_fusion_checkout_via_expand_goes_l4(fused_text: str) -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2896,7 +2607,6 @@ def test_l3_gibberish_no_fusion_char_still_unclear() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2931,7 +2641,6 @@ def test_l3_c2_first_timeout_speaks_warning_and_enters_second_stage() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -2968,7 +2677,6 @@ def test_l3_c2_second_stage_timeout_goes_l4() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3004,7 +2712,6 @@ def test_l3_c2_second_stage_product_reruns_dispatch_to_b3() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3054,7 +2761,6 @@ def test_l3_c2_second_stage_old_reject_word_treated_as_gibberish() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3108,7 +2814,6 @@ def test_l3_c2_second_stage_checkout_goes_directly_to_l4() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3159,7 +2864,6 @@ def test_l3_c2_second_stage_continue_speaks_ack_and_returns_to_main_loop() -> No
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3226,7 +2930,6 @@ def test_l3_c2_second_stage_expanded_continue_keywords_hit_and_resume_dialog(
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3279,7 +2982,6 @@ def test_l3_c2_second_stage_expanded_cancel_keywords_hit_and_exit_l1(
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3290,7 +2992,7 @@ def test_l3_c2_second_stage_expanded_cancel_keywords_hit_and_exit_l1(
     assert cart_module.is_empty(cart), (
         f"CANCEL 應清 cart，實際：{cart}"
     )
-    assert next_state == "L1_via_subroutine_a", (
+    assert next_state == "L1_enter_hawk", (
         f"CANCEL → 退 L1，實際：{next_state!r}"
     )
 
@@ -3320,7 +3022,6 @@ def test_l3_prio_l4_service_words_in_l3_falls_through_to_b1() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3366,7 +3067,6 @@ def test_l4_entry_calculates_total_prints_detail_and_speaks() -> None:
         print_terminal=lambda text: terminal_calls.append(text),
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3403,7 +3103,6 @@ def test_l4_a_scan_success_speaks_and_goes_l5() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3424,7 +3123,7 @@ def test_l4_a_scan_success_speaks_and_goes_l5() -> None:
 ### Then 系統 speak 取消語音，清空 cart，套用 L0 子例程 A 回 L1 叫賣
 # ============================================================
 
-def test_l4_b_reject_keyword_clears_cart_and_triggers_subroutine_a() -> None:
+def test_l4_b_reject_keyword_clears_cart_and_triggers_enter_hawk() -> None:
     """L4 拒絕意圖經 cancel_confirm gate 後清 cart 退 L1（2026-05-29 cross-L cancel）。"""
     # Arrange
     speak_calls: list = []
@@ -3440,7 +3139,6 @@ def test_l4_b_reject_keyword_clears_cart_and_triggers_subroutine_a() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3452,8 +3150,8 @@ def test_l4_b_reject_keyword_clears_cart_and_triggers_subroutine_a() -> None:
         f"cancel_confirm YES 後應 speak L4_B_CANCEL_THANKS，實際：{speak_calls}"
     )
     assert cart_module.is_empty(cart), f"鏈路 B 應清空 cart，實際：{cart}"
-    assert next_state == "L1_via_subroutine_a", (
-        f"鏈路 B 應回 L1_via_subroutine_a，實際：{next_state!r}"
+    assert next_state == "L1_enter_hawk", (
+        f"鏈路 B 應回 L1_enter_hawk，實際：{next_state!r}"
     )
 
 
@@ -3479,7 +3177,6 @@ def test_l2_reject_then_cancel_confirm_no_continues_dialog() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3493,7 +3190,7 @@ def test_l2_reject_then_cancel_confirm_no_continues_dialog() -> None:
         f"NO path 不應 speak L2_REJECT_THANKS（沒確認取消），實際：{speak_calls}"
     )
     # 最終仍因 timeout 走 L1（L2 模式 timeout = 中性訊息退場），但與 reject 退場不同
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 def test_l3_reject_then_cancel_confirm_no_keeps_cart() -> None:
@@ -3510,7 +3207,6 @@ def test_l3_reject_then_cancel_confirm_no_keeps_cart() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3540,7 +3236,6 @@ def test_l4_reject_then_cancel_confirm_no_continues_payment() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3575,7 +3270,6 @@ def test_l2_b3_silence_reject_then_cancel_confirm_no_continues() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3586,7 +3280,7 @@ def test_l2_b3_silence_reject_then_cancel_confirm_no_continues() -> None:
     assert L2_REJECT_THANKS not in speak_calls, (
         f"沉默期內 NO path 不應 speak L2_REJECT_THANKS，實際：{speak_calls}"
     )
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 def test_l3_b4_silence_reject_then_cancel_confirm_no_continues() -> None:
@@ -3610,7 +3304,6 @@ def test_l3_b4_silence_reject_then_cancel_confirm_no_continues() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3647,7 +3340,6 @@ def test_checkout_confirm_cancel_intent_triggers_cancel_confirm_gate() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3668,7 +3360,7 @@ def test_checkout_confirm_cancel_intent_triggers_cancel_confirm_gate() -> None:
     assert cart_module.is_empty(cart), (
         f"checkout_confirm 內 cancel YES 應清 cart，實際：{cart}"
     )
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -3696,7 +3388,6 @@ def test_l3_main_checkout_confirm_cancel_yes_direct_exits_l1() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3707,7 +3398,7 @@ def test_l3_main_checkout_confirm_cancel_yes_direct_exits_l1() -> None:
         f"cancel YES 不該走 clear-cart helper（舊 bug path），實際：{speak_calls}"
     )
     assert cart_module.is_empty(cart), f"cancel YES 應清 cart，實際：{cart}"
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -3735,14 +3426,13 @@ def test_l3_c2_checkout_via_confirm_cancel_yes_direct_exits_l1() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
     assert L3_REJECT_THANKS in speak_calls
     assert L3_CHECKOUT_REJECT_CLEAR_NOTICE not in speak_calls
     assert cart_module.is_empty(cart)
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -3768,14 +3458,13 @@ def test_l3_b4_silence_checkout_confirm_cancel_yes_direct_exits_l1() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
     assert L3_REJECT_THANKS in speak_calls
     assert L3_CHECKOUT_REJECT_CLEAR_NOTICE not in speak_calls
     assert cart_module.is_empty(cart)
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 def test_checkout_confirm_cancel_intent_no_returns_to_confirm() -> None:
@@ -3792,7 +3481,6 @@ def test_checkout_confirm_cancel_intent_no_returns_to_confirm() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3822,14 +3510,13 @@ def test_cross_l_cancel_intent_phrase_triggers_confirm() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
     assert CANCEL_CONFIRM_PROMPT in speak_calls
     assert L3_REJECT_THANKS in speak_calls
     assert cart_module.is_empty(cart)
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -3860,7 +3547,6 @@ def test_unclear_final_cancel_intent_routes_via_cancel_confirm() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3871,7 +3557,7 @@ def test_unclear_final_cancel_intent_routes_via_cancel_confirm() -> None:
     )
     assert L3_REJECT_THANKS in speak_calls
     assert cart_module.is_empty(cart)
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 def test_unclear_final_cancel_intent_no_continues() -> None:
@@ -3890,7 +3576,6 @@ def test_unclear_final_cancel_intent_no_continues() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3947,7 +3632,6 @@ def test_l4_c_service_keyword_enters_special_mode_with_options() -> None:
         print_terminal=lambda text: terminal_calls.append(text),
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -3986,14 +3670,13 @@ def test_l4_c_service_silent_timeout_clears_cart_exits_l1() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
     # Assert：silent → 清 cart 退 L1
     assert cart_module.is_empty(cart), f"silent timeout 應清 cart，實際：{cart}"
-    assert next_state == "L1_via_subroutine_a", (
-        f"silent timeout 應回 L1_via_subroutine_a，實際:{next_state!r}"
+    assert next_state == "L1_enter_hawk", (
+        f"silent timeout 應回 L1_enter_hawk，實際:{next_state!r}"
     )
 
 
@@ -4019,7 +3702,6 @@ def test_l4_c_service_yes_substring_returns_to_main_loop() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -4042,7 +3724,6 @@ def test_l4_c_service_yes_strict_short_returns_to_main_loop() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -4074,7 +3755,6 @@ def test_l4_c_service_no_substring_clears_cart_exits_l1_directly() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -4083,7 +3763,7 @@ def test_l4_c_service_no_substring_clears_cart_exits_l1_directly() -> None:
         f"客服 NO 不再經 cancel_confirm gate（user 字面），實際 speak:{speak_calls}"
     )
     assert cart_module.is_empty(cart), f"NO 後應清 cart，實際:{cart}"
-    assert next_state == "L1_via_subroutine_a", (
+    assert next_state == "L1_enter_hawk", (
         f"NO 後應回 L1，實際:{next_state!r}"
     )
 
@@ -4103,7 +3783,6 @@ def test_l4_c_service_no_strict_short_clears_cart_exits_l1_directly() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -4112,7 +3791,7 @@ def test_l4_c_service_no_strict_short_clears_cart_exits_l1_directly() -> None:
         f"客服 NO 不應 cancel_confirm gate，實際:{speak_calls}"
     )
     assert cart_module.is_empty(cart), f"NO 後應清 cart，實際:{cart}"
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -4136,7 +3815,6 @@ def test_l4_c_service_no_substring_precedence_over_yes_strict_short() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -4144,7 +3822,7 @@ def test_l4_c_service_no_substring_precedence_over_yes_strict_short() -> None:
     assert cart_module.is_empty(cart), (
         f"「不繼續」應命中 NO（precedence over YES「繼續」strict_short），實際 cart:{cart}"
     )
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -4169,7 +3847,6 @@ def test_l4_c_service_input_s_treated_as_continue_then_scan() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -4203,7 +3880,6 @@ def test_l4_c_service_unrecognized_input_speaks_unclear_notice_and_stays() -> No
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -4234,7 +3910,7 @@ def test_l4_c_service_uses_independent_confirm_budget() -> None:
     確保客服階段「繼續」YES 路徑能正常走完；之後切到「budget 耗盡」讓主迴圈 forced exit。
 
     驗證點：客服階段不被主 budget 立即耗盡（如果客服共用主 deadline 而主 deadline
-    已 < now，客服第一次 while remaining check 立即 silent 取消 → next_state 仍 L1_via_subroutine_a，
+    已 < now，客服第一次 while remaining check 立即 silent 取消 → next_state 仍 L1_enter_hawk，
     但 cart 路徑會走錯），測試需確保「客服階段先處理 YES 才進主 forced exit」。
 
     為避免細緻 monotonic call-count 偵測脆弱，本測試核心斷言：客服「繼續」成功 +
@@ -4265,13 +3941,12 @@ def test_l4_c_service_uses_independent_confirm_budget() -> None:
             print_terminal=lambda text: None,
             read_customer_input=customer_input.read,
             cart=cart,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
     # 客服「繼續」YES → 回主迴圈 → 主 budget 耗盡 → forced exit 退 L1
     # 關鍵驗證：客服階段沒被主 budget 立即耗盡（會走完 YES 路徑），最終由主迴圈耗盡退場
-    assert next_state == "L1_via_subroutine_a", (
+    assert next_state == "L1_enter_hawk", (
         f"客服 YES 後主迴圈 forced exit 應退 L1，實際:{next_state!r}"
     )
 
@@ -4309,7 +3984,6 @@ def test_l4_service_mode_continue_yes_reprints_entry_and_resets_budget() -> None
         print_terminal=lambda text: terminal_calls.append(text),
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -4413,9 +4087,9 @@ def test_l5_entry_clears_cart() -> None:
 ### Scenario: 等待 THANK_DELAY 秒後自動套用子例程 A 回 L1
 ### Given L5 進入時動作完成（已 mute / speak / 清空 cart）
 ### When 等待 THANK_DELAY（3）秒過後
-### Then 回傳 ("L1_via_subroutine_a", 0, 0)
+### Then 回傳 ("L1_enter_hawk", 0, 0)
 ###      read_customer_input 被呼叫一次當純等待（timeout=THANK_DELAY 秒）
-def test_l5_a_returns_to_l1_via_subroutine_a_after_thank_delay() -> None:
+def test_l5_a_returns_to_l1_enter_hawk_after_thank_delay() -> None:
     # Arrange
     sleep_calls: list = []
     cart: dict = {"冰紅茶": 2, "刮刮樂": 1}
@@ -4428,8 +4102,8 @@ def test_l5_a_returns_to_l1_via_subroutine_a_after_thank_delay() -> None:
     )
 
     # Assert — L5-A-001：回傳 tuple 正確 + sleep 被呼叫等待 THANK_DELAY 秒
-    assert result == ("L1_via_subroutine_a", 0, 0), (
-        f"應回傳 tuple (L1_via_subroutine_a, 0, 0)，實際：{result}"
+    assert result == ("L1_enter_hawk", 0, 0), (
+        f"應回傳 tuple (L1_enter_hawk, 0, 0)，實際：{result}"
     )
     assert len(sleep_calls) == 1, (
         f"sleep 應被呼叫一次（純等待 THANK_DELAY 秒），實際：{sleep_calls}"
@@ -4464,7 +4138,6 @@ def test_l2_multi_product_with_quantities_all_added_then_l3() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -4488,7 +4161,6 @@ def test_l2_multi_product_one_missing_qty_asks_only_for_that_one() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -4518,7 +4190,6 @@ def test_l2_duplicate_product_overwrites_to_last_qty() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -4545,7 +4216,6 @@ def test_l3_checkout_confirm_yes_keyword_proceeds_to_l4() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -4566,7 +4236,6 @@ def test_l3_checkout_confirm_terminal_1_proceeds_to_l4() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -4574,7 +4243,7 @@ def test_l3_checkout_confirm_terminal_1_proceeds_to_l4() -> None:
 
 
 def test_l3_checkout_confirm_no_returns_to_l3_main_loop() -> None:
-    """L3 結帳 → 顧客說「不對」→ 清空 cart + 通知，主迴圈下一輪 cart 空 → L2 timeout → L1_via_subroutine_a。"""
+    """L3 結帳 → 顧客說「不對」→ 清空 cart + 通知，主迴圈下一輪 cart 空 → L2 timeout → L1_enter_hawk。"""
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
@@ -4588,12 +4257,11 @@ def test_l3_checkout_confirm_no_returns_to_l3_main_loop() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
     # cart 空 + timeout → 鏈路 A 退出
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
     # 確認被拒絕後 speak 清 cart 通知
     assert L3_CHECKOUT_REJECT_CLEAR_NOTICE in speak_calls
     # cart 已清空
@@ -4603,7 +4271,7 @@ def test_l3_checkout_confirm_no_returns_to_l3_main_loop() -> None:
 
 
 def test_l3_checkout_confirm_terminal_2_returns_to_l3() -> None:
-    """L3 結帳 → 終端 2 否認 → 清空 cart + 通知，cart 空 → L2 timeout → L1_via_subroutine_a。"""
+    """L3 結帳 → 終端 2 否認 → 清空 cart + 通知，cart 空 → L2 timeout → L1_enter_hawk。"""
     speak_calls: list = []
     cart = cart_module.new_cart()
     cart_module.add_item(cart, "冰紅茶", 1)
@@ -4616,13 +4284,12 @@ def test_l3_checkout_confirm_terminal_2_returns_to_l3() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
     assert L3_CHECKOUT_REJECT_CLEAR_NOTICE in speak_calls
     assert cart_module.is_empty(cart)
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
     assert L2_TIMEOUT_TO_HAWK_VOICE in speak_calls
 
 
@@ -4647,11 +4314,10 @@ def test_l3_checkout_confirm_timeout_cancels() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
     assert cart_module.is_empty(cart)
     # timeout 走 L3_CHECKOUT_TIMEOUT_CLEAR_NOTICE（不是明確 reject 的 notice）
     assert L3_CHECKOUT_TIMEOUT_CLEAR_NOTICE in speak_calls
@@ -4679,11 +4345,10 @@ def test_l3_checkout_confirm_unclear_exhausted_speaks_distinct_message() -> None
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
     assert cart_module.is_empty(cart)
     # 亂答達上限：說 L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE（「不好意思我聽不太懂...」）
     assert L3_CHECKOUT_UNCLEAR_EXHAUSTED_NOTICE in speak_calls, (
@@ -4740,7 +4405,6 @@ def test_l3_checkout_confirm_yes_phrases_progress_to_l4(yes_text: str) -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -4773,7 +4437,6 @@ def test_l3_c2_yes_keyword_好_proceeds_directly_to_l4() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -4805,7 +4468,6 @@ def test_l3_c2_gibberish_silently_ignored_then_timeout_to_l4() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -4817,7 +4479,7 @@ def test_l3_c2_gibberish_silently_ignored_then_timeout_to_l4() -> None:
     assert next_state == "L4"
 
 
-def test_l3_c2_cancel_keyword_returns_to_l1_via_subroutine_a() -> None:
+def test_l3_c2_cancel_keyword_returns_to_l1_enter_hawk() -> None:
     """2026-05-28 重構：C-2 第二段「取消」keyword → 清 cart + 退 L1 hawk。
 
     替代舊版「test_l3_c2_first_stage_no_keyword_cancels_order」：舊版「不要」誤判
@@ -4837,12 +4499,11 @@ def test_l3_c2_cancel_keyword_returns_to_l1_via_subroutine_a() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
     # 「取消」keyword → 走 DialogSession.exit_a()：清 cart + L3_REJECT_THANKS + 退 L1
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
     assert cart_module.is_empty(cart), f"取消應清 cart，實際：{cart}"
     # DialogSession.exit_a() 在 cart 非空時 speak L3_REJECT_THANKS（「好的，取消這次購物，謝謝光臨」）
     assert L3_REJECT_THANKS in speak_calls, (
@@ -4874,7 +4535,6 @@ def test_l3_c2_checkout_strict_short_single_word_via_confirm_to_l4() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -4912,7 +4572,6 @@ def test_l3_c2_continue_keyword_returns_to_dialog_main_loop_preserving_cart() ->
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -4939,7 +4598,6 @@ def test_l3_checkout_confirm_summary_shows_all_products() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -4970,7 +4628,6 @@ def test_dialog_empty_cart_speaks_l2_entry_prompt() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -4994,7 +4651,6 @@ def test_dialog_nonempty_cart_speaks_l3_entry_prompt() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -5018,7 +4674,6 @@ def test_dialog_empty_to_nonempty_transitions_mode_internally() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -5044,13 +4699,12 @@ def test_dialog_empty_cart_checkout_intent_treated_as_unclear() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
     # 應 speak L2_B1_CLARIFY 而非進結帳
     assert L2_B1_CLARIFY in speak_calls
-    assert next_state == "L1_via_subroutine_a"  # timeout 走 A
+    assert next_state == "L1_enter_hawk"  # timeout 走 A
 
 
 def test_dialog_empty_cart_timeout_goes_to_l1_via_a_reject() -> None:
@@ -5065,11 +4719,10 @@ def test_dialog_empty_cart_timeout_goes_to_l1_via_a_reject() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
     assert cart_module.is_empty(cart)
 
 
@@ -5090,7 +4743,6 @@ def test_dialog_nonempty_cart_timeout_triggers_c2_auto_checkout() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -5098,114 +4750,6 @@ def test_dialog_nonempty_cart_timeout_triggers_c2_auto_checkout() -> None:
     # cart 保留
     assert cart_module.get_quantity(cart, "冰紅茶") == 1
 
-
-# ============================================================
-# OpenCV 作用域 regression（2026-05-25 加，輪 1 修正後）
-# 守住：dialog/l4 入口必呼叫 opencv_disable；L1 主迴圈 + 客服入口防呆 disable
-# ============================================================
-
-def test_dialog_entry_calls_opencv_disable() -> None:
-    """dialog 進入時必須呼叫 opencv_disable（顧客已在面前對話，OpenCV 用完任務）。"""
-    disable_calls: list = []
-    cart = cart_module.new_cart()
-    customer_input = FakeCustomerInput([None])  # 立即 timeout → A 退出
-
-    states.run_dialog(
-        speak=lambda text: None,
-
-        print_terminal=lambda text: None,
-        read_customer_input=customer_input.read,
-        cart=cart,
-        think_count=0,
-        opencv_disable=lambda: disable_calls.append(True),
-        do_action=lambda *a, **k: None,
-    )
-
-    assert len(disable_calls) >= 1, "dialog 入口應呼叫 opencv_disable 至少一次"
-
-
-def test_l4_entry_calls_opencv_disable() -> None:
-    """L4 進入時必須呼叫 opencv_disable（顧客已在掃碼，防呆）。"""
-    disable_calls: list = []
-    cart = cart_module.new_cart()
-    cart_module.add_item(cart, "冰紅茶", 1)
-    customer_input = FakeCustomerInput(["掃碼"])
-
-    states.run_l4(
-        speak=lambda text: None,
-
-        print_terminal=lambda text: None,
-        read_customer_input=customer_input.read,
-        cart=cart,
-        opencv_disable=lambda: disable_calls.append(True),
-        do_action=lambda *a, **k: None,
-    )
-
-    assert len(disable_calls) >= 1, "L4 入口應呼叫 opencv_disable 至少一次"
-
-
-def test_l1_main_loop_calls_opencv_disable_each_iteration() -> None:
-    """L1 主迴圈每輪應呼叫 opencv_disable 防呆（主選單時不該偵測 OpenCV）。"""
-    opencv = FakeOpencv()
-    # C14：兩次 q 才真退
-    kbd = FakeKeyboardInput(["q", "q"])
-
-    states.run_l1(
-        print_terminal=lambda text: None,
-        read_terminal_key=kbd.read,
-        opencv_dwell_seconds=opencv.dwell_seconds,
-        opencv_disable=opencv.disable,
-        opencv_enable=opencv.enable,
-        speak=lambda text: None,
-        exit_program=lambda: None,
-        tts_is_idle=lambda: True,
-        show_hawk_help=lambda *a, **k: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # 至少一輪 disable（即使商家直接連按兩次 q 也要 disable 過一次）
-    assert opencv.disable_calls >= 1, (
-        f"L1 主迴圈進入時應 opencv_disable 至少一次（防呆），實際 {opencv.disable_calls}"
-    )
-
-
-def test_l1_service_mode_calls_opencv_disable() -> None:
-    """L1 客服模式進入時應呼叫 opencv_disable（客服期間不偵測）。"""
-    opencv = FakeOpencv()
-    # 進客服（3）→ 印電話 → 回主選單 → q q（C14）退出
-    kbd = FakeKeyboardInput(["3", "q", "q"])
-
-    states.run_l1(
-        print_terminal=lambda text: None,
-        read_terminal_key=kbd.read,
-        opencv_dwell_seconds=opencv.dwell_seconds,
-        opencv_disable=opencv.disable,
-        opencv_enable=opencv.enable,
-        speak=lambda text: None,
-        exit_program=lambda: None,
-        tts_is_idle=lambda: True,
-        show_hawk_help=lambda *a, **k: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # 主迴圈 2 輪（第 1 輪選 3，第 2 輪起的 q）+ 客服進入 1 次 = 至少 3 次 disable
-    # （即使主迴圈防呆已 disable，客服獨立明示 disable 仍要保留）
-    # C14 後：第一次 q 不退（顯示確認），第二次 q 才退；主迴圈走 3 輪（3 → q-confirm → q-exit）
-    # 但實際 q 第二次落入 if key=="q" 分支不走主迴圈頂端的 opencv_disable，故仍 >= 3
-    assert opencv.disable_calls >= 3, (
-        f"主迴圈 2 輪 + 客服 1 次 disable 應 >= 3，實際 {opencv.disable_calls}。"
-        "若僅 2 次 = 客服獨立 disable 漏了"
-    )
-
-
-# ============================================================
-# P0-STRICT-001（2026-05-26 P0 keyword 歧義急救 regression）
-### Scenario: C-2「請問是否要結帳」顧客回「沒了」不應被當 NO 清空 cart
-### Given L3 處於 C-2 第二段等待中（cart 非空），顧客回「沒了」
-### When 嚴格 strict-match 規則生效後，「沒了」不命中 NO 也不命中 YES（均為非完全等於）
-### Then C-2 視為 gibberish 繼續倒數，後續 None timeout → L4；cart 仍非空
-### 回歸來源：視角 B #3 / 視角 C #2 發現的 keyword 歧義 bug（顧客錢包逆向錯誤）
-# ============================================================
 
 def test_c2_meiyou_should_not_be_no() -> None:
     """C-2 strict yes/no 內顧客回「沒了」應視為 unclear（不命中 NO 也不命中 YES）→
@@ -5235,14 +4779,13 @@ def test_c2_meiyou_should_not_be_no() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
     # Assert 1：進 L4（timeout 路徑，非 NO 路徑清 cart 後回 L1）
     assert next_state == "L4", (
         f"「沒了」在 C-2 strict yes/no 應被忽略（gibberish），倒數後進 L4，"
-        f"實際：{next_state!r}。若回 L1_via_subroutine_a = NO 路徑誤命中（顧客錢包 bug）。"
+        f"實際：{next_state!r}。若回 L1_enter_hawk = NO 路徑誤命中（顧客錢包 bug）。"
     )
 
     # Assert 2：cart 仍非空（NO 路徑會 clear_cart，此路不應走）
@@ -5275,7 +4818,6 @@ def test_l4_ack_word_speaks_gentle_and_does_not_print_unclear_notice() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -5329,11 +4871,10 @@ def test_l4_wallclock_budget_ack_spam_eventually_forced_exit() -> None:
             print_terminal=lambda text: None,
             read_customer_input=customer_input.read,
             cart=cart,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
-    assert next_state == "L1_via_subroutine_a", (
+    assert next_state == "L1_enter_hawk", (
         f"預算耗盡後應強制 exit 回 L1，實際：{next_state!r}"
     )
     assert L4_D_FORCED_EXIT in speak_calls, (
@@ -5357,7 +4898,6 @@ def test_l4_normal_scan_within_budget_succeeds() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -5412,11 +4952,10 @@ def test_l4_silence_full_budget_forces_exit_clears_cart() -> None:
             print_terminal=lambda text: None,
             read_customer_input=customer_input.read,
             cart=cart,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
-    assert next_state == "L1_via_subroutine_a", (
+    assert next_state == "L1_enter_hawk", (
         f"全程沒回應 → budget 耗盡應退 L1，實際：{next_state!r}"
     )
     assert L4_D_FORCED_EXIT in speak_calls, (
@@ -5462,7 +5001,6 @@ def test_l4_qr_refresh_cycle_speaks_remind_unconditionally() -> None:
             print_terminal=lambda text: terminal_calls.append(text),
             read_customer_input=customer_input.read,
             cart=cart,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
@@ -5498,7 +5036,6 @@ def test_l4_unclear_input_speaks_unclear_notice_not_reset_budget() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -5570,7 +5107,6 @@ def test_l4_multiple_cycle_refreshes_within_budget() -> None:
             print_terminal=lambda text: terminal_calls.append(text),
             read_customer_input=customer_input.read,
             cart=cart,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
@@ -5623,7 +5159,6 @@ def test_l4_ack_does_not_reset_cycle_deadline() -> None:
             print_terminal=lambda text: None,
             read_customer_input=customer_input.read,
             cart=cart,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
@@ -5672,7 +5207,6 @@ def test_l4_ack_does_not_reset_budget_deadline() -> None:
             print_terminal=lambda text: None,
             read_customer_input=customer_input.read,
             cart=cart,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
@@ -5682,7 +5216,7 @@ def test_l4_ack_does_not_reset_budget_deadline() -> None:
     assert L4_D_FORCED_EXIT in speak_calls, (
         f"budget 耗盡應 speak L4_D_FORCED_EXIT，實際：{speak_calls}"
     )
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
     assert cart_module.is_empty(cart)
 
 
@@ -5740,7 +5274,6 @@ def test_l4_cancel_confirm_no_compensates_both_deadlines() -> None:
             print_terminal=lambda text: None,
             read_customer_input=customer_input.read,
             cart=cart,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
@@ -5777,7 +5310,6 @@ def test_l4_service_yes_resets_both_deadlines() -> None:
             print_terminal=lambda text: terminal_calls.append(text),
             read_customer_input=customer_input.read,
             cart=cart,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
@@ -5817,13 +5349,12 @@ def test_l4_service_no_immediate_exit_l1() -> None:
             print_terminal=lambda text: None,
             read_customer_input=customer_input.read,
             cart=cart,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
     # service no → clear cart + 退 L1
     assert cart_module.is_empty(cart), f"客服 no 應清 cart，實際：{cart}"
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 def test_l4_budget_exhausted_takes_priority_over_cycle() -> None:
@@ -5858,7 +5389,6 @@ def test_l4_budget_exhausted_takes_priority_over_cycle() -> None:
             print_terminal=lambda text: None,
             read_customer_input=customer_input.read,
             cart=cart,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
@@ -5869,7 +5399,7 @@ def test_l4_budget_exhausted_takes_priority_over_cycle() -> None:
     assert L4_REMIND_PROMPT not in speak_calls, (
         f"budget 耗盡優先於 cycle 刷新，不該 speak REMIND，實際：{speak_calls}"
     )
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 def test_l4_budget_and_cycle_simultaneous_expiry_forces_exit() -> None:
@@ -5908,7 +5438,6 @@ def test_l4_budget_and_cycle_simultaneous_expiry_forces_exit() -> None:
             print_terminal=lambda text: None,
             read_customer_input=customer_input.read,
             cart=cart,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
@@ -5920,7 +5449,7 @@ def test_l4_budget_and_cycle_simultaneous_expiry_forces_exit() -> None:
     )
     # forced exit
     assert L4_D_FORCED_EXIT in speak_calls
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 # ============================================================
@@ -5944,7 +5473,6 @@ def test_l2_vague_buy_intent_speaks_reask_not_unclear() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -5978,7 +5506,6 @@ def test_l3_vague_buy_intent_speaks_reask_not_unclear() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -6014,7 +5541,6 @@ def test_vague_buy_does_not_increment_unclear_count() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -6067,7 +5593,6 @@ def test_qty_followup_single_quantity_exceeds_cap_speaks_remaining_and_retries()
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -6098,7 +5623,6 @@ def test_qty_followup_cumulative_quantity_exceeds_cap_speaks_remaining() -> None
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -6128,7 +5652,6 @@ def test_qty_followup_cart_at_cap_speaks_and_skips_product() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -6156,7 +5679,6 @@ def test_qty_followup_huge_number_does_not_crash() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -6201,7 +5723,6 @@ def test_resolve_and_add_products_single_huge_qty_reasks_then_adds() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -6229,7 +5750,6 @@ def test_resolve_and_add_products_cumulative_over_cap_reasks_remaining() -> None
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -6260,7 +5780,6 @@ def test_resolve_and_add_products_at_cap_skips_and_speaks() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -6289,7 +5808,6 @@ def test_resolve_and_add_products_huge_number_does_not_crash() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -6315,7 +5833,6 @@ def test_resolve_and_add_products_multi_product_partial_over_limit() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -6356,17 +5873,13 @@ def test_l1_hawk_entry_calls_do_action_with_action_l1_hawk() -> None:
     """L1 進入叫賣模式時 do_action 被以 ACTION_L1_HAWK 呼叫一次。"""
     # Arrange
     do_action_calls: list = []
-    opencv = FakeOpencv(dwell_value=OPENCV_DWELL)  # 偵測立即觸發，即時退出 hawk
-    # 進叫賣 (1)，opencv dwell 滿足，轉 L2 退出
-    kbd = FakeKeyboardInput(["1"])
+    # 進叫賣 (1)，按 't'（觸控開始點餐）轉 L2 退出
+    kbd = FakeKeyboardInput(["1", "t"])
 
     # Act
     states.run_l1(
         print_terminal=lambda text: None,
         read_terminal_key=kbd.read,
-        opencv_dwell_seconds=opencv.dwell_seconds,
-        opencv_disable=opencv.disable,
-        opencv_enable=opencv.enable,
         speak=lambda text: None,
         exit_program=lambda: None,
         tts_is_idle=lambda: True,
@@ -6395,13 +5908,12 @@ def test_l1_hawk_subsequent_rounds_do_not_call_do_action() -> None:
     # Arrange
     do_action_calls: list = []
     speak_calls: list = []
-    # 喊滿 entry[0] + ≥4 句後續輪播後 OpenCV 觸發轉 L2
+    # 喊滿 entry[0] + ≥4 句後續輪播後按 't' 轉 L2
     TARGET = 5
 
-    def dwell() -> float:
-        return OPENCV_DWELL if len(speak_calls) >= TARGET else 0.0
-
-    kbd = FakeKeyboardInput([])
+    def read_key(timeout=None) -> str:
+        # 喊滿 TARGET 句後回 't'（觸控開始點餐）退出 hawk；之前回 "" 續輪播
+        return "t" if len(speak_calls) >= TARGET else ""
 
     _t = [0.0]
     def fake_monotonic() -> float:
@@ -6412,10 +5924,7 @@ def test_l1_hawk_subsequent_rounds_do_not_call_do_action() -> None:
     with patch("myProgram.sales.states.l1.time.monotonic", side_effect=fake_monotonic):
         states.run_l1(
             print_terminal=lambda text: None,
-            read_terminal_key=kbd.read,
-            opencv_dwell_seconds=dwell,
-            opencv_disable=lambda: None,
-            opencv_enable=lambda: None,
+            read_terminal_key=read_key,
             speak=lambda text: speak_calls.append(text),
             exit_program=lambda: None,
             tts_is_idle=lambda: True,
@@ -6446,8 +5955,8 @@ def test_l1_hawk_cycles_slogans_via_poll_loop() -> None:
     """hawk polling loop 自驅輪播：依序喊 slogan[0][1]...[5] 再 % len wrap 回 [0]。
 
     走真實 loop（tts_is_idle=lambda: True 永遠閒置 + fake_monotonic 每次呼叫推進
-    HAWK_INTERVAL → 每「等播完→起算間距→到期」兩圈喊一句）。OpenCV 在喊滿
-    entry[0] + 一輪 wrap（共 7 句、第 7 句即 % len 回 [0]）後觸發 dwell → return L2。
+    HAWK_INTERVAL → 每「等播完→起算間距→到期」兩圈喊一句）。在喊滿
+    entry[0] + 一輪 wrap（共 7 句、第 7 句即 % len 回 [0]）後按 't' → return L2。
 
     這會抓到原 production bug：舊版靠 _schedule_hawk_l1 + schedule no-op，實機從不循環；
     本測試不經 FakeScheduler 假路徑，純跑 polling loop。
@@ -6455,14 +5964,12 @@ def test_l1_hawk_cycles_slogans_via_poll_loop() -> None:
     from unittest.mock import patch
 
     speak_calls: list = []
-    # 喊滿 7 句（entry[0] + [1..5] + wrap[0]）後 OpenCV 觸發轉 L2
+    # 喊滿 7 句（entry[0] + [1..5] + wrap[0]）後按 't' 轉 L2
     TARGET = len(HAWK_SLOGANS) + 1  # 7
 
-    def dwell() -> float:
-        return OPENCV_DWELL if len(speak_calls) >= TARGET else 0.0
-
-    # 大量空 read（polling timeout），不干擾輪播
-    kbd = FakeKeyboardInput([])
+    def read_key(timeout=None) -> str:
+        # 喊滿 TARGET 句後回 't' 退出 hawk；之前回 ""（polling timeout）續輪播
+        return "t" if len(speak_calls) >= TARGET else ""
 
     # fake_monotonic：每次呼叫 += HAWK_INTERVAL → 每圈到期（gap 一設下圈即過期）
     _t = [0.0]
@@ -6473,10 +5980,7 @@ def test_l1_hawk_cycles_slogans_via_poll_loop() -> None:
     with patch("myProgram.sales.states.l1.time.monotonic", side_effect=fake_monotonic):
         result = states.run_l1(
             print_terminal=lambda text: None,
-            read_terminal_key=kbd.read,
-            opencv_dwell_seconds=dwell,
-            opencv_disable=lambda: None,
-            opencv_enable=lambda: None,
+            read_terminal_key=read_key,
             speak=lambda text: speak_calls.append(text),
             exit_program=lambda: None,
             tts_is_idle=lambda: True,
@@ -6485,7 +5989,7 @@ def test_l1_hawk_cycles_slogans_via_poll_loop() -> None:
             do_action=lambda *a, **k: None,
         )
 
-    assert result == "L2", "OpenCV dwell 觸發應 return 'L2'"
+    assert result == "L2", "按 't' 應 return 'L2'"
     # entry 立即喊 [0]，後續依序 [1][2][3][4][5] 再 % len wrap 回 [0]
     expected = [HAWK_SLOGANS[i % len(HAWK_SLOGANS)] for i in range(TARGET)]
     assert speak_calls == expected, (
@@ -6510,11 +6014,9 @@ def test_l1_hawk_waits_for_tts_idle_before_counting_gap() -> None:
         idle_calls[0] += 1
         return idle_calls[0] > IDLE_AFTER
 
-    # 喊到 [1]（entry[0] + 下一句）後 OpenCV 觸發退出
-    def dwell() -> float:
-        return OPENCV_DWELL if len(speak_calls) >= 2 else 0.0
-
-    kbd = FakeKeyboardInput([])
+    # 喊到 [1]（entry[0] + 下一句）後按 't' 退出
+    def read_key(timeout=None) -> str:
+        return "t" if len(speak_calls) >= 2 else ""
 
     _t = [0.0]
     def fake_monotonic() -> float:
@@ -6524,10 +6026,7 @@ def test_l1_hawk_waits_for_tts_idle_before_counting_gap() -> None:
     with patch("myProgram.sales.states.l1.time.monotonic", side_effect=fake_monotonic):
         states.run_l1(
             print_terminal=lambda text: None,
-            read_terminal_key=kbd.read,
-            opencv_dwell_seconds=dwell,
-            opencv_disable=lambda: None,
-            opencv_enable=lambda: None,
+            read_terminal_key=read_key,
             speak=lambda text: speak_calls.append(text),
             exit_program=lambda: None,
             tts_is_idle=tts_is_idle,
@@ -6559,7 +6058,6 @@ def test_dialog_l2_entry_calls_do_action_with_action_l2() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda name: do_action_calls.append(name),
     )
 
@@ -6586,7 +6084,6 @@ def test_dialog_l3_entry_calls_do_action_with_action_l3() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda name: do_action_calls.append(name),
     )
 
@@ -6614,7 +6111,6 @@ def test_l4_pay_success_main_dispatcher_calls_do_action() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda name: do_action_calls.append(name),
     )
 
@@ -6645,7 +6141,6 @@ def test_l4_pay_success_service_mode_calls_do_action() -> None:
         print_terminal=lambda text: None,
         read_customer_input=customer_input.read,
         cart=cart,
-        opencv_disable=lambda: None,
         do_action=lambda name: do_action_calls.append(name),
     )
 
@@ -6720,7 +6215,6 @@ def test_dialog_l3_action_triggered_on_main_loop_transition() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda name: do_action_calls.append(name),
     )
 
@@ -6749,7 +6243,6 @@ def test_dialog_l3_action_triggered_on_silence_transition() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda name: do_action_calls.append(name),
     )
 
@@ -6780,7 +6273,6 @@ def test_dialog_l3_action_NOT_triggered_on_subsequent_add() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda name: do_action_calls.append(name),
     )
 
@@ -6808,7 +6300,6 @@ def test_dialog_l3_checkout_go_action_triggered_via_main_loop() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda name: do_action_calls.append(name),
     )
 
@@ -6838,7 +6329,6 @@ def test_dialog_l3_checkout_go_action_triggered_via_silence_period() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda name: do_action_calls.append(name),
     )
 
@@ -6878,7 +6368,6 @@ def test_qty_followup_initial_prompt_uses_speak_and_wait() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
         speak_and_wait=lambda text: speak_and_wait_calls.append(text),
     )
@@ -6906,7 +6395,6 @@ def test_qty_followup_clarify_after_unclear_uses_speak_and_wait() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
         speak_and_wait=lambda text: speak_and_wait_calls.append(text),
     )
@@ -6955,7 +6443,6 @@ def test_qty_followup_read_uses_qty_followup_timeout_constant() -> None:
         read_customer_input=recording_read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -6984,7 +6471,7 @@ def test_qty_followup_over_limit_funnels_into_reask_loop() -> None:
     next_state, _ = states.run_dialog(
         speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
         read_customer_input=customer_input.read, cart=cart, think_count=0,
-        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+        do_action=lambda *a, **k: None,
     )
     assert cart_module.get_quantity(cart, "冰紅茶") == 5
     assert any("最多只能選購" in s for s in speaks)
@@ -6998,7 +6485,7 @@ def test_scenario1_multi_over_limit_combined_reask() -> None:
     next_state, _ = states.run_dialog(
         speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
         read_customer_input=customer_input.read, cart=cart, think_count=0,
-        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+        do_action=lambda *a, **k: None,
     )
     assert cart_module.get_quantity(cart, "冰紅茶") == 40
     assert cart_module.get_quantity(cart, "刮刮樂") == 30
@@ -7014,7 +6501,7 @@ def test_scenario3_over_limit_first_then_missing_qty_followup() -> None:
     next_state, _ = states.run_dialog(
         speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
         read_customer_input=customer_input.read, cart=cart, think_count=0,
-        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+        do_action=lambda *a, **k: None,
     )
     assert cart_module.get_quantity(cart, "刮刮樂") == 5
     assert cart_module.get_quantity(cart, "冰紅茶") == 3
@@ -7029,7 +6516,7 @@ def test_over_limit_reenter_timeout_respeaks_entry() -> None:
     next_state, _ = states.run_dialog(
         speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
         read_customer_input=customer_input.read, cart=cart, think_count=0,
-        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+        do_action=lambda *a, **k: None,
     )
     assert any("由於您沒回應購買數量" in s for s in speaks)
     assert cart_module.is_empty(cart)
@@ -7043,9 +6530,9 @@ def test_over_limit_exit_returns_to_l1() -> None:
     next_state, _ = states.run_dialog(
         speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
         read_customer_input=customer_input.read, cart=cart, think_count=0,
-        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+        do_action=lambda *a, **k: None,
     )
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 def test_over_limit_cancel_overlimit_reenters_with_notice() -> None:
@@ -7056,7 +6543,7 @@ def test_over_limit_cancel_overlimit_reenters_with_notice() -> None:
     next_state, _ = states.run_dialog(
         speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
         read_customer_input=customer_input.read, cart=cart, think_count=0,
-        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+        do_action=lambda *a, **k: None,
     )
     assert any("好的已為您取消這些商品" in s for s in speaks)
 
@@ -7072,7 +6559,7 @@ def test_qty_followup_一千張_over_limit_funnels_into_reask() -> None:
     next_state, _ = states.run_dialog(
         speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
         read_customer_input=customer_input.read, cart=cart, think_count=0,
-        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+        do_action=lambda *a, **k: None,
     )
     # 修前「一千張」=1 → 靜默加 1 張刮刮樂；修後 =1000 超量 → 重問 → 改 5
     assert cart_module.get_quantity(cart, "刮刮樂") == 5, (
@@ -7094,7 +6581,7 @@ def test_zero_qty_scenario1_direct_single() -> None:
     next_state, _ = states.run_dialog(
         speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
         read_customer_input=customer_input.read, cart=cart, think_count=0,
-        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+        do_action=lambda *a, **k: None,
     )
     assert cart_module.get_quantity(cart, "冰紅茶") == 5
     assert any("不接受" in s and "冰紅茶0瓶" in s for s in speaks)
@@ -7108,7 +6595,7 @@ def test_zero_qty_no_false_added_notice() -> None:
     states.run_dialog(
         speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
         read_customer_input=customer_input.read, cart=cart, think_count=0,
-        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+        do_action=lambda *a, **k: None,
     )
     assert cart_module.is_empty(cart)
     assert not any("已加入購物車" in s for s in speaks)
@@ -7122,7 +6609,7 @@ def test_zero_qty_scenario2_followup() -> None:
     states.run_dialog(
         speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
         read_customer_input=customer_input.read, cart=cart, think_count=0,
-        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+        do_action=lambda *a, **k: None,
     )
     assert cart_module.get_quantity(cart, "冰紅茶") == 5
     assert any("不接受" in s for s in speaks)
@@ -7136,7 +6623,7 @@ def test_zero_qty_scenario3_zero_first_then_missing() -> None:
     states.run_dialog(
         speak=lambda t: speaks.append(t), print_terminal=lambda t: None,
         read_customer_input=customer_input.read, cart=cart, think_count=0,
-        opencv_disable=lambda: None, do_action=lambda *a, **k: None,
+        do_action=lambda *a, **k: None,
     )
     assert cart_module.get_quantity(cart, "刮刮樂") == 5
     assert cart_module.get_quantity(cart, "冰紅茶") == 3
@@ -7173,7 +6660,6 @@ def test_qty_followup_phonetic_corrects_misheard_to_quantity() -> None:
             read_customer_input=customer_input.read,
             cart=cart,
             think_count=0,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
@@ -7203,7 +6689,6 @@ def test_qty_followup_phonetic_none_keeps_existing_reprompt() -> None:
             read_customer_input=customer_input.read,
             cart=cart,
             think_count=0,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
@@ -7211,7 +6696,7 @@ def test_qty_followup_phonetic_none_keeps_existing_reprompt() -> None:
     assert cart_module.is_empty(cart), (
         f"phonetic None 應落回既有 reprompt，未加任何商品，實際：{dict(cart)}"
     )
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
     # 既有 clarify reprompt 行為不變（attempts 期間 speak QTY_CLARIFY_TEMPLATE）
     assert QTY_CLARIFY_TEMPLATE.format(unit="瓶") in speak_calls, (
         f"phonetic None 應維持既有 QTY_CLARIFY_TEMPLATE reprompt，實際：{speak_calls}"
@@ -7245,7 +6730,6 @@ def test_qty_followup_phonetic_over_limit_funnels_into_reask() -> None:
             read_customer_input=customer_input.read,
             cart=cart,
             think_count=0,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
@@ -7280,7 +6764,6 @@ def test_qty_followup_phonetic_does_not_hijack_reject() -> None:
             read_customer_input=customer_input.read,
             cart=cart,
             think_count=0,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
@@ -7288,7 +6771,7 @@ def test_qty_followup_phonetic_does_not_hijack_reject() -> None:
     assert cart_module.is_empty(cart), (
         f"拒絕應在 phonetic 之前 return skip，cart 應為空，實際：{dict(cart)}"
     )
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
     notice = PRODUCT_CANCELLED_NOTICE_TEMPLATE.format(product="冰紅茶")
     assert any(notice in s and L2_B3_REASK in s for s in speak_calls), (
         f"拒絕 skip 應 speak 合成「{notice}，{L2_B3_REASK}」，實際：{speak_calls}"
@@ -7347,7 +6830,6 @@ def test_product_unclear_phonetic_correction_adds_product() -> None:
             read_customer_input=customer_input.read,
             cart=cart,
             think_count=0,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
@@ -7378,7 +6860,6 @@ def test_product_unclear_phonetic_correction_none_falls_back_to_b1() -> None:
             read_customer_input=customer_input.read,
             cart=cart,
             think_count=0,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
@@ -7386,7 +6867,7 @@ def test_product_unclear_phonetic_correction_none_falls_back_to_b1() -> None:
     assert speak_calls.count(L2_B1_CLARIFY) == UNCLEAR_MAX - 1, (
         f"糾錯 None 應落回 B-1，前 {UNCLEAR_MAX-1} 次 speak clarify，實際：{speak_calls}"
     )
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 def test_product_unclear_phonetic_not_hijacking_reject_intent() -> None:
@@ -7406,7 +6887,6 @@ def test_product_unclear_phonetic_not_hijacking_reject_intent() -> None:
             read_customer_input=customer_input.read,
             cart=cart,
             think_count=0,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
         mock_pm.assert_not_called()
@@ -7429,7 +6909,6 @@ def test_product_unclear_phonetic_not_hijacking_checkout_intent() -> None:
             read_customer_input=customer_input.read,
             cart=cart,
             think_count=0,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
         mock_pm.assert_not_called()
@@ -7453,7 +6932,6 @@ def test_product_unclear_phonetic_corrected_missing_qty_enters_followup() -> Non
             read_customer_input=customer_input.read,
             cart=cart,
             think_count=0,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
@@ -7496,7 +6974,6 @@ def test_product_garble_with_quantity_split_corrects_and_funnels_over_limit() ->
             read_customer_input=customer_input.read,
             cart=cart,
             think_count=0,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
@@ -7529,7 +7006,6 @@ def test_product_garble_no_quantity_segment_falls_back_to_b1() -> None:
             read_customer_input=customer_input.read,
             cart=cart,
             think_count=0,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
@@ -7537,7 +7013,7 @@ def test_product_garble_no_quantity_segment_falls_back_to_b1() -> None:
     assert speak_calls.count(L2_B1_CLARIFY) == UNCLEAR_MAX - 1, (
         f"無數量段應落回 B-1，前 {UNCLEAR_MAX-1} 次 speak clarify，實際：{speak_calls}"
     )
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 def test_product_garble_with_quantity_head_uncorrectable_falls_back_to_b1() -> None:
@@ -7558,7 +7034,6 @@ def test_product_garble_with_quantity_head_uncorrectable_falls_back_to_b1() -> N
             read_customer_input=customer_input.read,
             cart=cart,
             think_count=0,
-            opencv_disable=lambda: None,
             do_action=lambda *a, **k: None,
         )
 
@@ -7566,7 +7041,7 @@ def test_product_garble_with_quantity_head_uncorrectable_falls_back_to_b1() -> N
     assert speak_calls.count(L2_B1_CLARIFY) == UNCLEAR_MAX - 1, (
         f"商品段糾不出應落回 B-1，實際：{speak_calls}"
     )
-    assert next_state == "L1_via_subroutine_a"
+    assert next_state == "L1_enter_hawk"
 
 
 def test_product_group_unparseable_candidate_returns_fallback():
@@ -7612,7 +7087,6 @@ def test_dialog_emits_cart_each_turn() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
         display=lambda phase, c, paid=0: calls.append((phase, dict(c))),
     )
@@ -7637,7 +7111,6 @@ def test_dialog_no_emit_when_display_none() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )  # 不傳 display → io.display=None → main_loop emit guard 跳過
 
@@ -7664,7 +7137,6 @@ def test_l3_checkout_confirm_continue_keeps_cart_and_resumes() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -7691,7 +7163,6 @@ def test_c2_checkout_confirm_continue_keeps_cart() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
     )
 
@@ -7724,7 +7195,6 @@ def test_checkout_confirm_emits_checkout_confirm_phase() -> None:
         read_customer_input=customer_input.read,
         cart=cart,
         think_count=0,
-        opencv_disable=lambda: None,
         do_action=lambda *a, **k: None,
         display=lambda phase, c, paid=0: display_calls.append((phase, dict(c))),
     )

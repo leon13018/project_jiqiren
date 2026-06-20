@@ -109,13 +109,13 @@ SCENARIO_WARMUP = 10
 
 # (名稱, cart 預置 [(商品, 數量)], 劇本, 進入點, 預期 next_state)
 SCENARIOS = [
-    ("L2 timeout 拒絕(鏈路A)", [], [None], "dialog", "L1_via_subroutine_a"),
+    ("L2 timeout 拒絕(鏈路A)", [], [None], "dialog", "L1_enter_hawk"),
     ("L2 點餐→追問→確認", [], ["冰紅茶", "一瓶", None, None, "對"], "dialog", "L4"),
     ("L2 點餐連數量", [], ["冰紅茶兩個", None, None, "對"], "dialog", "L4"),
     ("L3 結帳", [("冰紅茶", 2)], ["結帳", "1"], "dialog", "L4"),
-    ("L3 取消確認流程", [("冰紅茶", 2)], ["結帳", "我想取消交易", "是"], "dialog", "L1_via_subroutine_a"),
+    ("L3 取消確認流程", [("冰紅茶", 2)], ["結帳", "我想取消交易", "是"], "dialog", "L1_enter_hawk"),
     ("L4 掃碼付款", [("冰紅茶", 2)], ["s"], "l4", "L5"),
-    ("L5 致謝", [("冰紅茶", 2)], [], "l5", "L1_via_subroutine_a"),
+    ("L5 致謝", [("冰紅茶", 2)], [], "l5", "L1_enter_hawk"),
 ]
 
 
@@ -128,11 +128,11 @@ def _make_scenario_run(pre_cart, script, entry):
         if entry == "dialog":
             return states.run_dialog(
                 speak=_noop, print_terminal=_noop, read_customer_input=reader,
-                cart=cart, think_count=0, opencv_disable=_noop, do_action=_noop)
+                cart=cart, think_count=0, do_action=_noop)
         if entry == "l4":
             return states.run_l4(
                 speak=_noop, print_terminal=_noop, read_customer_input=reader,
-                cart=cart, opencv_disable=_noop, do_action=_noop)
+                cart=cart, do_action=_noop)
         return states.run_l5(cart=cart, sleep=_noop, do_action=_noop)
     return run
 
