@@ -507,3 +507,16 @@ def test_arm_capture_true_after_false_does_not_reopen_audio():
     worker.arm()                                    # 不重開 arecord
     assert len(audios) == 1 and worker.is_armed()
     worker.shutdown()
+
+
+def test_module_arm_forwards_capture(monkeypatch):
+    """模組層 arm() 把 capture 轉發給 worker（防早麥 stt.arm(capture=False) 在 Pi 上
+    TypeError——既有 main 測試走 fake stt 模組、繞過真 wrapper）。"""
+    captured = []
+    class _FakeWorker:
+        def arm(self, capture=True):
+            captured.append(capture)
+    monkeypatch.setattr(stt_mod, "_worker", _FakeWorker())
+    stt_mod.arm(capture=False)
+    stt_mod.arm()
+    assert captured == [False, True]

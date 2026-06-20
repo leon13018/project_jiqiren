@@ -400,9 +400,10 @@ def _get_worker() -> SttWorker:
     return _worker
 
 
-def arm() -> None:
-    """對外 API：開麥（read_customer_input 於 TTS 播完後呼叫）。"""
-    _get_worker().arm()
+def arm(capture: bool = True) -> None:
+    """對外 API：開麥（read_customer_input 呼叫）。capture 語意見 SttWorker.arm
+    （capture=False 早麥只開收音層串流暖機、不注入；隨後 arm() 翻注入閘）。"""
+    _get_worker().arm(capture=capture)
 
 
 def prearm() -> None:
