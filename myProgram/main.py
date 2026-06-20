@@ -42,6 +42,12 @@ _EARLY_MIC = bool(int(os.environ.get("STT_EARLY_MIC", "0")))
 # 只抑制視覺印行——計時 / timeout / 等待秒數一秒不差。
 _SHOW_COUNTDOWN = bool(int(os.environ.get("SALES_SHOW_COUNTDOWN", "0")))
 
+# 安靜模式（env 旗標）：SALES_QUIET=1 藏終端正常機器人狀態 echo（[模擬提示]/[模擬]/
+# [opencv]，demo 時跟 web 鏡像 + 實體機器人重複是雜訊），保留導航（print_terminal
+# 螢幕文字 / 選單 / 進入叫賣模式）與錯誤行。各模組各自讀（沿用 STT_TTS_TIMING
+# precedent，不新增跨模組 import）。預設 0 = 全顯示，不改行為；只抑制 echo print。
+_QUIET = bool(int(os.environ.get("SALES_QUIET", "0")))
+
 
 class _S1State:
     """wire-up 共享 state（OpenCV 模擬狀態 — 'c' 鍵觸發）。"""
@@ -100,7 +106,8 @@ class TerminalSim:
         caller（l1._run_l1_hawk）在印完 entry prompt 後顯式呼叫，取代原 print_terminal
         內 `if text == L1_HAWK_ENTRY_PROMPT` magic string 偵測（解耦常數值）。
         """
-        print(">>> [模擬提示] 叫賣模式只接受兩個鍵：'c' = 模擬 OpenCV 偵測顧客 → 轉 L2；'q' = 退出程式。其他輸入會被忽略。<<<")
+        if not _QUIET:
+            print(">>> [模擬提示] 叫賣模式只接受兩個鍵：'c' = 模擬 OpenCV 偵測顧客 → 轉 L2；'q' = 退出程式。其他輸入會被忽略。<<<")
 
     def read_terminal_key(self, timeout=None):
         """讀商家鍵盤輸入（嚴格匹配整段；多字元自動失配被 caller 忽略）。
@@ -136,10 +143,12 @@ class TerminalSim:
             # 結束再按 'c'」訊息矛盾。mute 內 'c' 完全忽略，商家須等 mute 結束後再按一次。
             remaining = self._state.opencv_mute_until - time.monotonic()
             if remaining > 0:
-                print(f"[模擬] 收到 'c'，但 opencv 還在 mute 期間（剩 {remaining:.1f}s）→ 已忽略，請等 mute 結束後再按 'c' 才會觸發 L2")
+                if not _QUIET:
+                    print(f"[模擬] 收到 'c'，但 opencv 還在 mute 期間（剩 {remaining:.1f}s）→ 已忽略，請等 mute 結束後再按 'c' 才會觸發 L2")
             else:
                 self._state.opencv_dwell = OPENCV_DWELL + 0.5
-                print("[模擬] OpenCV 偵測到顧客 → 已自動觸發 L2（hawk loop 下次迭代立即 check opencv，無需再按鍵）")
+                if not _QUIET:
+                    print("[模擬] OpenCV 偵測到顧客 → 已自動觸發 L2（hawk loop 下次迭代立即 check opencv，無需再按鍵）")
             return ""  # 不返回有效鍵；由 L1 hawk 主迴圈下次 check opencv
         return raw  # 整段不截（依賴 caller `== "1"` 嚴格比對）；截首字元會把「123」誤進叫賣模式
 
@@ -196,12 +205,14 @@ class TerminalSim:
     # === OpenCV 模擬 ===
     def opencv_enable(self):
         self._state.opencv_enabled = True
-        print("[opencv] 已開啟偵測")
+        if not _QUIET:
+            print("[opencv] 已開啟偵測")
 
     def opencv_disable(self):
         self._state.opencv_enabled = False
         self._state.opencv_dwell = 0.0
-        print("[opencv] 已關閉偵測")
+        if not _QUIET:
+            print("[opencv] 已關閉偵測")
 
     def opencv_dwell_seconds(self):
         if not self._state.opencv_enabled:
@@ -225,7 +236,8 @@ class TerminalSim:
         self._state.opencv_enabled = False
         self._state.opencv_dwell = 0.0
         self._state.opencv_mute_until = time.monotonic() + seconds
-        print(f"[opencv] mute {seconds}s（生效到 {seconds}s 後；期間 detection 全部回 0）")
+        if not _QUIET:
+            print(f"[opencv] mute {seconds}s（生效到 {seconds}s 後；期間 detection 全部回 0）")
 
     # === 對外動作 ===
     def speak(self, text):

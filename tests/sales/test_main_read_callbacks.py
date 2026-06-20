@@ -40,7 +40,7 @@ import sys
 import types
 
 import myProgram
-from myProgram.main import _build_callbacks, _S1State, _tick_countdown
+from myProgram.main import _build_callbacks, _S1State, _tick_countdown, TerminalSim
 
 
 def _make_fake_tts_module(wait_idle_calls):
@@ -299,3 +299,73 @@ def test_tick_countdown_shown_when_flag_on(monkeypatch, capsys):
     monkeypatch.setattr("myProgram.main._SHOW_COUNTDOWN", True)
     _tick_countdown(5, "timeout", lambda s: "x")
     assert "timeout = " in capsys.readouterr().out
+
+
+# ============================================================
+# SALES_QUIET：藏終端正常機器人 echo（[模擬提示]/[模擬]/[opencv]），
+# 保留導航（print_terminal 螢幕文字 / 進入叫賣模式 / 選單）。
+# seam：monkeypatch myProgram.main._QUIET（對齊 _SHOW_COUNTDOWN / _EARLY_MIC patch pattern）。
+# ============================================================
+
+
+def test_show_hawk_help_hidden_when_quiet(monkeypatch, capsys):
+    """_QUIET=True → show_hawk_help() 不印 `[模擬提示]`。"""
+    monkeypatch.setattr("myProgram.main._QUIET", True)
+    TerminalSim(_S1State()).show_hawk_help()
+    assert "[模擬提示]" not in capsys.readouterr().out
+
+
+def test_show_hawk_help_shown_when_not_quiet(monkeypatch, capsys):
+    """預設 _QUIET=False → show_hawk_help() 照印 `[模擬提示]`（行為不變）。"""
+    monkeypatch.setattr("myProgram.main._QUIET", False)
+    TerminalSim(_S1State()).show_hawk_help()
+    assert "[模擬提示]" in capsys.readouterr().out
+
+
+def test_read_terminal_key_sim_echo_hidden_when_quiet(monkeypatch, capsys):
+    """_QUIET=True → read_terminal_key 觸發 L2 的 `[模擬]` echo 不印。
+
+    input_reader.read 注入回 "c"、opencv 非 mute → 走觸發 L2 分支印 `[模擬] OpenCV 偵測到顧客`。
+    """
+    monkeypatch.setattr("myProgram.main._QUIET", True)
+    monkeypatch.setattr("myProgram.input_reader.read", lambda timeout: "c")
+    TerminalSim(_S1State()).read_terminal_key(timeout=0.1)
+    assert "[模擬]" not in capsys.readouterr().out
+
+
+def test_read_terminal_key_sim_echo_shown_when_not_quiet(monkeypatch, capsys):
+    """預設 _QUIET=False → read_terminal_key 觸發 L2 照印 `[模擬]`（行為不變）。"""
+    monkeypatch.setattr("myProgram.main._QUIET", False)
+    monkeypatch.setattr("myProgram.input_reader.read", lambda timeout: "c")
+    TerminalSim(_S1State()).read_terminal_key(timeout=0.1)
+    assert "[模擬]" in capsys.readouterr().out
+
+
+def test_opencv_echo_hidden_when_quiet(monkeypatch, capsys):
+    """_QUIET=True → opencv_enable/disable/mute_opencv 三條 `[opencv]` echo 全不印。"""
+    monkeypatch.setattr("myProgram.main._QUIET", True)
+    sim = TerminalSim(_S1State())
+    sim.opencv_enable()
+    sim.opencv_disable()
+    sim.mute_opencv(3)
+    assert "[opencv]" not in capsys.readouterr().out
+
+
+def test_opencv_echo_shown_when_not_quiet(monkeypatch, capsys):
+    """預設 _QUIET=False → opencv 三條 `[opencv]` 照印（行為不變）。"""
+    monkeypatch.setattr("myProgram.main._QUIET", False)
+    sim = TerminalSim(_S1State())
+    sim.opencv_enable()
+    sim.opencv_disable()
+    sim.mute_opencv(3)
+    out = capsys.readouterr().out
+    assert "[opencv] 已開啟偵測" in out
+    assert "[opencv] 已關閉偵測" in out
+    assert "[opencv] mute 3s" in out
+
+
+def test_print_terminal_navigation_kept_when_quiet(monkeypatch, capsys):
+    """_QUIET=True 也不藏導航：print_terminal('進入叫賣模式') 仍印（導航保留是 spec 核心）。"""
+    monkeypatch.setattr("myProgram.main._QUIET", True)
+    TerminalSim(_S1State()).print_terminal("進入叫賣模式")
+    assert "進入叫賣模式" in capsys.readouterr().out

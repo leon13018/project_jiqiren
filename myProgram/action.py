@@ -33,7 +33,14 @@ caller（main.py 的 do_action callback / main 函式）使用方式：
     >>> action.shutdown()  # 程式退出前 cleanup（守衛 stopAction + 清 queue）
 """
 
+import os
+
 from myProgram.queue_worker import QueueWorker
+
+# 安靜模式（env 旗標）：SALES_QUIET=1 藏終端正常 `[動作]` echo（demo 時跟 web 鏡像 +
+# 實體機器人重複是雜訊），保留錯誤 ⚠️ 失敗行。各模組各自讀（沿用 STT_TTS_TIMING
+# precedent，不新增跨模組 import）。預設 0 = 全顯示，不改行為；只抑制 echo print。
+_QUIET = bool(int(os.environ.get("SALES_QUIET", "0")))
 
 
 class ActionWorker(QueueWorker):
@@ -134,7 +141,8 @@ def do(name: str) -> None:
     對比 S3 同步版：對外 signature 完全相容（接 name、回 None），但行為從
     「阻塞至動作播完」改為「立即返回（背景排隊播）」。
     """
-    print(f"[動作] {name}")
+    if not _QUIET:
+        print(f"[動作] {name}")
     _worker.do(name)
 
 

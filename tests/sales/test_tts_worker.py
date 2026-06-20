@@ -618,3 +618,36 @@ def test_tts_timing_log_silent_when_env_unset(monkeypatch, capsys):
     worker.say("計時測試句")
     assert worker.wait_idle(max_wait=5.0)
     assert "[計時]" not in capsys.readouterr().out
+
+
+# ============================================================
+# SALES_QUIET：藏正常 [語音] echo、保留 ⚠️ 失敗行
+# ============================================================
+# 隔離 gotcha（spec §測試）：speak() 是「caller thread 立即 print → 再 _worker.say
+# enqueue」。測 print gate 必先把 module-level _worker.say monkeypatch 成 no-op，
+# 否則 daemon worker thread 真去合成 / 播放，async 失敗印行（[語音] ⚠️）會污染
+# capsys、測試 flaky。gate 只測 caller-thread 那行 print，不牽動 worker。
+
+
+def test_speak_echo_hidden_when_quiet(monkeypatch, capsys):
+    """SALES_QUIET（_QUIET=True）→ speak() 不印正常 `[語音] {text}` echo。"""
+    monkeypatch.setattr(tts_module, "_QUIET", True)
+    monkeypatch.setattr(tts_module._worker, "say", lambda text: None)
+    tts_module.speak("安靜句")
+    assert "[語音] 安靜句" not in capsys.readouterr().out
+
+
+def test_speak_echo_shown_when_not_quiet(monkeypatch, capsys):
+    """預設 _QUIET=False → speak() 照印 `[語音] {text}`（行為不變）。"""
+    monkeypatch.setattr(tts_module, "_QUIET", False)
+    monkeypatch.setattr(tts_module._worker, "say", lambda text: None)
+    tts_module.speak("正常句")
+    assert "[語音] 正常句" in capsys.readouterr().out
+
+
+def test_failure_line_not_gated_by_quiet(monkeypatch, capsys):
+    """_QUIET=True 也不該藏失敗行：直接呼 _print_failure 仍印 `[語音] ⚠️`（錯誤保留）。"""
+    monkeypatch.setattr(tts_module, "_QUIET", True)
+    tts_module._print_failure("play", ["text = 'x'"])
+    out = capsys.readouterr().out
+    assert "[語音] ⚠️ TTS 失敗" in out
