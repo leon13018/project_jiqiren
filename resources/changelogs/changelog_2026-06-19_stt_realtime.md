@@ -26,14 +26,25 @@
 ## STT 連線生命週期演變
 `stt_p1` 每輪重連（連 580ms 在 arm 同步阻塞）→ **整場持久**（persistent + keepalive + 持久 receiver）→ **每輪新連線**（per-turn：disarm 收線、移除 keepalive、prearm 藏重連；2026-06-20 `4d8d388`，spec `stt_per_turn_connection`）。
 
-## 待 Pi 驗收（核心假設）
-**每輪新連線是否解掉辨識 lag**（持久連線用久 lag：interim 空 10s、完整結果 disarm 後才回）。驗收單 `pineedtodo/2026-06-20_stt_per_turn_connection_verify.md`。
-- lag 消失 → 假設成立、收。
-- lag 仍在 → 假設否證（lag 是 Deepgram/網路非連線）→ revert 回持久連線版（`4ff428e` 線為退路），STT 連線角度窮舉、靠「講話習慣 + 鍵盤備援」撐 demo。
+## 連線 / lag（已 Pi 驗收接受 ✅，2026-06-20）
+持久連線 / 每輪新連線的「用久 lag」使用者實測**接受**（連線即時性 OK、lag 非 blocker）。現行 main = 每輪新連線版（`4d8d388`）；持久版 `4ff428e` 線為退路。STT 連線角度窮舉收尾。
 
 ## 固有殘留（非 bug，遞減報酬）
 - **開頭偶爾掉字**（Deepgram 對串流第一個字易吞 + Pi 聲學）：靠「講話別卡提示音收尾瞬間、自然頓一下」習慣解（warm-arecord 試圖根治失敗）。
 - **辨識準度**（三→湯之類近音誤判）：Deepgram + keyterm 已盡力，固有 floor。
+
+## 首字掉字第二弧（2026-06-20）：三試皆敗 → 接受固有地板
+連線收尾後，使用者轉攻「顧客馬上講、首字（冰/紅軟起音）間歇被吞」。連開三個 env 旋鈕實驗（皆 default-off、SDD + review 落地、Pi by-ear 驗），結論：**真因 = Deepgram 每輪串流前 ~1s「暖機」期辨識不穩，只「等 1s 再講」（真實環境音暖機）解得了；任何自動化暖機皆失敗**。
+
+| 旋鈕 | 假設 | Pi 實測 | commit |
+|---|---|---|---|
+| `STT_MIC_OPEN_DELAY_MS`（延後開麥避尾音黏吞） | 開麥延後到 ALSA 尾音排空→乾淨起音 | 微改善但首字仍間歇掉（B 比 A 好、但沒解暖機） | `fc9faa7` |
+| `STT_PREROLL_MS`（送靜音暖 Deepgram） | 數位靜音 burst 暖串流 | 沒用——數位靜音 ≠ 真實底噪/AGC 校正、暖不夠 | `9df6712` |
+| `STT_EARLY_MIC`（播放期間開麥串流暖機 + 注入閘） | 真環境音暖機、閘擋提示音 | **淨負**：① 回授（提示音 final 跨翻閘瞬間被注入→對話卡死迴圈）② 辨識污染（冰→檳、刮刮樂→共用樂/午餐）③ 收得到音（唯一好處） | `7def4cd`/`eaca0e4`/`46cffa8` |
+
+**裁決（使用者）**：收手回 baseline（三旋鈕 default-off，不設即 baseline、無需 revert；旋鈕先留著不清）。**首字偶爾掉字接受為 Deepgram 串流固有地板**——demo 靠「講話前自然頓半拍」（對真人顧客互動不違和、等同 1s 暖機）+ 觸控 UI（Phase 2）備援。baseline 辨識實測不差（「冰紅茶三瓶刮刮樂五張」多數收得對）。
+
+**review 抓 bug dogfood**：early-mic 的模組層 `arm()` wrapper 漏轉發 `capture`（Pi 上 `STT_EARLY_MIC=1` 會 TypeError）——主 agent adversarial Read + plan 都漏、測試走 fake 模組繞過，**兩個 fresh reviewer 同時抓到** → 三段 review 價值實證（`46cffa8` 修 + 補堵缺口測試）。
 
 ## 反思採納（proposals.md）
 本長征觸發並採納 5 條併發 / 測試反思（`receiver-start-after-lock-race` / `receive-loop-outer-try-exit` / `arm-lock-held-during-blocking-io` / `disarm-finalize-blocked-after-join-timeout` / `test-sender-alive-after-disarm-nilptr`），皆 code 層 pytest 守、不轉 eval。
