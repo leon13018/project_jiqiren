@@ -1,4 +1,6 @@
 """SttWorker 生命週期 / 事件處理測試（全 fake，無網路無音訊）。"""
+import array
+import io
 import json
 import threading
 import time
@@ -198,7 +200,7 @@ def test_default_audio_factory_command(monkeypatch):
     monkeypatch.delenv("STT_ARECORD_DEVICE", raising=False)
     stt_mod._default_audio_factory()
     assert captured["cmd"] == ["arecord", "-q", "-f", "S16_LE", "-r", "16000",
-                               "-c", "1", "-t", "raw"]
+                               "-c", "6", "-t", "raw"]
     assert captured["kwargs"]["stdin"] == stt_mod.subprocess.DEVNULL
 
     monkeypatch.setenv("STT_ARECORD_DEVICE", "plughw:1,0")
@@ -520,3 +522,43 @@ def test_module_arm_forwards_capture(monkeypatch):
     stt_mod.arm(capture=False)
     stt_mod.arm()
     assert captured == [False, True]
+
+
+class _FakeProcStream:
+    """包一段 bytes 當 arecord stdout（read 走 BytesIO；poll/terminate 供 close）。"""
+    def __init__(self, data: bytes):
+        self.stdout = io.BytesIO(data)
+    def poll(self): return None
+    def terminate(self): pass
+
+
+def _interleave(frames):
+    """frames: list[tuple[int,...]] → S16_LE 交錯 bytes。"""
+    a = array.array("h")
+    for f in frames:
+        a.extend(f)
+    return a.tobytes()
+
+
+def test_arecord_source_extracts_ch0_from_6ch():
+    import myProgram.stt as stt_mod
+    data = _interleave([(100, 1, 2, 3, 4, 5),
+                        (200, 6, 7, 8, 9, 10),
+                        (300, 11, 12, 13, 14, 15)])
+    src = stt_mod._ArecordSource(_FakeProcStream(data), channels=6, ch_index=0)
+    out = src.read(6)  # 想要 3 個單聲道 sample = 6 bytes
+    got = array.array("h"); got.frombytes(out)
+    assert list(got) == [100, 200, 300]
+
+
+def test_arecord_source_mono_passthrough():
+    import myProgram.stt as stt_mod
+    data = array.array("h", [10, 20, 30]).tobytes()
+    src = stt_mod._ArecordSource(_FakeProcStream(data), channels=1, ch_index=0)
+    assert src.read(6) == data  # 直通：channels=1 原樣回
+
+
+def test_arecord_source_eof_returns_empty():
+    import myProgram.stt as stt_mod
+    src = stt_mod._ArecordSource(_FakeProcStream(b""), channels=6, ch_index=0)
+    assert src.read(6) == b""
