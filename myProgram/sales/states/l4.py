@@ -65,7 +65,7 @@ def run_l4(
 
     顧客從 L3 攜帶 cart 進入，等掃碼付款。
     鏈路 A（掃碼）→ L5；
-    鏈路 B（拒絕，cancel_confirm gated）→ 清空 cart → L1（子例程 A）；
+    鏈路 B（拒絕，cancel_confirm gated）→ 清空 cart → L1（enter_hawk）；
     鏈路 C（客服）→ 一次性 24s 確認子狀態；
         客服 YES「繼續」回主迴圈時：**重置兩計時器** + 重印明細 + 重 speak entry prompt
         （fresh 36s + 12s 循環；對齊 v2 既有行為）。
@@ -219,7 +219,7 @@ def _l4_print_entry_detail(cart, total: int, io) -> None:
 
 
 def _l4_exit_to_l1(io, cart, notice: str) -> tuple:
-    """speak 退場語音、清空 cart，返回 L1（子例程 A）。
+    """speak 退場語音、清空 cart，返回 L1（enter_hawk）。
 
     W1 oop_w1：合併原 _l4_exit_b（鏈路 B 拒絕）/ _l4_exit_d_forced（budget 耗盡）
     — 兩者只差退場文案，以 notice 參數區分。

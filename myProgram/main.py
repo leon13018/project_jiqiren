@@ -1,7 +1,7 @@
 """入口層 — 終端對話程式 wire-up（TerminalSim callback 集 + 主迴圈）。
 
 純單線程對話模擬（語音 / 動作 / input 由各 worker 背景 thread 處理），可端對端
-走 L1→L2→L3→L4→L5→子例程 A→L1 cycle；所有對外動作以 [標記] 文字印出。
+走 L1→L2→L3→L4→L5→L1 cycle（交易後 enter_hawk 直接回 hawk）；所有對外動作以 [標記] 文字印出。
 
 callback wire 方式：`TerminalSim().callbacks()` 回傳 dict，展開傳
 `logic.run(**callbacks)`，不預先包 Context dataclass；本檔不持有業務 state

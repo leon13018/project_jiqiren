@@ -58,10 +58,10 @@ def test_l2_entry_speaks_greeting_and_inits_think_count() -> None:
 ### Given L2 進入時動作完成（cart 空），正在等待顧客回應
 ### When 經過 DNC_TIMEOUT（12）秒仍無任何顧客輸入
 ### Then 系統 speak L2_TIMEOUT_TO_HAWK_VOICE「由於顧客沒有回應，我將繼續叫賣模式」
-###      並套用 L0 子例程 A 回 L1 叫賣
+###      並回 L1 叫賣（enter_hawk）
 ### Note 2026-05-26 修：原規格 6s + 「謝謝光臨」會誤導旁人（顧客只是沒回應而非拒絕）；
 ###      改 12s + 中性提示，僅顧客明確拒絕意圖（L2-A-002）才講「謝謝光臨」
-def test_l2_a_timeout_no_response_triggers_reject_and_subroutine_a() -> None:
+def test_l2_a_timeout_no_response_triggers_reject_and_enter_hawk() -> None:
     pass
 
 
@@ -69,8 +69,8 @@ def test_l2_a_timeout_no_response_triggers_reject_and_subroutine_a() -> None:
 ### Scenario: 顧客回應拒絕關鍵字觸發鏈路 A
 ### Given L2 進入時動作完成，正在等待顧客回應
 ### When 顧客輸入命中拒絕意圖關鍵字（如「不要」/「不買」/「no」之一）
-### Then 系統 speak「謝謝光臨」並套用 L0 子例程 A 回 L1 叫賣
-def test_l2_a_reject_keyword_triggers_subroutine_a() -> None:
+### Then 系統 speak「謝謝光臨」並回 L1 叫賣（enter_hawk）
+def test_l2_a_reject_keyword_triggers_enter_hawk() -> None:
     pass
 
 
