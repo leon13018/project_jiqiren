@@ -79,6 +79,8 @@ while True:
 7. **`myProgram/sales/states/l4.py`**：移 `opencv_disable` 參數 + entry 呼叫。
 8. **`myProgram/main.py`**：移 `TerminalSim.opencv_enable/opencv_disable/opencv_dwell_seconds/mute_opencv` 四方法；移 `_S1State`（空殼）+ `TerminalSim(state)`→`TerminalSim()` + `_build_callbacks`/`_run_wiring` 對應；`read_terminal_key` 移 `'c'` 特判段；`callbacks()` dict 移 4 個 opencv 鍵（**14 → 10 鍵**）；class docstring「14 → 10」；開場小抄 `'c'`→`'t'` 文字；`show_hawk_help` 文字改 `'t' = 開始點餐（模擬觸控）→ 轉 L2；'q' = 退出`。
 9. **`myProgram/web/commands.py`**：`_WAKE_TOKEN = "t"`（原 `"c"`）+ 註解（wake = 模擬觸控「開始點餐」→ 't' → L1 hawk→L2）。
+10. **next_state 魔法字串契約 `"L1_via_subroutine_a"` → `"L1_enter_hawk"`**（2026-06-20 補正，使用者裁決一併更名；因已刪除的 subroutine A 而命名）：橫跨 `l2_l3_dialog.py`（run_dialog 回傳）/ `l4.py`（run_l4 回傳）/ `l5.py`（run_l5 回傳）/ `logic.py`（docstring shape 註）/ `machine.py`（State 子類別 `if next_state == "L1_via_subroutine_a"` 消費）/ `states/__init__.py`（若有）。**純 magic-string 改名、零邏輯**（不碰 NLU/cart/L4 budget/L5 序列）。`tts.py:12` 一句歷史 opencv docstring 註解一併清（純文字）。
+> 注意 `via_subroutine_a`（machine dataclass 欄位，#4）與 `"L1_via_subroutine_a"`（next_state 字串契約，#10）是**兩個不同的東西**——前者 grep `via_subroutine_a` 的真欄位、後者是 `L1_via_subroutine_a` 字串；本次兩者都改名（→ `enter_hawk` / `"L1_enter_hawk"`）才能真 grep 清零。
 
 ### Tests（17 檔，~612 處；類別指引，sales-coder 逐檔 grep 清零 opencv/mute/subroutine_a/dwell/FakeOpencv/_S1State）
 - **`tests/sales/test_states.py`**（~426）：移除 `FakeOpencv` class；所有 `run_l1(...)` callsite 移 `opencv_*` 參數；**刪除**純 opencv 行為測試（dwell 門檻、brief detection filter、mute、subroutine-A 緩衝、`'c'` 觸發）；把「`'c'`/dwell → L2」測試**改寫**為「`'t'` → L2」。
@@ -91,13 +93,14 @@ while True:
 - **`tests/web/test_commands.py`**（1）：wake token 斷言 `"c"`→`"t"`。
 - **`tests/spec/{L0,L1,L2,L3,L4,L5}_*_scenarios.py`**（~37）：opencv/mute/subroutine-A scenario + docstring 清理；L1 的 `'c'`→`'t'` 觸發 scenario 改寫。
 - **`tests/conftest.py`**（1）：opencv 引用（若有）清理。
+- **`tests/perf/bench_sales.py`**（2026-06-20 補正，spec 原漏）：`opencv_disable=_noop` 等 opencv callback（移除 logic.run 參數後會壞）+ `"L1_via_subroutine_a"` 字串 → 清理 / 改 `"L1_enter_hawk"`。
 
 ---
 
 ## §4 Out of scope（明示不動）
 - `'s'`/掃碼付款路徑（read_customer_input 's' → L4→L5）、`_PAY_TOKEN`。
 - webui `app.js`（已送 `{type:"wake"}`，不改）。
-- dialog NLU / 商品解析 / cart / L4 雙計時器 budget / L5 序列 — 一律不動。
+- dialog NLU / 商品解析 / cart / L4 雙計時器 budget / L5 序列 **邏輯**一律不動。（例外：§3#10 的 `"L1_via_subroutine_a"`→`"L1_enter_hawk"` 是純 next_state magic-string 改名、零邏輯影響——L4/L5/dialog「不動」指**邏輯不動**，回傳字串值改名不算動邏輯。）
 - 不加任何新觸控功能（只換 wake 觸發來源）。
 
 ---
