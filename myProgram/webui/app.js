@@ -139,7 +139,6 @@ const App = {
   // Phase 2 live 上行狀態：
   _ws: null,                 // 現行 WebSocket（sendCommand 用；connectLive 設定 / onclose 清）
   _pending: {},              // 商品 id → 本地預選數量（live 點餐用；送出後歸 1）
-  _awaitingConfirm: false,   // 已送 checkout、等機器人問「正確嗎」→ 顯示 [確認金額] affordance
 
   // 上輪每商品 isInCart 快照——只在「加入購物車 ↔ 數量器」切換時播 action-swap 動效（數量增減不播）
   _prevInCart: null,
@@ -204,8 +203,7 @@ const App = {
 
   // 斷線 → 立即回待機歡迎畫面（不凍結卡當前頁）；重連後 applyState(機器人狀態) 自動接手恢復 phase。
   resetToWelcome() {
-    this._awaitingConfirm = false;                      // 清掉「確認金額」本地 affordance（若斷在結帳兩拍中途）
-    this.setState({ standby: true, overlay: null });    // setState 內 render() → 顯示 Standby() 歡迎畫面
+    this.setState({ standby: true, overlay: null });    // setState 內 render() → 顯示 Standby() 歡迎畫面（overlay:null 一併收掉確認卡片）
   },
   pendingQty(id) { return this._pending[id] || 1; },
   setPending(id, n) {
@@ -273,10 +271,8 @@ const App = {
   applyState(s) {
     this.state.cart = s.cart || {};
     this.state.standby = s.phase === "standby";
-    this.state.overlay = s.phase === "checkout" ? "checkout" : s.phase === "thankyou" ? "thankyou" : null;
+    this.state.overlay = s.phase === "checkout_confirm" ? "confirm" : s.phase === "checkout" ? "checkout" : s.phase === "thankyou" ? "thankyou" : null;
     this.state.paidTotal = s.paid || this.state.paidTotal;
-    // 離開 ordering（機器人進 L4 / 退場 / standby）→ 清掉本地「確認金額」affordance，防殘留。
-    if (s.phase !== "ordering") this._awaitingConfirm = false;
   },
 
   qrCells(seed) {
@@ -343,7 +339,7 @@ const App = {
       totalLabel: this.fmt(total),
       checkoutLabel: "結帳 · " + this.fmt(total),
       paidLabel: this.fmt(this.state.paidTotal),
-      showConfirm: this.state.overlay === "confirm" || (this._live && this._awaitingConfirm),
+      showConfirm: this.state.overlay === "confirm",
       showCheckout: this.state.overlay === "checkout",
       showThankyou: this.state.overlay === "thankyou",
       standby: this.state.standby,
@@ -634,18 +630,9 @@ function bindEvents(root) {
           App.sendCommand({ type: "order", item: id, qty: App.pendingQty(id) });
           App.setPending(id, 1);                                           // 送出後預選歸 1（setPending 內 clamp + syncCart 立即視覺歸位）
           break;
-        case "checkout":
-          App.sendCommand({ type: "checkout" });
-          App._awaitingConfirm = true; App.render();                       // 本地顯示「確認金額」affordance
-          break;
-        case "confirm":
-          App.sendCommand({ type: "confirm" });
-          App._awaitingConfirm = false;                                    // robot 進 L4 → emit checkout 接手畫面
-          break;
-        case "back":
-          App.sendCommand({ type: "resume" });             // 返回購物車 → 機器人「繼續點餐」保留 cart
-          App._awaitingConfirm = false; App.render();      // 立即關卡片回點餐畫面（cart 由既有鏡像保留）
-          break;
+        case "checkout": App.sendCommand({ type: "checkout" }); break;     // 機器人進確認 → emit checkout_confirm → 跳卡片
+        case "confirm": App.sendCommand({ type: "confirm" }); break;       // 機器人進 L4 → emit checkout → QR 接替
+        case "back": App.sendCommand({ type: "resume" }); break;           // 機器人繼續點餐 → emit ordering → 收卡片
         case "place": App.sendCommand({ type: "pay" }); break;             // 結帳頁「我已完成付款」→ 付款
         case "adGoto": App.showAd(parseInt(t.dataset.idx, 10)); restartAdTimer(); break;
         // close / finish / setView / toggleReview / stop / noop：live 忽略（overlay 由機器人 phase 驅動）
