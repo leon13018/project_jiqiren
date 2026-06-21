@@ -353,8 +353,11 @@ def _run_wiring():
         # 等 boot thread 完成才讀 srv_holder（確保啟動結果落定）；非 None 才 stop。
         # srv 非 None ⇒ server import + start 已成功 → 此處 import server 必不炸；
         # 啟動失敗時 srv_holder 留空 → 不 import / 不 stop（graceful）。
+        # timeout=15：boot 正常只是 import+start（~秒級、有界）；加上限是防線——若未來
+        # server.start 變阻塞 / import 卡住，join 不會永久吊死 finally、害 main() 的
+        # os._exit(0) 安全網跑不到（逾時則 srv 仍空 → 跳過 stop，daemon 隨 os._exit 收）。
         if boot is not None:
-            boot.join()
+            boot.join(timeout=15)
             srv = srv_holder.get("srv")
             if srv is not None:
                 from myProgram.web import server
