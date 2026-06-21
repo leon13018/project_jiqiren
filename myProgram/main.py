@@ -333,6 +333,12 @@ def _run_wiring():
               "請加 --hawk 直接進入模式，或設 SALES_KEYBOARD=1 以鍵盤操作選單。")
         return   # early：不啟 web、不跑 logic.run，交回 main() 走 cleanup + os._exit(0)
 
+    # 模式入口提示：啟動時一次性標示進入哪個模式（對齊 [webui] 啟動提示風格；
+    # 不同於已移除的 _run_l1_hawk 每次進場印「進入叫賣模式」）。未來新模式在
+    # 自己的 flag 分派印對應行（只 hawk → 不建 mode→name map，YAGNI）。
+    if start_hawk:
+        print("[模式] 叫賣模式")
+
     web_mode = "--web" in sys.argv
     callbacks = _build_callbacks()
 

@@ -303,3 +303,13 @@ def test_no_mode_flag_keyboard_off_aborts(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "--hawk" in out, "防呆訊息應提示 --hawk"
     assert "SALES_KEYBOARD" in out, "防呆訊息應提示 SALES_KEYBOARD"
+
+
+def test_hawk_flag_prints_mode_startup_line(monkeypatch, capsys):
+    """`--hawk`：啟動印一次性模式提示 `[模式]`（對齊 [webui] 啟動提示；非 _run_l1_hawk 每次進場印）。"""
+    monkeypatch.setattr(sys, "argv", ["myprogram", "--hawk"])
+    _capture_logic_run(monkeypatch)   # stub logic.run（不真跑狀態機）
+
+    main_module._run_wiring()
+
+    assert "[模式]" in capsys.readouterr().out, "`--hawk` 應於啟動印一次模式提示 [模式]"
