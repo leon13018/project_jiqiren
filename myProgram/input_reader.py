@@ -50,12 +50,20 @@ caller（main.py 的 read_terminal_key / read_customer_input）使用方式：
     >>> input_reader.shutdown()  # main() finally 呼叫，對齊 tts/action
 """
 
+import os
 import queue
 import sys
 import threading
 from typing import Optional
 
 from myProgram.queue_worker import drain_queue
+
+
+# SALES_KEYBOARD 鍵盤 gate（env 旗標）：預設 0 = 關鍵盤（demo 改用 web/語音驅動）；=1 才啟
+# stdin reader thread。production singleton `_reader` 由此值帶入 keyboard_enabled。
+# 各模組各自讀 env（沿用 SALES_VOICE precedent，不新增跨模組 import；main 的啟動防呆
+# 另自讀同一 env，production 同一啟動值一致）。
+_KEYBOARD = bool(int(os.environ.get("SALES_KEYBOARD", "0")))
 
 
 class InputReader:
@@ -71,20 +79,28 @@ class InputReader:
         singleton `_reader` 預設綁 `sys.stdin.buffer`。
     """
 
-    def __init__(self, source: object = None) -> None:
-        """初始化 reader 並啟動 daemon thread。
+    def __init__(self, source: object = None, *, keyboard_enabled: bool = True) -> None:
+        """初始化 reader；keyboard_enabled 才啟動 stdin reader daemon thread。
 
         Args:
             source: 注入式 byte source（須有 `readline() -> bytes` 方法）。
                 None = 用 `sys.stdin.buffer`（production 預設）。
                 測試環境用 FakeByteSource 餵假 bytes 避開真 stdin。
+            keyboard_enabled: True 才啟 `_loop` stdin reader thread（讀鍵盤）；False
+                則完全不啟 thread（不讀 source），但 inject()（web/語音 sink）/ read()
+                / shutdown() 全照常 → 關鍵盤後 web/語音仍完整驅動。
+                **預設 True**：給既有測試 fixtures（`InputReader(source=...)`）沿用——
+                它們要 thread 跑去消化 FakeByteSource；production 唯一實例是 module
+                singleton `_reader`，明確帶 `_KEYBOARD`（env SALES_KEYBOARD，預設關）。
         """
         self._source = source if source is not None else sys.stdin.buffer
         # type hint 用 string annotation：對齊 tts.py / action.py 的 Python 3.7
         # 相容寫法（Pi 環境）。Queue 元素可以是 str（一行輸入）或 None（EOF sentinel）。
         self._q: "queue.Queue[Optional[str]]" = queue.Queue()
-        # daemon=True：主程式退出時自動 die（即使卡在 readline 也會被 runtime 清掉）
-        threading.Thread(target=self._loop, name="InputReader", daemon=True).start()
+        # daemon=True：主程式退出時自動 die（即使卡在 readline 也會被 runtime 清掉）。
+        # keyboard_enabled=False → 不啟 thread（鍵盤關）；inject/read 仍可用（共用同 queue）。
+        if keyboard_enabled:
+            threading.Thread(target=self._loop, name="InputReader", daemon=True).start()
 
     def _loop(self) -> None:
         """Daemon reader：持續 readline → decode → push queue（EOF 推 None 退出）。
@@ -180,15 +196,15 @@ class InputReader:
         self._q.put(text)
 
 
-# Module-level singleton：import 時自動啟動 daemon reader thread。
-# 使用者多次 `from myProgram import input_reader` 不會重複建（Python module cache）。
-# 對齊 tts._worker / action._worker pattern。
+# Module-level singleton：import 時建立；keyboard_enabled=_KEYBOARD（env SALES_KEYBOARD，
+# 預設關）才啟 daemon reader thread。使用者多次 `from myProgram import input_reader` 不會
+# 重複建（Python module cache）。對齊 tts._worker / action._worker pattern。
 #
-# Windows pytest 環境注意：module-level singleton 會在 pytest collect 時啟動
-# 一個 daemon thread 卡在 `sys.stdin.buffer.readline()`（pytest 不會餵 stdin）。
-# 接受這個 daemon leak — pytest 結束時 runtime 自動清掉（daemon=True 的設計目的）。
+# Windows pytest 環境注意：SALES_KEYBOARD 預設關 → singleton 不啟 thread，不再有
+# pytest collect 時 daemon thread 卡 `sys.stdin.buffer.readline()` 的 leak（若 env 開
+# 鍵盤則仍會啟，pytest 結束時 runtime 自動清掉——daemon=True 的設計目的）。
 # 測試一律 `InputReader(source=FakeByteSource(...))` 自建實例，不用 module 級 `_reader`。
-_reader = InputReader()
+_reader = InputReader(keyboard_enabled=_KEYBOARD)
 
 
 def read(timeout: Optional[float]) -> Optional[str]:

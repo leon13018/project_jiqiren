@@ -33,13 +33,19 @@ def run(
     show_hawk_help,
     speak_and_wait=None,
     display=None,
+    start_hawk=False,
 ) -> None:
     """S1 v2 主迴圈 facade：組 callbacks + 建 SalesMachine（L1 → dialog → L4 → L5 → L1 cycle）。
 
     L1 入口流程：
-    - 首次進 L1：顯示主選單，商家選 1（叫賣）
+    - 首次進 L1：顯示主選單，商家選 1（叫賣）；`start_hawk=True`（main `--hawk`）則
+      首次即跳主選單直接 hawk
     - 交易完成後續 L1：跳過主選單直接進 hawk（連續叫賣，2026-05-26 加）
       涵蓋 4 個出口：dialog reject / dialog timeout / L4 cancel / L5 完成
+
+    Args:
+        start_hawk: 模式入口 flag（main 解析 `--hawk` 帶入）→ 穿給 SalesMachine 當
+            enter_hawk_immediately 初值；預設 False（首次顯示主選單）。
     """
     callbacks = dict(
         print_terminal=print_terminal,
@@ -54,4 +60,6 @@ def run(
         speak_and_wait=speak_and_wait,
         display=display,
     )
-    return SalesMachine(callbacks=callbacks, cart=cart_module.new_cart()).run()
+    return SalesMachine(
+        callbacks=callbacks, cart=cart_module.new_cart(), start_hawk=start_hawk
+    ).run()

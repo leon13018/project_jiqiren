@@ -296,6 +296,15 @@ def _prewarm_workers():
 def _run_wiring():
     """組 callbacks + 決定 display + （`--web` 時）背景啟 web server，跑 logic.run。
 
+    模式入口 flag（`--hawk`）：直接進叫賣模式（跳主選單）→ `start_hawk` 穿給
+    `logic.run`（複用 enter_hawk_immediately）。未來其他模式可加新 `--<mode>` flag。
+
+    啟動防呆（D）：鍵盤預設關（`SALES_KEYBOARD` 未設 = 0）；若既無 mode flag（`--hawk`）
+    又無鍵盤 → 沒有任何可用控制方式（web token 無 '1'、語音 L1 未開麥），會卡在無法
+    操作的選單 → 印明確繁中訊息後 early return（不啟 web、不跑 logic.run），交回 main()
+    走 cleanup + os._exit(0)。合法組合：① 有 `--hawk`（鍵盤開關皆可）；② 無 mode flag
+    但 `SALES_KEYBOARD=1`（選單 + 鍵盤）。
+
     `--web` 旗號分流：
     - 有旗號 → 主執行緒只建**輕量** stdlib 部件（EventBus / web 版 display /
       input_reader）—— 瞬間完成、menu 立即可互動。**笨重** import（`myProgram.web.
@@ -315,6 +324,15 @@ def _run_wiring():
     web import 一律在背景 thread 內（lazy）：終端模式與 Windows pytest 不得觸發
     web import。
     """
+    start_hawk = "--hawk" in sys.argv
+    # 啟動防呆：call-time 讀 SALES_KEYBOARD（與 input_reader import-time _KEYBOARD 各自讀
+    # 同一 env，沿用 SALES_VOICE 多模組各自讀 precedent；production 同一啟動 env 值一致）。
+    keyboard_on = bool(int(os.environ.get("SALES_KEYBOARD", "0")))
+    if not start_hawk and not keyboard_on:
+        print("[系統] 未指定模式入口 flag（如 --hawk）且鍵盤已停用；無可用控制方式。"
+              "請加 --hawk 直接進入模式，或設 SALES_KEYBOARD=1 以鍵盤操作選單。")
+        return   # early：不啟 web、不跑 logic.run，交回 main() 走 cleanup + os._exit(0)
+
     web_mode = "--web" in sys.argv
     callbacks = _build_callbacks()
 
@@ -348,7 +366,7 @@ def _run_wiring():
         boot = None
 
     try:
-        logic.run(**callbacks, display=display_cb)
+        logic.run(**callbacks, display=display_cb, start_hawk=start_hawk)
     finally:
         # 等 boot thread 完成才讀 srv_holder（確保啟動結果落定）；非 None 才 stop。
         # srv 非 None ⇒ server import + start 已成功 → 此處 import server 必不炸；

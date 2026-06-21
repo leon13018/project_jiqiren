@@ -163,10 +163,13 @@ class SalesMachine:
     「L1_enter_hawk 返回後」assert 放各 State 的轉移分支——時序與現行逐一對應：
     dialog/L4 退出 assert 在轉移前、L5 後 assert 在轉移前。
     """
-    def __init__(self, callbacks: dict, cart):
+    def __init__(self, callbacks: dict, cart, start_hawk: bool = False):
+        # start_hawk：模式入口 flag（main 的 `--hawk`）→ 首次進 L1 即直接 hawk（跳主選單）。
+        # 複用既有 enter_hawk_immediately 機制（交易完成後續連續叫賣同一旗號）：只是把
+        # 「首次進場」的初值從 hardcode False 改由 start_hawk 帶入；之後 cycle 行為不變。
         self.callbacks = callbacks          # logic.run 收到的 callback（含 speak_and_wait）
         self.cart = cart
-        self.enter_hawk_immediately = False
+        self.enter_hawk_immediately = start_hawk
         self._states = {
             "l1": L1State(),
             "dialog": DialogState(),
