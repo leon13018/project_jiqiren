@@ -37,10 +37,11 @@ import os
 
 from myProgram.queue_worker import QueueWorker
 
-# 安靜模式（env 旗標）：SALES_QUIET=1 藏終端正常 `[動作]` echo（demo 時跟 web 鏡像 +
-# 實體機器人重複是雜訊），保留錯誤 ⚠️ 失敗行。各模組各自讀（沿用 STT_TTS_TIMING
-# precedent，不新增跨模組 import）。預設 0 = 全顯示，不改行為；只抑制 echo print。
-_QUIET = bool(int(os.environ.get("SALES_QUIET", "0")))
+# 語音 echo 模式（env 旗標）：SALES_VOICE=1 顯示終端正常 `[動作]` echo（demo 預設隱藏 —
+# 跟 web 鏡像 + 實體機器人重複是雜訊；偶爾 debug 才開），預設 0 = 隱藏。錯誤 ⚠️ 失敗行
+# 不受此旗標影響恆顯示。各模組各自讀（沿用 STT_TTS_TIMING precedent，不新增跨模組
+# import）；只 gate echo print。
+_VOICE = bool(int(os.environ.get("SALES_VOICE", "0")))
 
 
 class ActionWorker(QueueWorker):
@@ -141,7 +142,7 @@ def do(name: str) -> None:
     對比 S3 同步版：對外 signature 完全相容（接 name、回 None），但行為從
     「阻塞至動作播完」改為「立即返回（背景排隊播）」。
     """
-    if not _QUIET:
+    if _VOICE:
         print(f"[動作] {name}")
     _worker.do(name)
 

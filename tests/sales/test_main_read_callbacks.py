@@ -302,28 +302,28 @@ def test_tick_countdown_shown_when_flag_on(monkeypatch, capsys):
 
 
 # ============================================================
-# SALES_QUIET：藏終端正常機器人 echo（[模擬提示]/[模擬]），
-# 保留導航（print_terminal 螢幕文字 / 進入叫賣模式 / 選單）。
-# seam：monkeypatch myProgram.main._QUIET（對齊 _SHOW_COUNTDOWN / _EARLY_MIC patch pattern）。
+# SALES_VOICE：預設隱藏終端正常機器人 echo（[模擬提示]）、=1 才顯示，
+# 保留導航（print_terminal 螢幕文字 / 進入叫賣模式 / 選單）恆顯示。
+# seam：monkeypatch myProgram.main._VOICE（對齊 _SHOW_COUNTDOWN / _EARLY_MIC patch pattern）。
 # ============================================================
 
 
-def test_show_hawk_help_hidden_when_quiet(monkeypatch, capsys):
-    """_QUIET=True → show_hawk_help() 不印 `[模擬提示]`。"""
-    monkeypatch.setattr("myProgram.main._QUIET", True)
+def test_show_hawk_help_hidden_by_default(monkeypatch, capsys):
+    """預設 _VOICE=False → show_hawk_help() 不印 `[模擬提示]`。"""
+    monkeypatch.setattr("myProgram.main._VOICE", False)
     TerminalSim().show_hawk_help()
     assert "[模擬提示]" not in capsys.readouterr().out
 
 
-def test_show_hawk_help_shown_when_not_quiet(monkeypatch, capsys):
-    """預設 _QUIET=False → show_hawk_help() 照印 `[模擬提示]`（行為不變）。"""
-    monkeypatch.setattr("myProgram.main._QUIET", False)
+def test_show_hawk_help_shown_when_voice_on(monkeypatch, capsys):
+    """_VOICE=True → show_hawk_help() 照印 `[模擬提示]`。"""
+    monkeypatch.setattr("myProgram.main._VOICE", True)
     TerminalSim().show_hawk_help()
     assert "[模擬提示]" in capsys.readouterr().out
 
 
-def test_print_terminal_navigation_kept_when_quiet(monkeypatch, capsys):
-    """_QUIET=True 也不藏導航：print_terminal('進入叫賣模式') 仍印（導航保留是 spec 核心）。"""
-    monkeypatch.setattr("myProgram.main._QUIET", True)
+def test_print_terminal_navigation_kept_when_voice_off(monkeypatch, capsys):
+    """_VOICE=False（預設）也不藏導航：print_terminal('進入叫賣模式') 仍印（導航保留是 spec 核心）。"""
+    monkeypatch.setattr("myProgram.main._VOICE", False)
     TerminalSim().print_terminal("進入叫賣模式")
     assert "進入叫賣模式" in capsys.readouterr().out

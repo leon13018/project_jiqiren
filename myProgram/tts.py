@@ -51,10 +51,11 @@ import edge_tts  # fail-fast：缺套件直接 ImportError；S2+ demo 環境是 
 
 from myProgram.queue_worker import QueueWorker
 
-# 安靜模式（env 旗標）：SALES_QUIET=1 藏終端正常機器人 echo（demo 時跟 web 鏡像 +
-# 實體機器人重複是雜訊），保留導航與錯誤 ⚠️。各模組各自讀（沿用 STT_TTS_TIMING
-# precedent，不新增跨模組 import）。預設 0 = 全顯示，不改行為；只抑制 echo print。
-_QUIET = bool(int(os.environ.get("SALES_QUIET", "0")))
+# 語音 echo 模式（env 旗標）：SALES_VOICE=1 顯示終端機器人 echo（demo 預設隱藏 —
+# 跟 web 鏡像 + 實體機器人重複是雜訊；偶爾 debug 才開），預設 0 = 隱藏。錯誤 ⚠️ 與
+# 導航不受此旗標影響恆顯示。各模組各自讀（沿用 STT_TTS_TIMING precedent，不新增跨
+# 模組 import）；只 gate echo print。
+_VOICE = bool(int(os.environ.get("SALES_VOICE", "0")))
 
 VOICE = "zh-TW-HsiaoChenNeural"  # 台灣女聲
 # perf_w5：內容定址快取目錄——package-anchored（非 cwd 依賴），Pi 上隨 git pull 取得
@@ -436,7 +437,7 @@ def speak(text: str) -> None:
     對比 S2 同步版：對外 signature 完全相容（接 text、回 None），但行為從
     「阻塞至播完」改為「立即返回（背景排隊播）」。
     """
-    if not _QUIET:
+    if _VOICE:
         print(f"[語音] {text}")
     _worker.say(text)
 

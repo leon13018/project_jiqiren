@@ -631,7 +631,7 @@ def test_tts_timing_log_silent_when_env_unset(monkeypatch, capsys):
 
 
 # ============================================================
-# SALES_QUIET：藏正常 [語音] echo、保留 ⚠️ 失敗行
+# SALES_VOICE：預設隱藏正常 [語音] echo、=1 才顯示；⚠️ 失敗行恆顯示
 # ============================================================
 # 隔離 gotcha（spec §測試）：speak() 是「caller thread 立即 print → 再 _worker.say
 # enqueue」。測 print gate 必先把 module-level _worker.say monkeypatch 成 no-op，
@@ -639,25 +639,25 @@ def test_tts_timing_log_silent_when_env_unset(monkeypatch, capsys):
 # capsys、測試 flaky。gate 只測 caller-thread 那行 print，不牽動 worker。
 
 
-def test_speak_echo_hidden_when_quiet(monkeypatch, capsys):
-    """SALES_QUIET（_QUIET=True）→ speak() 不印正常 `[語音] {text}` echo。"""
-    monkeypatch.setattr(tts_module, "_QUIET", True)
+def test_speak_echo_hidden_by_default(monkeypatch, capsys):
+    """預設 _VOICE=False → speak() 不印正常 `[語音] {text}` echo。"""
+    monkeypatch.setattr(tts_module, "_VOICE", False)
     monkeypatch.setattr(tts_module._worker, "say", lambda text: None)
     tts_module.speak("安靜句")
     assert "[語音] 安靜句" not in capsys.readouterr().out
 
 
-def test_speak_echo_shown_when_not_quiet(monkeypatch, capsys):
-    """預設 _QUIET=False → speak() 照印 `[語音] {text}`（行為不變）。"""
-    monkeypatch.setattr(tts_module, "_QUIET", False)
+def test_speak_echo_shown_when_voice_on(monkeypatch, capsys):
+    """_VOICE=True → speak() 照印 `[語音] {text}`。"""
+    monkeypatch.setattr(tts_module, "_VOICE", True)
     monkeypatch.setattr(tts_module._worker, "say", lambda text: None)
     tts_module.speak("正常句")
     assert "[語音] 正常句" in capsys.readouterr().out
 
 
-def test_failure_line_not_gated_by_quiet(monkeypatch, capsys):
-    """_QUIET=True 也不該藏失敗行：直接呼 _print_failure 仍印 `[語音] ⚠️`（錯誤保留）。"""
-    monkeypatch.setattr(tts_module, "_QUIET", True)
+def test_failure_line_not_gated_by_voice(monkeypatch, capsys):
+    """_VOICE=False（預設）也不該藏失敗行：直接呼 _print_failure 仍印 `[語音] ⚠️`（錯誤恆顯示）。"""
+    monkeypatch.setattr(tts_module, "_VOICE", False)
     tts_module._print_failure("play", ["text = 'x'"])
     out = capsys.readouterr().out
     assert "[語音] ⚠️ TTS 失敗" in out

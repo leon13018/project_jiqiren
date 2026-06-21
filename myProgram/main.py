@@ -42,11 +42,11 @@ _EARLY_MIC = bool(int(os.environ.get("STT_EARLY_MIC", "0")))
 # 只抑制視覺印行——計時 / timeout / 等待秒數一秒不差。
 _SHOW_COUNTDOWN = bool(int(os.environ.get("SALES_SHOW_COUNTDOWN", "0")))
 
-# 安靜模式（env 旗標）：SALES_QUIET=1 藏終端正常機器人狀態 echo（[模擬提示]/[模擬]
-# 等，demo 時跟 web 鏡像 + 實體機器人重複是雜訊），保留導航（print_terminal
-# 螢幕文字 / 選單 / 進入叫賣模式）與錯誤行。各模組各自讀（沿用 STT_TTS_TIMING
-# precedent，不新增跨模組 import）。預設 0 = 全顯示，不改行為；只抑制 echo print。
-_QUIET = bool(int(os.environ.get("SALES_QUIET", "0")))
+# 語音 echo 模式（env 旗標）：SALES_VOICE=1 顯示終端機器人狀態 echo（[模擬提示]，
+# demo 預設隱藏 — 跟 web 鏡像 + 實體機器人重複是雜訊；偶爾 debug 才開），預設 0 = 隱藏。
+# 錯誤 ⚠️ 與導航（print_terminal 螢幕文字 / 選單 / 進入叫賣模式）不受此旗標影響恆顯示。
+# 各模組各自讀（沿用 STT_TTS_TIMING precedent，不新增跨模組 import）；只 gate echo print。
+_VOICE = bool(int(os.environ.get("SALES_VOICE", "0")))
 
 
 def _tick_countdown(total: float, label: str, wait_tick):
@@ -90,7 +90,7 @@ class TerminalSim:
         caller（l1._run_l1_hawk）在印完 entry prompt 後顯式呼叫，取代原 print_terminal
         內 `if text == L1_HAWK_ENTRY_PROMPT` magic string 偵測（解耦常數值）。
         """
-        if not _QUIET:
+        if _VOICE:
             print(">>> [模擬提示] 叫賣模式：'t' = 開始點餐（模擬觸控）→ 轉 L2；'q' = 退出程式。其他輸入會被忽略。<<<")
 
     def read_terminal_key(self, timeout=None):
