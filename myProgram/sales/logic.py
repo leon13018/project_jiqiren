@@ -37,7 +37,7 @@ def run(
     """S1 v2 主迴圈 facade：組 callbacks + 建 SalesMachine（L1 → dialog → L4 → L5 → L1 cycle）。
 
     L1 入口流程：
-    - 首次進 L1：顯示主選單，商家選 1/2/3
+    - 首次進 L1：顯示主選單，商家選 1（叫賣）
     - 交易完成後續 L1：跳過主選單直接進 hawk（連續叫賣，2026-05-26 加）
       涵蓋 4 個出口：dialog reject / dialog timeout / L4 cancel / L5 完成
     """

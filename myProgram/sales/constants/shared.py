@@ -20,7 +20,7 @@ __all__ = [
     "INVALID_QTY_CANCEL_REENTER_PREFIX",
 ]
 
-# 客服電話（L1 客服模式 / L4 客服模式 / qty followup 客服 trigger 等）
+# 客服電話（L4 客服模式 / qty followup 客服 trigger 等）
 # 原位置：l1_text.py（Wave 6 移出 — 跨多層使用，應歸 shared）
 SERVICE_PHONE: str = "0900-XXX-XXX"
 

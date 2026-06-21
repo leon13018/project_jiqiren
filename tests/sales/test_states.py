@@ -127,7 +127,7 @@ def test_l1_enter_hawk_immediately_skips_mode_menu() -> None:
     """2026-05-26 加：enter_hawk_immediately=True 跳過主選單直接進 hawk。
 
     用途：logic.py 在交易完成後（dialog reject / L4 cancel / L5 完成）
-    設此 flag → 連續叫賣，不顯示「請選擇模式：1/2/3」主選單。
+    設此 flag → 連續叫賣，不顯示「請選擇模式：1」主選單。
     """
     printed: list = []
     speak_calls: list = []
