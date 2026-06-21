@@ -309,3 +309,43 @@ def test_logic_enter_hawk_immediately_consumed_after_l1(monkeypatch):
     assert l1_call_args[1] == True, "第二輪 run_l1 應收到 enter_hawk_immediately=True（第一輪 dialog 退出後設定）"
     #   輪 3：第二輪 L4 退出後設 True — 確認旗號由 L4 退出重新注入，非殘留
     assert l1_call_args[2] == True, "第三輪 run_l1 應收到 enter_hawk_immediately=True（第二輪 L4 退出後設定）"
+
+
+# ============================================================
+# Test 7：start_hawk 穿到 SalesMachine（--hawk 入口）
+# ============================================================
+
+def test_run_start_hawk_passed_to_machine(monkeypatch):
+    """logic.run(start_hawk=True) → SalesMachine 收到 start_hawk=True（facade 直穿）。"""
+    captured = {}
+
+    class StubMachine:
+        def __init__(self, *, callbacks, cart, start_hawk=False):
+            captured["start_hawk"] = start_hawk
+
+        def run(self):
+            return None
+
+    monkeypatch.setattr(logic, "SalesMachine", StubMachine)
+
+    logic.run(**_make_callbacks(), start_hawk=True)
+
+    assert captured["start_hawk"] is True, "logic.run(start_hawk=True) 應穿到 SalesMachine"
+
+
+def test_run_start_hawk_defaults_false(monkeypatch):
+    """logic.run 不傳 start_hawk → SalesMachine 收到 start_hawk=False（預設）。"""
+    captured = {}
+
+    class StubMachine:
+        def __init__(self, *, callbacks, cart, start_hawk=False):
+            captured["start_hawk"] = start_hawk
+
+        def run(self):
+            return None
+
+    monkeypatch.setattr(logic, "SalesMachine", StubMachine)
+
+    logic.run(**_make_callbacks())
+
+    assert captured["start_hawk"] is False, "logic.run 預設應穿 start_hawk=False"

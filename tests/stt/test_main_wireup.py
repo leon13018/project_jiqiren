@@ -80,8 +80,10 @@ def _capture_logic_run(monkeypatch):
 
 
 def test_terminal_mode_injects_callable_display_and_no_web_import(monkeypatch):
-    """無 `--web`：display 為 callable（no-op），且不 import web server。"""
-    monkeypatch.setattr(sys, "argv", ["myprogram"])
+    """無 `--web`：display 為 callable（no-op），且不 import web server。
+
+    argv 帶 `--hawk`：終端模式為有效啟動組合（否則無 mode flag + 鍵盤關會被防呆擋）。"""
+    monkeypatch.setattr(sys, "argv", ["myprogram", "--hawk"])
     captured = _capture_logic_run(monkeypatch)
     # 乾淨狀態：確保斷言「未 import web server」前 sys.modules 無殘留
     monkeypatch.delitem(sys.modules, "myProgram.web.server", raising=False)
@@ -94,7 +96,7 @@ def test_terminal_mode_injects_callable_display_and_no_web_import(monkeypatch):
 
 def test_web_mode_starts_server_on_port_8137_with_web_display(monkeypatch):
     """`--web`：呼叫 server.start(port=8137)，且注入 web 版 display（經 bus.publish）。"""
-    monkeypatch.setattr(sys, "argv", ["myprogram", "--web"])
+    monkeypatch.setattr(sys, "argv", ["myprogram", "--web", "--hawk"])
     captured = _capture_logic_run(monkeypatch)
 
     started = {}
@@ -122,7 +124,7 @@ def test_web_mode_starts_server_on_port_8137_with_web_display(monkeypatch):
 
 def test_web_mode_wires_on_input_to_input_reader_inject(monkeypatch):
     """`--web`：server.start 收到 on_input = input_reader.inject（觸控上行注入 seam）。"""
-    monkeypatch.setattr(sys, "argv", ["myprogram", "--web"])
+    monkeypatch.setattr(sys, "argv", ["myprogram", "--web", "--hawk"])
     captured = _capture_logic_run(monkeypatch)
 
     injected = []
@@ -151,7 +153,7 @@ def test_web_mode_wires_on_input_to_input_reader_inject(monkeypatch):
 def test_web_mode_missing_deps_keeps_bus_display_and_prints_error(monkeypatch, capsys):
     """`--web` 但 web server import 失敗（Pi 沒裝 fastapi/uvicorn）→ boot thread 內印錯誤、
     display 維持 bus-backed、機器人照常跑（背景化後不再退回 no-op）。"""
-    monkeypatch.setattr(sys, "argv", ["myprogram", "--web"])
+    monkeypatch.setattr(sys, "argv", ["myprogram", "--web", "--hawk"])
     captured = _capture_logic_run(monkeypatch)
     # sys.modules[...] = None 讓 boot thread 內 `from myProgram.web import server` raise ImportError
     monkeypatch.setitem(sys.modules, "myProgram.web.server", None)
@@ -204,7 +206,7 @@ def test_web_mode_logic_run_not_blocked_by_slow_server_start(monkeypatch):
     fastapi/uvicorn 笨重 import + 啟動），驗 logic.run 在 server.start 仍進行中
     就已被呼叫（即 start 在背景 thread、非主執行緒阻塞 logic.run 之前）。
     """
-    monkeypatch.setattr(sys, "argv", ["myprogram", "--web"])
+    monkeypatch.setattr(sys, "argv", ["myprogram", "--web", "--hawk"])
 
     events = []
     start_running = threading.Event()
@@ -243,7 +245,7 @@ def test_web_mode_server_start_raises_keeps_bus_display_and_prints_error(monkeyp
     失敗的 OSError 等會傳出 crash 機器人。背景化後 boot thread 的 try/except 涵蓋；
     bus/display 真 import、只 stub server.start raise。
     """
-    monkeypatch.setattr(sys, "argv", ["myprogram", "--web"])
+    monkeypatch.setattr(sys, "argv", ["myprogram", "--web", "--hawk"])
     captured = _capture_logic_run(monkeypatch)
 
     def fake_start(bus, on_input, port=8137):
@@ -262,3 +264,42 @@ def test_web_mode_server_start_raises_keeps_bus_display_and_prints_error(monkeyp
     captured["display"]("ordering", {"冰紅茶": 2})
     out = capsys.readouterr().out
     assert "webui" in out.lower()   # 印了明確的 web 啟動失敗訊息
+
+
+# === main.py `--hawk` flag + SALES_KEYBOARD 啟動防呆（_run_wiring）======
+
+def test_hawk_flag_passes_start_hawk_true(monkeypatch):
+    """argv 有 `--hawk`：logic.run 被呼叫且收到 start_hawk=True（模式入口直進 hawk）。"""
+    monkeypatch.setattr(sys, "argv", ["myprogram", "--hawk"])
+    captured = _capture_logic_run(monkeypatch)
+
+    main_module._run_wiring()
+
+    assert captured.get("start_hawk") is True, "`--hawk` 應傳 start_hawk=True 給 logic.run"
+
+
+def test_no_hawk_with_keyboard_on_passes_start_hawk_false(monkeypatch):
+    """argv 無 `--hawk` 但 SALES_KEYBOARD=1：合法組合（選單 + 鍵盤）→ logic.run 被呼叫、
+    start_hawk=False。"""
+    monkeypatch.setattr(sys, "argv", ["myprogram"])
+    monkeypatch.setenv("SALES_KEYBOARD", "1")
+    captured = _capture_logic_run(monkeypatch)
+
+    main_module._run_wiring()
+
+    assert captured.get("start_hawk") is False, "無 `--hawk` 應傳 start_hawk=False"
+
+
+def test_no_mode_flag_keyboard_off_aborts(monkeypatch, capsys):
+    """argv 無 `--hawk` 且 SALES_KEYBOARD 未設（鍵盤關）：啟動防呆 → 印明確訊息 +
+    early return（不呼叫 logic.run）。防止卡在無法操作的選單。"""
+    monkeypatch.setattr(sys, "argv", ["myprogram"])
+    monkeypatch.delenv("SALES_KEYBOARD", raising=False)
+    captured = _capture_logic_run(monkeypatch)
+
+    main_module._run_wiring()   # 不得 raise（直接 return 交回 main cleanup）
+
+    assert captured == {}, "防呆觸發時 logic.run 不應被呼叫"
+    out = capsys.readouterr().out
+    assert "--hawk" in out, "防呆訊息應提示 --hawk"
+    assert "SALES_KEYBOARD" in out, "防呆訊息應提示 SALES_KEYBOARD"

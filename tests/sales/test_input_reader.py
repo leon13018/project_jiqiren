@@ -246,3 +246,31 @@ def test_shutdown_clears_queue():
     reader.shutdown()
     # 確認 queue 已清空
     assert reader._q.qsize() == 0, f"shutdown 後 queue 應空，實際剩 {reader._q.qsize()} 筆"
+
+
+# ============================================================
+# Test 9：SALES_KEYBOARD gate — keyboard_enabled 控制 stdin reader thread
+# ============================================================
+
+
+def test_keyboard_disabled_does_not_read_source_but_inject_works():
+    """keyboard_enabled=False：不啟 stdin reader thread → source 不被讀（queue 不進
+    鍵盤輸入）；但 inject()（web/語音 sink）+ read() 仍照常運作。
+
+    對應 SALES_KEYBOARD=0（預設關鍵盤）：關掉鍵盤後仍由 web/語音經 inject 完整驅動。
+    """
+    src = FakeByteSource([b"x\n"])
+    reader = InputReader(source=src, keyboard_enabled=False)
+    # 給 thread 若誤啟動的時間窗口；keyboard_enabled=False 應根本沒 thread 去讀 source
+    time.sleep(0.1)
+    assert reader._q.qsize() == 0, "keyboard_enabled=False 不應讀 source（queue 應空）"
+    # inject + read 仍可用（web/語音路徑不受 gate 影響）
+    reader.inject("web")
+    assert reader.read(timeout=0.1) == "web"
+
+
+def test_keyboard_enabled_reads_source():
+    """keyboard_enabled=True（既有預設）：啟 stdin reader thread → 讀到 source（行為不變）。"""
+    src = FakeByteSource([b"hello\n"])
+    reader = InputReader(source=src, keyboard_enabled=True)
+    assert reader.read(timeout=0.5) == "hello"

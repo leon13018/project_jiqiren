@@ -58,6 +58,43 @@ def _make_machine(cart=None, **cb_overrides):
 
 
 # ============================================================
+# Test 6：start_hawk 進場旗號（--hawk 入口；複用 enter_hawk_immediately）
+# ============================================================
+
+def test_start_hawk_true_first_l1_enters_hawk_immediately(monkeypatch):
+    """SalesMachine(..., start_hawk=True)：首次進 L1 即 enter_hawk_immediately=True
+    （跳主選單直接 hawk）。"""
+    received = []
+
+    def stub_run_l1(**kwargs):
+        received.append(kwargs.get("enter_hawk_immediately"))
+        return None  # 首輪即終止，只驗第一次進場旗號
+
+    monkeypatch.setattr(states_module, "run_l1", stub_run_l1)
+    machine = SalesMachine(callbacks=_make_callbacks(), cart=cart_module.new_cart(),
+                           start_hawk=True)
+    machine.run()
+
+    assert received == [True], "start_hawk=True → 首次 run_l1 應收到 enter_hawk_immediately=True"
+
+
+def test_start_hawk_default_false_shows_menu(monkeypatch):
+    """SalesMachine 不傳 start_hawk（預設 False）：首次進 L1 enter_hawk_immediately=False
+    （顯示主選單，既有行為）。"""
+    received = []
+
+    def stub_run_l1(**kwargs):
+        received.append(kwargs.get("enter_hawk_immediately"))
+        return None
+
+    monkeypatch.setattr(states_module, "run_l1", stub_run_l1)
+    machine = SalesMachine(callbacks=_make_callbacks(), cart=cart_module.new_cart())
+    machine.run()
+
+    assert received == [False], "預設 start_hawk=False → 首次 run_l1 應收到 enter_hawk_immediately=False"
+
+
+# ============================================================
 # Test 1：Transition frozen + 預設值 + 相等性
 # ============================================================
 
