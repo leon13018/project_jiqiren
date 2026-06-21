@@ -8,7 +8,7 @@
 - `reviews/` — 程式碼審查報告。
 - `research/` — 研究筆記（官方文檔轉述、最佳實踐、SDD 等）。
 - `evals/` — skill EDD 回歸：場景庫（`evals.json` 舊格式 + `scenarios_*.json` 新格式）+ `README.md`（harness 跑法）+ `baseline/`、`iteration-*/` 歷史；harness 本體在 `.claude/workflows/skill-edd-regression.js`。
-- `architecture/` — 架構願景 + 前後端契約 + 後端模組結構。
+- `architecture/` — 系統架構文件（**以實作現況為準**，2026-06-21 重寫）：`README.md` 索引 + `00-system-overview`（鳥瞰 / process-thread 模型 / 啟動模式）+ `10-runtime-and-workers`（main.py 編排 + 四 worker 並行）+ `20-sales-state-machine`（L0–L5）+ `30-web-mirror-and-frontend`（web 交互狀態機）；`_archive/` 收已封存的舊願景 / 契約（FastAPI 願景式，過時不參考）。
 - `requirements/` — 需求文件（Raspberry Pi setup / 已安裝清單）。
 - `pineedtodo/` — Pi 端待辦操作說明書（寫入 append-only；完成即 `git mv` 進 `archive/` 子目錄，主目錄只留未完成 pending）。
 - `examples/` — 範例 code。
