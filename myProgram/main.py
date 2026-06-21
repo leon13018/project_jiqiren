@@ -371,18 +371,6 @@ def main():
     拿 bytes 自己 `decode(errors="replace")`，繞過 TextIOWrapper buffer 邏輯 → 消除
     「partial multibyte 殘留」bug class（曾於 0xe5 byte raise「invalid continuation byte」）。
     """
-    print("=" * 50)
-    print("Project_01 互動式銷售輔助機器人 — 模擬模式")
-    print("（單線程對話 + 背景 worker 處理語音 / 動作 / input）")
-    print("=" * 50)
-    print("操作小抄（chat-driven 模擬）：")
-    print("  [L1 商家層] 1=叫賣 / 2=待機 / 3=客服 / q=退出")
-    print("    └ 進叫賣後按 't' = 開始點餐（模擬觸控）→ 轉 L2 對話")
-    print("    └ 進待機後按 'r' 回主選單（其他鍵無效）")
-    print("    └ 進客服印電話後自動回主選單")
-    print("  [L2-L5 顧客對話層] 打字=顧客語音回應 / 空 Enter=模擬 timeout")
-    print("=" * 50)
-
     # 背景預熱 worker（tts / action / stt）：提前在 daemon thread import 暖機，消除
     # 按 '1' 進 hawk 首次 speak / do_action / read 的 lazy import 頓挫（純加速、無新
     # 行為）。daemon=True 隨 process die；best-effort 失敗已在 _prewarm_workers 內吞。
