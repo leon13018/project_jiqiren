@@ -13,7 +13,6 @@ from myProgram.sales.constants import (
     HAWK_SLOGANS,
     HAWK_INTERVAL,
     L1_MENU_BANNER,
-    L1_HAWK_ENTRY_PROMPT,
     ACTION_L1_HAWK,
 )
 
@@ -154,8 +153,6 @@ def _run_l1_hawk(
         'L2' — 按 't'（觸控開始點餐）觸發轉 L2
         None — 按 q 退出程式
     """
-    # 印進入提示
-    print_terminal(L1_HAWK_ENTRY_PROMPT)
     # B21：顯式呼叫操作提示 callback（取代原 print_terminal 內 magic string 偵測）
     show_hawk_help()
     # S3：hawk entry 同步動作（揮手向潛在顧客打招呼）— 只在 entry 跑一次，

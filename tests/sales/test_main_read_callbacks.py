@@ -303,7 +303,7 @@ def test_tick_countdown_shown_when_flag_on(monkeypatch, capsys):
 
 # ============================================================
 # SALES_VOICE：預設隱藏終端正常機器人 echo（[模擬提示]）、=1 才顯示，
-# 保留導航（print_terminal 螢幕文字 / 進入叫賣模式 / 選單）恆顯示。
+# 保留導航（print_terminal 螢幕文字 / 選單 / prompts）恆顯示。
 # seam：monkeypatch myProgram.main._VOICE（對齊 _SHOW_COUNTDOWN / _EARLY_MIC patch pattern）。
 # ============================================================
 
@@ -323,7 +323,7 @@ def test_show_hawk_help_shown_when_voice_on(monkeypatch, capsys):
 
 
 def test_print_terminal_navigation_kept_when_voice_off(monkeypatch, capsys):
-    """_VOICE=False（預設）也不藏導航：print_terminal('進入叫賣模式') 仍印（導航保留是 spec 核心）。"""
+    """_VOICE=False（預設）也不藏導航：print_terminal('請選擇模式') 仍印（導航保留是 spec 核心）。"""
     monkeypatch.setattr("myProgram.main._VOICE", False)
-    TerminalSim().print_terminal("進入叫賣模式")
-    assert "進入叫賣模式" in capsys.readouterr().out
+    TerminalSim().print_terminal("請選擇模式")
+    assert "請選擇模式" in capsys.readouterr().out

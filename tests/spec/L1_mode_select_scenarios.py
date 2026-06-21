@@ -48,7 +48,7 @@ def test_l1_entry_prints_mode_select_menu() -> None:
 ### Scenario: 商家輸入 1 進入叫賣模式立即播第 1 組叫賣
 ### Given L1 選單顯示中
 ### When 商家輸入「1」
-### Then 終端印「進入叫賣模式」，立即播第 1 組叫賣術語
+### Then 立即播第 1 組叫賣術語
 def test_l1_c_hawk_mode_starts_immediately_without_mute_buffer() -> None:
     pass
 

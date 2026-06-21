@@ -150,15 +150,12 @@ def test_l1_enter_hawk_immediately_skips_mode_menu() -> None:
     assert "請選擇模式" not in all_output, (
         f"enter_hawk_immediately=True 不應顯示主選單，實際印出：{printed}"
     )
-    # 應印 hawk 進入提示
-    assert "叫賣" in all_output, "應印叫賣模式進入提示"
     # 應立即 speak HAWK_SLOGANS[0]
     assert speak_calls and speak_calls[0] == HAWK_SLOGANS[0]
 
 
 def test_l1_c_hawk_mode_starts_immediately_without_mute_buffer() -> None:
     # Arrange
-    printed: list = []
     speak_calls: list = []
     # 輸入 1 進叫賣模式，按 q q（C14）退出
     key_sequence = ["1", "q", "q"]
@@ -166,7 +163,7 @@ def test_l1_c_hawk_mode_starts_immediately_without_mute_buffer() -> None:
 
     # Act
     states.run_l1(
-        print_terminal=lambda text: printed.append(text),
+        print_terminal=lambda text: None,
         read_terminal_key=kbd.read,
         speak=lambda text: speak_calls.append(text),
         exit_program=lambda: None,
@@ -175,11 +172,7 @@ def test_l1_c_hawk_mode_starts_immediately_without_mute_buffer() -> None:
         do_action=lambda *a, **k: None,
     )
 
-    # Assert 1：印「進入叫賣模式」
-    all_output = "\n".join(printed)
-    assert "叫賣" in all_output, "應印叫賣模式進入提示"
-
-    # Assert 2：第 1 組叫賣術語被立即 speak（無需 tick 任何時間）
+    # Assert：第 1 組叫賣術語被立即 speak（無需 tick 任何時間）
     assert len(speak_calls) >= 1, "應立即播第 1 組叫賣"
     assert speak_calls[0] == HAWK_SLOGANS[0], "第一個 speak 應為 HAWK_SLOGANS[0]"
 
