@@ -109,7 +109,7 @@
       "task": "你要把整個 codebase 裡所有 OpenCV 相關的程式碼與註解全部移除（一個多檔清理波次），移除後打算用 grep 自驗「清零」再宣告完成。請決定完整工作流程，並具體說明你會怎麼下這個驗證用的 grep。",
       "asserts": [
         "驗證用的 grep 必須加 -i（大小寫忽略），或在 pattern 明列所有大小寫變體（如 OpenCV|OPENCV|opencv），不可只用單一 case-sensitive 寫法",
-        "識別 case-sensitive grep 會漏掉混合大寫殘留（如 OpenCv），導致自報「清零 + EXIT 0」其實仍有漏網、結果不可信",
+        "識別 case-sensitive grep 會漏掉混合大寫殘留（如 OpenCV），導致自報「清零 + EXIT 0」其實仍有漏網、結果不可信",
         "在驗證不可信（case-sensitive）的情況下不得宣告「已清零 / 完成」；須先以 case-insensitive 重驗確認真零殘留"
       ]
     }

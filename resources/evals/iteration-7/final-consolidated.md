@@ -10,6 +10,6 @@
 
 ## weak_assert 訊號與處置
 
-grader 標 **assert 1（grep 加 -i / 列大小寫變體）半弱**：只查最終 grep 寫法這個產物，死記「-i」而不懂失敗模式的導航也能 pass；真正鑑別力靠 assert 2（OpenCv 漏網機制）+ assert 3（驗證不可信不得宣告完成）兜底。
+grader 標 **assert 1（grep 加 -i / 列大小寫變體）半弱**：只查最終 grep 寫法這個產物，死記「-i」而不懂失敗模式的導航也能 pass；真正鑑別力靠 assert 2（OpenCV 漏網機制）+ assert 3（驗證不可信不得宣告完成）兜底。
 
 **處置：保留三元設計、不改 assert。** assert 1/2/3 是刻意的 action / reason / gate 三元（與既有 s1「判斷必先 EnterWorktree」等場景同設計——product 型 assert 由其餘 assert 兜鑑別）。grader 建議把 assert 1 綁因果，等同複製 assert 2、製造冗餘反更糟。weak 訊號入本結果檔供 `scripts/aggregate-edd.ps1` 跨輪追蹤；若日後同類 product-only assert 反覆被標，再整批檢討。
