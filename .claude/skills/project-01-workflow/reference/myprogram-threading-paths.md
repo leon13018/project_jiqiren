@@ -98,6 +98,7 @@ class InputReader:
 # main.py finally：tts.shutdown(); action.shutdown(); input_reader.shutdown(); os._exit(0)
 ```
 - **Caller**：`read_terminal_key(timeout=None)` default **阻塞**（主選單/standby）；hawk 主迴圈才顯式 `timeout=0.1` polling。`read_customer_input(timeout)` 走既有 timeout。bytes-level decode 取代舊 `sys.stdin.reconfigure` hack。
+- **鍵盤 gate（2026-06-21）**：`SALES_KEYBOARD`（env，預設 0=關）控制是否啟動 stdin reader thread——`InputReader.__init__(*, keyboard_enabled=True)` 只在 enabled 時 start `_loop` thread；singleton `_reader = InputReader(keyboard_enabled=_KEYBOARD)`。關時 `inject()`（web/觸控/語音 STT 共用 sink）/`read()`/`shutdown()` 照常（純 queue 操作，不依賴 thread）→ demo 預設只 web/語音驅動。`keyboard_enabled` 預設 True 是給測試 fixture（`InputReader(source=...)` 要 thread 消化 FakeByteSource）；production 唯一實例是 singleton、明確帶 env 值。模式入口改 CLI flag（`--hawk`，見 sales-tts-ux.md）。
 
 ## 4 個踩到的 bug（教訓）
 1. **polling default timeout 不能設 0.1**：主選單每 100ms 重印 banner。根因：`read_terminal_key` default `0.1` 對「期待阻塞等鍵」的主選單/standby 是錯設計。修：default `None`，只有 polling 並行 cv2 的 caller 才顯式 `0.1`。polling cadence 是 caller-specific。
