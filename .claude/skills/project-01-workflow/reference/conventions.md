@@ -7,6 +7,7 @@
 - 開發環境 quirk（Windows cp936）
 - 工作原則：修 bug 掃同類全修
 - 工作原則：grep import 殘留展開多行括號 import
+- 工作原則：清理後 grep 驗證必加 `-i` / 列舉大小寫變體
 
 ---
 
@@ -55,3 +56,13 @@
 宣稱「無 caller 使用 X」前，注意 `from <module> import` 的 grep 命中**只顯示首行**——多行括號 import 的成員名單在後續行，必須用 `-A` 展開或 Read 該段逐一確認，再下「零 caller」結論。
 
 **Why**：perf_w1 spec 曾據未展開的 grep 寫下「原語零 caller」前提，sales-coder 實作到一半 BLOCKED 才發現 `_invalid_qty_reask.py` 的括號 import 內含 `contains_any`（spec 前提修正 `9579a5a`），多耗一輪往返。
+
+---
+
+## 工作原則：清理後 grep 驗證必加 `-i` / 列舉大小寫變體
+
+「清理某識別字後 grep 自驗清零」時，grep **必加 `-i`**（或在 pattern 明列所有大小寫變體），否則 case-sensitive 命中漏掉混合大寫殘留，自報「清零 + EXIT 0」不可信、驗證形同虛設。
+
+**Why**：OpenCV 移除波次曾以 `opencv|OPENCV`（case-sensitive）grep 自報清零並 EXIT 0，但混合大寫 `OpenCV` 共 6 處（註解 / docstring）全數漏網，須主 agent 補跑 `-i` 才真正清除。
+
+**How**：清理 grep 一律 `-i`；工具不支援大小寫忽略時，pattern 明列 `Xxx|XXX|xxx` 全變體。報告「已清零」前確認用的是 case-insensitive 命中。
