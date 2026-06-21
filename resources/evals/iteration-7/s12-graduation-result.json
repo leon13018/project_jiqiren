@@ -1,0 +1,40 @@
+{
+  "date": "2026-06-21",
+  "run_id": "wf_6c9b4a38-acf",
+  "scope": "s12-graduation",
+  "scenario_ids": ["s12-cleanup-grep-verify-case"],
+  "verdict": {
+    "overall_pass": true,
+    "failed": [],
+    "summary": "場景 s12-cleanup-grep-verify-case（k=1）全數通過：3 個 assertion 的 majority_pass 皆為 true、pass_rate 皆 1.0（1/1），故 overall_pass=true。導航在三個關鍵環節都站穩：驗證用 grep 加上 -i（或明列大小寫變體）、指出 case-sensitive grep 會漏掉混合大寫殘留（如 OpenCv）使「清零＋EXIT 0」的自報不可信、以及在驗證不可信時不搶先宣告完成而是先用 case-insensitive 重驗確認真零殘留。本場景無 baseline_graded，故無 with-skill vs bare 的 skill 增益可比。最弱環節：以鑑別力論，assert 1（grep 加 -i）相對最弱——它只查最終 grep 寫法這個產物，一個死記「grep 要加 -i」卻不懂失敗模式的導航也能 pass，真正鑑別力靠 assert 2（須說出 OpenCv 漏網機制）與 assert 3（須說出不可信時的 gate）兜底；本次三項皆過，故無實際漏網風險。\n\n題庫自我改進訊號：assert 1 偏向「查存在」、鑑別力半弱——建議將 assert 1 綁定「並說明不加 -i 會漏混合大寫殘留」的因果說明，使其從單純查 grep 寫法升級為查理解，與 assert 2/3 形成完整鑑別、避免死記型導航蒙混通過。"
+  },
+  "graded": [
+    {
+      "scenario_id": "s12-cleanup-grep-verify-case",
+      "asserts": [
+        {
+          "assertion": "驗證用的 grep 必須加 -i（大小寫忽略），或在 pattern 明列所有大小寫變體（如 OpenCV|OPENCV|opencv），不可只用單一 case-sensitive 寫法",
+          "pass": true,
+          "evidence": "conventions.md L62-64「工作原則：清理後 grep 驗證必加 -i / 列舉大小寫變體」：『「清理某識別字後 grep 自驗清零」時，grep 必加 -i（或在 pattern 明列所有大小寫變體），否則 case-sensitive 命中漏掉混合大寫殘留，自報「清零 + EXIT 0」不可信、驗證形同虛設。』L68 How：『清理 grep 一律 -i；工具不支援大小寫忽略時，pattern 明列 Xxx|XXX|xxx 全變體。』navigator 決策用 Grep -i=true，等價亦列 OpenCV|OPENCV|opencv|OpenCv 全變體，與原文一致。"
+        },
+        {
+          "assertion": "識別 case-sensitive grep 會漏掉混合大寫殘留（如 OpenCv），導致自報「清零 + EXIT 0」其實仍有漏網、結果不可信",
+          "pass": true,
+          "evidence": "conventions.md L66 Why：『OpenCV 移除波次曾以 opencv|OPENCV（case-sensitive）grep 自報清零並 EXIT 0，但混合大寫 OpenCV 共 6 處（註解 / docstring）全數漏網，須主 agent 補跑 -i 才真正清除。』navigator 明確指出 case-sensitive 的 EXIT 0 是假陰性、不可信，正是此原文描述的失敗模式。"
+        },
+        {
+          "assertion": "在驗證不可信（case-sensitive）的情況下不得宣告「已清零 / 完成」；須先以 case-insensitive 重驗確認真零殘留",
+          "pass": true,
+          "evidence": "conventions.md L68：『報告「已清零」前確認用的是 case-insensitive 命中。』+ sdd.md L126 Iron Law：『NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE. 本輪未跑驗證指令，不得宣告完成 / 通過 / 全綠。』navigator 結論『確認 case-insensitive 命中為零才宣告清零；只有 case-sensitive 的 EXIT 0 不可信、不得宣告完成』兩條原文皆對得上。"
+        }
+      ],
+      "pass_count": 3,
+      "total": 3,
+      "weak_asserts": [
+        "assert 1（grep 加 -i / 列大小寫變體）有半弱性：它仍要求做出正確選擇（用 -i），導航若選 case-sensitive 即 fail，具一定鑑別力；但它只查「最終 grep 寫法」這個產物，不查導航是否理解『為何』——一個只死記「grep 要加 -i」卻不懂失敗模式的導航也能 pass。真正的鑑別力靠 assert 2（要說出 OpenCv 漏網機制）+ assert 3（要說出不可信時的 gate）兜底；單看 assert 1 偏向查存在。建議 assert 1 應綁定「並說明不加 -i 會漏混合大寫」才完全鑑別。"
+      ],
+      "variant": "skill",
+      "trial": 1
+    }
+  ]
+}
