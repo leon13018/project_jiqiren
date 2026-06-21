@@ -10,10 +10,11 @@
 |---|---|---|
 | **移除啟動橫幅 + 操作小抄**：`main()` 開頭 `=`*50 橫幅 + 「操作小抄」chat-driven 鍵位說明整段刪除；啟動直接進選單/模式 | `e2e4c9f`（spec `2cb02ac`）| pytest ✅ / Pi ✅ |
 | **移除 L1 待機/客服模式**：商家層只保留「叫賣」；`run_l1` 移 key 2/3 分派、刪 `_run_l1_standby`/`_run_l1_service`/`L1_STANDBY_ENTRY_PROMPT` + 對應測試；選單只剩「1 叫賣 + q」。**保留** `SERVICE_PHONE` 與 L2-L4 顧客客服 confirm（不同功能） | `4fe2d94`（spec `a111947` / stale scrub `b52a6ea`）| pytest ✅ / Pi ✅ |
-| **`SALES_QUIET` → `SALES_VOICE`（反轉預設）**：機器人 echo（`[語音]`/`[動作]`/`[模擬提示]`）改**預設隱藏**，`SALES_VOICE=1` 才顯示（推翻 06-20 `SALES_QUIET` 的預設全顯示 `f529690`）；導航 + 錯誤 ⚠️ 恆顯示 | `4d85227`（spec `9c863f5` / doc `ce67f28`）| pytest ✅ / Pi ✅ |
+| **`SALES_QUIET` → `SALES_VOICE`（反轉預設）**：機器人 echo（`[語音]`/`[動作]`/`[模擬提示]`）改**預設隱藏**，`SALES_VOICE=1` 才顯示（推翻 06-20 `SALES_QUIET` 的預設全顯示 `f529690`）；錯誤 ⚠️ 恆顯示，**導航當時保留**（後由下方 Option A `06af014` 反轉成一併 gate）| `4d85227`（spec `9c863f5` / doc `ce67f28`）| pytest ✅ / Pi ✅ |
 | **`--hawk` 進場 flag + `SALES_KEYBOARD` gate + 啟動防呆**：模式入口改 CLI flag（`--hawk` 跳選單直進叫賣，複用 `enter_hawk_immediately`、一字之改）；鍵盤預設關（`SALES_KEYBOARD=1` 才啟 stdin reader thread，`inject()` web/語音不受影響）；退出 Ctrl+C；**防呆**：無 mode flag 且鍵盤關 → 印訊息 early return 防卡死 | `27d1971`+`6acdea7`（spec `ac550b6` / doc `6a346da`）| pytest ✅ / Pi ✅ |
 | **移除 hawk entry「進入叫賣模式」print**：`_run_l1_hawk` 每次進場印的導航行刪除（連帶孤兒 `L1_HAWK_ENTRY_PROMPT` 常數 + stale 參照）；SALES_VOICE 關時進 hawk 終端全靜 | `1bcc20c`（spec `9131276` / doc `9697a37`）| pytest ✅ / Pi ✅ |
-| **加 `[模式] 叫賣模式` 一次性啟動提示**：`_run_wiring` 啟動防呆通過後，`--hawk` 時印一次模式標示（對齊 `[webui]` 啟動提示風格；非 `_run_l1_hawk` 每次進場印）。未來新模式各自加行（YAGNI，不建 map） | `b012d9b`（spec `108bc2b`）| pytest ✅ / Pi 待驗 |
+| **加 `[模式] 叫賣模式` 一次性啟動提示**：`_run_wiring` 啟動防呆通過後，`--hawk` 時印一次模式標示（對齊 `[webui]` 啟動提示風格；非 `_run_l1_hawk` 每次進場印）。未來新模式各自加行（YAGNI，不建 map） | `b012d9b`（spec `108bc2b`）| pytest ✅ / Pi ✅ |
+| **`print_terminal` 導航歸 `SALES_VOICE` gate（Option A）**：`TerminalSim.print_terminal` 加 `if _VOICE:` → 所有終端導航（選單 / L4 結帳明細 / SERVICE_PHONE / prompts）與 echo 一併歸 `SALES_VOICE`（反轉本弧較早的「保留導航」）；`SALES_VOICE=0`（預設）終端只剩 `[模式]`/`[webui]`/`[系統]` 啟動退出行 + 錯誤 ⚠️。**鍵盤選單操作需 `SALES_VOICE=1`** | `06af014`（spec `bced430`）| pytest ✅ / Pi 待驗 |
 
 ## 控制模式重構（本弧核心）
 
