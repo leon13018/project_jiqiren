@@ -26,7 +26,7 @@ description: 畫 Project_01 報告用系統架構圖 / 流程圖 / 狀態機 —
 5. **派 opus subagent 實作 + 自檢** → 把「計畫 + 主題 spec + 核對過的碼事實 + 共用 theme + 三鐵則 + `reference/`」交給一個 **opus** subagent（`model: opus`）：照計畫寫 `NN-*.html`（先卡片層→截圖修版面→再 SVG 箭頭層）、render + 多方截圖自檢反覆修到完美（鐵則 3 + `render-pipeline.md`），回報產出 + 自檢結果 + 任何不確定處。
    > 你本身已是 subagent、無法再派 sub-subagent → 自己實作，但仍走 step 3–4 的 brainstorming→writing-plans 設計紀律。
 6. **orchestrator 復檢** → 收 subagent 產出後自己再裁切核對一遍（別全信）：三鐵則都守住嗎？**有無捏造主程式沒有的東西**？版面 / 標籤壓線 / 無黑邊 / 不相碰？
-7. **給使用者驗收** → 送自檢版 PNG + 說明設計決策 + 三問（風格 / 內容 / 版面）。
+7. **給使用者驗收** → 送自檢版 PNG + 說明設計決策 + 三問（風格 / 內容 / 版面）。*（若被指派為 autonomous / 無人乾跑模式 → 此步改為自審到位即收、不阻塞等驗收。）*
 8. **通過才收尾** → 匯出 **2× PNG + SVG** 進 `resources/architecture/diagrams/`、更新 `specs/`、commit（`docs(diagrams): …`）。未過則回 step 5–6 修。
 
 > 規劃階段（還沒定要畫什麼）不要先 commit。驗收 / BLOCKED 等「等使用者」節點按 memory `push-notify-at-review-gates` 推手機。
@@ -41,6 +41,7 @@ description: 畫 Project_01 報告用系統架構圖 / 流程圖 / 狀態機 —
 ## 📦 固定資產（單一事實來源）
 
 - **共用 theme**：`resources/architecture/diagrams/theme/{tokens.css,diagram.css}`（**canonical**，全圖 HTML 相對 `<link href="theme/diagram.css">` 引用；改 theme 全圖一起變，慎改）。
+- **起手骨架**：`<skill>/assets/skeleton.html`（含 SVG `<marker>` 箭頭頭 + stage / frame / card / eyebrow / legend / edge 結構；複製成 `diagrams/NN-*.html` 改）。**⚠️ marker 箭頭頭 theme 沒給、一定要在 HTML `<defs>` 自己放（用 skeleton 的），否則畫出有線沒箭頭。圖①② 實體 .html 已移除 → 要繼承具體 layout 只能看 `specs/NN-*.md` + theme + 本骨架,沒有舊 .html 可 Read。**
 - **no-cache server**：`<skill>/scripts/nocache_server.py`（plain `http.server` 會被 Chromium 快取 CSS）。
 - **render 暫存**（`.playwright-mcp/`、`_crops/`、根 `NN-*.png`）已 gitignore，非交付。
 - 交付物：`diagrams/NN-<topic>.{html,png,svg}` + `specs/NN-<topic>.md`，**三式同名並存**。

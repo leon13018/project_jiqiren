@@ -30,7 +30,7 @@ py -3.14 "<skill>/scripts/nocache_server.py" "<repo>/resources/architecture/diag
 ## 3. Playwright MCP 的 4 個 quirk
 1. **`file:` 被擋** → 走上面的 http server。
 2. **瀏覽器每輪 idle 會被關**:當輪「首次」`browser_navigate` 常 `Target page... closed` error → **再打一次同樣 navigate 就重啟**。重啟後 viewport 重置 → 要重 `browser_resize`。
-3. **`browser_resize` 設的是 device px**;CSS 視窗 = device ÷ DPR。本機這顆 headless Chromium **DPR 固定 ≈ 0.667**(顯示器縮放,改 viewport 改不掉)。**先量再算**:`browser_evaluate` 回 `window.devicePixelRatio`,別寫死。
+3. **`browser_resize` 設的是 device px**;CSS 視窗 = device ÷ DPR。**DPR 隨環境 / 瀏覽器實例而異 —— 實測過 0.667 也測過 1.0,千萬別假設**。**每次一定先量再算**:`browser_evaluate` 回 `window.devicePixelRatio`,所有 scale 都用這個量到的值算,絕不寫死數字。
 4. **`scale:'css'` 截圖 = device viewport 像素**(不是 CSS 像素)。所以截圖解析度 = 你設的 device viewport。要多大圖就把 device viewport 設多大(見 §6)。
 
 ## 4. 渲染一張圖（自檢用 1:1 原生解析）
@@ -60,7 +60,7 @@ py -3.14 "<skill>/scripts/nocache_server.py" "<repo>/resources/architecture/diag
 - **每張卡的最長文字**(desc / note / 命令列)—— 看有沒有 `overflow:hidden` 截字。
 - **箭頭標籤**—— SVG 在卡片 DOM 之前 = **渲染在卡下層**,標籤延伸進卡片 bbox 會被卡蓋住,看起來像「框裏字被截」→ 標籤一律落在卡片之間空白、別超進卡。
 
-逐項清單:字看得到嗎 / 有沒有截斷 / 有沒有衝出框 / 顏色對比夠嗎 / 箭頭線可見嗎 / 標籤壓在自己的線上嗎 / 組件之間 ≥30px 不相碰嗎 / 卡內容垂直置中嗎(`browser_evaluate` 量每卡 top/bot gap 應相等)。
+逐項清單:字看得到嗎 / 有沒有截斷 / 有沒有衝出框 / 顏色對比夠嗎 / 箭頭線可見嗎(**有沒有箭頭頭** —— 別只有線沒頭,見 §7 marker)/ 標籤壓在自己的線上嗎 / 組件之間 ≥30px 不相碰嗎 / 卡內容垂直置中嗎(`browser_evaluate` 量每卡 top/bot gap 應相等)/ **跨 band 元件 y 區間不重疊嗎**(常見:某條 flow lane 或某排卡的 y 撞穿另一 band 的卡 → `browser_evaluate` 量各 band top/bottom)。
 
 裁切範本(改座標即可):
 ```powershell
@@ -70,6 +70,7 @@ $b=New-Object System.Drawing.Bitmap($w,$h);$g=[System.Drawing.Graphics]::FromIma
 $g.DrawImage($src,(New-Object Drawing.Rectangle(0,0,$w,$h)),(New-Object Drawing.Rectangle($x,$y,$w,$h)),'Pixel')
 $b.Save("<root>\_crops\c.png");$g.Dispose();$b.Dispose();$src.Dispose()
 ```
+> System.Drawing 踩坑:`Add-Type -AssemblyName System.Drawing` **每個獨立 ps 腳本都要重下**(否則 `[System.Drawing.Image]` TypeNotFound);若要高品質縮圖,`$g.InterpolationMode` 要賦 **enum 型別**(`[System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic`),賦字串會 PropertyNotFound。
 
 ## 6. 高解析匯出配方（DPR 反推 + 填滿，零黑邊）
 要 **N× native** 的交付圖(預設 N=2):
@@ -92,16 +93,17 @@ $b.Save("<root>\_crops\c.png");$g.Dispose();$b.Dispose();$src.Dispose()
 3. `browser_take_screenshot` → `NN-2x.png`。
 4. **驗證(PowerShell `GetPixel` 四角)**:尺寸 = `nativeW*N × nativeH*N`,**四角像素都該是畫布本身深色背景 / 光暈**(約 `(4,7,16)` 或帶色光暈);若出現灰 `(44,44,44)` 或純黑大片 = 沒填滿,回 step 2 檢查 margin/scale。
 
-> 數學:截圖像素 = device viewport;CSS 視窗 = device ÷ dpr;畫布縮放 s 後 CSS 尺寸 = native×s,要 = CSS 視窗 → `s = (device/dpr)/native = N/dpr`。本機 dpr≈0.667 → N=2 時 s=3。
+> 數學:截圖像素 = device viewport;CSS 視窗 = device ÷ dpr;畫布縮放 s 後 CSS 尺寸 = native×s,要 = CSS 視窗 → **`s = (device/dpr)/native = N/dpr`**。N=2 時:dpr=1 → s=2;dpr=0.667 → s=3。**務必用實測 dpr 算,別套這兩個例子。**
 
 ## 7. 組 SVG（內嵌 2× PNG）
-毛玻璃(模糊/glow)本質點陣、無法真向量化 → SVG = 邏輯 native 尺寸的容器內嵌 2× PNG(可縮放、副檔名 .svg)。PowerShell:
+毛玻璃(模糊/glow)本質點陣、無法真向量化 → SVG = 邏輯 native 尺寸的容器內嵌 2× PNG(可縮放、副檔名 .svg)。PowerShell(**尺寸數字直接寫死進字串,別用變數** —— 實測 `'width="'+$W+'"'` 這種拼接會拿到空值、產出 `width="" viewBox="0 0  "` 的壞 SVG):
 ```powershell
 $b64=[Convert]::ToBase64String([IO.File]::ReadAllBytes($png2x))
-$svg='<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="'+$W+'" height="'+$H+'" viewBox="0 0 '+$W+' '+$H+'"><image width="'+$W+'" height="'+$H+'" preserveAspectRatio="xMidYMid meet" xlink:href="data:image/png;base64,'+$b64+'"/></svg>'
+# 下例 native=1960×1280;改尺寸時直接改字串裡的數字,別引變數
+$svg='<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1960" height="1280" viewBox="0 0 1960 1280"><image width="1960" height="1280" preserveAspectRatio="xMidYMid meet" xlink:href="data:image/png;base64,'+$b64+'"/></svg>'
 [IO.File]::WriteAllText("$diag\NN-topic.svg",$svg,(New-Object Text.UTF8Encoding($false)))
 ```
-`$W/$H` = native(如 1960/1280);內嵌的是 2× png → 顯示時 2× 密度、清晰。驗證:`[xml]` 解析不報錯 + base64 可 decode 回 PNG。
+native(如 1960×1280)為邏輯尺寸;內嵌的是 2× png → 顯示時 2× 密度、清晰。**驗證**:① SVG 前 200 字 `width`/`viewBox` **非空**(踩過拼接成空值);② `[xml]` 解析不報錯 + base64 decode 回 PNG byte 數相符。**大 SVG(內嵌幾 MB PNG)別用 `browser_navigate` 開驗 —— 會 30s timeout**;靠上面兩步即可(PNG 已單獨 render + 四角驗過)。
 > ⚠️ PowerShell `Remove-Item` 對含路徑的刪除可能被 sandbox 擋(整條命令含 Remove-Item 會被預掃 block,連 Copy/Write 一起沒跑)→ 刪 scratch 用 Bash `rm -f`,建檔命令裡別混 Remove-Item。
 
 ## 8. gitignore render 暫存

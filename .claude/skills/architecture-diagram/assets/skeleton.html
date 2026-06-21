@@ -1,0 +1,62 @@
+<!doctype html>
+<!-- ════════════════════════════════════════════════════════════════
+  最小起手骨架 — 複製到 resources/architecture/diagrams/NN-<topic>.html 後改。
+  涵蓋生手最容易漏的東西:① SVG <marker> 箭頭頭(theme 裡沒有,一定要自己放在 <defs>)
+  ② .stage 尺寸 ③ frame/card/eyebrow/legend 結構 ④ 一條 flow 邊 + 壓線標籤。
+  座標都是範例,實際照 writing-plans 的計畫擺。
+  ════════════════════════════════════════════════════════════════ -->
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>圖 N · 主題</title>
+<link rel="stylesheet" href="theme/diagram.css">
+<style>
+  .stage { width: 1960px; height: 1280px; }   /* 畫大沒關係,組件不相碰優先 */
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <div class="title"><span class="num">FIG.0N</span>主題名稱</div>
+  <div class="subtitle">英文副標 · 一句話論點</div>
+
+  <!-- 箭頭層:必含 <marker> 箭頭頭(theme 沒給);邊用 marker-end="url(#ah)" 才有箭頭 -->
+  <svg class="edges" viewBox="0 0 1960 1280" preserveAspectRatio="none">
+    <defs>
+      <marker id="ah" markerWidth="13" markerHeight="13" refX="10" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L11,4.5 L0,9 Z" fill="var(--arrow)" stroke="none"/>
+      </marker>
+      <marker id="ah-hawk" markerWidth="15" markerHeight="15" refX="11" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L12,5 L0,10 Z" fill="oklch(85% 0.15 82)" stroke="none"/>
+      </marker>
+    </defs>
+    <!-- flow 邊範例:實線 + 箭頭頭 -->
+    <path class="flow" marker-end="url(#ah)" d="M420,300 L600,300"/>
+    <!-- hawk 主角弧範例:粗暖金 + 暖金箭頭頭 -->
+    <!-- <path class="hawk" marker-end="url(#ah-hawk)" d="M...C..."/> -->
+    <!-- 邊標籤:壓在線中段(text-anchor=middle 放路徑中點,深色 halo 蓋住線) -->
+    <text class="elabel" x="510" y="296" text-anchor="middle">條件 / 觸發</text>
+    <!-- 垂直線的標籤可轉 90°:<text class="elabel" transform="rotate(90 cx cy)" ...> -->
+  </svg>
+
+  <!-- 系統邊界框(可選) -->
+  <div class="frame" style="left:40px; top:110px; width:1880px; height:1130px;"></div>
+  <div class="frame-label" style="left:40px; top:110px;">系統 / 程序邊界說明</div>
+
+  <!-- 卡片:eyebrow(分類標)→ name(mono 程式識別字)→ meta(mono 小)→ desc(繁中) -->
+  <div class="card blue" style="left:160px; top:240px; width:260px; height:150px;">
+    <div class="eyebrow">分類 · 標籤</div>
+    <div class="name">NodeName</div>
+    <div class="meta">機制 / 一行</div>
+    <div class="desc">繁中說明,垂直自動置中、上下留白對稱。</div>
+  </div>
+
+  <!-- legend(每圖色彩語意自定)收一角 -->
+  <div class="legend" style="left:60px; top:240px; width:240px;">
+    <h4>色彩語意</h4>
+    <div class="row"><span class="sw" style="background:var(--blue-fill);border-color:var(--blue-edge)"></span><span class="lb">類別 A</span></div>
+  </div>
+
+</div>
+</body>
+</html>
