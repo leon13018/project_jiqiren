@@ -162,6 +162,13 @@ body {
 .edges path, .edges line { fill: none; stroke: var(--arrow); stroke-width: 2.4; stroke-linecap: round; }
 .edges .flow { stroke-dasharray: none; }
 .edges .async { stroke-dasharray: 7 5; }
+/* 主角弧線(如圖②的 enter_hawk 回流):粗 + 暖金高亮 */
+.edges .hawk { stroke: oklch(85% 0.15 82 / 0.96); stroke-width: 3.8; }
+.edges .hawklabel {
+  fill: oklch(89% 0.14 84); font-family: var(--font-mono);
+  font-size: 13.5px; font-weight: 700; letter-spacing: 0.3px;
+  paint-order: stroke; stroke: oklch(13% 0.02 268 / 0.92); stroke-width: 5px;
+}
 .edges .elabel {
   fill: var(--ink-dim); font-family: var(--font-mono);
   font-size: 12px; font-weight: 500;
