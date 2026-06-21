@@ -8,7 +8,7 @@
 ## 檔案
 **層狀態（L0–L5）**
 - `machine.py` — `SalesMachine` 主迴圈（State pattern）：`Transition`（含 `enter_hawk` 旗號：交易後下輪 L1 直接 hawk）+ `State(ABC)` + L1/Dialog/L4/L5 四 State 子類別 + cart invariant 檢查；`run_*` 一律晚綁定 `states.` 模組屬性（mock seam）。OOP 重構 W5。
-- `l1.py` — L1 商家模式選擇層：叫賣（hawk 輪播，按 't'/觸控「開始點餐」轉 L2）/ 待機 / 客服。
+- `l1.py` — L1 商家模式選擇層：叫賣（hawk 輪播，按 't'/觸控「開始點餐」轉 L2）。
 - `l2_l3_dialog.py` — L2/L3 統一對話層（**cart 狀態驅動**）：cart 空=L2 問需求；cart 非空=L3 問加單 / 結帳（含 C-2 兩段結帳）。OOP 重構 W4：`ModePolicy`（Strategy，L2/L3 差異集中）+ `DialogSession`（持 io / cart / 計數器，主迴圈與沉默期分派）。
 - `l4.py` — L4 結帳層：印金額 + 等掃碼；v3 雙計時器（36s 總 budget + 12s QR 刷新循環）。
 - `l5.py` — L5 致謝層：純序列 speak → clear_cart → sleep（無互動 / 無分支）。

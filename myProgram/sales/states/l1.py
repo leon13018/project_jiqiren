@@ -1,10 +1,10 @@
-"""L1：商家模式選擇層（叫賣 / 待機 / 客服）。
+"""L1：商家模式選擇層（叫賣）。
 
 對應規格書：resources/plans/業務程式邏輯規劃/L1.md
 
 callback 集合：
     print_terminal / read_terminal_key / speak / exit_program /
-    tts_is_idle / show_hawk_help
+    tts_is_idle / show_hawk_help / do_action
 """
 
 import time
@@ -14,8 +14,6 @@ from myProgram.sales.constants import (
     HAWK_INTERVAL,
     L1_MENU_BANNER,
     L1_HAWK_ENTRY_PROMPT,
-    L1_STANDBY_ENTRY_PROMPT,
-    SERVICE_PHONE,
     ACTION_L1_HAWK,
 )
 
@@ -23,7 +21,7 @@ from myProgram.sales.constants import (
 # ============================================================
 # C14：q 確認狀態（防商家手滑按 q 誤退）
 # 第一次按 q 印提示，第二次才真退。非 q 鍵呼叫 _reset_q_confirm 重置。
-# 模組級 state — 三鏈路（主選單 / standby / hawk）共用；
+# 模組級 state — 兩鏈路（主選單 / hawk）共用；
 # pytest 之間殘留由 tests/conftest.py 內 autouse fixture 每 test 前 reset。
 # ============================================================
 
@@ -65,7 +63,7 @@ def run_l1(
 ):
     """L1 主迴圈：商家模式選擇層。
 
-    顯示選單 → 讀鍵 → 分派三個鏈路（叫賣 / 待機 / 客服）。
+    顯示選單 → 讀鍵 → 分派叫賣鏈路。
     按 q 兩次（連續）才真退出程式；中間按任何非 q 鍵會重置 confirm 狀態（C14）。
 
     Args:
@@ -83,7 +81,7 @@ def run_l1(
             lambda no-op 即可。
         enter_hawk_immediately: True 時跳過主選單直接進叫賣模式（2026-05-26 加）。
             用途：logic.py 在交易完成（dialog / L4 cancel / L5 後續）後設為 True
-            → 連續叫賣不中斷，不顯示「請選擇模式：1/2/3」主選單。
+            → 連續叫賣不中斷，不顯示「請選擇模式：1」主選單。
             False（預設）= 首次進 L1 走原本的主選單流程。
 
     Returns:
@@ -110,8 +108,7 @@ def run_l1(
         # ---- 讀使用者輸入（內層 loop：q confirm 期間不重印 banner）----
         # 2026-05-27 改：q confirm 等下個鍵時，外層的 banner 重印是視覺雜訊
         # （每按一次 q 就會看到一遍 menu）。內層 loop 專責「等下個有效鍵」；
-        # 只有真要重 show banner 的場景（客服 / 待機 sub-routine 返回 /
-        # 亂打鍵忽略）才 break 出外層 while。
+        # 只有真要重 show banner 的場景（亂打鍵忽略）才 break 出外層 while。
         while True:
             key = read_terminal_key()
 
@@ -124,21 +121,7 @@ def run_l1(
             # 非 q 鍵：reset confirm（避免「q → 1 → q」誤觸退出）+ 跳出內層 dispatch
             _reset_q_confirm()
             break
-        if key == "3":
-            _run_l1_service(print_terminal)
-            # 客服印完電話立即回選單（continue 到下一輪）
-            continue
-        elif key == "2":
-            result = _run_l1_standby(
-                print_terminal=print_terminal,
-                read_terminal_key=read_terminal_key,
-                exit_program=exit_program,
-            )
-            if result is None:
-                return None
-            # result == 'menu' → 回選單
-            continue
-        elif key == "1":
+        if key == "1":
             # _run_l1_hawk 回傳域 = {"L2", None}，直接透傳（原恆等映射移除）
             return _run_l1_hawk(
                 print_terminal=print_terminal,
@@ -149,41 +132,7 @@ def run_l1(
                 tts_is_idle=tts_is_idle,
                 show_hawk_help=show_hawk_help,
             )
-        # 其他鍵：重印選單（q / 1 / 2 / 3 已在上面處理；非 q 鍵已 reset confirm）
-
-
-def _run_l1_service(print_terminal) -> None:
-    """鏈路 A — 客服模式：印電話 → 返回讓主迴圈回選單。"""
-    print_terminal(SERVICE_PHONE)
-
-
-def _run_l1_standby(
-    print_terminal,
-    read_terminal_key,
-    exit_program,
-):
-    """鏈路 B — 待機模式：印提示 → 靜默等待 → r 回選單 / q 退出。
-
-    Returns:
-        'menu' — 按 r 回 L1 選單
-        None — 按 q 退出程式
-    """
-    # 印提示
-    print_terminal(L1_STANDBY_ENTRY_PROMPT)
-
-    while True:
-        key = read_terminal_key()
-        if key == "q":
-            # C14：第一次 q 印提示，第二次 q 才真退
-            if _handle_q_press(exit_program, print_terminal):
-                continue  # 第一次 q，繼續等下一個鍵
-            return None  # 第二次 q：exit_program 已被呼叫
-        # 非 q 鍵：reset confirm（避免「q → r → q」誤觸退出）
-        _reset_q_confirm()
-        if key == "r":
-            # 按 r 回主選單
-            return "menu"
-        # 其他鍵忽略，繼續等待
+        # 其他鍵：重印選單（q / 1 已在上面處理；非 q 鍵已 reset confirm）
 
 
 def _run_l1_hawk(
@@ -230,8 +179,8 @@ def _run_l1_hawk(
             gap_deadline = None
         # 讀鍵（hawk 模式必須跟輪播並行，顯式傳 timeout=0.1 走 polling cadence；
         # 無輸入返回 ""，下一輪續輪播 + 再讀。
-        # 2026-05-28 hot fix：之前 read_terminal_key default=0.1 連累主選單 /
-        # standby 兩個 caller busy loop，default 已改 None；hawk 這裡顯式傳）
+        # 2026-05-28 hot fix：之前 read_terminal_key default=0.1 連累主選單
+        # caller busy loop，default 已改 None；hawk 這裡顯式傳）
         key = read_terminal_key(timeout=0.1)
         if key == "q":
             # C14：第一次 q 印提示，第二次 q 才真退

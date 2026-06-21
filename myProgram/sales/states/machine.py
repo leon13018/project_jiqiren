@@ -62,10 +62,10 @@ def _assert_cart_nonempty(cart, ctx: str) -> None:
 
 
 class L1State(State):
-    """L1 商家模式選擇（叫賣 / 待機 / 客服）。
+    """L1 商家模式選擇（叫賣）。
 
     L1 入口流程：
-    - 首次進 L1：顯示主選單，商家選 1/2/3
+    - 首次進 L1：顯示主選單，商家選 1（叫賣）
     - 交易完成後續 L1：跳過主選單直接進 hawk（連續叫賣，2026-05-26 加）
       涵蓋 4 個出口：dialog reject / dialog timeout / L4 cancel / L5 完成
     """

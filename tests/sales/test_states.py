@@ -90,7 +90,7 @@ class FakeKeyboardInput:
 # Scenario: 程式啟動進入 L1 印模式選擇選單
 # Given 程式剛啟動（python3.11 -m myProgram 或 python3.11 -m myProgram.main）
 # When 進入 L1 模式選擇層
-# Then 終端印選單含三個選項（1 叫賣 / 2 待機 / 3 客服）與 q 退出提示
+# Then 終端印選單只含 1 叫賣 + q 退出提示（待機 / 客服模式已移除）
 # ============================================================
 
 def test_l1_entry_prints_mode_select_menu() -> None:
@@ -111,138 +111,12 @@ def test_l1_entry_prints_mode_select_menu() -> None:
         do_action=lambda *a, **k: None,
     )
 
-    # Assert：印出的選單要包含三個選項與 q 提示
+    # Assert：選單只含 1 叫賣 + q；不含已移除的待機 / 客服
     all_output = "\n".join(printed)
     assert "1" in all_output, "選單應含選項 1（叫賣模式）"
-    assert "2" in all_output, "選單應含選項 2（待機模式）"
-    assert "3" in all_output, "選單應含選項 3（客服模式）"
     assert "q" in all_output, "選單應含 q 退出提示"
-
-
-# ============================================================
-# L1-A-001
-# Scenario: 商家輸入 3 進入客服模式印電話後立即回 L1 選單
-# Given L1 選單顯示中，等待商家輸入
-# When 商家輸入「3」
-# Then 終端印商家客服電話，無等待 → 立即回 L1 選單
-# ============================================================
-
-def test_l1_a_service_mode_prints_phone_and_returns_to_menu() -> None:
-    # Arrange
-    printed: list = []
-    # 輸入 3（進客服），接著 q q（C14：兩次 q 退出，避免無限迴圈）
-    kbd = FakeKeyboardInput(["3", "q", "q"])
-    exit_calls: list = []
-
-    # Act
-    states.run_l1(
-        print_terminal=lambda text: printed.append(text),
-        read_terminal_key=kbd.read,
-        speak=lambda text: None,
-        exit_program=lambda: exit_calls.append(True),
-        tts_is_idle=lambda: True,
-        show_hawk_help=lambda *a, **k: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # Assert：電話號碼出現在印出內容中
-    all_output = "\n".join(printed)
-    assert "0900-XXX-XXX" in all_output, "應印出客服電話"
-    # 印完電話後應回選單（選單在第二輪再印一次）
-    menu_count = sum(1 for p in printed if "請選擇模式" in p)
-    assert menu_count >= 2, "客服後應回選單（選單至少印兩次）"
-
-
-# ============================================================
-# L1-B-001
-# Scenario: 商家輸入 2 進入待機模式印提示後保持靜默
-# Given L1 選單顯示中
-# When 商家輸入「2」
-# Then 終端印「進入待機模式，按 r + Enter 回主選單」，進入靜默狀態
-# ============================================================
-
-def test_l1_b_standby_mode_prints_prompt_and_stays_idle() -> None:
-    # Arrange
-    printed: list = []
-    # 輸入 2 進待機，接著 q q（C14：兩次 q 退出）
-    kbd = FakeKeyboardInput(["2", "q", "q"])
-    exit_calls: list = []
-
-    # Act
-    states.run_l1(
-        print_terminal=lambda text: printed.append(text),
-        read_terminal_key=kbd.read,
-        speak=lambda text: None,
-        exit_program=lambda: exit_calls.append(True),
-        tts_is_idle=lambda: True,
-        show_hawk_help=lambda *a, **k: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # Assert：待機提示有印出
-    all_output = "\n".join(printed)
-    assert "待機" in all_output, "應印待機模式提示"
-    assert "r" in all_output, "待機提示應包含 r 回選單說明"
-
-
-# ============================================================
-# L1-B-002
-# Scenario: 待機模式期間商家按 r 回 L1 選單
-# Given 程式處於 L1 待機模式
-# When 商家輸入「r」
-# Then 程式離開待機，回 L1 選單（重新印模式選擇）
-# ============================================================
-
-def test_l1_b_standby_r_returns_to_menu() -> None:
-    # Arrange
-    printed: list = []
-    # 進待機（2），按 r 回選單，按 q q（C14：兩次 q）退出
-    kbd = FakeKeyboardInput(["2", "r", "q", "q"])
-    exit_calls: list = []
-
-    # Act
-    states.run_l1(
-        print_terminal=lambda text: printed.append(text),
-        read_terminal_key=kbd.read,
-        speak=lambda text: None,
-        exit_program=lambda: exit_calls.append(True),
-        tts_is_idle=lambda: True,
-        show_hawk_help=lambda *a, **k: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # Assert：按 r 後選單應再印一次
-    menu_count = sum(1 for p in printed if "請選擇模式" in p)
-    assert menu_count >= 2, "按 r 後應回選單（選單至少印兩次）"
-
-
-# ============================================================
-# L1-B-003
-# Scenario: 待機模式期間商家按 q 立即終止程式（全域規則）
-# Given 程式處於 L1 待機模式
-# When 商家輸入「q」
-# Then 程式立即終止（exit_program callback 被呼叫）
-# ============================================================
-
-def test_l1_b_standby_q_exits_program() -> None:
-    # Arrange
-    exit_calls: list = []
-    # 進待機（2），待機中按 q q（C14：兩次 q 才真退）
-    kbd = FakeKeyboardInput(["2", "q", "q"])
-
-    # Act
-    states.run_l1(
-        print_terminal=lambda text: None,
-        read_terminal_key=kbd.read,
-        speak=lambda text: None,
-        exit_program=lambda: exit_calls.append(True),
-        tts_is_idle=lambda: True,
-        show_hawk_help=lambda *a, **k: None,
-        do_action=lambda *a, **k: None,
-    )
-
-    # Assert：exit_program 被呼叫一次（兩次 q 真退）
-    assert len(exit_calls) == 1, "待機中連按兩次 q 應呼叫 exit_program"
+    assert "待機" not in all_output, "選單不應再含待機模式（已移除）"
+    assert "客服" not in all_output, "選單不應再含客服模式（已移除）"
 
 
 # ============================================================

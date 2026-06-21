@@ -3,7 +3,7 @@
 對應規格書：resources/plans/業務程式邏輯規劃/
 
 本 package 採子模組拆分：
-    - l1.py                 — L1 商家模式選擇（叫賣 / 待機 / 客服）
+    - l1.py                 — L1 商家模式選擇（叫賣）
     - l2_l3_dialog.py       — L2/L3 合一對話層（cart 狀態驅動；2026-05-25 B 方案重構）
     - _l2_l3_qty_followup.py — L2/L3 鏈路 C 數量追問共享 helper（P6.S9 改名）
     - l4.py                 — L4 印金額 + 等掃碼（結帳層）

@@ -5,8 +5,9 @@
 TDD（Stage 3）會由 subagent 把這些 scenarios 搬到 tests/sales/test_*.py 並補實作。
 
 對應 prod 模組（subagent Stage 3 階段決定如何分配）：
-    - L1-ENTRY / L1-A / L1-B / L1-C / L1-Q → myProgram/sales/states.py 或 logic.py
+    - L1-ENTRY / L1-C / L1-Q → myProgram/sales/states.py 或 logic.py
       （L1 屬主迴圈級邏輯，states.py 加 run_l1(...) 或 logic.py 主迴圈處理）
+      （2026-06-21：L1-A 客服 / L1-B 待機兩模式已移除，只保留叫賣）
 
 設計約束（選項 C，沿用 L0 規範）：
     - 禁 import 廠商 SDK（ActionGroupControl / Board）
@@ -34,54 +35,8 @@ L1 鏈路 C（叫賣模式啟動）：立即播第 1 組叫賣，按 't' 轉 L2
 ### Scenario: 程式啟動進入 L1 印模式選擇選單
 ### Given 程式剛啟動（python3.11 myProgram/myProgram.py）
 ### When 進入 L1 模式選擇層
-### Then 終端印選單含三個選項（1 叫賣 / 2 待機 / 3 客服）與 q 退出提示
+### Then 終端印選單含一個選項（1 叫賣）與 q 退出提示（待機 / 客服模式已移除）
 def test_l1_entry_prints_mode_select_menu() -> None:
-    pass
-
-
-# ============================================================
-# L1-A：客服模式（商家查電話）
-# ============================================================
-
-## L1-A-001
-### Scenario: 商家輸入 3 進入客服模式印電話後立即回 L1 選單
-### Given L1 選單顯示中，等待商家輸入
-### When 商家輸入「3」
-### Then 終端印商家客服電話（從 L0 客服電話常數取），無等待 / 無確認 → 立即回 L1 選單
-###      （對比 L4 客服模式需手動選退出 / 繼續，因 L1 無進行中交易可保留）
-def test_l1_a_service_mode_prints_phone_and_returns_to_menu() -> None:
-    pass
-
-
-# ============================================================
-# L1-B：待機模式（商家暫停）
-# ============================================================
-
-## L1-B-001
-### Scenario: 商家輸入 2 進入待機模式印提示後保持靜默
-### Given L1 選單顯示中
-### When 商家輸入「2」
-### Then 終端印「進入待機模式，按 r + Enter 回主選單」，
-###      程式進入「不主動做任何事」狀態（不叫賣 / 不發語音 / 不轉層）
-def test_l1_b_standby_mode_prints_prompt_and_stays_idle() -> None:
-    pass
-
-
-## L1-B-002
-### Scenario: 待機模式期間商家按 r 回 L1 選單
-### Given 程式處於 L1 待機模式
-### When 商家輸入「r」
-### Then 程式離開待機，回 L1 選單（重新印模式選擇）
-def test_l1_b_standby_r_returns_to_menu() -> None:
-    pass
-
-
-## L1-B-003
-### Scenario: 待機模式期間商家按 q 立即終止程式（全域規則）
-### Given 程式處於 L1 待機模式
-### When 商家輸入「q」
-### Then 程式立即終止（exit_program callback 被呼叫；對齊 L0 全域 q 退出規則）
-def test_l1_b_standby_q_exits_program() -> None:
     pass
 
 
