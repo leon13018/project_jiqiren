@@ -302,8 +302,8 @@ def test_tick_countdown_shown_when_flag_on(monkeypatch, capsys):
 
 
 # ============================================================
-# SALES_VOICE：預設隱藏終端正常機器人 echo（[模擬提示]）、=1 才顯示，
-# 保留導航（print_terminal 螢幕文字 / 選單 / prompts）恆顯示。
+# SALES_VOICE：預設隱藏終端 echo（[模擬提示]）+ 導航（print_terminal），=1 才顯示
+# （Option A：導航也歸此旗標 gate）。錯誤 ⚠️ 與啟動/退出行（純 print）不受影響。
 # seam：monkeypatch myProgram.main._VOICE（對齊 _SHOW_COUNTDOWN / _EARLY_MIC patch pattern）。
 # ============================================================
 
@@ -322,8 +322,15 @@ def test_show_hawk_help_shown_when_voice_on(monkeypatch, capsys):
     assert "[模擬提示]" in capsys.readouterr().out
 
 
-def test_print_terminal_navigation_kept_when_voice_off(monkeypatch, capsys):
-    """_VOICE=False（預設）也不藏導航：print_terminal('請選擇模式') 仍印（導航保留是 spec 核心）。"""
+def test_print_terminal_navigation_hidden_when_voice_off(monkeypatch, capsys):
+    """_VOICE=False（預設）→ print_terminal 導航不印（Option A：導航也歸 SALES_VOICE gate）。"""
     monkeypatch.setattr("myProgram.main._VOICE", False)
+    TerminalSim().print_terminal("請選擇模式")
+    assert "請選擇模式" not in capsys.readouterr().out
+
+
+def test_print_terminal_shown_when_voice_on(monkeypatch, capsys):
+    """_VOICE=True → print_terminal 導航照印。"""
+    monkeypatch.setattr("myProgram.main._VOICE", True)
     TerminalSim().print_terminal("請選擇模式")
     assert "請選擇模式" in capsys.readouterr().out

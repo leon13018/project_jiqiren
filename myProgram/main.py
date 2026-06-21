@@ -42,10 +42,11 @@ _EARLY_MIC = bool(int(os.environ.get("STT_EARLY_MIC", "0")))
 # 只抑制視覺印行——計時 / timeout / 等待秒數一秒不差。
 _SHOW_COUNTDOWN = bool(int(os.environ.get("SALES_SHOW_COUNTDOWN", "0")))
 
-# 語音 echo 模式（env 旗標）：SALES_VOICE=1 顯示終端機器人狀態 echo（[模擬提示]，
-# demo 預設隱藏 — 跟 web 鏡像 + 實體機器人重複是雜訊；偶爾 debug 才開），預設 0 = 隱藏。
-# 錯誤 ⚠️ 與導航（print_terminal 螢幕文字 / 選單 / prompts）不受此旗標影響恆顯示。
-# 各模組各自讀（沿用 STT_TTS_TIMING precedent，不新增跨模組 import）；只 gate echo print。
+# SALES_VOICE 終端輸出旗標（env）：=1 顯示終端機器人 echo（[語音]/[動作]/[模擬提示]）
+# + 導航（print_terminal：選單 / L4 結帳明細 / prompts）；預設 0 = 全隱藏（demo 走 web
+# 鏡像 / 語音，終端重複是雜訊；偶爾 debug 才開）。錯誤 ⚠️（tts/action _print_failure）+
+# 啟動/退出行（[模式]/[webui]/[系統]，純 print 非本旗標範圍）恆顯示。鍵盤選單操作需
+# SALES_VOICE=1。各模組各自讀（沿用 STT_TTS_TIMING precedent，不新增跨模組 import）。
 _VOICE = bool(int(os.environ.get("SALES_VOICE", "0")))
 
 
@@ -81,8 +82,10 @@ class TerminalSim:
 
     # === 終端 I/O ===
     def print_terminal(self, text):
-        # 純印字（叫賣模式操作提示已抽 show_hawk_help callback 顯式呼叫，不在此偵測 magic string）。
-        print(text)
+        # 導航 / 螢幕文字輸出歸 SALES_VOICE gate（demo 預設隱藏，與 web 鏡像重複；鍵盤選單
+        # 操作需 SALES_VOICE=1）。錯誤 ⚠️ 與啟動 / 退出行（純 print、非本 callback）不受影響。
+        if _VOICE:
+            print(text)
 
     def show_hawk_help(self):
         """印叫賣模式操作提示（給商家看的提示）。
