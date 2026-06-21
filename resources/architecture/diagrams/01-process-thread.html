@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>圖 1 · Process / Thread 並行模型</title>
+<link rel="stylesheet" href="theme/diagram.css">
+<style>
+  .stage { width: 1960px; height: 1280px; }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <div class="title"><span class="num">FIG.01</span>Process / Thread 並行模型</div>
+  <div class="subtitle">single process · 1 main thread + N background daemon · 解耦於 queue + EventBus</div>
+
+  <!-- ===== 箭頭層 ===== -->
+  <svg class="edges" viewBox="0 0 1960 1280" preserveAspectRatio="none">
+    <defs>
+      <marker id="ah" markerWidth="13" markerHeight="13" refX="10" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L11,4.5 L0,9 Z" fill="var(--arrow)" stroke="none"/>
+      </marker>
+    </defs>
+
+    <!-- 輸出:主線程 → workers -->
+    <path class="flow" marker-end="url(#ah)" d="M790,306 C720,362 300,360 242,408"/>
+    <path class="flow" marker-end="url(#ah)" d="M872,306 C770,360 584,360 580,408"/>
+    <path class="flow" marker-end="url(#ah)" d="M972,306 L971,408"/>
+    <path class="async" marker-end="url(#ah)" d="M970,500 L970,538"/>
+    <path class="flow" marker-end="url(#ah)" d="M970,696 L970,722"/>
+    <path class="flow" marker-end="url(#ah)" d="M240,566 L240,612"/>
+    <path class="flow" marker-end="url(#ah)" d="M580,566 L580,612"/>
+
+    <!-- 輸入:input queue → 主線程(consumer read) -->
+    <path class="flow" marker-end="url(#ah)" d="M1500,470 C1420,398 1300,330 1192,308"/>
+    <!-- 輸入 producer ①:InputReader(鍵盤)→ input queue,正上方 -->
+    <path class="flow" marker-end="url(#ah)" d="M1690,718 L1672,566"/>
+    <!-- 輸入 producer ②:webui(web 觸控)→ input queue,左側清空 lane -->
+    <path class="async" marker-end="url(#ah)" d="M1127,556 C1270,540 1380,522 1476,514"/>
+    <!-- 輸入 producer ③:SttReceiver(STT 語音)→ input queue,起點下移避開 Deepgram chip,左下 lane 斜上 -->
+    <path class="async" marker-end="url(#ah)" d="M946,1080 C1190,1052 1420,740 1484,562"/>
+
+    <!-- 標籤一律置於所屬箭頭中點、text-anchor=middle 壓在線上(深色 halo 蓋住線)-->
+    <text class="elabel" x="511" y="364" text-anchor="middle">speak()</text>
+    <text class="elabel" x="689" y="363" text-anchor="middle">do_action()</text>
+    <text class="elabel" x="971" y="361" text-anchor="middle">display()</text>
+    <text class="elabel" x="1356" y="374" text-anchor="middle">read_*</text>
+    <text class="elabel" x="1681" y="646" text-anchor="middle">鍵盤</text>
+    <text class="elabel" x="1319" y="536" text-anchor="middle">觸控</text>
+    <text class="elabel" x="1282" y="881" text-anchor="middle">STT · 語音</text>
+  </svg>
+
+  <!-- ===== 卡片層 ===== -->
+  <div class="frame" style="left:40px; top:120px; width:1880px; height:1130px;"></div>
+  <div class="frame-label" style="left:40px; top:120px;">SINGLE PROCESS · python -m myProgram　·　all daemon=True，退出 os._exit(0) 強退隨 process die</div>
+
+  <!-- 主線程 -->
+  <div class="card blue" style="left:700px; top:156px; width:560px; height:150px;">
+    <div class="eyebrow">main thread</div>
+    <div class="name" style="font-family:var(--font-cjk); font-size:19px;">主線程</div>
+    <div class="meta">logic.run → SalesMachine.run()</div>
+    <div class="desc">純單線程 L0–L5 對話迴圈;對外動作全經 10 個 callback 注入,不碰硬體 / I-O。</div>
+  </div>
+
+  <!-- legend 左上 -->
+  <div class="legend" style="left:70px; top:150px; width:255px;">
+    <h4>thread 色彩語意</h4>
+    <div class="row"><span class="sw" style="background:var(--blue-fill);border-color:var(--blue-edge)"></span><span class="lb">主線程 main</span></div>
+    <div class="row"><span class="sw" style="background:var(--green-fill);border-color:var(--green-edge)"></span><span class="lb">常駐 daemon</span></div>
+    <div class="row"><span class="sw" style="background:var(--cyan-fill);border-color:var(--cyan-edge)"></span><span class="lb">每輪一生(STT)</span></div>
+    <div class="row"><span class="sw" style="background:var(--orange-fill);border-color:var(--orange-edge)"></span><span class="lb">一次性 · 跑完即終</span></div>
+    <div class="row"><span class="sw" style="background:var(--purple-fill);border-color:var(--purple-edge)"></span><span class="lb">queue · EventBus</span></div>
+    <div class="row"><span class="sw" style="background:var(--gray-fill);border-color:var(--gray-edge)"></span><span class="lb">子程序 · 外部</span></div>
+  </div>
+
+  <!-- 一次性 orange 右上 -->
+  <div class="group" style="left:1590px; top:150px; width:300px; height:250px; --c-edge:var(--orange-edge); --c-fill-soft:oklch(64% 0.10 70 / 0.08); --c-glow:var(--orange-glow); --c-tone:var(--orange-tone);">
+    <div class="group-label">one-shot · 一次性</div>
+  </div>
+  <div class="card orange" style="left:1608px; top:188px; width:264px; height:54px; padding:8px 13px;">
+    <div class="name" style="font-size:14px;">worker-prewarm</div>
+    <div class="tag">import tts·action·stt 暖機</div>
+  </div>
+  <div class="card orange" style="left:1608px; top:250px; width:264px; height:54px; padding:8px 13px;">
+    <div class="name" style="font-size:14px;">webui-boot</div>
+    <div class="tag">import fastapi·uvicorn + start</div>
+  </div>
+  <div class="card orange" style="left:1608px; top:312px; width:264px; height:54px; padding:8px 13px;">
+    <div class="name" style="font-size:14px;">SttPrearm</div>
+    <div class="tag">背景預連線 · 藏首輪 540ms 握手</div>
+  </div>
+
+  <!-- input queue 紫(扇入核心) -->
+  <div class="card purple" style="left:1480px; top:470px; width:340px; height:92px;">
+    <div class="eyebrow">queue · 扇入 3→1</div>
+    <div class="name">input queue<span style="font-family:var(--font-cjk);color:var(--ink-mute);font-size:12px;font-weight:300;"> 　單一</span></div>
+    <div class="tag" style="margin-top:3px;">3 producer → 1 consumer(主線程 read)</div>
+  </div>
+
+  <!-- 輸出 Col1 TTS -->
+  <div class="card green" style="left:90px; top:410px; width:300px; height:156px;">
+    <div class="eyebrow">daemon · 常駐</div>
+    <div class="name">TtsWorker</div>
+    <div class="meta">QueueWorker + asyncio loop</div>
+    <div class="desc">FIFO queue ← speak;synth(edge-tts) + 內容定址快取 + prefetch</div>
+  </div>
+  <div class="chip" style="left:140px; top:614px; width:205px;">→ <b>mpg123</b> 子程序(播放)</div>
+
+  <!-- 輸出 Col2 Action -->
+  <div class="card green" style="left:430px; top:410px; width:300px; height:156px;">
+    <div class="eyebrow">daemon · 常駐</div>
+    <div class="name">ActionWorker</div>
+    <div class="meta">QueueWorker</div>
+    <div class="desc">FIFO queue ← do_action;呼叫 vendor SDK 播動作組(FIFO 不中斷)</div>
+  </div>
+  <div class="chip" style="left:480px; top:614px; width:205px;">→ <b>vendor SDK</b> · Act.runAction</div>
+
+  <!-- 中:display → EventBus → webui-server → 瀏覽器 -->
+  <div class="card purple" style="left:820px; top:410px; width:300px; height:90px;">
+    <div class="eyebrow">bus · 廣播橋</div>
+    <div class="name">EventBus</div>
+    <div class="tag" style="margin-top:2px;">同步線程 → async loop</div>
+  </div>
+  <div class="card green" style="left:815px; top:540px; width:310px; height:156px;">
+    <div class="eyebrow">daemon · async</div>
+    <div class="name">webui-server</div>
+    <div class="meta">uvicorn loop · --web</div>
+    <div class="desc">EventBus → WS 推前端;觸控命令 → inject 回 input queue</div>
+  </div>
+  <div class="chip" style="left:865px; top:724px; width:215px;">↔ <b>瀏覽器前端</b>(WS · 同 wifi)</div>
+
+  <!-- 輸入:InputReader -->
+  <div class="card green" style="left:1545px; top:720px; width:300px; height:156px;">
+    <div class="eyebrow">daemon · producer</div>
+    <div class="name">InputReader</div>
+    <div class="meta">SALES_KEYBOARD=1 才起</div>
+    <div class="desc">stdin.readline → input queue(鍵盤輸入來源)</div>
+  </div>
+  <div class="chip" style="left:1590px; top:924px; width:215px;">← <b>stdin</b>(鍵盤)</div>
+
+  <!-- 輸入:每輪一生 STT session -->
+  <div class="group" style="left:690px; top:800px; width:420px; height:330px;">
+    <div class="group-label">per-round · 每輪 arm→disarm · &lt;12s</div>
+  </div>
+  <div class="card cyan" style="left:714px; top:872px; width:232px; height:94px;">
+    <div class="name">SttSender</div>
+    <div class="desc" style="margin-top:4px;">arecord.read → Deepgram WS send</div>
+  </div>
+  <div class="chip" style="left:966px; top:898px; width:128px;"><b>arecord</b> 抽 ch0</div>
+  <div class="card cyan" style="left:714px; top:990px; width:232px; height:108px;">
+    <div class="name">SttReceiver</div>
+    <div class="desc" style="margin-top:4px;">WS recv → _capturing 閘 → inject</div>
+  </div>
+  <div class="chip" style="left:966px; top:1022px; width:128px;"><b>Deepgram</b> WS</div>
+
+  <!-- 並行要點 note -->
+  <div class="note" style="left:90px; top:800px; width:384px;">
+    <h4>並行模型要點</h4>
+    <ul>
+      <li><span class="dot">●</span><b>主線程純單線程</b>、絕不阻塞:會阻塞 / 要並行的事全推背景 daemon。</li>
+      <li><span class="dot">●</span>三條 queue 各<b>單 producer / 單 consumer</b>;唯 <code>input queue</code> 例外 — 鍵盤 / STT / web 觸控<b>三 producer 扇入</b>同一 queue。</li>
+      <li><span class="dot">●</span>輸出走 <code>queue</code>(speak / do_action)與 <code>EventBus</code>(display);輸入全走 <code>inject → input queue</code>。</li>
+      <li><span class="dot">●</span>全部 <code>daemon=True</code> → 退出 <code>os._exit(0)</code> 強退,thread 隨 process die。</li>
+    </ul>
+  </div>
+
+</div>
+</body>
+</html>

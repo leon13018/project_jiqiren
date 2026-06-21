@@ -14,3 +14,10 @@ __pycache__/
 
 # TTS 快取半成品（perf_w5）：合成中斷殘留的暫存檔，防 bootstrap 的 git add 誤掃
 myProgram/tts_cache/*.tmp
+
+# 架構圖算圖暫存（2026-06-21）：瀏覽器 MCP 輸出 / 自檢截圖 / 裁切局部，皆非交付物。
+# 正式圖檔(PNG)交付進 resources/architecture/diagrams/ 內，不在此列。
+.playwright-mcp/
+_crops/
+/smoke-*.png
+/[0-9][0-9]-*.png
