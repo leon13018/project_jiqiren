@@ -128,8 +128,13 @@ def test_wait_idle_does_not_return_before_worker_finishes_processing(monkeypatch
         "若 race 存在 worker get text 後 _active=False 瞬間會被誤判 idle 立即 return True"
     )
 
-    # cleanup：unblock worker
+    # cleanup：unblock worker + drain "X"（等 pending==0）才結束本 test。
+    # 必須 drain：worker 是 daemon thread；若 "X" 還沒被消費就結束、monkeypatch 一 revert，
+    # 殘留 worker 會在「後續 test 已把全域 tts_module._synthesize 換成自己的」之後才合成
+    # "X" → 用到對方的 patch、污染對方的 synth_calls（曾使 test_prefetch_synthesizes_*
+    # 在重載並發下偶見 ['X','A','B']）。wait_idle 保證 "X" 在本 test 的 _fake_synth_noop 下處理完。
     hang_event.set()
+    assert worker.wait_idle(max_wait=5.0) is True, "worker 應在本 test 內把 'X' 處理完（防洩漏到後續 test）"
 
 
 # ============================================================
@@ -357,8 +362,13 @@ def test_is_idle_false_while_processing_and_returns_immediately(monkeypatch):
         f"不可像 wait_idle 阻塞等 max_wait"
     )
 
-    # cleanup：unblock worker
+    # cleanup：unblock worker + drain "X"（等 pending==0）才結束本 test。
+    # 必須 drain：worker 是 daemon thread；若 "X" 還沒被消費就結束、monkeypatch 一 revert，
+    # 殘留 worker 會在「後續 test 已把全域 tts_module._synthesize 換成自己的」之後才合成
+    # "X" → 用到對方的 patch、污染對方的 synth_calls（曾使 test_prefetch_synthesizes_*
+    # 在重載並發下偶見 ['X','A','B']）。wait_idle 保證 "X" 在本 test 的 _fake_synth_noop 下處理完。
     hang_event.set()
+    assert worker.wait_idle(max_wait=5.0) is True, "worker 應在本 test 內把 'X' 處理完（防洩漏到後續 test）"
 
 
 def test_module_level_is_idle_delegates_to_worker():
