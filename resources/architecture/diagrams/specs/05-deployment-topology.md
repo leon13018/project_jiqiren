@@ -7,6 +7,8 @@
 > `webui/serve.py`（純 stdlib no-cache 靜態 server，預設 8137、`0.0.0.0`）、
 > `resources/requirements/raspberry_pi_setup.md`（Pi 已裝清單）。
 
+> ✅ **已交付（2026-06-22 Wave B）**：`05-deployment-topology.{html,png,svg}` 三式同名（stage 1960×1020）。最終版面隨使用者 QA 微調定版（填四區死空白·四區撐到畫布邊 / 金鏈端點落渲染端 group 左框邊 x1466 不穿卡 / `/ws/state` 標籤避金弧 / **frame-label 改浮框內側使虛線框完整**[共用 theme `.frame-label` translate(22,7)，①連帶重出] / 硬體三卡間距 34 / serve.py 預覽鏈方向修正），**以交付 html 為準**。自檢由 3-opus QA panel 執行。
+
 ## 主題一句話
 **Pi 是 server、但自己渲染不了前端**：Pi 4 跑 `python -m myProgram --hawk --web` 當對話程式 + FastAPI 顯示鏡像
 （`0.0.0.0:8137`），同 wifi 的**筆電 / 手機瀏覽器**連 `raspberrypi.local:8137` 負責渲染玻璃 UI（Pi 4 GPU +

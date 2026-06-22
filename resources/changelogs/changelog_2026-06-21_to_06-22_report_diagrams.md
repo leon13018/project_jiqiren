@@ -44,8 +44,21 @@
 - **平行派工規則固化**（SKILL「⚡ 平行加速」，使用者指定）：**獨立的圖一次平行派 ≥2 opus subagent 各自 render**（各自瀏覽器 instance）；唯 orchestrator 別跟某圖 subagent 搶同檔/同瀏覽器。
 - 反思 ~30 條逐條 `status: adopted`（多為同議題重報 + 數新 nuance：GetPixel 驗色 / 色 token / 連接點自檢 / 平行衝突）。
 
+## 8. Wave B ④⑤ 交付 + 自檢協議升級（2026-06-22）
+- **④ 端到端時序圖**：6 泳道（前端/WS/主線程/STT/TTS/Action）+ 5 phase 帶 + 21 發訊息序列；主角＝下行 `display(phase)` 金 emit（phase-driven）；**checkout_confirm★ 標為 dialog 內子 phase**（非 machine 平行 phase）。
+- **⑤ 部署/網路拓樸**：雲（Deepgram WSS / edge-tts HTTPS）/ Pi server `0.0.0.0:8137` / 本地硬體（ReSpeaker USB·喇叭 ALSA·TonyPi serial）/ 渲染端 client 四區；主角＝**render-offload 金鏈**（Pi serves, client renders — Pi 自身瀏覽器 GPU+Chromium<111 無 OKLCH 跑不動前端）。
+- **① 連帶重出**：因動了共用 theme `.frame-label`。
+- **自檢協議升級（使用者指定）**：自檢從「implementer 自己反覆截圖」改成「**每張圖平行派 3 個 opus QA subagent**」——lens A 版面/空間、B 箭頭/連線、C 文字/內容真實性（鐵則 1 內容稽核）；QA **只讀靜態產出物（PNG + bbox dump）、不開瀏覽器**→ 影像 token 不進主對話、可大量平行。實證價值：QA panel 抓到 implementer 自報漏掉的 race 污染（04 PNG 內容變 FIG.05）+ band 標籤 overlap 盲點。
+- **render 必序列化（修正 Wave A 誤判）**：Playwright MCP 是**單一共享瀏覽器**（非每 subagent 一個）→ 兩 subagent 同時 render 會互相把頁面導走、截到對方的圖。**HTML 撰寫可平行、render 必一次一張獨占**（orchestrator 居中發 GO）。Wave A changelog §6 的「各自瀏覽器 instance」說法**作廢**。
+- **`render-pipeline §5.5` canonical bbox dump**：絕對路徑寫死（修「dump 誤落 root 觸發 code_map hook」反覆踩坑）、selector 含 `.node/.screen` + band/group/frame 標籤、內建 `overlaps`（含標籤 vs 節點，排除 band/frame/lane/lifeline/group 容器自身）+ `textOverflow`（scrollWidth>clientWidth）自檢。
+- **theme `.frame-label` 改浮框內側**（`transform: translate(22,7)` 小 pill）：原「掛框頂虛線的 tab」會蓋掉頂邊虛線、虛線框不完整（使用者抓）→ 改浮內側使虛線圓角矩形完整；①⑤ 共用、連帶重出。
+- **CSS 快取坑**：no-cache server 送 `no-store` 仍救不了「**瀏覽器層**已快取同 origin 舊 CSS」→ theme 改了 render 仍出舊值；**正解＝換沒用過的新埠 origin** 強制重抓（耗多輪才查出）。
+- **使用者多輪逐項視覺 QA 抓包修正**：band 標籤被首節點壓（b1/b2/b5 clearance≥60）/ 文字溢框（⑧ `read_customer_input()` timeout 移 desc、⑲ `_emit("l5")·paid=27`）/ do_action 派工線斜鉤→垂直插底緣 / 旁註浮空→補虛線連 ⑨「替代輸入」/ ⑤ frame-label·死空白·硬體卡間距 34px / **圖身整體下移 + legend·note 移頂排**（`.shift` 容器 translateY 180 一次下移、免改 60+ 座標）/ **phase 標籤左緣對齊下方卡片**（`.pband left 72→66`）。
+- **踩坑**：① concurrent-edit（orchestrator 接手編 04 + subagent 未停同編 → HTML 混入兩標籤/兩 path，已清；教訓＝接手前先確認 subagent 完全停，skill 早有此規）；② named/mailbox subagent 不穩（多次 idle 不執行指派任務 / 重複多餘 render）→ **小修改由 orchestrator 自編 HTML + 自己 render-verify 更可靠**（瀏覽器空閒、無編檔衝突時）。
+- commit 鏈（main）：`692c7b7` Wave B ④⑤ 交付 → `dff0a7b` ④ 旁註虛線 → `4340566` ④ HTML 去重 → `c00e1de` ④ 圖身下移+legend/note頂排 → `b2f6c51` ④ phase 標籤對齊。
+
 ## 關鍵踩坑（都已固化進 skill）
-DPR 非固定要每次量｜`body` flex-center 視窗矮會裁頂不可捲（改 block + `margin:auto`）｜縮放 + 視窗截圖對不齊產黑邊（改「device viewport 反推 + 畫布 scale 填滿 + margin:0」、四角驗）｜SVG marker 箭頭頭 theme 沒給｜PowerShell 字串拼變數成空｜自檢只裁局部會漏。
+DPR 非固定要每次量｜`body` flex-center 視窗矮會裁頂不可捲（改 block + `margin:auto`）｜縮放 + 視窗截圖對不齊產黑邊（改「device viewport 反推 + 畫布 scale 填滿 + margin:0」、四角驗）｜SVG marker 箭頭頭 theme 沒給｜PowerShell 字串拼變數成空｜自檢只裁局部會漏｜**render 單一共享瀏覽器必序列化（平行只能 HTML 撰寫 + QA 讀靜態檔）**｜**CSS 改了瀏覽器層快取舊值 → 換新埠 origin**｜**bbox dump 寫絕對路徑（誤落 root 觸發 hook）**。
 
 ## 狀態
-**Wave A ①②③ 全交付 ✅**（2026-06-22，三式同名 html/png/svg）；skill 經實戰大幅硬化（9 視覺 gotcha + theme/render-pipeline 多修 + 平行派工固化 + 色 token 化）。**下一步＝新 session 載 architecture-diagram skill、照 backlog 接 Wave B（④ 時序、⑤ 部署…⑪）**，獨立的圖可一次平行派 ≥2 subagent。
+**Wave A ①②③ + Wave B ④⑤ 全交付 ✅**（2026-06-22，三式同名 html/png/svg；① 因 theme frame-label 改動重出）。skill 經兩波實戰大幅硬化（9 視覺 gotcha + 3-opus QA panel 自檢協議 + render 序列化鐵則 + §5.5 canonical bbox dump + theme/render-pipeline 多修 + CSS 快取坑）。**下一步＝新 session 載 architecture-diagram skill、照 backlog 接 Wave C（⑥ STT 管線、⑦ TTS 管線）→ D（⑧⑨）→ E（⑩⑪）**；HTML 撰寫可平行、render 一次一張獨占、自檢派 3-opus QA panel。

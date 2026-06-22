@@ -7,6 +7,8 @@
 > `l2_l3_dialog.py`（checkout_confirm 子 phase emit）、`l4.py`（QR + pay）、`l5.py`（thankyou）、
 > `constants/products.py`（冰紅茶 30→九折27/瓶）。
 
+> ✅ **已交付（2026-06-22 Wave B）**：`04-end-to-end-sequence.{html,png,svg}` 三式同名（stage 2040×2482）。最終版面隨使用者多輪逐項 QA 微調定版（band 標籤清開首節點≥60 / 文字溢框縮字+⑧⑲縮短 / do_action 垂直插 Action 底緣 / 旁註補 `.async` 虛線連⑨「替代輸入」/ **圖身整體下移 180 + legend·note 移頂排**[`.shift` 容器] / **phase 標籤左緣對齊下方卡片**[`.pband left:66`]），**以交付 html 為準**；下方「畫圖計畫」為原始設計、與最終 html 略有出入。自檢由 3-opus QA panel 執行（見 skill SKILL.md step 6）。
+
 ## 主題一句話
 一輪完整互動（顧客觸控喚醒 → 點一瓶冰紅茶 → 結帳確認 → 掃碼付款 → 致謝 → 回叫賣）跨
 **6 條泳道**（前端 / WS·transport / 主線程 / STT / TTS / Action）依時間由上而下。核心真相＝
