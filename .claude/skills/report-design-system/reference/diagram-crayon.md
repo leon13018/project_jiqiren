@@ -8,6 +8,7 @@
 
 ## 9.1 淺色版面慣例
 - 底：ivory `#faf9f5` + 40px 格線 `#ece6da`（`.stage` 雙 linear-gradient）。
+- 🔴 **畫布貼內容、無下半死空白**：`.stage` 寬高定版後 **trim 到「內容範圍 + 對稱邊距」**（內容只到 y≈560 就別留 1188 高的畫布——下面全空＝截圖照實拍出死空白；換工具救不了、空白在 HTML）。「畫大」只為寬度求不相撞、最終貼內容。可量 FAIL 閘（`fill` / `occupancy` 網格 / ink-ratio 抽查）見 [render-and-qa.md](render-and-qa.md) §2。
 - 標題：置中 Fraunces 31 + **珊瑚 `#d97757` 的 FIG.NN 牌**（mono 21/600、珊瑚框）。
 - 卡片：ivory/白填底 + 細彩邊 + 圓角 + 極淺陰影；**無純白卡**（legend/chip/閘卡一律 ivory `#faf9f5`）。
 - **珊瑚只給「主角環 / hero」**（emit 閉環、input queue inject）；其餘節點用 palette 章節色分類（同類同色）。色票見 [report-pdf.md](report-pdf.md) §2。

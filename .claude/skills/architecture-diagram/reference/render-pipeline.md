@@ -109,6 +109,17 @@ async () => {
   for(let i=0;i<els.length;i++)for(let j=i+1;j<els.length;j++){const a=els[i],b=els[j];if(isBg(a.cls)||isBg(b.cls))continue;const A=a.box,B=b.box;if(A.left<B.right&&B.left<A.right&&A.top<B.bottom&&B.top<A.bottom)out.overlaps.push([a.cls+'|'+a.label.slice(0,16),b.cls+'|'+b.label.slice(0,16)]);}
   // 每卡內容垂直置中
   document.querySelectorAll('.card').forEach(el=>{const cr=el.getBoundingClientRect();const kids=[...el.children];if(!kids.length)return;const tops=kids.map(k=>k.getBoundingClientRect().top),bots=kids.map(k=>k.getBoundingClientRect().bottom);out.cards.push({label:(el.querySelector('.name,.eyebrow')?.textContent||'').trim().slice(0,24),topGap:Math.round(Math.min(...tops)-cr.top),botGap:Math.round(cr.bottom-Math.max(...bots))});});
+  // 死空白量測（治本「無大片死空白」gotcha → 可量的 FAIL 閘）：內容垂直 extent + 上下邊距 + 6×5 占用網格
+  // 排除 title/subtitle 與任何 ~滿寬 band（只算真內容元素）
+  const real=els.filter(e=>!/\b(title|subtitle)\b/.test(e.cls||'')&&e.box.w<sb.width*0.95);
+  if(real.length){const cTop=Math.min(...real.map(e=>e.box.top)),cBot=Math.max(...real.map(e=>e.box.bottom)),H=Math.round(sb.height),W=Math.round(sb.width);
+    out.fill={contentTop:cTop,contentBottom:cBot,stageH:H,topMargin:cTop,bottomMargin:H-cBot,bottomDeadRatio:+(((H-cBot)/H).toFixed(3))};
+    // ⚠ occupancy 排除容器 frame（group/frame/band/lane/lifeline）——否則大 frame 把整片計為填充、
+    //   掩蓋 frame 內部空洞（踩過：⑥ STT SESSION group 內左半中段 666×342 純背景卻 occupancy 全 1）。
+    const realOcc=real.filter(e=>!/\b(group|frame|band|lane|lifeline)\b/.test(e.cls||''));
+    const C=6,R=5,occ=[];for(let r=0;r<R;r++){const row=[];for(let c=0;c<C;c++){const cl=c*W/C,ct=r*H/R,cr=(c+1)*W/C,cb=(r+1)*H/R;row.push(realOcc.some(e=>e.box.left<cr&&cl<e.box.right&&e.box.top<cb&&ct<e.box.bottom)?1:0);}occ.push(row);}
+    const empties=[];for(let r=0;r<R;r++)for(let c=0;c<C;c++)if(!occ[r][c])empties.push([r,c]);
+    out.occupancy={cols:C,rows:R,grid:occ,emptyCells:empties,emptyCount:empties.length};}
   return JSON.stringify(out);
 }
 ```
@@ -121,6 +132,9 @@ async () => {
 - `textOverflow[]{owner,part,scroll,client}` — 文字溢框（**非空＝FAIL**）。
 - `cards[]{label,topGap,botGap}` — 每卡內容上下留白（topGap≠botGap 即非垂直置中）。
 - `arrowSamples[]{edge,lineMidRGB:[r,g,b],headTipRGB:[r,g,b]}` — 每條有色邊（`.hawk` / 任何非墨色線）的「線中段」與「箭頭頭三角實體」像素（**QA-B 比色用，免 live GetPixel**；兩者色相明度相近才算「線↔頭同色」過）。
+- `fill{contentTop,contentBottom,stageH,topMargin,bottomMargin,bottomDeadRatio}` — 內容垂直 extent（排除 title/subtitle/滿寬 band）+ 上下死邊距。**畫布必須貼著內容**：`topMargin` 與 `bottomMargin` 應大致對稱（差距 >2× 即沒貼內容）；`bottomDeadRatio > 0.12`（底部留白 >12% 畫布高）＝**過高沒 trim ＝ FAIL**（治本「`.stage` height 寫死／『畫大』被誤讀成畫布開高」這個每次都中的病）。
+- `occupancy{cols,rows,grid,emptyCells,emptyCount}` — 6×5 占用網格（真內容覆蓋哪些格，**已排除容器 frame**＝intra-frame 空洞會現形）。**任一整列全空 / 任一整行全空 / 任一 2×2 全空塊 ＝ 大片死空白 FAIL**（catch 任何方位的空塊：底帶／頂帶／某角，不只垂直邊距）。`emptyCells` 給座標 `[row,col]` 供回退定位。
+  > ⚠ binary「碰到即 1」的盲點：被 frame 計入、或只靠單薄內容/一條線掃過的格仍記 1，但目視可能很空。**QA-A 對任何「只靠 frame 或稀疏內容佔住」的可疑格務必做 ink-ratio 抽查**（PowerShell System.Drawing 數該格非背景像素佔比，<~5% 視同空——踩過 ⑥ group 內空洞 occupancy 全 1、⑦ 右上角 ink 僅 2.66% 失衡，皆 binary 沒抓到、靠 ink-ratio 才現形）。
 
 ### 5.5b arrowSamples — orchestrator render 後補像素取樣
 `browser_evaluate` 量不到 rendered 點陣 → orchestrator 在截完 `NN-2x.png` 後，兩步補進 dump：

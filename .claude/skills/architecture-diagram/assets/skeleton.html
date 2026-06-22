@@ -39,10 +39,12 @@
   * { box-sizing:border-box; margin:0; padding:0; }
   body { font-family:var(--font); background:var(--ivory); -webkit-font-smoothing:antialiased; }
   .stage {
+    /* ⚠ width 可開大(求元件不相撞);height:1188 是起手值、非定稿——版面定案後務必把 height 收到
+       「內容底 + 上下對稱邊距」貼著內容(別留底部死空白)。「畫大」只指寬度、不含高度。 */
     width:1960px; height:1188px; position:relative; overflow:hidden; margin:0 auto;
     background:linear-gradient(var(--grid-line) 1px,transparent 1px),
               linear-gradient(90deg,var(--grid-line) 1px,transparent 1px),var(--ivory);
-    background-size:40px 40px,40px 40px,auto;       /* 畫大沒關係,組件不相碰優先 */
+    background-size:40px 40px,40px 40px,auto;       /* 寬度可大、組件不相碰優先;高度貼內容 */
   }
   .title { position:absolute; top:32px; left:0; right:0; text-align:center; color:var(--ink);
     font-family:"Shantell Sans","Jason Scribble","Huninn",var(--font-display);
