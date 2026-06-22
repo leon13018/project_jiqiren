@@ -1,17 +1,89 @@
 <!doctype html>
 <!-- ════════════════════════════════════════════════════════════════
-  最小起手骨架 — 複製到 resources/architecture/diagrams/NN-<topic>.html 後改。
-  涵蓋生手最容易漏的東西:① SVG <marker> 箭頭頭(theme 裡沒有,一定要自己放在 <defs>)
-  ② .stage 尺寸 ③ frame/card/eyebrow/legend 結構 ④ 一條 flow 邊 + 壓線標籤。
-  座標都是範例,實際照 writing-plans 的計畫擺。
+  最小淺色蠟筆起手骨架 — 複製到 resources/architecture/diagrams/NN-<topic>.html 後改。
+  自足單檔：內聯淺色 tokens + 3 個蠟筆濾鏡(#crayon/#crayonEdge/#crayonText) + marker 箭頭頭
+  + Rough.js hachure 填色 loader + 1 張卡 + FIG 標題。
+  ⚠ 依賴：把 report-design-system/assets/rough.js + fonts/jason8.ttf 複製到本檔旁(同層)。
+  ⚠ 成熟完整結構(legend/note/group/chip/hero/多色卡)直接複製一張
+     report-design-system/assets/benchmarks/NN-*.html 改，比本骨架豐富。
+  風格權威：report-design-system skill(diagram-crayon.md + report-pdf.md §2/§3)。
   ════════════════════════════════════════════════════════════════ -->
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
 <title>圖 N · 主題</title>
-<link rel="stylesheet" href="theme/diagram.css">
 <style>
-  .stage { width: 1960px; height: 1280px; }   /* 畫大沒關係,組件不相碰優先 */
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Shantell+Sans:wght@400..800&family=Huninn&display=swap');
+  @font-face { font-family:'Jason Scribble'; src:url('jason8.ttf') format('truetype'); font-display:swap; }
+
+  :root {
+    --paper:#fff; --ivory:#faf9f5; --ink:#141413; --ink-dim:#3a3a37; --ink-mute:#5c5b57;
+    --coral:#d97757; --tan:#e3dacc; --rule:#d9d1c0; --grid-line:#ece6da;
+    --font-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+    --font-display:"Fraunces","Noto Serif TC",serif;
+    --font-cjk:"Noto Sans TC","Microsoft JhengHei",sans-serif;
+    --font:"Hanken Grotesk","Noto Sans TC",sans-serif;
+    /* 6 色語意：fill 極淡 / edge 中飽和 / tone 深字（同類同色，配 legend）*/
+    --blue-fill:#eef3f8;--blue-edge:#6a9bcc;--blue-tone:#3f6f9e;
+    --green-fill:#f1f4ec;--green-edge:#788c5d;--green-tone:#566a3e;
+    --cyan-fill:#eef4f2;--cyan-edge:#8fb3aa;--cyan-tone:#4d7268;
+    --purple-fill:#f2eff7;--purple-edge:#9b8bc7;--purple-tone:#6b5d96;
+    --orange-fill:#f9eef2;--orange-edge:#c46686;--orange-tone:#9c4763;
+    --gray-fill:#f5f3ee;--gray-edge:#d9d1c0;--gray-tone:#6b6a64;
+    --arrow:#141413; --arrow-hawk:var(--coral); --arrow-hawk-label:#b85a3c;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:var(--font); background:var(--ivory); -webkit-font-smoothing:antialiased; }
+  .stage {
+    width:1960px; height:1188px; position:relative; overflow:hidden; margin:0 auto;
+    background:linear-gradient(var(--grid-line) 1px,transparent 1px),
+              linear-gradient(90deg,var(--grid-line) 1px,transparent 1px),var(--ivory);
+    background-size:40px 40px,40px 40px,auto;       /* 畫大沒關係,組件不相碰優先 */
+  }
+  .title { position:absolute; top:32px; left:0; right:0; text-align:center; color:var(--ink);
+    font-family:"Shantell Sans","Jason Scribble","Huninn",var(--font-display);
+    font-size:33px; font-weight:800; filter:url(#crayonText); }
+  .title .num { font-family:"Shantell Sans","Jason Scribble",var(--font-mono); font-size:21px;
+    font-weight:700; color:#c25e39; margin-right:12px; padding:2px 9px; border:2.5px solid #c25e39;
+    border-radius:7px; vertical-align:3px; }
+  .subtitle { position:absolute; top:80px; left:0; right:0; text-align:center; color:var(--ink-mute);
+    font-family:var(--font-mono); font-size:13px; }
+
+  .card { position:absolute; border-radius:18px; padding:13px 16px; display:flex; flex-direction:column;
+    justify-content:center; background:var(--c-fill,var(--gray-fill)); border:1.5px solid var(--c-edge,var(--gray-edge));
+    box-shadow:0 2px 6px -3px rgba(20,20,19,.14); overflow:hidden; }
+  .card > * { position:relative; }
+  .eyebrow { font-family:var(--font-mono); font-size:10.5px; font-weight:600; letter-spacing:1.4px;
+    text-transform:uppercase; color:var(--c-tone,var(--gray-tone)); margin-bottom:5px; display:flex;
+    align-items:center; gap:6px; }
+  .eyebrow::before { content:""; width:14px; height:2px; border-radius:2px; background:var(--c-tone,var(--gray-tone)); }
+  .card .name { font-family:var(--font-mono); color:var(--ink); font-size:16px; font-weight:600; }
+  .card .meta { font-family:var(--font-mono); color:var(--ink-mute); font-size:11.5px; margin-top:3px; }
+  .card .desc { font-family:var(--font-cjk); color:var(--ink-dim); font-size:12.5px; line-height:1.55; margin-top:6px; }
+  .blue{--c-fill:var(--blue-fill);--c-edge:var(--blue-edge);--c-tone:var(--blue-tone);}
+  .green{--c-fill:var(--green-fill);--c-edge:var(--green-edge);--c-tone:var(--green-tone);}
+  .cyan{--c-fill:var(--cyan-fill);--c-edge:var(--cyan-edge);--c-tone:var(--cyan-tone);}
+  .purple{--c-fill:var(--purple-fill);--c-edge:var(--purple-edge);--c-tone:var(--purple-tone);}
+  .orange{--c-fill:var(--orange-fill);--c-edge:var(--orange-edge);--c-tone:var(--orange-tone);}
+  .gray{--c-fill:var(--gray-fill);--c-edge:var(--gray-edge);--c-tone:var(--gray-tone);}
+
+  /* 箭頭層 + 蠟筆濾鏡 */
+  .edges { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:2; }
+  .title,.subtitle,.card,.legend,.note { z-index:3; }
+  .edges path,.edges line { fill:none; stroke:var(--arrow); stroke-width:3.0; stroke-linecap:round; }
+  .edges path[class] { filter:url(#crayon); stroke-opacity:.82; }
+  .edges .hawk { stroke:var(--arrow-hawk); stroke-width:3.8; }
+  .edges marker path { stroke:none; }
+  .edges marker#ah path { fill:var(--arrow); }
+  .edges marker#ah-hawk path { fill:var(--arrow-hawk); }
+  .edges .elabel { fill:var(--ink-mute); font-family:var(--font-mono); font-size:12px; font-weight:500;
+    paint-order:stroke; stroke:var(--paper); stroke-width:4px; }
+  /* 蠟筆外框：::before + #crayonEdge;isolation 讓 Rough 填色(z-1)墊框後頁面上 */
+  .card { border-color:transparent; overflow:visible; isolation:isolate; }
+  .card::before { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+    border:2px solid var(--c-edge,var(--gray-edge)); filter:url(#crayonEdge); }
 </style>
 </head>
 <body>
@@ -20,44 +92,70 @@
   <div class="title"><span class="num">FIG.0N</span>主題名稱</div>
   <div class="subtitle">英文副標 · 一句話論點</div>
 
-  <!-- 箭頭層:必含 <marker> 箭頭頭(theme 沒給);邊用 marker-end="url(#ah)" 才有箭頭 -->
-  <svg class="edges" viewBox="0 0 1960 1280" preserveAspectRatio="none">
+  <svg class="edges" viewBox="0 0 1960 1188" preserveAspectRatio="none">
     <defs>
       <marker id="ah" markerWidth="13" markerHeight="13" refX="10" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
-        <path d="M0,0 L11,4.5 L0,9 Z" fill="var(--arrow)" stroke="none"/>
-      </marker>
+        <path d="M0,0 L11,4.5 L0,9 Z" fill="var(--arrow)" stroke="none"/></marker>
       <marker id="ah-hawk" markerWidth="15" markerHeight="15" refX="11" refY="5" orient="auto" markerUnits="userSpaceOnUse">
-        <!-- 箭頭頭 fill 用 --arrow-hawk = 跟 .hawk 線同色 token(鐵則:有色線必有色頭) -->
-        <path d="M0,0 L12,5 L0,10 Z" fill="var(--arrow-hawk)" stroke="none"/>
-      </marker>
+        <path d="M0,0 L12,5 L0,10 Z" fill="var(--arrow-hawk)" stroke="none"/></marker>
+      <!-- 蠟筆濾鏡：低頻位移=手繪抖動;高頻噪聲咬 alpha=蠟筆顆粒粉感 -->
+      <filter id="crayon" filterUnits="userSpaceOnUse" x="-40" y="-40" width="2040" height="1410" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="5" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="5" xChannelSelector="R" yChannelSelector="G" result="line"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.5 0.62" numOctaves="2" seed="9" result="grain"/>
+        <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.9 -0.1" result="gm"/>
+        <feComposite in="line" in2="gm" operator="in"/></filter>
+      <filter id="crayonEdge" x="-12%" y="-15%" width="124%" height="130%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="4" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="4" result="ln"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.5 0.6" numOctaves="2" seed="8" result="gr"/>
+        <feColorMatrix in="gr" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.95 -0.05" result="grm"/>
+        <feComposite in="ln" in2="grm" operator="in"/></filter>
+      <filter id="crayonText" x="-8%" y="-18%" width="116%" height="136%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="7" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="2.6" result="ln"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.6 0.7" numOctaves="2" seed="3" result="gr"/>
+        <feColorMatrix in="gr" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.4 2.0" result="grm"/>
+        <feComposite in="ln" in2="grm" operator="in"/></filter>
     </defs>
-    <!-- flow 邊範例:實線 + 箭頭頭 -->
-    <path class="flow" marker-end="url(#ah)" d="M420,300 L600,300"/>
-    <!-- hawk 主角弧範例:粗暖金 + 暖金箭頭頭 -->
+    <!-- flow 邊範例：實線 + 箭頭頭;標籤壓線中段(halo) -->
+    <path class="flow" marker-end="url(#ah)" d="M460,320 L700,320"/>
+    <text class="elabel" x="580" y="312" text-anchor="middle">條件 / 觸發</text>
+    <!-- hawk 主角弧：粗珊瑚 + 珊瑚箭頭頭 -->
     <!-- <path class="hawk" marker-end="url(#ah-hawk)" d="M...C..."/> -->
-    <!-- 邊標籤:壓在線中段(text-anchor=middle 放路徑中點,深色 halo 蓋住線) -->
-    <text class="elabel" x="510" y="296" text-anchor="middle">條件 / 觸發</text>
-    <!-- 垂直線的標籤可轉 90°:<text class="elabel" transform="rotate(90 cx cy)" ...> -->
   </svg>
 
-  <!-- 系統邊界框(可選) -->
-  <div class="frame" style="left:40px; top:110px; width:1880px; height:1130px;"></div>
-  <div class="frame-label" style="left:40px; top:110px;">系統 / 程序邊界說明</div>
-
-  <!-- 卡片:eyebrow(分類標)→ name(mono 程式識別字)→ meta(mono 小)→ desc(繁中) -->
-  <div class="card blue" style="left:160px; top:240px; width:260px; height:150px;">
+  <!-- 卡片：eyebrow(分類標)→ name(mono)→ meta(mono 小)→ desc(繁中);色用 modifier class -->
+  <div class="card blue" style="left:180px; top:260px; width:280px; height:150px;">
     <div class="eyebrow">分類 · 標籤</div>
     <div class="name">NodeName</div>
     <div class="meta">機制 / 一行</div>
     <div class="desc">繁中說明,垂直自動置中、上下留白對稱。</div>
   </div>
 
-  <!-- legend(每圖色彩語意自定)收一角 -->
-  <div class="legend" style="left:60px; top:240px; width:240px;">
-    <h4>色彩語意</h4>
-    <div class="row"><span class="sw" style="background:var(--blue-fill);border-color:var(--blue-edge)"></span><span class="lb">類別 A</span></div>
-  </div>
-
 </div>
+
+<!-- Rough.js：每張卡填色重畫成 hachure 手繪上色(墊蠟筆框後);無 JS 則保留實色 + ::before 框 -->
+<script src="rough.js"></script>
+<script>
+window.addEventListener('load', () => {
+  if (!window.rough) return;
+  const NS='http://www.w3.org/2000/svg';
+  const rr=(x,y,w,h,r)=>`M${x+r},${y}L${x+w-r},${y}Q${x+w},${y} ${x+w},${y+r}L${x+w},${y+h-r}Q${x+w},${y+h} ${x+w-r},${y+h}L${x+r},${y+h}Q${x},${y+h} ${x},${y+h-r}L${x},${y+r}Q${x},${y} ${x+r},${y}Z`;
+  document.querySelectorAll('.card').forEach((card,i)=>{
+    const w=card.offsetWidth,h=card.offsetHeight; if(!w||!h) return;
+    const cs=getComputedStyle(card); let fill=cs.backgroundColor; const inset=3.5;
+    const radius=Math.max(0,Math.min(parseFloat(cs.borderRadius)||14,Math.min(w,h)/2-inset-0.5));
+    card.style.background='transparent';
+    const svg=document.createElementNS(NS,'svg');
+    svg.setAttribute('width',w); svg.setAttribute('height',h);
+    svg.style.cssText='position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:-1;';
+    const rc=rough.svg(svg);
+    svg.appendChild(rc.path(rr(inset,inset,w-inset*2,h-inset*2,radius),
+      {fill,fillStyle:'hachure',hachureGap:5.5,fillWeight:1.4,hachureAngle:-41+(i%3)*8,roughness:1.4,bowing:1.4,stroke:'none'}));
+    card.insertBefore(svg,card.firstChild);
+  });
+});
+</script>
 </body>
 </html>

@@ -1,6 +1,8 @@
 # Render pipeline — 本機 Chromium 渲染 / 截圖 / 高解析匯出 / 自檢
 
 > 把 `diagrams/NN-*.html` 變成乾淨無黑邊的 **2× PNG + SVG**。所有指令、座標、配方都來自圖①②實證(踩過黑邊 / 截字 / 快取 / DPR 各種坑)。
+>
+> **本檔＝產線 render 機制**（DPR 匯出 / bbox dump / SVG 組裝 / 平行序列化）。**視覺風格 / 色票 / 蠟筆濾鏡 / 視覺 critical gotchas → `report-design-system` skill**（`diagram-crayon.md` + `render-and-qa.md`）；本 skill 已改宗淺色蠟筆風、不再產出深色霓虹。
 
 ## 目錄
 1. 為何這套(不用 Mermaid / 不用 file://)
@@ -15,9 +17,12 @@
 ---
 
 ## 1. 為何這套
-Mermaid 自定義度低(dagre 佈局搶方向盤無法精確擺位、`style/classDef` parser 不認 `oklch()`、毛玻璃只能 hack)。改 **HTML/CSS 絕對定位卡片 + SVG overlay 畫箭頭**,用無頭 Chromium 截圖 —— OKLCH / `backdrop-filter` 毛玻璃 / web 字 / 立體陰影全部原生支援。**純 HTML/CSS 沒有 Mermaid 的「測量字寬≠渲染字寬」截字 bug**(那是 Mermaid 專屬;這裡等 `fonts.ready` 即可)。
+Mermaid 自定義度低(dagre 佈局搶方向盤無法精確擺位、parser 不認進階 CSS、濾鏡只能 hack)。改 **HTML/CSS 絕對定位卡片 + SVG overlay 畫箭頭**,用無頭 Chromium 截圖 —— SVG 蠟筆濾鏡(`feTurbulence`+`feDisplacementMap`) / Rough.js hachure 填色 / web 字全部原生支援。**純 HTML/CSS 沒有 Mermaid 的「測量字寬≠渲染字寬」截字 bug**(那是 Mermaid 專屬;這裡等 `fonts.ready` 即可)。
 
 ## 2. 起 no-cache 本機 server
+
+> ⚡ **淺色蠟筆風是自足單檔**（樣式內聯、不外連 `theme/*.css`）→ **可直接 `chrome --headless --screenshot "file://…"` 截圖、免 server**（見 `report-design-system/reference/render-and-qa.md §1`：用舊 `--headless`、`--virtual-time-budget≥12000`；把 `rough.js`+`fonts/jason8.ttf` 複製到圖檔旁）。下面 no-cache server 只在**用 Playwright MCP**（它擋 `file:`）時才需要；自足單檔的截圖管線不必起。
+
 **Playwright MCP 擋 `file:` 協議**,必走 http。**但 plain `python -m http.server` 不送 cache header → Chromium 會快取 `theme/*.css`,你改了 CSS 重渲染卻沒生效(HTML 內聯改有效、CSS 檔改無效,極易誤判「改了沒用」)。** 一定用會送 `Cache-Control: no-store` 的小 server:
 
 ```
