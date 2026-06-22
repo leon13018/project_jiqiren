@@ -3,7 +3,9 @@
   最小淺色蠟筆起手骨架 — 複製到 resources/architecture/diagrams/NN-<topic>.html 後改。
   自足單檔：內聯淺色 tokens + 3 個蠟筆濾鏡(#crayon/#crayonEdge/#crayonText) + marker 箭頭頭
   + Rough.js hachure 填色 loader + 1 張卡 + FIG 標題。
-  ⚠ 依賴：把 report-design-system/assets/rough.js + fonts/jason8.ttf 複製到本檔旁(同層)。
+  ⚠ 本地依賴：把 report-design-system/assets/rough.js + fonts/jason8.ttf 複製到本檔旁(同層)。
+  ⚠ web font(Fraunces/Hanken/JetBrains/Noto/Shantell/Huninn)走 Google Fonts CDN → render 時需網路;
+     離線會 silent fallback、手繪標題與 mono 字跑掉、輸出與基準不符 → 離線改用 Playwright+http server 或把 woff2 vendor 進本檔旁。
   ⚠ 成熟完整結構(legend/note/group/chip/hero/多色卡)直接複製一張
      report-design-system/assets/benchmarks/NN-*.html 改，比本骨架豐富。
   風格權威：report-design-system skill(diagram-crayon.md + report-pdf.md §2/§3)。
@@ -98,7 +100,9 @@
         <path d="M0,0 L11,4.5 L0,9 Z" fill="var(--arrow)" stroke="none"/></marker>
       <marker id="ah-hawk" markerWidth="15" markerHeight="15" refX="11" refY="5" orient="auto" markerUnits="userSpaceOnUse">
         <path d="M0,0 L12,5 L0,10 Z" fill="var(--arrow-hawk)" stroke="none"/></marker>
-      <!-- 蠟筆濾鏡：低頻位移=手繪抖動;高頻噪聲咬 alpha=蠟筆顆粒粉感 -->
+      <!-- 蠟筆濾鏡：低頻位移=手繪抖動;高頻噪聲咬 alpha=蠟筆顆粒粉感。
+           ⚠ #crayon 用 userSpaceOnUse、width/height 綁 .stage 尺寸(此為 1960×1188 + 邊界)→ 放大畫布時務必同步加大 width/height,
+           否則高 x/y 的線落到濾鏡覆蓋範圍外、蠟筆效果靜默消失（#crayonEdge/#crayonText 用 % objectBoundingBox 自動隨元素,唯 #crayon 要手動跟）。 -->
       <filter id="crayon" filterUnits="userSpaceOnUse" x="-40" y="-40" width="2040" height="1410" color-interpolation-filters="sRGB">
         <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="5" result="wob"/>
         <feDisplacementMap in="SourceGraphic" in2="wob" scale="5" xChannelSelector="R" yChannelSelector="G" result="line"/>

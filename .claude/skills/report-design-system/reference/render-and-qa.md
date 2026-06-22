@@ -5,6 +5,7 @@
 ## 1. 渲染配方（本機 Chromium，免 server）
 
 `file://` + 相對依賴（`../rough.js` / `../fonts/jason8.ttf`）直接解析，**不需起 http server**。Chrome 在 `C:\Program Files\Google\Chrome\Application\chrome.exe`。
+> ⚠ **web font（Fraunces/Hanken/JetBrains/Noto/Shantell/Huninn）走 Google Fonts CDN、仍需網路**：離線 render 會字型 silent fallback、輸出與基準不符 → 離線改 Playwright+http 或把 woff2 vendor 進圖檔旁。rough.js/jason8.ttf 為本地相對依賴、不受影響。
 
 **系統圖出 PNG**（路徑空白用 `%20`；2× 加 `--force-device-scale-factor=2`）：
 ```bash

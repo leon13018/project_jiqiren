@@ -20,7 +20,7 @@
 
 **兩個濾鏡**（放各圖 `.edges <defs>` 內）：
 ```svg
-<!-- 線條/箭頭：userSpaceOnUse 大區域,避免細線位移被裁 -->
+<!-- 線條/箭頭：userSpaceOnUse 大區域,避免細線位移被裁。⚠ width/height 綁畫布尺寸(此為 1960×1188 + 邊界)→ 放大 .stage 時務必同步加大,否則高 x/y 的線落濾鏡外、蠟筆效果消失（#crayonEdge/#crayonText 用 % objectBoundingBox 不受影響,唯 #crayon 需手動跟） -->
 <filter id="crayon" filterUnits="userSpaceOnUse" x="-40" y="-40" width="2040" height="1410" color-interpolation-filters="sRGB">
   <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="5" result="wob"/>
   <feDisplacementMap in="SourceGraphic" in2="wob" scale="5" xChannelSelector="R" yChannelSelector="G" result="line"/>
