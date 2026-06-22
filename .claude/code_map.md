@@ -13,3 +13,6 @@
 - `pytest.ini` — pytest 設定。
 - `.gitignore` — Git 忽略清單。
 - `sync_pi.ps1` — （gitignored）把 `myProgram/` 同步到 Raspberry Pi 的腳本；push 後手動執行。
+
+## 環境備忘（非本 repo 內檔，但影響本機工具行為）
+- **ripgrep**：Grep / 搜尋走**系統** WinGet ripgrep 15.1.0（`+pcre2`，比內建版新且支援進階正則），非 Claude Code 內建版。切換鍵在 **user 層** `~/.claude/settings.json` 的 `env.USE_BUILTIN_RIPGREP="0"`（本 repo 的 `.claude/settings*.json` 無此鍵，別在專案內找）。rg 實體：`…\WinGet\Packages\BurntSushi.ripgrep.MSVC_…\rg.exe`。
