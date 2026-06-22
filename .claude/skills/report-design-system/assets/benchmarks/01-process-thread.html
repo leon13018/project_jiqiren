@@ -1,0 +1,534 @@
+<!doctype html>
+<!-- ════════════════════════════════════════════════════════════════
+  圖① Process / Thread 並行模型 — Anthropic 淺色編輯風（self-contained 副本）。
+  來源：architecture/diagrams/01-process-thread.html（深色霓虹版）。
+  本副本只換視覺（淺色設計系統，見 report-design-system skill reference/（report-pdf.md + diagram-crayon.md））；
+  內容 / 結構 / 座標 / .stage 尺寸全部逐字逐座標保留，不動語意與佈局。
+  theme 不外連：原 theme/diagram.css 的每個 class / 變數已內聯重定義為淺色。
+  ════════════════════════════════════════════════════════════════ -->
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>圖① · Process / Thread 並行模型</title>
+<style>
+  /* —— 字型：標題 Fraunces；繁中思源黑體；英數 Hanken Grotesk；識別字 JetBrains Mono —— */
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+  /* 手繪塗鴉標題字：Shantell Sans(拉丁/數字 marker) ＋ jf 粉圓 Huninn(繁中圓潤手寫) */
+  @import url('https://fonts.googleapis.com/css2?family=Shantell+Sans:wght@400..800&family=Huninn&display=swap');
+  /* 清松手寫體⑧隨性（自託管 ttf；最狂塗鴉感繁中手寫,缺字 fallback 給 Huninn） */
+  @font-face { font-family: 'Jason Scribble'; src: url('../fonts/jason8.ttf') format('truetype'); font-display: swap; }
+
+  /* ============================================================
+     淺色設計系統 tokens（取自 report-design-system skill reference/（report-pdf.md + diagram-crayon.md） §2/§3）
+     ============================================================ */
+  :root {
+    /* 紙與墨 */
+    --paper:#ffffff; --ivory:#faf9f5; --ink:#141413; --ink-soft:#5c5b57;
+    /* 品牌 */
+    --coral:#d97757; --tan:#e3dacc; --rule:#d9d1c0;
+    /* 章節 palette（節點分類色） */
+    --ch1:#788c5d; --ch2:#c46686; --ch3:#9b8bc7; --ch4:#6a9bcc; --ch5:#bcd1ca; --ch6:#e3dacc;
+
+    /* 字型族 */
+    --font-mono:    "JetBrains Mono", ui-monospace, Consolas, monospace;
+    --font-display: "Fraunces", "Noto Serif TC", serif;
+    --font-cjk:     "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    --font:         "Hanken Grotesk", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+
+    /* 墨色階（淺底深字） */
+    --ink-dim:  #3a3a37;   /* 次文字 */
+    --ink-mute: #5c5b57;   /* 註解 / 標籤 */
+
+    /* —— 六色語意 → palette 章節色（同類別同色、整圖協調）——
+       原霓虹 hue → palette：藍=主線程 / 綠=daemon / 薄荷=STT session /
+       玫瑰=bootstrap 一次性 / 紫=queue·EventBus / 砂=子程序·外部。
+       fill=極淡 tint、edge=細彩線、tone=eyebrow 文字色（深到夠對比）。 */
+    --blue-fill:   #eef3f8;  --blue-edge:   #6a9bcc;  --blue-glow:   transparent;  --blue-tone:   #3f6f9e;
+    --green-fill:  #f1f4ec;  --green-edge:  #788c5d;  --green-glow:  transparent;  --green-tone:  #566a3e;
+    --cyan-fill:   #eef4f2;  --cyan-edge:   #8fb3aa;  --cyan-glow:   transparent;  --cyan-tone:   #4d7268;
+    --purple-fill: #f2eff7;  --purple-edge: #9b8bc7;  --purple-glow: transparent;  --purple-tone: #6b5d96;
+    --orange-fill: #f9eef2;  --orange-edge: #c46686;  --orange-glow: transparent;  --orange-tone: #9c4763;
+    --gray-fill:   #f5f3ee;  --gray-edge:   #d9d1c0;  --gray-glow:   transparent;  --gray-tone:   #6b6a64;
+
+    /* 箭頭 / 線 */
+    --arrow:            #141413;                /* 安靜流線：墨色 */
+    --arrow-hawk:       var(--coral);           /* 主角金扇入 → 改用珊瑚 */
+    --arrow-hawk-label: #b85a3c;                /* 珊瑚標籤文字（深一階保 legibility） */
+    --grid-line:        #ece6da;
+
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; }
+  body {
+    font-family: var(--font);
+    background: var(--ivory);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* —— 固定畫布：紙白底 + 極淡儀表格線（去掉暗色雙池柔光）—— */
+  .stage {
+    width: 1960px; height: 1188px;
+    position: relative;
+    overflow: hidden;
+    margin: 0 auto;
+    background:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+      var(--ivory);
+    background-size: 40px 40px, 40px 40px, auto;
+  }
+
+  /* —— 標題：FIG.NN 等寬膠囊 + 主題用 display 襯線 —— */
+  .title {
+    position: absolute; top: 32px; left: 0; right: 0;
+    text-align: center;
+    color: var(--ink);
+    font-family: "Shantell Sans", "Jason Scribble", "Huninn", var(--font-display);
+    font-size: 33px; font-weight: 800; letter-spacing: 0.2px;
+    filter: url(#crayonText);
+  }
+  .title .num {
+    font-family: "Shantell Sans", "Jason Scribble", var(--font-mono);
+    font-size: 21px; font-weight: 700;
+    color: #c25e39;
+    margin-right: 12px;
+    padding: 2px 9px;
+    border: 2.5px solid #c25e39;
+    border-radius: 7px;
+    vertical-align: 3px;
+  }
+  .subtitle {
+    position: absolute; top: 80px; left: 0; right: 0;
+    text-align: center;
+    color: var(--ink-mute);
+    font-family: var(--font-mono);
+    font-size: 13px; font-weight: 400; letter-spacing: 0.2px;
+  }
+
+
+  /* —— 卡片：乾淨扁平卡（去 backdrop-filter / glow / 暗色 sheen）——
+     色由 modifier 設 --c-fill / --c-edge / --c-tone。 */
+  .card {
+    position: absolute;
+    border-radius: 18px;
+    padding: 13px 16px;
+    display: flex; flex-direction: column; justify-content: center;
+    background: var(--c-fill, var(--gray-fill));
+    border: 1.5px solid var(--c-edge, var(--gray-edge));
+    box-shadow: 0 2px 6px -3px rgba(20,20,19,0.14);
+    overflow: hidden;
+  }
+  .card > * { position: relative; }
+
+  /* eyebrow 分類標：等寬大寫 + 短色條 */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 10.5px; font-weight: 600;
+    letter-spacing: 1.4px; text-transform: uppercase;
+    color: var(--c-tone, var(--gray-tone));
+    margin-bottom: 5px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .eyebrow::before {
+    content: ""; width: 14px; height: 2px; border-radius: 2px;
+    background: var(--c-tone, var(--gray-tone));
+  }
+
+  .card .name { font-family: var(--font-mono); color: var(--ink); font-size: 16px; font-weight: 600; letter-spacing: 0.2px; }
+  .card .meta { font-family: var(--font-mono); color: var(--ink-mute); font-size: 11.5px; font-weight: 400; margin-top: 3px; }
+  .card .desc { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 12.5px; font-weight: 400; line-height: 1.55; margin-top: 6px; }
+
+  /* 色 modifier（連帶設 eyebrow 文字色 --c-tone） */
+  .blue   { --c-fill: var(--blue-fill);   --c-edge: var(--blue-edge);   --c-tone: var(--blue-tone); }
+  .green  { --c-fill: var(--green-fill);  --c-edge: var(--green-edge);  --c-tone: var(--green-tone); }
+  .cyan   { --c-fill: var(--cyan-fill);   --c-edge: var(--cyan-edge);   --c-tone: var(--cyan-tone); }
+  .purple { --c-fill: var(--purple-fill); --c-edge: var(--purple-edge); --c-tone: var(--purple-tone); }
+  .orange { --c-fill: var(--orange-fill); --c-edge: var(--orange-edge); --c-tone: var(--orange-tone); }
+  .gray   { --c-fill: var(--gray-fill);   --c-edge: var(--gray-edge);   --c-tone: var(--gray-tone); }
+
+  /* 子框（group container，如 STT session） */
+  .group {
+    position: absolute;
+    border-radius: 20px;
+    border: 1px solid var(--c-edge, var(--cyan-edge));
+    background: var(--c-fill-soft, #f4f7f5);
+  }
+  .group-label {
+    position: absolute; top: 14px; left: 22px;
+    font-family: var(--font-mono);
+    color: var(--c-tone, var(--cyan-tone)); font-size: 11px; font-weight: 600;
+    letter-spacing: 0.8px; text-transform: uppercase;
+  }
+
+  /* 外部子程序小掛件（砂色膠囊） */
+  .chip {
+    position: absolute;
+    border-radius: 11px;
+    padding: 6px 11px;
+    background: var(--ivory);
+    border: 1px solid var(--tan);
+    color: var(--ink-dim); font-family: var(--font-cjk); font-size: 11.5px; font-weight: 400;
+    box-shadow: 0 1px 2px rgba(20,20,19,0.04);
+  }
+  .chip b { font-family: var(--font-mono); font-weight: 600; color: var(--ink); }
+
+  /* —— 箭頭層（SVG overlay）：去 drop-shadow —— */
+  .group { z-index: 1; }
+  .edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+  .title, .subtitle, .legend, .note, .card, .chip, .group-label { z-index: 3; }
+  .edges path, .edges line { fill: none; stroke: var(--arrow); stroke-width: 3.0; stroke-linecap: round; }
+  /* 手繪蠟筆感：抖動+顆粒濾鏡 + 半透明粉感（只套有 class 的邊，不套 marker 定義與文字）*/
+  .edges path[class] { filter: url(#crayon); stroke-opacity: 0.82; }
+
+  /* ── 手繪蠟筆外框：原乾淨邊改透明，用 ::before 畫蠟筆框（抖動+輕顆粒，不動底色/文字）── */
+  .card, .legend, .note, .chip, .group { border-color: transparent; overflow: visible; }
+  .card::before, .legend::before, .note::before, .chip::before, .group::before, .sw::before {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    border: 2px solid var(--edge, var(--gray-edge));
+    filter: url(#crayonEdge);
+  }
+  .card::before  { --edge: var(--c-edge, var(--gray-edge)); }
+  .legend::before, .note::before { --edge: var(--rule); }
+  .chip::before  { --edge: var(--gray-edge); }
+  .group::before { --edge: var(--c-edge, var(--cyan-edge)); }
+  /* .card 自成 stacking context：讓 Rough 填色(z-1)墊在蠟筆框後、又在頁面之上 */
+  .card, .legend, .note, .chip, .cmd, .gate, .group, .misalign, .subphase-tag, .sw { isolation: isolate; }
+  .sw { position: relative; }
+  .edges marker path { stroke: none; }
+  .edges marker#ah path      { fill: var(--arrow); }
+  .edges marker#ah-hawk path { fill: var(--arrow-hawk); }
+  .edges .flow { stroke-dasharray: none; }
+  .edges .async { stroke-dasharray: 7 5; }
+  /* 主角弧線（3 producer 扇入）：粗 + 珊瑚高亮 */
+  .edges .hawk { stroke: var(--arrow-hawk); stroke-width: 3.8; }
+  .edges .hawklabel {
+    fill: var(--arrow-hawk-label); font-family: var(--font-mono);
+    font-size: 13.5px; font-weight: 600; letter-spacing: 0.3px;
+    paint-order: stroke; stroke: var(--paper); stroke-width: 5px;
+  }
+  .edges .elabel {
+    fill: var(--ink-mute); font-family: var(--font-mono);
+    font-size: 12px; font-weight: 500;
+    paint-order: stroke; stroke: var(--paper); stroke-width: 4px;
+  }
+
+  /* —— legend：扁平 ivory 卡 —— */
+  .legend {
+    position: absolute;
+    border-radius: 16px;
+    padding: 13px 15px;
+    background: var(--ivory);
+    border: 1px solid var(--rule);
+    box-shadow: 0 1px 3px rgba(20,20,19,0.05);
+  }
+  .legend h4 { font-family: var(--font-mono); color: var(--ink); font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 9px; }
+  .legend .row { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+  .legend .sw { width: 22px; height: 13px; border-radius: 5px; border: 1px solid rgba(20,20,19,0.18); }
+  .legend .lb { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 12px; font-weight: 400; white-space: nowrap; }
+
+  /* —— 說明 note：扁平 ivory 卡 —— */
+  .note {
+    position: absolute;
+    border-radius: 16px;
+    padding: 14px 18px;
+    background: var(--ivory);
+    border: 1px solid var(--rule);
+    box-shadow: 0 1px 3px rgba(20,20,19,0.05);
+  }
+  .note h4 { font-family: var(--font-mono); color: var(--ink); font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+  .note ul { list-style: none; }
+  .note li { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 12.5px; font-weight: 400; line-height: 1.7; }
+  .note li b { font-weight: 600; color: var(--ink); }
+  .note li code { font-family: var(--font-mono); font-weight: 500; color: var(--coral); font-size: 11.5px; }
+  .note li .dot { color: var(--coral); margin-right: 6px; }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <div class="title"><span class="num">FIG.01</span>Process / Thread 並行模型</div>
+  <div class="subtitle">single process · single-threaded L0–L5 state machine + decoupled background daemons</div>
+
+  <!-- ═══ 箭頭層（SVG overlay）：座標於卡片層定版後填 ═══ -->
+  <svg class="edges" viewBox="0 0 1960 1188" preserveAspectRatio="none">
+    <defs>
+      <marker id="ah" markerWidth="13" markerHeight="13" refX="10" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L11,4.5 L0,9 Z" fill="var(--arrow)" stroke="none"/>
+      </marker>
+      <marker id="ah-hawk" markerWidth="15" markerHeight="15" refX="11" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L12,5 L0,10 Z" fill="var(--arrow-hawk)" stroke="none"/>
+      </marker>
+      <!-- 手繪蠟筆濾鏡：低頻位移=手繪抖動不直；高頻噪聲侵蝕 alpha=蠟筆紙面顆粒粉感 -->
+      <filter id="crayon" filterUnits="userSpaceOnUse" x="-40" y="-40" width="2040" height="1410" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="5" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="5" xChannelSelector="R" yChannelSelector="G" result="line"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.5 0.62" numOctaves="2" seed="9" result="grain"/>
+        <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.9 -0.1" result="grainMask"/>
+        <feComposite in="line" in2="grainMask" operator="in"/>
+      </filter>
+      <!-- 手繪蠟筆外框濾鏡（套卡片 ::before；objectBoundingBox 區域隨卡縮放，效率高）-->
+      <filter id="crayonEdge" x="-12%" y="-15%" width="124%" height="130%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="4" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="4" result="ln"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.5 0.6" numOctaves="2" seed="8" result="gr"/>
+        <feColorMatrix in="gr" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.95 -0.05" result="grm"/>
+        <feComposite in="ln" in2="grm" operator="in"/>
+      </filter>
+      <!-- 手繪標題濾鏡：輕位移(邊抖)+顆粒只咬邊(蠟筆質感,字心保實);scale 小保易讀 -->
+      <filter id="crayonText" x="-8%" y="-18%" width="116%" height="136%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="7" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="2.6" result="ln"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.6 0.7" numOctaves="2" seed="3" result="gr"/>
+        <feColorMatrix in="gr" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.4 2.0" result="grm"/>
+        <feComposite in="ln" in2="grm" operator="in"/>
+      </filter>
+    </defs>
+    <!-- ════ 輸出主幹（main 往下發；安靜 .flow 白線）════
+         三縱列各自獨立 lane：speak(左) / do_action(中) / display(右)，
+         每列 MAIN → queue → daemon → chip 一路向下，線走各列正中、零交叉、不擦卡。 -->
+
+    <!-- 左列：MAIN → TTS queue → TtsWorker → mpg123 / edge-tts -->
+    <path class="flow" marker-end="url(#ah)" d="M560,326 C500,356 430,372 418,402"/>
+    <text class="elabel" x="470" y="370" text-anchor="middle">speak</text>
+    <path class="flow" marker-end="url(#ah)" d="M408,474 C372,494 300,503 278,524"/>
+    <path class="flow" marker-end="url(#ah)" d="M222,708 C206,722 188,730 180,740"/>
+    <path class="flow" marker-end="url(#ah)" d="M300,708 C322,722 342,730 350,740"/>
+
+    <!-- 中列：MAIN → Action queue → ActionWorker → vendor SDK -->
+    <path class="flow" marker-end="url(#ah)" d="M700,326 L700,402"/>
+    <text class="elabel" x="700" y="370" text-anchor="middle">do_action</text>
+    <path class="flow" marker-end="url(#ah)" d="M692,474 C662,494 638,503 630,524"/>
+    <path class="flow" marker-end="url(#ah)" d="M620,708 C615,722 612,730 610,740"/>
+
+    <!-- 右列：MAIN → EventBus → webui-server → browser -->
+    <path class="flow" marker-end="url(#ah)" d="M1000,326 C1012,356 1020,372 1020,402"/>
+    <text class="elabel" x="1062" y="370" text-anchor="middle">display</text>
+    <path class="flow" marker-end="url(#ah)" d="M1028,474 C1038,494 1042,503 1042,524"/>
+    <path class="flow" marker-end="url(#ah)" d="M1002,708 C990,722 982,730 980,740"/>
+    <text class="elabel" x="1040" y="728" text-anchor="middle">WS 廣播</text>
+
+    <!-- ════ STT 內部 pipeline（.flow，右欄上→下）：arecord → Sender → Deepgram → Receiver ════
+         全段走 x≈1655 同一垂直 lane、線直、標籤落右側清空處（不壓 chip / 不壓卡）。 -->
+    <path class="flow" marker-end="url(#ah)" d="M1659,227 L1661,258"/>
+    <text class="elabel" x="1701" y="247" text-anchor="middle">音框</text>
+    <path class="flow" marker-end="url(#ah)" d="M1661,356 L1652,390"/>
+    <text class="elabel" x="1701" y="378" text-anchor="middle">ws.send</text>
+    <path class="flow" marker-end="url(#ah)" d="M1649,421 L1656,452"/>
+    <text class="elabel" x="1701" y="441" text-anchor="middle">ws.recv</text>
+
+    <!-- stdin → InputReader（.flow，由下方 chip 向上讀入）-->
+    <path class="flow" marker-end="url(#ah)" d="M1559,1084 L1559,1058"/>
+
+    <!-- ════ 主角：3 producer → 中段 input queue 的金扇入（.hawk + ah-hawk）════
+         boldness 集中於此：STT(上行下扇)／鍵盤(下行上扇)／web(左脊跨 gutter)三路匯一 queue，
+         queue→MAIN 單一 consume 回收。三 producer 扇入線與 consume 線分屬不同 lane、交叉最少。 -->
+
+    <!-- ① SttReceiver → input queue（STT inject；右欄 STT 底正下方短下行、x≈1668 直入 queue 頂）-->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M1666,572 L1668,668"/>
+    <text class="hawklabel" x="1668" y="622" text-anchor="middle">STT inject · _capturing 閘</text>
+
+    <!-- ② InputReader → input queue（鍵盤 stdin；右欄 InputReader 頂正上方短上行、x≈1672 入 queue 底）-->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M1672,870 L1672,836"/>
+    <text class="hawklabel" x="1672" y="858" text-anchor="middle">鍵盤 stdin</text>
+
+    <!-- ③ webui-server → input queue（web 觸控 inject；綠卡右緣 → 走中段 gutter 下扇入 queue 左下）-->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M1212,648 C1322,690 1396,762 1476,776"/>
+    <text class="hawklabel" x="1344" y="742" text-anchor="middle">web 觸控 inject</text>
+
+    <!-- ★ input queue → MAIN（珊瑚 consume；queue 左上緣 → 走 gutter 高 lane 上彎入 MAIN 右緣，
+         與 ③ 分流：③ 走低 lane(y≥690)、本線走高 lane(y≤690)，交叉最少且交叉點無字）-->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M1478,694 C1318,664 1296,332 1144,294"/>
+    <text class="hawklabel" x="1232" y="472" text-anchor="middle">read 單一消費</text>
+  </svg>
+
+  <!-- process 外框已移除（單一 process 已由副標表達），背景留乾淨格線比照圖2/圖3 -->
+
+  <!-- ═══ legend（左上角，6 列）═══ -->
+  <div class="legend" style="left:60px; top:156px; width:330px;">
+    <h4>色彩語意 · thread 生命週期</h4>
+    <div class="row"><span class="sw" style="background:var(--blue-fill);border-color:var(--blue-edge)"></span><span class="lb">主線程</span></div>
+    <div class="row"><span class="sw" style="background:var(--green-fill);border-color:var(--green-edge)"></span><span class="lb">常駐 daemon</span></div>
+    <div class="row"><span class="sw" style="background:var(--cyan-fill);border-color:var(--cyan-edge)"></span><span class="lb">每輪一生（STT session）</span></div>
+    <div class="row"><span class="sw" style="background:var(--orange-fill);border-color:var(--orange-edge)"></span><span class="lb">一次性（bootstrap）</span></div>
+    <div class="row"><span class="sw" style="background:var(--purple-fill);border-color:var(--purple-edge)"></span><span class="lb">queue · EventBus</span></div>
+    <div class="row"><span class="sw" style="background:var(--gray-fill);border-color:var(--gray-edge)"></span><span class="lb">子程序 · 外部</span></div>
+  </div>
+
+  <!-- ═══ A · 主線程 hub（blue，大卡，頂置中）═══ -->
+  <div class="card blue" style="left:480px; top:156px; width:660px; height:170px;">
+    <div class="eyebrow">MAIN · 主線程</div>
+    <div class="name">logic.run → SalesMachine.run()</div>
+    <div class="meta">單線程 L0–L5 對話迴圈</div>
+    <div class="desc">呼叫 10 個 callback；讀 input queue 單一消費。所有會阻塞 / 並行的事丟背景 daemon。</div>
+  </div>
+
+  <!-- ═══ B · 輸出通道 pill（purple，main 下方列）═══ -->
+  <div class="card purple" style="left:300px; top:404px; width:230px; height:70px; padding:9px 16px;">
+    <div class="name" style="font-size:14px;">TTS queue</div>
+    <div class="meta">FIFO · 單消費</div>
+  </div>
+  <div class="card purple" style="left:585px; top:404px; width:230px; height:70px; padding:9px 16px;">
+    <div class="name" style="font-size:14px;">Action queue</div>
+    <div class="meta">FIFO · 單消費</div>
+  </div>
+  <div class="card purple" style="left:870px; top:404px; width:300px; height:70px; padding:9px 16px;">
+    <div class="name" style="font-size:14px;">EventBus</div>
+    <div class="meta">run_coroutine_threadsafe → loop</div>
+  </div>
+
+  <!-- ═══ C · 輸出 daemon（green）+ 底部灰 chip ═══ -->
+  <!-- TtsWorker（左）-->
+  <div class="card green" style="left:90px; top:526px; width:330px; height:182px;">
+    <div class="eyebrow">DAEMON · 常駐</div>
+    <div class="name">TtsWorker</div>
+    <div class="meta">consumer + 常駐 asyncio loop</div>
+    <div class="desc">FIFO queue ← speak；synth + 播放，caller 立即返回。</div>
+  </div>
+  <!-- ActionWorker（中）-->
+  <div class="card green" style="left:460px; top:526px; width:330px; height:182px;">
+    <div class="eyebrow">DAEMON · 常駐</div>
+    <div class="name">ActionWorker</div>
+    <div class="meta">consumer (QueueWorker)</div>
+    <div class="desc">FIFO queue ← do_action；worker thread 內 lazy import vendor。</div>
+  </div>
+  <!-- webui-server（右，EventBus 下方）-->
+  <div class="card green" style="left:870px; top:526px; width:340px; height:182px;">
+    <div class="eyebrow">DAEMON · 常駐</div>
+    <div class="name">webui-server</div>
+    <div class="meta">uvicorn async loop</div>
+    <div class="desc">--web 才起，至 server.stop；EventBus→WS 推前端，觸控命令 to_token→inject。</div>
+  </div>
+
+  <!-- C 灰 chip（外部子程序 / 雲端，掛 TtsWorker / ActionWorker / webui-server 底）-->
+  <div class="chip" style="left:108px; top:742px;">子程序 <b>mpg123</b> 播放</div>
+  <div class="chip" style="left:282px; top:742px;">雲端 synth <b>edge-tts</b></div>
+  <div class="chip" style="left:520px; top:742px;">vendor SDK <b>Act.runAction</b></div>
+  <div class="chip" style="left:910px; top:742px;"><b>browser</b>（WS 雙向）</div>
+
+  <!-- ═══ D · input queue HERO（珊瑚強調，右中 = 3 producer 扇入焦點）═══ -->
+  <div class="card purple" style="left:1480px; top:672px; width:380px; height:160px; padding:15px 20px;
+       background:#fdf0eb; border:1.5px solid transparent; --c-edge:var(--coral);
+       box-shadow: 0 2px 10px -3px rgba(217,119,87,0.35);">
+    <div class="eyebrow" style="--c-tone:var(--coral);">QUEUE · ★ 單一扇入</div>
+    <div class="name" style="font-size:17px;">input queue</div>
+    <div class="meta">InputReader 所有；inject() 共用</div>
+    <div class="desc" style="margin-top:5px;">3 producer → 1 consumer · producer 端零分流</div>
+  </div>
+
+  <!-- ═══ E1 · InputReader（右欄底，input queue 下方 green）═══ -->
+  <div class="card green" style="left:1480px; top:872px; width:380px; height:182px;">
+    <div class="eyebrow">DAEMON · 常駐</div>
+    <div class="name">InputReader</div>
+    <div class="meta">producer (stdin→queue)</div>
+    <div class="desc">SALES_KEYBOARD=1 才起 reader thread；bytes-level decode 進 input queue。</div>
+  </div>
+  <div class="chip" style="left:1500px; top:1086px;"><b>stdin</b> 鍵盤位元組</div>
+
+  <!-- ═══ E2 · STT session 子框（cyan，右欄上；垂直 pipeline）═══ -->
+  <div class="group" style="left:1450px; top:156px; width:430px; height:476px;
+       --c-edge:var(--cyan-edge);
+       background:#eef4f2;">
+  </div>
+  <div class="group-label" style="left:1472px; top:170px;">STT SESSION · arm→disarm 一輪 &lt;12s</div>
+  <!-- arecord chip（pipeline 起點，子框內頂）-->
+  <div class="chip" style="left:1550px; top:198px;"><b>arecord</b> ch0（XVF-3000 處理聲道）</div>
+  <!-- SttSender -->
+  <div class="card cyan" style="left:1474px; top:260px; width:382px; height:96px;">
+    <div class="eyebrow">PER-ROUND · 每輪一生</div>
+    <div class="name">SttSender</div>
+    <div class="meta">producer (arecord→ws.send)</div>
+  </div>
+  <!-- Deepgram chip（pipeline 中段）-->
+  <div class="chip" style="left:1576px; top:392px;"><b>Deepgram</b> Nova-3 WS</div>
+  <!-- SttReceiver -->
+  <div class="card cyan" style="left:1474px; top:454px; width:382px; height:116px;">
+    <div class="eyebrow">PER-ROUND · 每輪一生</div>
+    <div class="name">SttReceiver</div>
+    <div class="meta">consumer (ws.recv)</div>
+    <div class="desc">_capturing 閘 → inject 進 input queue</div>
+  </div>
+
+  <!-- ═══ bootstrap 一次性 ×3（orange，中下束，垂直堆疊）═══ -->
+  <div class="card orange" style="left:840px; top:806px; width:380px; height:74px; padding:10px 16px;">
+    <div class="eyebrow">ONE-SHOT · 一次性</div>
+    <div class="name" style="font-size:14px;">worker-prewarm</div>
+    <div class="desc" style="margin-top:2px;">背景 import tts/action/stt 暖機</div>
+  </div>
+  <div class="card orange" style="left:840px; top:894px; width:380px; height:74px; padding:10px 16px;">
+    <div class="eyebrow">ONE-SHOT · 一次性</div>
+    <div class="name" style="font-size:14px;">webui-boot</div>
+    <div class="desc" style="margin-top:2px;">import fastapi/uvicorn + server.start</div>
+  </div>
+  <div class="card orange" style="left:840px; top:982px; width:380px; height:74px; padding:10px 16px;">
+    <div class="eyebrow">ONE-SHOT · 一次性</div>
+    <div class="name" style="font-size:14px;">SttPrearm</div>
+    <div class="desc" style="margin-top:2px;">背景預連線，藏首輪 540ms 握手</div>
+  </div>
+
+  <!-- ═══ note（左下，3 點，填空白）═══ -->
+  <div class="note" style="left:90px; top:900px; width:680px;">
+    <h4>所以呢 · 並行模型三鐵則</h4>
+    <ul>
+      <li><span class="dot">●</span>全部 <code>daemon=True</code> → 主程式 <code>os._exit(0)</code> 強退，daemon 隨 process die，不 join。</li>
+      <li><span class="dot">●</span>阻塞 / 並行的事全推背景 worker；主線程只跑純單線程對話邏輯。</li>
+      <li><span class="dot">●</span><b>producer 端零分流</b>：鍵盤 / 語音 / 觸控 → 同一 input queue，主線程單一消費（無旗號分流 race）。</li>
+    </ul>
+  </div>
+
+</div>
+
+<!-- Rough.js：把每張 .card 的填色重畫成 hachure 手繪上色（fill 在蠟筆框後），框維持 ::before 蠟筆框 -->
+<script src="../rough.js"></script>
+<script>
+window.addEventListener('load', () => {
+  if (!window.rough) return;
+  const NS = 'http://www.w3.org/2000/svg';
+  const rr = (x, y, w, h, r) =>
+    `M${x+r},${y}L${x+w-r},${y}Q${x+w},${y} ${x+w},${y+r}L${x+w},${y+h-r}Q${x+w},${y+h} ${x+w-r},${y+h}` +
+    `L${x+r},${y+h}Q${x},${y+h} ${x},${y+h-r}L${x},${y+r}Q${x},${y} ${x+r},${y}Z`;
+  document.querySelectorAll('.card, .legend, .note, .chip, .cmd, .gate, .group, .misalign, .subphase-tag, .sw').forEach((card, i) => {
+    const w = card.offsetWidth, h = card.offsetHeight;
+    if (!w || !h) return;
+    const cs = getComputedStyle(card);
+    const isSw = card.classList.contains('sw');
+    let fill = cs.backgroundColor, neutral = false, stroke = 'none', inset = 3.5;
+    if (isSw) {
+      card.style.setProperty('--edge', cs.borderTopColor);  // ::before 蠟筆框用色票邊色（同其他 attribute）
+      card.style.borderColor = 'transparent';
+      inset = 1.6;                       // 幾乎填滿小框；填色維持原淺色票色（較淡、符合該類別）
+    } else {
+      const m = fill.match(/[\d.]+/g);
+      if (m && m.length >= 3) {
+        const r = +m[0], g = +m[1], b = +m[2];
+        // 中性淺色框（ivory/gray）：只壓深一點點 + 半透明,讓 hachure 淡淡顯色；有色框維持原填色
+        if (r > 235 && Math.abs(r - g) < 4 && Math.abs(g - b) < 8) {
+          fill = `rgb(${Math.round(r * 0.95)},${Math.round(g * 0.95)},${Math.round(b * 0.95)})`;
+          neutral = true;
+        }
+      }
+    }
+    const radius = Math.max(0, Math.min(parseFloat(cs.borderRadius) || 14, Math.min(w, h) / 2 - inset - 0.5));
+    card.style.background = 'transparent';
+    card.classList.add('rough-done');
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('width', w);
+    svg.setAttribute('height', h);
+    svg.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:-1;';
+    const rc = rough.svg(svg);
+    const d = rr(inset, inset, w - inset * 2, h - inset * 2, radius);
+    const node = rc.path(d, {
+      fill, fillStyle: 'hachure', hachureGap: isSw ? 2.2 : 5.5, fillWeight: isSw ? 1.0 : 1.4,
+      hachureAngle: -41 + (i % 3) * 8, roughness: 1.4, bowing: isSw ? 0.7 : 1.4,
+      stroke, strokeWidth: 1.4
+    });
+    if (neutral) node.setAttribute('opacity', '0.6');
+    svg.appendChild(node);
+    card.insertBefore(svg, card.firstChild);
+  });
+});
+</script>
+</body>
+</html>

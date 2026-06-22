@@ -1,0 +1,557 @@
+<!doctype html>
+<!-- ════════════════════════════════════════════════════════════════
+  圖② L0–L5 銷售對話狀態機 — 淺色編輯風（Anthropic 設計系統）副本。
+  自足單檔：theme/diagram.css + tokens.css 用到的 class / CSS 變數，
+  全部以淺色設計系統內聯重定義；移除外部 stylesheet 引用。
+  ★ 內容 / 結構 / 幾何（狀態節點、轉移標籤、SVG path 座標、.stage 尺寸、
+    箭頭位置）逐字逐座標保留原樣，僅換視覺。
+
+  視覺對應（霓虹 → 淺色）：
+    底深近黑 → 紙白 #FFFFFF；文字/線/箭頭 → 墨 #141413。
+    毛玻璃卡/glow/backdrop-filter → 乾淨扁平卡（ivory/白底 + 細線 + 圓角 + 極淺陰影）。
+    L1 blue→天藍#6A9BCC；dialog green→橄欖綠#788C5D；L4 orange→珊瑚#D97757；
+    L5 purple→矢車菊紫#9B8BC7；confirm cyan→薄荷#BCD1CA；L0/終止 gray→暖砂#E3DACC。
+    enter_hawk 主角金弧 → 珊瑚主強調 #D97757。
+  ════════════════════════════════════════════════════════════════ -->
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>圖② · L0–L5 銷售對話狀態機</title>
+<style>
+  /* ── 字型（Anthropic 淺色編輯風）：標題 Fraunces；繁中思源黑體；
+     英文 Hanken Grotesk；狀態碼 / 識別字 / 事件名 JetBrains Mono ── */
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+  /* 手繪塗鴉標題字：Shantell Sans(拉丁/數字 marker) ＋ jf 粉圓 Huninn(繁中圓潤手寫) */
+  @import url('https://fonts.googleapis.com/css2?family=Shantell+Sans:wght@400..800&family=Huninn&display=swap');
+  /* 清松手寫體⑧隨性（自託管 ttf；最狂塗鴉感繁中手寫,缺字 fallback 給 Huninn） */
+  @font-face { font-family: 'Jason Scribble'; src: url('../fonts/jason8.ttf') format('truetype'); font-display: swap; }
+
+  :root {
+    /* —— 字型 —— */
+    --font-mono:    "JetBrains Mono", ui-monospace, Consolas, monospace;
+    --font-display: "Fraunces", "Noto Serif TC", serif;
+    --font-cjk:     "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    --font:         "Hanken Grotesk", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+
+    /* —— 紙與墨 —— */
+    --paper:    #ffffff;
+    --ivory:    #faf9f5;
+    --ink:      #141413;   /* 主文字 */
+    --ink-dim:  #3a3936;   /* 次文字 */
+    --ink-mute: #5c5b57;   /* 註解 / 標籤 */
+
+    --bg-base:  #faf9f5;
+
+    /* —— 六色語意（設計系統章節色 → fill 淺底 / edge 細線 / tone 文字深色）——
+       淺底用各色相 ~92% 明度的薄填；edge 用該色相飽和細線；tone 用該色相深字保對比。 */
+    --blue-fill:   #e9f0f7;  --blue-edge:   #6a9bcc;  --blue-glow:   transparent;  --blue-tone:   #3a648c;
+    --green-fill:  #eef1e8;  --green-edge:  #788c5d;  --green-glow:  transparent;  --green-tone:  #4f5e3a;
+    --cyan-fill:   #eaf2ef;  --cyan-edge:   #8db5a8;  --cyan-glow:   transparent;  --cyan-tone:   #4a6b60;
+    --purple-fill: #efecf6;  --purple-edge: #9b8bc7;  --purple-glow: transparent;  --purple-tone: #5f5288;
+    --orange-fill: #fbeee8;  --orange-edge: #c46686;  --orange-glow: transparent;  --orange-tone: #9e3f60;
+    --gray-fill:   #f5f1e9;  --gray-edge:   #d2c8b6;  --gray-glow:   transparent;  --gray-tone:   #6f6754;
+
+    /* —— 邊框線 / 箭頭 / 格線 —— */
+    --edge-line:  #d9d1c0;
+    --arrow:      #141413;
+    /* 主角珊瑚弧（hawk）線 + 箭頭頭共用 → 線與頭永遠同色 */
+    --arrow-hawk: #d97757;
+    --arrow-hawk-label: #b85a39;
+    --grid-line:  #ece6da;
+
+    --rule: #d9d1c0;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg-base);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* —— 固定畫布：白紙底 + 極淡砂色格線（取代深色雙池柔光）—— */
+  .stage {
+    position: relative;
+    overflow: hidden;
+    margin: 0 auto;
+    background:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+      var(--ivory);
+    background-size: 40px 40px, 40px 40px, auto;
+    width: 1960px; height: 1150px;
+  }
+
+  /* —— 標題：FIG.NN 等寬膠囊 + 主題用 Fraunces 顯示字 —— */
+  .title {
+    position: absolute; top: 32px; left: 0; right: 0;
+    text-align: center;
+    color: var(--ink);
+    font-family: "Shantell Sans", "Jason Scribble", "Huninn", var(--font-display);
+    font-size: 33px; font-weight: 800; letter-spacing: 0.2px;
+    filter: url(#crayonText);
+  }
+  .title .num {
+    font-family: "Shantell Sans", "Jason Scribble", var(--font-mono);
+    font-size: 21px; font-weight: 700;
+    color: #c25e39;
+    margin-right: 12px;
+    padding: 2px 9px;
+    border: 2.5px solid #c25e39;
+    border-radius: 7px;
+    vertical-align: 3px;
+    color: #d97757;
+  }
+  .subtitle {
+    position: absolute; top: 80px; left: 0; right: 0;
+    text-align: center;
+    color: var(--ink-mute);
+    font-family: var(--font-mono);
+    font-size: 13px; font-weight: 400; letter-spacing: 0.2px;
+  }
+
+  /* —— 扁平卡（取代毛玻璃）：色由 modifier 設 --c-fill / --c-edge / --c-tone —— */
+  .card {
+    position: absolute;
+    border-radius: 18px;
+    padding: 13px 16px;
+    display: flex; flex-direction: column; justify-content: center;
+    background: var(--c-fill, var(--gray-fill));
+    border: 1.5px solid var(--c-edge, var(--gray-edge));
+    box-shadow: 0 2px 6px -3px rgba(20,20,19,0.14);
+    overflow: hidden;
+  }
+  .card > * { position: relative; }
+
+  /* 簽名元素：等寬大寫 eyebrow 分類標 + 該色相短橫 */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 10.5px; font-weight: 600;
+    letter-spacing: 1.4px; text-transform: uppercase;
+    color: var(--c-tone, var(--gray-tone));
+    margin-bottom: 5px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .eyebrow::before {
+    content: ""; width: 14px; height: 2px; border-radius: 2px;
+    background: var(--c-tone, var(--gray-tone));
+  }
+
+  .card .name { font-family: var(--font-mono); color: var(--ink); font-size: 16px; font-weight: 600; letter-spacing: 0.2px; }
+  .card .meta { font-family: var(--font-mono); color: var(--ink-mute); font-size: 11.5px; font-weight: 400; margin-top: 3px; }
+  .card .desc { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 12.5px; font-weight: 400; line-height: 1.55; margin-top: 6px; }
+  .card .tag  { font-family: var(--font-cjk); color: var(--ink-mute); font-size: 11.5px; font-weight: 400; }
+
+  /* 色 modifier（連帶設 eyebrow 文字色 --c-tone） */
+  .blue   { --c-fill: var(--blue-fill);   --c-edge: var(--blue-edge);   --c-tone: var(--blue-tone); }
+  .green  { --c-fill: var(--green-fill);  --c-edge: var(--green-edge);  --c-tone: var(--green-tone); }
+  .cyan   { --c-fill: var(--cyan-fill);   --c-edge: var(--cyan-edge);   --c-tone: var(--cyan-tone); }
+  .purple { --c-fill: var(--purple-fill); --c-edge: var(--purple-edge); --c-tone: var(--purple-tone); }
+  .orange { --c-fill: var(--orange-fill); --c-edge: var(--orange-edge); --c-tone: var(--orange-tone); }
+  .gray   { --c-fill: var(--gray-fill);   --c-edge: var(--gray-edge);   --c-tone: var(--gray-tone); }
+
+  /* 子框（confirm cluster 容器）：薄薄 ivory 填底 + 細砂線 */
+  .group {
+    position: absolute;
+    border-radius: 20px;
+    border: 1px solid var(--c-edge, var(--cyan-edge));
+    background: var(--c-fill-soft, #f4f7f5);
+  }
+  .group-label {
+    position: absolute; top: 14px; left: 22px;
+    font-family: var(--font-mono);
+    color: var(--c-tone, var(--cyan-tone)); font-size: 11px; font-weight: 600;
+    letter-spacing: 0.8px; text-transform: uppercase;
+  }
+
+  /* 外部子程序小掛件（砂色膠囊） */
+  .chip {
+    position: absolute;
+    border-radius: 11px;
+    padding: 6px 11px;
+    background: var(--ivory);
+    border: 1px solid var(--gray-edge);
+    color: var(--ink-dim); font-family: var(--font-cjk); font-size: 11.5px; font-weight: 400;
+    box-shadow: 0 1px 2px rgba(20,20,19,0.04);
+  }
+  .chip b { font-family: var(--font-mono); font-weight: 600; color: var(--ink); }
+
+  /* —— 箭頭層（SVG overlay）—— */
+  .edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .edges path, .edges line { fill: none; stroke: var(--arrow); stroke-width: 3.0; stroke-linecap: round; }
+  /* 手繪蠟筆感：抖動+顆粒濾鏡 + 半透明粉感（只套有 class 的邊，不套 marker 定義與文字）*/
+  .edges path[class] { filter: url(#crayon); stroke-opacity: 0.82; }
+
+  /* ── 手繪蠟筆外框：原乾淨邊改透明，用 ::before 畫蠟筆框（抖動+輕顆粒，不動底色/文字）── */
+  .card, .legend, .note, .chip, .group, .gate { border-color: transparent; overflow: visible; }
+  .card::before, .legend::before, .note::before, .chip::before, .group::before, .gate::before, .sw::before {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    border: 2px solid var(--edge, var(--gray-edge));
+    filter: url(#crayonEdge);
+  }
+  .card::before  { --edge: var(--c-edge, var(--gray-edge)); }
+  .legend::before, .note::before { --edge: var(--rule); }
+  .chip::before  { --edge: var(--gray-edge); }
+  .group::before { --edge: var(--c-edge, var(--cyan-edge)); }
+  .gate::before  { --edge: var(--cyan-edge); }
+  /* .card 自成 stacking context：讓 Rough 填色(z-1)墊在蠟筆框後、又在頁面之上 */
+  .card, .legend, .note, .chip, .cmd, .gate, .group, .misalign, .subphase-tag, .sw { isolation: isolate; }
+  .sw { position: relative; }
+  .edges marker path { stroke: none; }
+  .edges marker#ah path      { fill: var(--arrow); }
+  .edges marker#ah-hawk path { fill: var(--arrow-hawk); }
+  .edges .flow { stroke-dasharray: none; }
+  .edges .async { stroke-dasharray: 7 5; stroke: var(--ink-mute); }
+  .edges .async ~ .async { stroke: var(--ink-mute); }
+  /* 主角弧線（enter_hawk 回流）：粗 + 珊瑚高亮 */
+  .edges .hawk { stroke: var(--arrow-hawk); stroke-width: 3.8; }
+  .edges .hawklabel {
+    fill: var(--arrow-hawk-label); font-family: var(--font-mono);
+    font-size: 13.5px; font-weight: 700; letter-spacing: 0.3px;
+    paint-order: stroke; stroke: #ffffff; stroke-width: 5px;
+  }
+  .edges .elabel {
+    fill: var(--ink-dim); font-family: var(--font-mono);
+    font-size: 12px; font-weight: 500;
+    paint-order: stroke; stroke: #ffffff; stroke-width: 4px;
+  }
+
+  /* —— legend（左上）：白卡 + 細砂線 —— */
+  .legend {
+    position: absolute;
+    border-radius: 16px;
+    padding: 13px 15px;
+    background: var(--ivory);
+    border: 1px solid var(--rule);
+    box-shadow: 0 1px 2px rgba(20,20,19,0.04), 0 6px 16px -12px rgba(20,20,19,0.16);
+  }
+  .legend h4 { font-family: var(--font-mono); color: var(--ink); font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 9px; }
+  .legend .row { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+  .legend .sw { width: 22px; height: 13px; border-radius: 5px; border: 1px solid rgba(20,20,19,0.18); }
+  .legend .lb { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 12px; font-weight: 400; white-space: nowrap; }
+
+  /* —— 說明 note —— */
+  .note {
+    position: absolute;
+    border-radius: 16px;
+    padding: 14px 18px;
+    background: var(--ivory);
+    border: 1px solid var(--rule);
+    box-shadow: 0 1px 2px rgba(20,20,19,0.04), 0 6px 16px -12px rgba(20,20,19,0.16);
+  }
+  .note h4 { font-family: var(--font-mono); color: var(--ink); font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+  .note ul { list-style: none; }
+  .note li { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 12.5px; font-weight: 400; line-height: 1.7; }
+  .note li b { font-weight: 600; color: var(--ink); }
+  .note li code { font-family: var(--font-mono); font-weight: 500; color: #a84e2c; font-size: 11.5px; }
+  .note li .dot { color: var(--coral, #d97757); margin-right: 6px; }
+
+  .stage { width: 1960px; height: 1150px; }
+
+  /* confirm cluster 子框內 5 閘小卡（薄薄 mint 填底 + 細線，扁平） */
+  .gate {
+    position: absolute;
+    border-radius: 13px;
+    padding: 10px 13px;
+    display: flex; flex-direction: column; justify-content: center;
+    background: var(--ivory);
+    border: 1px solid var(--cyan-edge);
+    box-shadow: 0 1px 2px rgba(20,20,19,0.04);
+    overflow: hidden;
+  }
+  .gate .gname { font-family: var(--font-mono); color: var(--ink); font-size: 13px; font-weight: 600; letter-spacing: 0.2px; }
+  .gate .gsec  { font-family: var(--font-mono); color: var(--cyan-tone); font-size: 11px; font-weight: 600; margin-left: 6px; }
+  .gate .grule { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 11px; font-weight: 400; line-height: 1.5; margin-top: 4px; }
+
+  /* 主流卡 eyebrow 的 cart invariant 小 chip（接在 phase 後） */
+  .inv { color: var(--ink-mute); font-weight: 500; letter-spacing: 0.5px; }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <div class="title"><span class="num">FIG.02</span>L0–L5 銷售對話狀態機</div>
+  <div class="subtitle">single-threaded rule-matching dialog FSM · cart-state driven · enter_hawk 回流連續叫賣</div>
+
+  <!-- ═══ 箭頭層（SVG overlay）：座標於卡片層定版後填 ═══ -->
+  <svg class="edges" viewBox="0 0 1960 1150" preserveAspectRatio="none">
+    <defs>
+      <marker id="ah" markerWidth="13" markerHeight="13" refX="10" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L11,4.5 L0,9 Z" fill="var(--arrow)" stroke="none"/>
+      </marker>
+      <!-- 珊瑚箭頭頭：fill 用 token --arrow-hawk，與 .hawk 線同色（線↔頭同色鐵則）-->
+      <marker id="ah-hawk" markerWidth="15" markerHeight="15" refX="11" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L12,5 L0,10 Z" fill="var(--arrow-hawk)" stroke="none"/>
+      </marker>
+      <!-- 手繪蠟筆濾鏡：低頻位移=手繪抖動不直；高頻噪聲侵蝕 alpha=蠟筆紙面顆粒粉感 -->
+      <filter id="crayon" filterUnits="userSpaceOnUse" x="-40" y="-40" width="2040" height="1410" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="5" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="5" xChannelSelector="R" yChannelSelector="G" result="line"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.5 0.62" numOctaves="2" seed="9" result="grain"/>
+        <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.9 -0.1" result="grainMask"/>
+        <feComposite in="line" in2="grainMask" operator="in"/>
+      </filter>
+      <!-- 手繪蠟筆外框濾鏡（套卡片 ::before；objectBoundingBox 區域隨卡縮放，效率高）-->
+      <filter id="crayonEdge" x="-12%" y="-15%" width="124%" height="130%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="4" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="4" result="ln"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.5 0.6" numOctaves="2" seed="8" result="gr"/>
+        <feColorMatrix in="gr" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.95 -0.05" result="grm"/>
+        <feComposite in="ln" in2="grm" operator="in"/>
+      </filter>
+      <!-- 手繪標題濾鏡：輕位移(邊抖)+顆粒只咬邊(蠟筆質感,字心保實);scale 小保易讀 -->
+      <filter id="crayonText" x="-8%" y="-18%" width="116%" height="136%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="7" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="2.6" result="ln"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.6 0.7" numOctaves="2" seed="3" result="gr"/>
+        <feColorMatrix in="gr" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.4 2.0" result="grm"/>
+        <feComposite in="ln" in2="grm" operator="in"/>
+      </filter>
+    </defs>
+    <!-- ── 主流轉移邊（安靜 .flow 墨線；標籤壓線中段 halo）── -->
+    <!-- [start] → L1 -->
+    <path class="flow" marker-end="url(#ah)" d="M175,445 C200,452 214,458 238,462"/>
+
+    <!-- L1 → dialog（'t' 開始點餐）-->
+    <path class="flow" marker-end="url(#ah)" d="M570,466 L678,466"/>
+    <text class="elabel" x="624" y="450" text-anchor="middle">'t' 開始點餐</text>
+
+    <!-- dialog → L4（結帳 confirm 12s = 明確 yes；窄成 2 行 fit 110px gap）-->
+    <path class="flow" marker-end="url(#ah)" d="M1010,466 L1118,466"/>
+    <text class="elabel" x="1064" y="442" text-anchor="middle">結帳 confirm</text>
+    <text class="elabel" x="1064" y="458" text-anchor="middle">12s · 明確 yes</text>
+
+    <!-- L4 → L5（終端 's' / 客服 scan = 鏈路 A 掃碼；窄成 3 行 fit 110px gap）-->
+    <path class="flow" marker-end="url(#ah)" d="M1450,466 L1558,466"/>
+    <text class="elabel" x="1504" y="434" text-anchor="middle">終端 's'</text>
+    <text class="elabel" x="1504" y="450" text-anchor="middle">/ 客服 scan</text>
+    <text class="elabel" x="1504" y="466" text-anchor="middle">（鏈路 A）</text>
+
+    <!-- L1 → 程式終止（'q'×2 / exit_program；L1 頂向上接終止節點底 y208）-->
+    <path class="flow" marker-end="url(#ah)" d="M515,372 L515,210"/>
+    <text class="elabel" x="515" y="300" text-anchor="middle">'q'×2 / exit_program</text>
+
+    <!-- ── 自迴圈（小 loop，標籤在 loop 上方）── -->
+    <!-- dialog 自迴圈：加單成功 cart 空→非空（mode L2→L3，無 transition）-->
+    <path class="flow" marker-end="url(#ah)" d="M810,372 C790,332 880,332 862,370"/>
+    <text class="elabel" x="836" y="322" text-anchor="middle">加單成功 cart 空→非空（L2→L3）</text>
+
+    <!-- L4 自迴圈：客服(24s)=yes 繼續 → reset 兩計時器 -->
+    <path class="flow" marker-end="url(#ah)" d="M1250,372 C1230,332 1320,332 1302,370"/>
+    <text class="elabel" x="1276" y="322" text-anchor="middle">客服(24s)=yes → reset 兩計時器</text>
+
+    <!-- ── confirm 閘虛線連接（.async）：dialog / L4 任一 read 點偵測 → 進閘 ──
+         箭頭頭停在 group box 頂（y712）上方 gutter、不穿 group-label 文字（y712-727）：指向 cluster 即可，
+         「進閘」語意由 group-label 文字承載。 -->
+    <!-- dialog → confirm cluster（dialog 客服 / 拒絕 / 結帳等任一 read 點；落置中後 cluster 上 Checkout 閘區）-->
+    <path class="async" marker-end="url(#ah)" d="M880,560 C880,630 900,650 900,704"/>
+    <!-- L4 → confirm cluster（L4 拒絕 / 客服任一 read 點；落置中後 cluster 上 C-2 閘區）-->
+    <path class="async" marker-end="url(#ah)" d="M1260,560 C1260,630 1240,650 1240,704"/>
+    <!-- 共用邊標籤（兩連接線共義）：落兩連接線之間、card 底(y560)與第一條珊瑚弧掃(y600)間清空帶，自帶 halo -->
+    <text class="elabel" x="1070" y="588" text-anchor="middle">任一 read 點偵測 → 進閘</text>
+
+    <!-- ═══ ★ 主角：enter_hawk 回流（3 條暖珊瑚弧，緊湊繞回 L1；source/dest 同在頂部主列 →
+         弧只在「主列下緣 ↔ cluster 上緣」的 gutter 帶（y614-674）走線：源底↓→左掃→上彎進 L1 底，
+         不下探到 cluster 以下、不繞大圈）═══
+         3 弧 nested 不交纏（dialog 內 y614 / L4 中 y644 / L5 外 y674）；圓角正交、珊瑚箭頭頭匯入 L1 底
+         （x464/406/348）。路徑由 browser_evaluate rounded() 生成。與 dashed 連接線交叉處為線↔線（異樣式）、不壓任何字。 -->
+    <!-- ① dialog → L1（內弧）：timeout / 想一下·unclear 上限 / 拒絕(cancel 6s) / 客服(24s)否 -->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M745,560 L745,594 Q745,614 725,614 L484,614 Q464,614 464,594 L464,560"/>
+    <!-- ② L4 → L1（中弧）：cancel(鏈路B) / 客服(24s)否 / 36s budget 耗盡(鏈路D) -->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M1185,560 L1185,624 Q1185,644 1165,644 L426,644 Q406,644 406,624 L406,560"/>
+    <!-- ③ L5 → L1（外弧）：無條件 -->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M1640,560 L1640,654 Q1640,674 1620,674 L368,674 Q348,674 348,654 L348,560"/>
+
+    <!-- 弧標記：各弧水平段中段放珊瑚色 ①②③（落同一 x=600、各壓自己 lane），條件全列在下方 enter_hawk 圖例。-->
+    <text class="hawklabel" x="600" y="619" text-anchor="middle" style="font-size:17px;">①</text>
+    <text class="hawklabel" x="600" y="649" text-anchor="middle" style="font-size:17px;">②</text>
+    <text class="hawklabel" x="600" y="679" text-anchor="middle" style="font-size:17px;">③</text>
+  </svg>
+
+  <!-- ═══ ★ enter_hawk 主角圖例（落 cluster 下方，緊貼上移避免死空白；3 出口條件配 ①②③；
+       2026-06-22：left 600→350 置中（width 1260 → cx=980 對齊畫布中線））═══ -->
+  <div style="position:absolute; left:40px; top:1002px; width:1090px;">
+    <div style="display:flex; align-items:baseline; gap:14px; margin-bottom:9px;">
+      <span style="font-family:var(--font-mono); color:#d97757; font-size:20px; font-weight:700;
+         letter-spacing:0.4px;
+         white-space:nowrap;">★ enter_hawk 回流循環</span>
+      <span style="font-family:var(--font-cjk); color:var(--ink-dim); font-size:13px; font-weight:400;">
+        交易結束 4 出口設 <code style="font-family:var(--font-mono); color:#a84e2c; font-size:12px;">enter_hawk_immediately=True</code>
+        → 下輪 L1 跳主選單<b style="color:var(--ink); font-weight:600;">直接連續叫賣</b> ——「攤位連續做生意、不是一次性直線」。
+      </span>
+    </div>
+    <div style="display:grid; grid-template-columns:auto 1fr; gap:5px 12px;
+         font-family:var(--font-cjk); font-size:12.5px; font-weight:400; line-height:1.5; color:var(--ink-dim);">
+      <span style="font-family:var(--font-mono); color:#d97757; font-weight:700;">① dialog 退出</span>
+      <span>timeout / 想一下·unclear 上限 / 拒絕（cancel 6s）/ 客服（24s）否 —— <b style="color:var(--ink); font-weight:600;">cart 非空清 cart、空不清</b>。</span>
+      <span style="font-family:var(--font-mono); color:#d97757; font-weight:700;">② L4 退出</span>
+      <span>cancel（鏈路 B）/ 客服（24s）否 / 36s budget 耗盡（鏈路 D）—— <b style="color:var(--ink); font-weight:600;">清 cart</b>。</span>
+      <span style="font-family:var(--font-mono); color:#d97757; font-weight:700;">③ L5 退出</span>
+      <span>無條件 → 連續叫賣（do_action 揮手 → clear cart → sleep 3s）。</span>
+    </div>
+  </div>
+
+  <!-- ═══ B · legend（左上，6 列）═══ -->
+  <div class="legend" style="left:40px; top:116px; width:300px;">
+    <h4>色彩語意 · 運行層 / 橫切</h4>
+    <div class="row"><span class="sw" style="background:var(--blue-fill);border-color:var(--blue-edge)"></span><span class="lb">L1 商家待機（standby）</span></div>
+    <div class="row"><span class="sw" style="background:var(--green-fill);border-color:var(--green-edge)"></span><span class="lb">dialog 對話（cart 驅動）</span></div>
+    <div class="row"><span class="sw" style="background:var(--orange-fill);border-color:var(--orange-edge)"></span><span class="lb">L4 結帳（checkout）</span></div>
+    <div class="row"><span class="sw" style="background:var(--purple-fill);border-color:var(--purple-edge)"></span><span class="lb">L5 致謝（thankyou · paid）</span></div>
+    <div class="row"><span class="sw" style="background:var(--cyan-fill);border-color:var(--cyan-edge)"></span><span class="lb">confirm 閘（錢包保守）</span></div>
+    <div class="row"><span class="sw" style="background:var(--gray-fill);border-color:var(--gray-edge)"></span><span class="lb">L0 共通 · 終止 · 外部</span></div>
+  </div>
+
+  <!-- ═══ B · note（右上，3 點，核心設計）═══ -->
+  <div class="note" style="left:1320px; top:116px; width:600px;">
+    <h4>所以呢 · 狀態機三鐵則</h4>
+    <ul>
+      <li><span class="dot">●</span><b>cart 是唯一驅動</b>：L1↔dialog↔L4↔L5 由世界狀態（cart 空 / 非空）決定、非動作歷史；dialog 內 cart 即時推導 L2/L3 模式（刪商品 cart 變空 → 自動回問需求，無需 transition）。</li>
+      <li><span class="dot">●</span><b>錢包保守</b>：所有 confirm 閘 silent / timeout 退保守側（取消側 / 不進 L4），保護顧客錢包。</li>
+      <li><span class="dot">●</span><b>enter_hawk 回流</b>：交易結束 4 出口設旗號 → 下輪 L1 跳選單連續叫賣（攤位連續做生意）。</li>
+    </ul>
+  </div>
+
+  <!-- ═══ C · 主流 4 運行層橫排 + 終止節點 ═══ -->
+  <!-- start 灰小節點（L1 左側入口） -->
+  <div class="chip" style="left:60px; top:430px;"><b>[start]</b> 程式啟動</div>
+
+  <!-- L1（blue） -->
+  <div class="card blue" style="left:240px; top:372px; width:330px; height:188px;">
+    <div class="eyebrow">STANDBY · <span class="inv">cart 空</span></div>
+    <div class="name">L1State · run_l1</div>
+    <div class="meta">叫賣輪播 + 主選單</div>
+    <div class="desc">'t'（觸控 / web wake）→ dialog；'q'×2 → 程式終止。</div>
+  </div>
+
+  <!-- dialog（green） -->
+  <div class="card green" style="left:680px; top:372px; width:330px; height:188px;">
+    <div class="eyebrow">ORDERING · <span class="inv">cart 驅動</span></div>
+    <div class="name">DialogState · run_dialog</div>
+    <div class="meta">L2/L3 合一 · cart 即時推導模式</div>
+    <div class="desc">加單成功 → 自迴圈；結帳 confirm → L4。</div>
+  </div>
+
+  <!-- L4（orange） -->
+  <div class="card orange" style="left:1120px; top:372px; width:330px; height:188px;">
+    <div class="eyebrow">CHECKOUT · <span class="inv">cart 非空</span></div>
+    <div class="name">L4State · run_l4</div>
+    <div class="meta">雙計時器 budget 36s + QR 12s</div>
+    <div class="desc">掃碼 → L5；cancel / 客服 no / 36s → L1。</div>
+  </div>
+
+  <!-- L5（purple） -->
+  <div class="card purple" style="left:1560px; top:372px; width:330px; height:188px;">
+    <div class="eyebrow">THANKYOU · <span class="inv">cart 非空 · 帶 paid</span></div>
+    <div class="name">L5State · run_l5</div>
+    <div class="meta">do_action → clear cart → sleep 3s</div>
+    <div class="desc">無條件 → L1（致謝語音併入 L4 鏈路 A）。</div>
+  </div>
+
+  <!-- 程式終止灰節點（L1 右上方，'q'×2 出口；右移避開 legend；2026-06-22 上移 230→130 入上方空白、離 L1 更遠）-->
+  <div class="card gray" style="left:460px; top:130px; width:330px; height:78px; padding:11px 16px;">
+    <div class="eyebrow">EXIT · 程式終止</div>
+    <div class="name" style="font-size:14px;">exit_program · os._exit(0)</div>
+  </div>
+
+  <!-- ═══ E · confirm 閘 cluster（青，獨立子框列 5 閘）═══
+       2026-06-22：整組左移 245px 置中（width 1330 → left (1960-1330)/2=315，左右等邊距），
+       group-label / 5 閘 / dashed 連接線 / 邊標籤同步左移 245。 -->
+  <div class="group" style="left:315px; top:712px; width:1330px; height:260px;
+       --c-edge:var(--cyan-edge);
+       background:#f1f6f3;">
+  </div>
+  <!-- group-label 砍短成「分類」（避免長串溢出 + 左端貼圓角彎角）：left/top 內縮清開 r≈20 彎角。
+       「任一 read 點偵測 → 進閘」移到下方 dashed 連接線的邊標籤；「silent/timeout 退保守側」語意在 note。 -->
+  <div class="group-label" style="left:337px; top:726px;">跨層 CONFIRM 閘 · 錢包保守</div>
+
+  <!-- 5 閘小卡（子框內，2026-06-22 碼核對：6s / 24s / 12s / 6s / 12s；置中後 left 各 -245）-->
+  <div class="gate" style="left:339px; top:760px; width:240px; height:184px;">
+    <div><span class="gname">Cancel confirm</span><span class="gsec">6s</span></div>
+    <div class="grule">NO 先於 YES；silent/timeout → <b style="color:var(--ink)">取消</b>。觸發：dialog 拒絕 / checkout cancel / unclear-final / L4 拒絕 / invalid-qty 否定。</div>
+  </div>
+  <div class="gate" style="left:597px; top:760px; width:240px; height:184px;">
+    <div><span class="gname">Service confirm</span><span class="gsec">24s</span></div>
+    <div class="grule">yes / no / scan；default <b style="color:var(--ink)">no（退）</b>。觸發：dialog 客服 / L4 客服（啟 scan）/ qty·invalid 客服。</div>
+  </div>
+  <div class="gate" style="left:855px; top:760px; width:240px; height:184px;">
+    <div><span class="gname">Checkout confirm</span><span class="gsec">12s</span></div>
+    <div class="grule">六態 · 亂答上限 5；<b style="color:var(--ink)">必須明確才進 L4</b>。觸發：dialog L3 C-1（語音 / 沉默自動 / UI 三源殊途）。</div>
+  </div>
+  <div class="gate" style="left:1113px; top:760px; width:240px; height:184px;">
+    <div><span class="gname">C-2 自動結帳</span><span class="gsec">6s</span></div>
+    <div class="grule">繼續 / 結帳 / 取消三選一；<b style="color:var(--ink)">CANCEL 優先</b>；silent → 經 confirm 結帳。觸發：L3 timeout(12s) / 第 4 次想一下。</div>
+  </div>
+  <div class="gate" style="left:1371px; top:760px; width:250px; height:184px;">
+    <div><span class="gname">qty / invalid-qty reask</span><span class="gsec">12s</span></div>
+    <div class="grule">缺 / 無效數量重問（reset 2 · 總 36s）；否定 → 二選一 6s（保守 <b style="color:var(--ink)">保 cart</b>）。觸發：dialog 加單。</div>
+  </div>
+
+  <!-- ═══ F · L0 共通 NLU 卡（2026-06-22：原全幅基座帶右側 57% 空白＝浪費，依「卡片大小取決於內容」
+       縮成內容尺寸小卡，放 cluster 下方右側、與左側 enter_hawk 圖例並排（使用者指定版面））═══ -->
+  <div class="card gray" style="left:1170px; top:1002px; width:700px; height:110px; padding:14px 22px;">
+    <div class="eyebrow">L0 · 共通 NLU（非運行層 · 無 run_l0）</div>
+    <div class="desc" style="margin-top:4px;">
+      <b style="color:var(--ink)">nlu.classify_intent + constants/keywords 白名單</b>，被所有運行層共用。
+      意圖：拒絕 / 想一下 / 結帳 / 客服 / 想買無商品 / 商品 / 退出 / 繼續。
+    </div>
+  </div>
+
+</div>
+
+<!-- Rough.js：把每張 .card 的填色重畫成 hachure 手繪上色（fill 在蠟筆框後），框維持 ::before 蠟筆框 -->
+<script src="../rough.js"></script>
+<script>
+window.addEventListener('load', () => {
+  if (!window.rough) return;
+  const NS = 'http://www.w3.org/2000/svg';
+  const rr = (x, y, w, h, r) =>
+    `M${x+r},${y}L${x+w-r},${y}Q${x+w},${y} ${x+w},${y+r}L${x+w},${y+h-r}Q${x+w},${y+h} ${x+w-r},${y+h}` +
+    `L${x+r},${y+h}Q${x},${y+h} ${x},${y+h-r}L${x},${y+r}Q${x},${y} ${x+r},${y}Z`;
+  document.querySelectorAll('.card, .legend, .note, .chip, .cmd, .gate, .group, .misalign, .subphase-tag, .sw').forEach((card, i) => {
+    const w = card.offsetWidth, h = card.offsetHeight;
+    if (!w || !h) return;
+    const cs = getComputedStyle(card);
+    const isSw = card.classList.contains('sw');
+    let fill = cs.backgroundColor, neutral = false, stroke = 'none', inset = 3.5;
+    if (isSw) {
+      card.style.setProperty('--edge', cs.borderTopColor);  // ::before 蠟筆框用色票邊色（同其他 attribute）
+      card.style.borderColor = 'transparent';
+      inset = 1.6;                       // 幾乎填滿小框；填色維持原淺色票色（較淡、符合該類別）
+    } else {
+      const m = fill.match(/[\d.]+/g);
+      if (m && m.length >= 3) {
+        const r = +m[0], g = +m[1], b = +m[2];
+        // 中性淺色框（ivory/gray）：只壓深一點點 + 半透明,讓 hachure 淡淡顯色；有色框維持原填色
+        if (r > 235 && Math.abs(r - g) < 4 && Math.abs(g - b) < 8) {
+          fill = `rgb(${Math.round(r * 0.95)},${Math.round(g * 0.95)},${Math.round(b * 0.95)})`;
+          neutral = true;
+        }
+      }
+    }
+    const radius = Math.max(0, Math.min(parseFloat(cs.borderRadius) || 14, Math.min(w, h) / 2 - inset - 0.5));
+    card.style.background = 'transparent';
+    card.classList.add('rough-done');
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('width', w);
+    svg.setAttribute('height', h);
+    svg.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:-1;';
+    const rc = rough.svg(svg);
+    const d = rr(inset, inset, w - inset * 2, h - inset * 2, radius);
+    const node = rc.path(d, {
+      fill, fillStyle: 'hachure', hachureGap: isSw ? 2.2 : 5.5, fillWeight: isSw ? 1.0 : 1.4,
+      hachureAngle: -41 + (i % 3) * 8, roughness: 1.4, bowing: isSw ? 0.7 : 1.4,
+      stroke, strokeWidth: 1.4
+    });
+    if (neutral) node.setAttribute('opacity', '0.6');
+    svg.appendChild(node);
+    card.insertBefore(svg, card.firstChild);
+  });
+});
+</script>
+</body>
+</html>
