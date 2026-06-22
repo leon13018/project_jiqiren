@@ -10,7 +10,7 @@
 - **NLU/語音 robustness**：全繁體化 ✅；**本地拼音糾錯層 ✅**（問數量 / 問商品 + 統一 token-parser + 完全同音 tie-break + 合音還原；Pi 實測通過）；**結帳收尾語音合併 ✅**（Pi 實測通過）。
 - **開發基建**：harness 四件套互鎖（hooks 反思閉環 / skill 路由 + reference / EDD 回歸 / memory 健檢）——詳 `changelogs/`。
 - **前端 webui**：**Phase 0 + 1 + 2 全 ✅**（前端互動閉環完成）。Phase 0 玻璃原型（Pi 自瀏覽器跑不動 GPU+OKLCH → demo 走 client 筆電、Pi 只當 server）。**Phase 1 = FastAPI 顯示鏡像後端**（`--web` 啟 uvicorn、`display` 回呼穿 sales/ emit、WS 推送、前端 client 驅動；Pi 驗收即時鏡像 ✅）。**Phase 2 = 觸控雙向**：client 觸控經 `web/commands.to_token` → `input_reader.inject` 同一 input queue 驅動全流程（喚醒/點餐/結帳/確認/付款），對話層零改動 → 語音或觸控雙模態。**Pi 驗收觸控全鏈路 ✅（2026-06-19，含結帳 token hotfix 結賬→結帳）**。詳 `roadmaps/html_ui_plan.md`。**Phase 2 後 Pi 實測 UX 微調**（斷線回歡迎畫面 / StaticFiles no-cache / live 商品卡剩餘標籤 / 揮手動作 `wave_hand_01`；詳 `changelogs/changelog_2026-06-18_webui.md` §3）+ **結帳前確認卡片（v1 繼續點餐路徑 + v2 機器人 phase 驅動，Pi 驗收 ✅；§4）** —— **demo-ready**。
-- **展示面**：`resources/presentation/`（gitignored）尚空——**下一步＝期末報告 PPT**（2026-06-21 實作弧收尾後另起 session 製作）。
+- **展示面 / 報告**：`resources/presentation/`（gitignored）尚空。**報告系統圖製作已工具化（2026-06-21~22 弧）**：棄 Mermaid → 自建 HTML/CSS + 無頭 Chromium 截圖管線，固化成 **`architecture-diagram` skill**（共用 theme + 強制流程 + 3 鐵則[反捏造 / 寫 HTML 走 SDD+派 opus / 全圖自檢]）+ **backlog spec `diagrams/specs/00-diagram-backlog.md`**（11 張清單 + 波次 A–E + 待辦）。圖①②③ 試畫後 reset、theme+specs 保留。**下一步＝新 session 載 skill、照 backlog 從零重畫 11 張系統圖（Wave A 核心 ①②③ 先）→ 再做 PPT。** 詳 `changelogs/changelog_2026-06-21_to_06-22_report_diagrams.md`。
 
 ## 下一步候選（待使用者選方向）
 
@@ -22,7 +22,7 @@
 | Cap retry redesign | 顧客超量被拒後的對話設計（dormant） | 三輪 revert 史，需先重新對齊 expectation |
 | 拼音 parser 邊緣 | 無分隔雙數量 / filler / 插字 garble / 合音表擴充 | demo 浮現才修（C1/C3/C4 + D4 於 2026-06-15 deferred）|
 
-**建議優先序**：HTML UI **Phase 0+1+2 全完成** + **demo UX 精簡弧收尾（2026-06-21）** → **現轉期末報告 PPT 製作**（`presentation/` 尚空；demo 啟動 `--web --hawk`）。（STT 定版 Phase 1；turn-taking v1/v2/v3 與真 barge-in 皆經 Pi 實測收掉。）
+**建議優先序**：HTML UI **Phase 0+1+2 全完成** + **demo UX 精簡弧收尾（2026-06-21）** + **報告系統圖工具化（2026-06-21~22）** → **現轉期末報告製作**：① **系統圖**（工具化完成 → 新 session 載 `architecture-diagram` skill、照 `00-diagram-backlog` 重畫 11 張）② PPT（`presentation/` 尚空；demo 啟動 `--web --hawk`）。（STT 定版 Phase 1；turn-taking v1/v2/v3 與真 barge-in 皆經 Pi 實測收掉。）
 
 ## 路由
 
