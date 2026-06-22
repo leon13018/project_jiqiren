@@ -16,7 +16,9 @@
 <title>圖④ · 端到端時序圖（一輪互動）</title>
 <link rel="stylesheet" href="theme/diagram.css">
 <style>
-  .stage { width: 2040px; height: 2302px; }
+  .stage { width: 2040px; height: 2482px; }
+  /* 圖身整體下移容器：除標題/副標/頂排 legend+note 外的所有元素包進此層，translateY 一次下移，騰出頂排空間 */
+  .shift { position: absolute; left: 0; top: 0; width: 2040px; height: 2302px; transform: translateY(180px); }
 
   /* —— 泳道生命線 —— */
   .lifeline {
@@ -118,6 +120,9 @@
 
   <div class="title"><span class="num">FIG.04</span>端到端時序圖 · 一輪互動</div>
   <div class="subtitle">touch wake → order 冰紅茶 → checkout confirm → pay → thankyou → loop · phase-driven render</div>
+
+  <!-- ═══ 圖身整體下移容器（.shift translateY 180px，騰出頂排給 legend+note）═══ -->
+  <div class="shift">
 
   <!-- ═══ 箭頭層（SVG overlay）═══ -->
   <svg class="edges" viewBox="0 0 2040 2302" preserveAspectRatio="none">
@@ -253,27 +258,7 @@
     <div class="eyebrow">ACTION · vendor</div><div class="name">ActionWorker</div><div class="meta">vendor SDK</div>
   </div>
 
-  <!-- ═══ legend（右上空位，band1 右側 idle 區）═══ -->
-  <div class="legend" style="left:1456px; top:300px; width:522px;">
-    <h4>色彩語意 · 泳道角色</h4>
-    <div class="row"><span class="sw" style="background:var(--blue-fill);border-color:var(--blue-edge)"></span><span class="lb">前端（render client）</span>
-      <span class="sw" style="background:var(--purple-fill);border-color:var(--purple-edge);margin-left:18px"></span><span class="lb">WS·transport</span></div>
-    <div class="row"><span class="sw" style="background:var(--green-fill);border-color:var(--green-edge)"></span><span class="lb">主線程（SalesMachine）</span>
-      <span class="sw" style="background:var(--cyan-fill);border-color:var(--cyan-edge);margin-left:18px"></span><span class="lb">STT（每輪）</span></div>
-    <div class="row"><span class="sw" style="background:var(--orange-fill);border-color:var(--orange-edge)"></span><span class="lb">TTS</span>
-      <span class="sw" style="background:var(--gray-fill);border-color:var(--gray-edge);margin-left:18px"></span><span class="lb">Action·vendor</span></div>
-    <div class="row"><span class="sw" style="background:var(--arrow-hawk);border-color:var(--arrow-hawk)"></span><span class="lb">phase emit 下行 <code style="font-family:var(--font-mono);color:var(--arrow-hawk-label);font-size:11px">display(phase)</code> = 主角（金）</span></div>
-  </div>
-
-  <!-- ═══ note（帶3 右側空位，3 點「所以呢」；填 band3 右側 STT idle 死空白，不壓 TTS/Action band 節點）═══ -->
-  <div class="note" style="left:1150px; top:1262px; width:828px;">
-    <h4>所以呢 · phase-driven 三鐵則</h4>
-    <ul>
-      <li><span class="dot">●</span><b>phase-driven</b>：前端 7 次換畫面全由後端 <code>display(phase)</code> 驅動；觸控只送命令、不本地樂觀改畫面（觸發也可能來自語音 / 自動結帳）。</li>
-      <li><span class="dot">●</span><b>單一 input queue</b>：wake/order/checkout/confirm/pay 觸控 token 與 STT <code>speech_final</code> 注入同一 queue，主線程 <code>read_*</code> 單一消費（呼應圖①）。</li>
-      <li><span class="dot">●</span><b>checkout_confirm</b> 是 dialog 內子 phase：machine <code>_PHASE_BY_STATE</code> 只有 standby/ordering/checkout/thankyou 四個；確認卡片這發由 <code>_dialog_checkout_confirm</code> 直發 ★。</li>
-    </ul>
-  </div>
+  <!-- legend + note 已移到頂排（.shift 容器外，見檔尾） -->
 
   <!-- ━━━ 帶1 · standby → WAKE ━━━ -->
   <!-- 首節點下移至 top360（band_top 300 + 60），清開 PHASE 標籤行 -->
@@ -426,6 +411,28 @@
   <div class="screen" style="left:66px;  top:2196px; width:236px;">
     <div class="sn"><span class="sb gold">21</span>display("standby",{},0)</div>
     <div class="sd">↺ 回 Standby（＝最上起點）；L1 再進 hawk 連續叫賣 · 迴圈回帶0</div>
+  </div>
+
+  </div><!-- /.shift 圖身下移容器結束 -->
+
+  <!-- ═══ 頂排：legend + note 並排（.shift 外、不隨圖身下移；佔下移後騰出的頂部空間）═══ -->
+  <div class="legend" style="left:64px; top:112px; width:560px;">
+    <h4>色彩語意 · 泳道角色</h4>
+    <div class="row"><span class="sw" style="background:var(--blue-fill);border-color:var(--blue-edge)"></span><span class="lb">前端（render client）</span>
+      <span class="sw" style="background:var(--purple-fill);border-color:var(--purple-edge);margin-left:18px"></span><span class="lb">WS·transport</span></div>
+    <div class="row"><span class="sw" style="background:var(--green-fill);border-color:var(--green-edge)"></span><span class="lb">主線程（SalesMachine）</span>
+      <span class="sw" style="background:var(--cyan-fill);border-color:var(--cyan-edge);margin-left:18px"></span><span class="lb">STT（每輪）</span></div>
+    <div class="row"><span class="sw" style="background:var(--orange-fill);border-color:var(--orange-edge)"></span><span class="lb">TTS</span>
+      <span class="sw" style="background:var(--gray-fill);border-color:var(--gray-edge);margin-left:18px"></span><span class="lb">Action·vendor</span></div>
+    <div class="row"><span class="sw" style="background:var(--arrow-hawk);border-color:var(--arrow-hawk)"></span><span class="lb">phase emit 下行 <code style="font-family:var(--font-mono);color:var(--arrow-hawk-label);font-size:11px">display(phase)</code> = 主角（金）</span></div>
+  </div>
+  <div class="note" style="left:660px; top:112px; width:1316px;">
+    <h4>所以呢 · phase-driven 三鐵則</h4>
+    <ul>
+      <li><span class="dot">●</span><b>phase-driven</b>：前端 7 次換畫面全由後端 <code>display(phase)</code> 驅動；觸控只送命令、不本地樂觀改畫面（觸發也可能來自語音 / 自動結帳）。</li>
+      <li><span class="dot">●</span><b>單一 input queue</b>：wake/order/checkout/confirm/pay 觸控 token 與 STT <code>speech_final</code> 注入同一 queue，主線程 <code>read_*</code> 單一消費（呼應圖①）。</li>
+      <li><span class="dot">●</span><b>checkout_confirm</b> 是 dialog 內子 phase：machine <code>_PHASE_BY_STATE</code> 只有 standby/ordering/checkout/thankyou 四個；確認卡片這發由 <code>_dialog_checkout_confirm</code> 直發 ★。</li>
+    </ul>
   </div>
 
 </div>
