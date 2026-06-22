@@ -1,14 +1,14 @@
 # 00 · 報告系統圖 backlog（待畫清單 + 待辦）
 
 > **本檔＝索引 / 待辦單**。「怎麼畫」全在 **`architecture-diagram` skill**（`.claude/skills/architecture-diagram/`），不在此重述。新 session 從零重畫時：載入該 skill，逐張照它的完整流程跑，畫哪張就回本檔對照來源檔與 spec 狀態。
-> 訂於 2026-06-22（棄 Mermaid 改 HTML/CSS + Chromium 截圖管線、skill 固化之後）。**圖①②③ 已依 skill 重畫交付**（三式同名 `NN-*.{html,png,svg}`，2026-06-22 Wave A；版面隨使用者 mockup 反覆微調定版，以交付 html 為準）；**④–⑪ 待畫**（Wave B 起，新 session 接續）。`theme/` 與 `specs/` 沿用。
+> 訂於 2026-06-22；**2026-06-23 改宗淺色蠟筆風**（風格權威移交 `report-design-system` skill、深色霓虹退場）。現況：**深色 ①–⑤ 已歸檔 `_legacy-dark/`**（含舊 `theme/`，保留為淺色重畫的來源素材）；**淺色 ①②③ 已交付**（png+svg 置 `diagrams/` 主層，html 源在 report-design-system 基準）；**④⑤ 待淺色重畫**（從 `_legacy-dark/` 取座標起手）；**⑥–⑪ 待畫**（淺色）。`specs/` 內容 spec 沿用（風格無關）。
 
 ## 怎麼用本檔
 
 1. 載入 `architecture-diagram` skill。
 2. 依下方**波次順序**選一張，照 skill 流程一個循環：主題 spec → **讀實際碼核對**（鐵則 1，別信 digest）→ 設計 SDD（`/frontend-design` + `/superpowers:brainstorming`）→ `/superpowers:writing-plans` 寫畫圖計畫 → 派 **opus** subagent 實作 → 多方截圖自檢（先全圖再局部）→ 你驗收 → 2× PNG + SVG commit。
 3. **①–⑤ 已有 spec**（`specs/01–05.md`）可複用其「核對過的碼事實 + 版面」起手；**⑥–⑪ 無 spec**，照 skill step 1–2 現寫。
-4. 共用前提（**skill 內已詳述，不重複**）：canonical theme = `diagrams/theme/{tokens.css,diagram.css}`；起手骨架 = `<skill>/assets/skeleton.html`；DPR **每次實測**（非寫死）；交付 2× PNG（native×2、四角驗無黑邊）+ 內嵌 2×PNG 的 SVG，三式同名並存。
+4. 共用前提（**skill 內已詳述，不重複**）：**視覺風格＝ `report-design-system` skill**（淺色蠟筆：`diagram-crayon.md` 濾鏡/版面 + `report-pdf.md §2/§3` 色票字型 + `assets/benchmarks/` 三基準對照）；起手骨架 = `architecture-diagram/assets/skeleton.html`（淺色自足）；render/QA 見 `render-and-qa.md` + `render-pipeline.md`；DPR **每次實測**；交付 2× PNG（四角驗無黑邊）+ 內嵌 2×PNG 的 SVG。（舊深色 `theme/` 已移入 `_legacy-dark/`、不再用。）
 
 ## 11 張清單（已核准）
 
@@ -28,20 +28,20 @@
 
 ## 波次順序（建議）
 
-- **Wave A 核心**：① ② ③ —— ✅ **已交付（2026-06-22）**；釘定全系列風格基準 + 大幅硬化 skill（9 條視覺 critical gotchas + 平行派工 + 色彩 token 化）。
-- **Wave B 高值**：④ 時序、⑤ 部署 —— ✅ **已交付（2026-06-22）**；本波踩坑硬化 skill：QA 改「每圖平行派 3 opus 質檢 subagent」（只讀靜態 PNG+bbox dump、影像 token 不進主對話）、render 必序列化（Playwright 單一共享瀏覽器、平行 render 互搶截圖）、§5.5 canonical bbox dump（含 `.node/.screen`+band/group 標籤+`textOverflow`+overlaps）、theme `.frame-label` 改浮框內側（虛線框完整）、CSS 改動換新埠 origin 繞瀏覽器快取。
+- **Wave A 核心**：① ② ③ —— ✅ **淺色已交付**（深色原版 → `_legacy-dark/`；淺色 png+svg 在 `diagrams/`、html 源在 report-design-system 基準）。釘定全系列風格基準 + 硬化 skill（9 條視覺 gotchas + 色彩 token 化）。
+- **Wave B 高值**：④ 時序、⑤ 部署 —— **深色已交付、待淺色重畫**（深色 → `_legacy-dark/`，重畫從那取 layout 起手）。本波硬化 skill：QA 平行 3 opus 質檢（只讀靜態 PNG+bbox dump）、render 必序列化（Playwright 單一共享瀏覽器）、§5.5 canonical bbox dump、CSS 改動換新埠繞快取。
 - **Wave C 管線**：⑥ STT、⑦ TTS（線性機械，風格穩後快）。
 - **Wave D 結構**：⑧ 模組依賴、⑨ 類別。
 - **Wave E 低**：⑩ 資料契約、⑪ 啟動分流。
 
-> 波內**獨立的圖一次平行派 ≥2 個 opus subagent**（各寫各檔、各自 render —— 2026-06-22 使用者實證可平行、已固化 SKILL「⚡ 平行加速」）；唯 **orchestrator 別跟某圖 subagent 同時 render 同一張 / 編同一檔**（會搶瀏覽器 + 同檔寫入衝突，本 session 踩過）。
+> 波內**獨立的圖一次平行派 ≥2 個 opus implementer 各寫各檔 HTML（不 render）**；**render 全歸 orchestrator 序列獨占**（Playwright 單一共享瀏覽器，見 SKILL「⚡ 平行加速」+ step 5.5）——別讓 ≥2 圖同時 render。
 
 ## 待辦 checklist
 
 每張「done」＝ 照 skill 流程完成 + 多方自檢通過（先全圖再局部、無黑邊/截字/線交纏/跨 band 相撞）+ **使用者驗收** + 交付 2× PNG + SVG + 更新本檔勾選 + commit。
 
-- [x] ① Process / Thread　- [x] ② L0–L5 狀態機　- [x] ③ web phase　✅ **Wave A 全交付（2026-06-22）**
-- [x] ④ 時序　- [x] ⑤ 部署 / 網路　✅ **Wave B 全交付（2026-06-22）**（① 因 theme `.frame-label` 改動連帶重出）
+- [x] ① Process / Thread　- [x] ② L0–L5 狀態機　- [x] ③ web phase　✅ **淺色已交付**（深色原版在 `_legacy-dark/`）
+- [ ] ④ 時序　- [ ] ⑤ 部署 / 網路　← **深色已交付（在 `_legacy-dark/`）、待淺色重畫**
 - [ ] ⑥ STT 管線　- [ ] ⑦ TTS 管線
 - [ ] ⑧ 模組依賴　- [ ] ⑨ 類別
 - [ ] ⑩ 資料契約　- [ ] ⑪ 啟動分流

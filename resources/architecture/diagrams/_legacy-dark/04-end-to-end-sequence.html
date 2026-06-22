@@ -1,0 +1,440 @@
+<!doctype html>
+<!-- ════════════════════════════════════════════════════════════════
+  圖④ 端到端時序圖（一輪互動）— 純 HTML/CSS 絕對定位 + SVG overlay。
+  theme = theme/diagram.css（相對引用，勿改）；座標經 render→截圖自檢迴圈微調。
+  6 條泳道（前端 | WS | 主線程 | STT | TTS | Action）+ 垂直生命線；5 個 phase 帶。
+  時間 = y 軸由上而下嚴格遞增；每個訊息步驟（1–21）一條獨立水平 lane。
+  步驟序號以節點標題前的圓徽（.sb）內嵌呈現 → 零 gutter 圓徽壓線。
+  主角（boldness 集中）：7 發下行 display(phase) emit（暖金 .hawk + ah-hawk）落在
+  「前端」生命線上 —— 點明「畫面只在後端 emit phase 時才變（phase-driven）」。
+  其餘訊息（上行觸控 / worker 派工 / STT pipeline）一律安靜白 .flow。
+  序列權威來源：specs/04-end-to-end-sequence.md（逐檔讀核對的碼事實）。
+  ════════════════════════════════════════════════════════════════ -->
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>圖④ · 端到端時序圖（一輪互動）</title>
+<link rel="stylesheet" href="theme/diagram.css">
+<style>
+  .stage { width: 2040px; height: 2482px; }
+  /* 圖身整體下移容器：除標題/副標/頂排 legend+note 外的所有元素包進此層，translateY 一次下移，騰出頂排空間 */
+  .shift { position: absolute; left: 0; top: 0; width: 2040px; height: 2302px; transform: translateY(180px); }
+
+  /* —— 泳道生命線 —— */
+  .lifeline {
+    position: absolute; width: 2px;
+    background: linear-gradient(var(--c-tone, var(--gray-tone)) 0%, oklch(60% 0.02 270 / 0.14) 100%);
+    opacity: 0.5;
+  }
+  .lifeline.blue   { --c-tone: var(--blue-tone); }
+  .lifeline.purple { --c-tone: var(--purple-tone); }
+  .lifeline.green  { --c-tone: var(--green-tone); }
+  .lifeline.cyan   { --c-tone: var(--cyan-tone); }
+  .lifeline.orange { --c-tone: var(--orange-tone); }
+  .lifeline.gray   { --c-tone: var(--gray-tone); }
+
+  /* —— phase 帶 + 左緣眉標徽章 —— */
+  .band {
+    position: absolute; left: 52px; width: 1936px;
+    border-radius: 18px; border: 1px solid oklch(80% 0.02 270 / 0.07);
+  }
+  .band.b1 { background: oklch(60% 0.10 255 / 0.05); }
+  .band.b2 { background: oklch(60% 0.10 152 / 0.042); }
+  .band.b3 { background: oklch(62% 0.10 205 / 0.05); }
+  .band.b4 { background: oklch(64% 0.10 70  / 0.045); }
+  .band.b5 { background: oklch(58% 0.11 305 / 0.05); }
+  .pband {
+    position: absolute; left: 66px;   /* 對齊下方 frontend-lane 卡片左緣（.screen left:66）*/
+    font-family: var(--font-mono);
+    font-size: 12.5px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--c-tone, var(--ink-mute));
+    background: oklch(15% 0.02 268 / 0.85);
+    border: 1px solid var(--c-tone, oklch(70% 0.02 270 / 0.4));
+    border-radius: 9px; padding: 6px 13px;
+    display: inline-flex; align-items: center; gap: 9px; white-space: nowrap;
+  }
+  .pband .ph { color: var(--ink-mute); font-weight: 500; letter-spacing: 0.5px; }
+  .pband.b1 { --c-tone: var(--blue-tone); }
+  .pband.b2 { --c-tone: var(--green-tone); }
+  .pband.b3 { --c-tone: var(--cyan-tone); }
+  .pband.b4 { --c-tone: var(--orange-tone); }
+  .pband.b5 { --c-tone: var(--purple-tone); }
+  .pband .star { color: var(--arrow-hawk-label); font-weight: 700; font-size: 15px; }
+
+  /* —— 泳道頭卡 —— */
+  .head { padding: 12px 16px; }
+  .head .name { font-size: 15px; }
+  .head .meta { font-size: 11px; }
+
+  /* —— 訊息節點（activation box）—— */
+  .node {
+    position: absolute; border-radius: 11px; padding: 8px 13px;
+    background: var(--c-fill, var(--gray-fill));
+    border: 1px solid var(--c-edge, var(--gray-edge));
+    backdrop-filter: blur(9px) saturate(1.35); -webkit-backdrop-filter: blur(9px) saturate(1.35);
+    box-shadow: inset 0 1px 0 oklch(100% 0 0 / 0.18), 0 9px 20px -11px oklch(0% 0 0 / 0.6);
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .node.blue   { --c-fill: var(--blue-fill);   --c-edge: var(--blue-edge); }
+  .node.purple { --c-fill: var(--purple-fill); --c-edge: var(--purple-edge); }
+  .node.green  { --c-fill: var(--green-fill);  --c-edge: var(--green-edge); }
+  .node.cyan   { --c-fill: var(--cyan-fill);   --c-edge: var(--cyan-edge); }
+  .node.orange { --c-fill: var(--orange-fill); --c-edge: var(--orange-edge); }
+  .node.gray   { --c-fill: var(--gray-fill);   --c-edge: var(--gray-edge); }
+  .node .nf { font-family: var(--font-mono); color: var(--ink); font-size: 11.5px; font-weight: 600; letter-spacing: 0; display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .node .nd { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 11px; font-weight: 300; margin-top: 3px; line-height: 1.42; overflow-wrap: anywhere; word-break: break-word; }
+  .node .tok { color: var(--arrow-hawk-label); font-weight: 600; }
+
+  /* —— 步驟序號圓徽（內嵌節點標題前）—— */
+  .sb {
+    flex: 0 0 auto; width: 19px; height: 19px; border-radius: 50%;
+    background: oklch(28% 0.03 255 / 0.95); border: 1px solid oklch(78% 0.05 255 / 0.6);
+    color: var(--ink); font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center; letter-spacing: 0;
+  }
+  .sb.gold { background: oklch(32% 0.07 84 / 0.95); border-color: oklch(82% 0.13 84 / 0.8); color: var(--arrow-hawk-label); }
+
+  /* —— 前端畫面狀態小卡（金 phase emit 著陸點，金邊強化主角）—— */
+  .screen {
+    position: absolute; border-radius: 12px; padding: 9px 13px;
+    background: oklch(58% 0.15 255 / 0.18);
+    border: 1.4px solid oklch(82% 0.13 84 / 0.7);
+    backdrop-filter: blur(10px) saturate(1.4); -webkit-backdrop-filter: blur(10px) saturate(1.4);
+    box-shadow: inset 0 1px 0 oklch(100% 0 0 / 0.22), 0 10px 24px -12px oklch(0% 0 0 / 0.6), 0 0 26px -8px oklch(80% 0.14 82 / 0.42);
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .screen .sn { font-family: var(--font-mono); color: var(--arrow-hawk-label); font-size: 11.5px; font-weight: 600; display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .screen .sd { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 11.5px; font-weight: 300; margin-top: 3px; line-height: 1.4; overflow-wrap: anywhere; word-break: break-word; }
+
+  /* —— 迴圈回指標註 —— */
+  .loopback {
+    position: absolute; font-family: var(--font-mono); color: var(--arrow-hawk-label);
+    font-size: 13px; font-weight: 600; letter-spacing: 0.4px;
+    background: oklch(15% 0.02 268 / 0.85); border: 1px dashed oklch(80% 0.12 82 / 0.55);
+    border-radius: 9px; padding: 7px 14px;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <div class="title"><span class="num">FIG.04</span>端到端時序圖 · 一輪互動</div>
+  <div class="subtitle">touch wake → order 冰紅茶 → checkout confirm → pay → thankyou → loop · phase-driven render</div>
+
+  <!-- ═══ 圖身整體下移容器（.shift translateY 180px，騰出頂排給 legend+note）═══ -->
+  <div class="shift">
+
+  <!-- ═══ 箭頭層（SVG overlay）═══ -->
+  <svg class="edges" viewBox="0 0 2040 2302" preserveAspectRatio="none">
+    <defs>
+      <marker id="ah" markerWidth="13" markerHeight="13" refX="10" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L11,4.5 L0,9 Z" fill="var(--arrow)" stroke="none"/>
+      </marker>
+      <marker id="ah-hawk" markerWidth="15" markerHeight="15" refX="11" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L12,5 L0,10 Z" fill="var(--arrow-hawk)" stroke="none"/>
+      </marker>
+    </defs>
+
+    <!-- ════ 上行 / 內部 / 派工（安靜白 .flow）════ -->
+    <!-- #1 wake：前端 → WS（觸控喚醒）-->
+    <path class="flow" marker-end="url(#ah)" d="M302,390 C360,402 374,438 422,452"/>
+    <text class="elabel" x="368" y="408" text-anchor="middle">wake</text>
+    <!-- #2 read：WS → 主線程（取 "t"）-->
+    <path class="flow" marker-end="url(#ah)" d="M662,461 L782,461"/>
+    <text class="elabel" x="722" y="452" text-anchor="middle">read "t"</text>
+
+    <!-- #7 派工：主線程 → TTS（speak，直線）；主線程 → Action（do_action，繞 TTS 節點下方避免穿卡）-->
+    <path class="flow" marker-end="url(#ah)" d="M1022,712 L1498,712"/>
+    <text class="elabel" x="1280" y="703" text-anchor="middle">speak 派工</text>
+    <!-- do_action 派工：主線程 → Action（繞 TTS 節點下方 y780，乾淨「垂直插底緣」進 Action node 底，避免斜鉤）-->
+    <path class="flow" marker-end="url(#ah)" d="M1022,742 C1110,776 1230,780 1330,780 L1860,780 C1878,780 1889,772 1889,748"/>
+    <text class="elabel" x="1430" y="797" text-anchor="middle">do_action 派工</text>
+
+    <!-- #8 arm：主線程 → STT arecord -->
+    <path class="flow" marker-end="url(#ah)" d="M1022,849 L1172,849"/>
+    <text class="elabel" x="1098" y="840" text-anchor="middle">arm()</text>
+    <!-- STT 內部 pipeline 三段（STT 泳道中軸）-->
+    <path class="flow" marker-end="url(#ah)" d="M1294,880 L1294,892"/>
+    <path class="flow" marker-end="url(#ah)" d="M1294,958 L1294,970"/>
+    <!-- STT inject → 主線程（speech_final 回灌）-->
+    <path class="flow" marker-end="url(#ah)" d="M1176,1005 L1026,1005"/>
+    <text class="elabel" x="1100" y="996" text-anchor="middle">inject 語音字</text>
+    <!-- 旁註（觸控點餐）→ ⑨：虛線 aside，點明觸控 order「冰紅茶1」匯入語音同一 inject queue（⑨ 消費點；非編號流程步驟故用 .async 虛線）。
+         旁註右緣 → 正交上折 → 接 ⑨ resolve_and_add_products 左緣，箭頭頭朝 ⑨（匯流點）。與交付 PNG 一致。 -->
+    <path class="async" marker-end="url(#ah)" d="M662,1044 H724 V1020 H786"/>
+    <text class="elabel" x="724" y="1058" text-anchor="middle">替代輸入</text>
+
+    <!-- #11 checkout：前端 → WS -->
+    <path class="flow" marker-end="url(#ah)" d="M186,1281 L422,1281"/>
+    <text class="elabel" x="300" y="1272" text-anchor="middle">checkout 觸控</text>
+    <!-- #11→#12：WS → 主線程（下一列；起點貼 WS #11 節點底緣 y1305）-->
+    <path class="flow" marker-end="url(#ah)" d="M600,1305 C660,1330 720,1344 782,1356"/>
+    <!-- #13 confirm：前端 → WS -->
+    <path class="flow" marker-end="url(#ah)" d="M186,1461 L422,1461"/>
+    <text class="elabel" x="300" y="1452" text-anchor="middle">confirm 觸控</text>
+    <!-- #13→#14：WS → 主線程（下一列；起點貼 WS #13 節點底緣 y1485）-->
+    <path class="flow" marker-end="url(#ah)" d="M600,1485 C660,1510 720,1524 782,1536"/>
+
+    <!-- #16 speak_blocking：主線程 → TTS -->
+    <path class="flow" marker-end="url(#ah)" d="M1022,1819 L1498,1819"/>
+    <text class="elabel" x="1300" y="1810" text-anchor="middle">speak_blocking 總額</text>
+
+    <!-- #17 pay：前端 → WS -->
+    <path class="flow" marker-end="url(#ah)" d="M186,1939 L422,1939"/>
+    <text class="elabel" x="300" y="1930" text-anchor="middle">pay 觸控</text>
+    <!-- #17→#18：WS → 主線程 -->
+    <path class="flow" marker-end="url(#ah)" d="M662,1939 L782,1939"/>
+    <text class="elabel" x="722" y="1930" text-anchor="middle">取 "s"</text>
+    <!-- #18 do_action：主線程 → Action（鞠躬）-->
+    <path class="flow" marker-end="url(#ah)" d="M1022,1939 L1786,1939"/>
+    <text class="elabel" x="1430" y="1930" text-anchor="middle">do_action 鞠躬</text>
+
+    <!-- ════ 下行 phase emit（主角，暖金 .hawk + ah-hawk）：7 發 display(phase) → 前端 ════ -->
+    <!-- G0 standby（起點，prior _emit("l1")）：主線程 → 前端 -->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M901,378 L308,378"/>
+    <text class="hawklabel" x="604" y="368" text-anchor="middle">display(standby)</text>
+    <!-- G ordering（#4→#5→#6）：主線程 → WS → 前端（兩段，WS 中繼；隨首列下移至 y631）-->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M786,631 L666,631"/>
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M426,631 L308,631"/>
+    <text class="hawklabel" x="364" y="621" text-anchor="middle">ordering</text>
+    <!-- G ordering+cart（#10）：主線程 → 前端 -->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M786,1113 L308,1113"/>
+    <text class="hawklabel" x="547" y="1103" text-anchor="middle">display(ordering · +cart)</text>
+    <!-- G checkout_confirm（#12）★：主線程 → 前端 -->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M786,1361 L308,1361"/>
+    <text class="hawklabel" x="547" y="1351" text-anchor="middle">display(checkout_confirm) ★</text>
+    <!-- G checkout（#15）：主線程 → 前端 -->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M786,1703 L308,1703"/>
+    <text class="hawklabel" x="547" y="1693" text-anchor="middle">display(checkout)</text>
+    <!-- G thankyou（#19）：主線程 → 前端（隨 #19 下移至 y2132）-->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M786,2132 L308,2132"/>
+    <text class="hawklabel" x="547" y="2122" text-anchor="middle">display(thankyou)</text>
+    <!-- G standby loop（#21）：主線程 → 前端（回 standby；隨 #20/#21 下移至 y2233）-->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M786,2233 L308,2233"/>
+    <text class="hawklabel" x="547" y="2223" text-anchor="middle">display(standby)</text>
+    <!-- 迴圈回指帶0：不畫糾纏大弧；回指由「頂/底皆 standby 著陸」+ loopback 標註傳達 -->
+  </svg>
+
+  <!-- ═══ 生命線（6 條）═══
+       前端 cx=184 · WS cx=544 · 主線程 cx=904 · STT cx=1294 · TTS cx=1620 · Action cx=1900 -->
+  <div class="lifeline blue"   style="left:183px;  top:248px; height:2030px;"></div>
+  <div class="lifeline purple" style="left:543px;  top:248px; height:2030px;"></div>
+  <div class="lifeline green"  style="left:903px;  top:248px; height:2030px;"></div>
+  <div class="lifeline cyan"   style="left:1293px; top:248px; height:2030px;"></div>
+  <div class="lifeline orange" style="left:1619px; top:248px; height:2030px;"></div>
+  <div class="lifeline gray"   style="left:1899px; top:248px; height:2030px;"></div>
+
+  <!-- ═══ phase 帶 ═══ -->
+  <div class="band b1" style="top:300px;  height:222px;"></div>
+  <div class="band b2" style="top:540px;  height:640px;"></div>
+  <div class="band b3" style="top:1198px; height:402px;"></div>
+  <div class="band b4" style="top:1618px; height:402px;"></div>
+  <div class="band b5" style="top:2038px; height:244px;"></div>
+
+  <!-- band 標籤兼掛 .band-label class → canonical §5.5 dump selector 量得到（修 QA 盲點） -->
+  <div class="pband band-label b1" style="top:312px;">PHASE standby <span class="ph">→ WAKE 觸控喚醒</span></div>
+  <div class="pband band-label b2" style="top:552px;">PHASE ordering <span class="ph">· 進點餐 + 點冰紅茶</span></div>
+  <div class="pband band-label b3" style="top:1210px;">PHASE checkout_confirm <span class="star">★</span> <span class="ph">dialog 內子 phase</span></div>
+  <div class="pband band-label b4" style="top:1630px;">PHASE checkout <span class="ph">· QR 等掃碼</span></div>
+  <div class="pband band-label b5" style="top:2050px;">PHASE thankyou <span class="ph">· 致謝 → 回叫賣</span></div>
+
+  <!-- ═══ 6 泳道頭卡 ═══ -->
+  <div class="card blue head"   style="left:64px;   top:136px; width:240px; height:104px;">
+    <div class="eyebrow">RENDER CLIENT</div><div class="name">前端 · browser</div><div class="meta">applyState + render</div>
+  </div>
+  <div class="card purple head" style="left:424px;  top:136px; width:240px; height:104px;">
+    <div class="eyebrow">WS · TRANSPORT</div><div class="name">WS / EventBus</div><div class="meta">commands · /ws/state</div>
+  </div>
+  <div class="card green head"  style="left:784px;  top:136px; width:240px; height:104px;">
+    <div class="eyebrow">MAIN · 主線程</div><div class="name">SalesMachine</div><div class="meta">L0–L5 + read_* 消費</div>
+  </div>
+  <div class="card cyan head"   style="left:1174px; top:136px; width:240px; height:104px;">
+    <div class="eyebrow">STT · 每輪一生</div><div class="name">STT session</div><div class="meta">arecord → Deepgram</div>
+  </div>
+  <div class="card orange head" style="left:1500px; top:136px; width:230px; height:104px;">
+    <div class="eyebrow">TTS · 常駐</div><div class="name">TtsWorker</div><div class="meta">edge-tts → mpg123</div>
+  </div>
+  <div class="card gray head"   style="left:1800px; top:136px; width:178px; height:104px;">
+    <div class="eyebrow">ACTION · vendor</div><div class="name">ActionWorker</div><div class="meta">vendor SDK</div>
+  </div>
+
+  <!-- legend + note 已移到頂排（.shift 容器外，見檔尾） -->
+
+  <!-- ━━━ 帶1 · standby → WAKE ━━━ -->
+  <!-- 首節點下移至 top360（band_top 300 + 60），清開 PHASE 標籤行 -->
+  <div class="screen" style="left:66px;  top:360px; width:236px;">
+    <div class="sn">display("standby",{},0)</div>
+    <div class="sd">Standby 全屏「輕觸螢幕，開始點餐」→ 顧客觸控</div>
+  </div>
+  <div class="node purple" style="left:426px; top:430px; width:236px;">
+    <div class="nf"><span class="sb">1</span>receive_text → to_token</div>
+    <div class="nd">wake → <span class="tok">"t"</span> → inject() → input queue</div>
+  </div>
+  <div class="node green" style="left:786px; top:430px; width:236px;">
+    <div class="nf"><span class="sb">2</span>read_terminal_key(0.1)</div>
+    <div class="nd">取 <span class="tok">"t"</span> → 回 "L2" → l1 → dialog</div>
+  </div>
+
+  <!-- ━━━ 帶2 · ordering ━━━ -->
+  <!-- 首列（#4/#5/#6）下移至 top600（band_top 540 + 60），清開 PHASE ORDERING 標籤行 -->
+  <div class="node green" style="left:786px; top:600px; width:236px;">
+    <div class="nf"><span class="sb gold">4</span>_emit("dialog")</div>
+    <div class="nd">進 dialog → <span class="tok">display("ordering",{},0)</span></div>
+  </div>
+  <div class="node purple" style="left:426px; top:600px; width:236px;">
+    <div class="nf"><span class="sb gold">5</span>bus.publish → _broadcast</div>
+    <div class="nd">run_coroutine_threadsafe → ws.send_json</div>
+  </div>
+  <div class="screen" style="left:66px;  top:600px; width:236px;">
+    <div class="sn"><span class="sb gold">6</span>display("ordering",{})</div>
+    <div class="sd">點餐主畫面（Menu + 空 CartRail）</div>
+  </div>
+
+  <div class="node green" style="left:786px; top:694px; width:236px;">
+    <div class="nf"><span class="sb">7</span>dialog entry 派工</div>
+    <div class="nd">do_action(ACTION_L2 揮手) · speak(L2_ENTRY_PROMPT)</div>
+  </div>
+  <div class="node orange" style="left:1502px; top:694px; width:226px;">
+    <div class="nf">TTS queue → 播放</div>
+    <div class="nd">edge-tts/快取 → mpg123</div>
+  </div>
+  <div class="node gray" style="left:1790px; top:694px; width:198px;">
+    <div class="nf">Action queue</div>
+    <div class="nd">vendor SDK 揮手</div>
+  </div>
+
+  <div class="node green" style="left:786px; top:818px; width:236px;">
+    <div class="nf"><span class="sb">8</span>read_customer_input()</div>
+    <div class="nd">timeout 編排 prearm() → tts.wait_idle() → <span class="tok">arm()</span></div>
+  </div>
+  <div class="node cyan" style="left:1176px; top:818px; width:236px;">
+    <div class="nf">arecord -c6 抽 ch0</div>
+    <div class="nd">XVF-3000 處理聲道 → ws.send</div>
+  </div>
+  <div class="node cyan" style="left:1176px; top:896px; width:236px;">
+    <div class="nf">Deepgram Nova-3 WS</div>
+    <div class="nd">串流辨識 → speech_final</div>
+  </div>
+  <div class="node cyan" style="left:1176px; top:974px; width:236px;">
+    <div class="nf">_normalize → inject()</div>
+    <div class="nd">「我要一瓶冰紅茶」→ 同一 input queue · finally disarm()</div>
+  </div>
+
+  <div class="node green" style="left:786px; top:974px; width:236px;">
+    <div class="nf"><span class="sb">9</span>resolve_and_add_products</div>
+    <div class="nd">parse_products → <span class="tok">cart.add_item("冰紅茶",1)</span></div>
+  </div>
+
+  <div class="node green" style="left:786px; top:1082px; width:236px;">
+    <div class="nf"><span class="sb gold">10</span>main_loop 末</div>
+    <div class="nd"><span class="tok">display("ordering",{"冰紅茶":1})</span></div>
+  </div>
+  <div class="screen" style="left:66px;  top:1082px; width:236px;">
+    <div class="sn">display("ordering",{冰紅茶:1})</div>
+    <div class="sd">購物車長出 冰紅茶×1（syncCart 局部更新）</div>
+  </div>
+  <div class="node purple" style="left:426px; top:1004px; width:236px;">
+    <div class="nf">〔旁註〕觸控點餐</div>
+    <div class="nd">order{冰紅茶,1} → <span class="tok">"冰紅茶1"</span> → 同一 inject queue</div>
+  </div>
+
+  <!-- ━━━ 帶3 · checkout_confirm ★（4 列）━━━ -->
+  <div class="node purple" style="left:426px; top:1250px; width:236px;">
+    <div class="nf"><span class="sb">11</span>checkout → "結帳"</div>
+    <div class="nd">觸控（或語音「結帳」）→ inject</div>
+  </div>
+  <div class="node green" style="left:786px; top:1330px; width:236px;">
+    <div class="nf"><span class="sb gold">12</span>_dialog_checkout_confirm</div>
+    <div class="nd">classify "結帳" → <span class="tok">display("checkout_confirm",cart)</span> ★</div>
+  </div>
+  <div class="screen" style="left:66px;  top:1330px; width:236px;">
+    <div class="sn">display("checkout_confirm") ★</div>
+    <div class="sd">ConfirmSheet 確認卡片（明細 + 確認結帳 / 返回購物車）· speak 明細語音</div>
+  </div>
+
+  <div class="node purple" style="left:426px; top:1430px; width:236px;">
+    <div class="nf"><span class="sb">13</span>confirm → "正確"</div>
+    <div class="nd">觸控（或 "1"）→ inject → 回 "yes"</div>
+  </div>
+  <div class="node green" style="left:786px; top:1510px; width:236px;">
+    <div class="nf"><span class="sb">14</span>checkout_flow "yes"</div>
+    <div class="nd">speak(L3_C1_CHECKOUT_GO) · do_action(指向螢幕) → 回 ("L4",0) → dialog → l4</div>
+  </div>
+
+  <!-- ━━━ 帶4 · checkout（QR）━━━ -->
+  <div class="node green" style="left:786px; top:1672px; width:236px;">
+    <div class="nf"><span class="sb gold">15</span>_emit("l4")</div>
+    <div class="nd">進 l4 → <span class="tok">display("checkout",cart,0)</span></div>
+  </div>
+  <div class="screen" style="left:66px;  top:1672px; width:236px;">
+    <div class="sn">display("checkout")</div>
+    <div class="sd">CheckoutSheet QR 條碼（我已完成付款）</div>
+  </div>
+
+  <div class="node green" style="left:786px; top:1788px; width:236px;">
+    <div class="nf"><span class="sb">16</span>run_l4 entry</div>
+    <div class="nd">_l4_print_entry_detail · speak_blocking「總額 27 元」· v3 雙計時器(36s / 12s)</div>
+  </div>
+  <div class="node orange" style="left:1502px; top:1788px; width:226px;">
+    <div class="nf">speak_blocking</div>
+    <div class="nd">L4_ENTRY_PROMPT 總額 27 元</div>
+  </div>
+
+  <div class="node purple" style="left:426px; top:1908px; width:236px;">
+    <div class="nf"><span class="sb">17</span>pay → "s"</div>
+    <div class="nd">觸控掃碼 → inject（模擬硬體觸發）</div>
+  </div>
+  <div class="node green" style="left:786px; top:1908px; width:236px;">
+    <div class="nf"><span class="sb">18</span>_l4_pay_success</div>
+    <div class="nd">取 "s" → speak(付款成功+致謝) · do_action(鞠躬) → 回 ("L5",0,0) → l4 → l5</div>
+  </div>
+  <div class="node gray" style="left:1790px; top:1908px; width:198px;">
+    <div class="nf">Action queue</div>
+    <div class="nd">鞠躬</div>
+  </div>
+
+  <!-- ━━━ 帶5 · thankyou → loop ━━━ -->
+  <!-- #19 下移至 top2098（band_top 2038 + 60），清開 PHASE THANKYOU 標籤行；#19→#20 間距仍 ≥30px -->
+  <div class="node green" style="left:786px; top:2098px; width:236px;">
+    <div class="nf"><span class="sb gold">19</span>_emit("l5") · paid=27</div>
+    <div class="nd"><span class="tok">display("thankyou",paid=27)</span></div>
+  </div>
+  <div class="screen" style="left:66px;  top:2098px; width:236px;">
+    <div class="sn">display("thankyou",paid=27)</div>
+    <div class="sd">ThankYou 全屏「謝謝惠顧」</div>
+  </div>
+
+  <div class="node green" style="left:786px; top:2196px; width:236px;">
+    <div class="nf"><span class="sb">20</span>run_l5 → 回 l1</div>
+    <div class="nd">do_action(揮手送客) · clear_cart · sleep(3s)</div>
+  </div>
+  <div class="screen" style="left:66px;  top:2196px; width:236px;">
+    <div class="sn"><span class="sb gold">21</span>display("standby",{},0)</div>
+    <div class="sd">↺ 回 Standby（＝最上起點）；L1 再進 hawk 連續叫賣 · 迴圈回帶0</div>
+  </div>
+
+  </div><!-- /.shift 圖身下移容器結束 -->
+
+  <!-- ═══ 頂排：legend + note 並排（.shift 外、不隨圖身下移；佔下移後騰出的頂部空間）═══ -->
+  <div class="legend" style="left:64px; top:112px; width:560px;">
+    <h4>色彩語意 · 泳道角色</h4>
+    <div class="row"><span class="sw" style="background:var(--blue-fill);border-color:var(--blue-edge)"></span><span class="lb">前端（render client）</span>
+      <span class="sw" style="background:var(--purple-fill);border-color:var(--purple-edge);margin-left:18px"></span><span class="lb">WS·transport</span></div>
+    <div class="row"><span class="sw" style="background:var(--green-fill);border-color:var(--green-edge)"></span><span class="lb">主線程（SalesMachine）</span>
+      <span class="sw" style="background:var(--cyan-fill);border-color:var(--cyan-edge);margin-left:18px"></span><span class="lb">STT（每輪）</span></div>
+    <div class="row"><span class="sw" style="background:var(--orange-fill);border-color:var(--orange-edge)"></span><span class="lb">TTS</span>
+      <span class="sw" style="background:var(--gray-fill);border-color:var(--gray-edge);margin-left:18px"></span><span class="lb">Action·vendor</span></div>
+    <div class="row"><span class="sw" style="background:var(--arrow-hawk);border-color:var(--arrow-hawk)"></span><span class="lb">phase emit 下行 <code style="font-family:var(--font-mono);color:var(--arrow-hawk-label);font-size:11px">display(phase)</code> = 主角（金）</span></div>
+  </div>
+  <div class="note" style="left:660px; top:112px; width:1316px;">
+    <h4>所以呢 · phase-driven 三鐵則</h4>
+    <ul>
+      <li><span class="dot">●</span><b>phase-driven</b>：前端 7 次換畫面全由後端 <code>display(phase)</code> 驅動；觸控只送命令、不本地樂觀改畫面（觸發也可能來自語音 / 自動結帳）。</li>
+      <li><span class="dot">●</span><b>單一 input queue</b>：wake/order/checkout/confirm/pay 觸控 token 與 STT <code>speech_final</code> 注入同一 queue，主線程 <code>read_*</code> 單一消費（呼應圖①）。</li>
+      <li><span class="dot">●</span><b>checkout_confirm</b> 是 dialog 內子 phase：machine <code>_PHASE_BY_STATE</code> 只有 standby/ordering/checkout/thankyou 四個；確認卡片這發由 <code>_dialog_checkout_confirm</code> 直發 ★。</li>
+    </ul>
+  </div>
+
+</div>
+</body>
+</html>

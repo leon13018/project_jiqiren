@@ -47,7 +47,7 @@
 
 ## 畫圖計畫（SDD plan, 2026-06-22 重畫；棄 Mermaid 後 HTML/CSS 版）
 
-> step 3–4 設計定案。座標為**起手近似值 + lane 規則**,實際像素由實作者在 render→截圖自檢迴圈微調(先卡片層→修版面→再 SVG 箭頭層)。骨架 = `<skill>/assets/skeleton.html`;theme = `theme/diagram.css`(相對引用)。
+> step 3–4 設計定案。座標為**起手近似值 + lane 規則**,實際像素由實作者在 render→截圖自檢迴圈微調(先卡片層→修版面→再 SVG 箭頭層)。骨架 = `architecture-diagram/assets/skeleton.html`(淺色自足);**視覺風格＝ `report-design-system` skill**(淺色蠟筆;原深色 `theme/` 已移入 `_legacy-dark/`、不再用)。淺色定版見 report-design-system `assets/benchmarks/01-process-thread.*`。
 
 ### thesis / 主角（boldness 集中一處）
 **單一 input queue 的 3→1 扇入**(鍵盤 / STT / web 觸控 → 同一 queue → 主線程單一消費,「producer 端零分流」鐵則)。比照圖② enter_hawk:用**暖金 `.hawk` 線 + `ah-hawk` 箭頭頭**把 3 條 producer 匯入線 + 1 條 consume 線做成視覺焦點;其餘邊一律安靜的 `.flow`(白/紫標籤)。

@@ -1,0 +1,312 @@
+<!doctype html>
+<!-- ════════════════════════════════════════════════════════════════
+  圖③ Web phase 交互狀態機 — 純 HTML/CSS 絕對定位 + SVG overlay。
+  theme = theme/diagram.css（相對引用，勿改）；座標經 render→截圖自檢迴圈微調。
+  2026-06-22 全碼複核（web/{bus,display,app,commands,models}.py、webui/app.js、
+  sales/states/{machine,l2_l3_dialog}.py）後依 specs/03-web-phase-state-machine.md 畫。
+
+  版面 band：
+    A 標題（頂置中）/ legend（左上）
+    B 左欄 emit 源（machine._emit 綠 + dialog io.display 綠虛）
+    C 中央 5 phase 卡縱列階梯（藍 standby → 綠 ordering →〔縮排〕青 checkout_confirm
+      → 橘 checkout → 紫 thankyou）+ 名稱不對齊標註
+    D 中左 transport 帶（灰，EventBus→run_coroutine_threadsafe→/ws broadcast→applyState）
+    E 右欄上行回路（灰，6 觸控 chip → commands.to_token → inject → 共用 input queue）
+    F note（左下/右下，3 設計鐵則）
+
+  主角（boldness 集中）：下行 phase 驅動環 —— 一條粗暖金 .hawk 閉環把
+    「上行觸控命令 → input queue → 主線程決策 → emit 新 phase → 下行換畫面」串成閉環，
+    點明「畫面不是觸控直接改、是繞一圈回來的（phase-driven、禁前端樂觀）」。
+  ════════════════════════════════════════════════════════════════ -->
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>圖③ · Web phase 交互狀態機</title>
+<link rel="stylesheet" href="theme/diagram.css">
+<style>
+  .stage { width: 1960px; height: 1320px; }
+
+  /* phase 卡 eyebrow 後接的「前端折法」小標：mono、淡 */
+  .fold { color: var(--ink-mute); font-weight: 500; letter-spacing: 0.3px; }
+
+  /* 觸控命令 chip（右欄上行回路，比 .chip 多一個 token 欄）：沿用 .chip 視覺、加 token 標 */
+  .cmd {
+    position: absolute;
+    border-radius: 11px;
+    padding: 7px 12px;
+    background: var(--gray-fill);
+    border: 1px solid var(--gray-edge);
+    backdrop-filter: blur(8px) saturate(1.3);
+    -webkit-backdrop-filter: blur(8px) saturate(1.3);
+    box-shadow: 0 8px 18px -10px oklch(0% 0 0 / 0.6);
+    display: flex; align-items: center; gap: 9px;
+    white-space: nowrap;
+  }
+  .cmd .ct  { font-family: var(--font-mono); color: var(--ink); font-size: 12.5px; font-weight: 600; }
+  .cmd .cui { font-family: var(--font-cjk); color: var(--ink-mute); font-size: 11px; font-weight: 400; }
+  .cmd .tok {
+    font-family: var(--font-mono); color: oklch(89% 0.04 82); font-size: 12px; font-weight: 600;
+    background: oklch(40% 0.02 82 / 0.5); border: 1px solid oklch(70% 0.06 82 / 0.4);
+    border-radius: 6px; padding: 1px 7px; margin-left: auto;
+  }
+
+  /* 名稱不對齊標註小牌（青框，掛 phase 卡角） */
+  .misalign {
+    position: absolute;
+    font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1.4;
+    color: var(--cyan-tone);
+    background: oklch(22% 0.03 205 / 0.62);
+    border: 1px dashed oklch(80% 0.08 205 / 0.5);
+    border-radius: 9px; padding: 6px 11px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .misalign b { color: var(--ink); font-weight: 600; }
+
+  /* 「dialog 內子 phase」標籤（掛 checkout_confirm 卡，標其非機台狀態） */
+  .subphase-tag {
+    position: absolute;
+    font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--cyan-tone);
+    background: oklch(24% 0.04 205 / 0.7);
+    border: 1px solid var(--cyan-edge);
+    border-radius: 8px; padding: 4px 10px;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <div class="title"><span class="num">FIG.03</span>Web phase 交互狀態機</div>
+  <div class="subtitle">web phase state machine · 後端 phase 驅動前端畫面 · 觸控只上行、禁前端樂觀</div>
+
+  <!-- ═══ 箭頭層（SVG overlay）— 2026-06-22 全層重生：正交走線、平行 bus-lane 等距、
+       一致圓角 r=18、最少交叉（全圖僅 2 處金②×dialog-stub 垂直交叉、無壓字）═══
+       幾何由 browser_evaluate 量到的卡 bbox 反推（見回報）：
+         machine._emit 右緣 x348 / dialog 右緣 x348；phase 卡左緣 560/610/760/610/560，
+         各卡中線 y=226/438/645/852/1064；右欄 chips·to_token·inject 中線 x1728；
+         main-thread R1530·中線 y898；note B1123 / thankyou B1140 → 底帶 y1210 全淨空。
+       lane 配置（左→右）：金環②riser=x398、thankyou 白 lane=x426、standby/checkout 白 lane=x452
+         （machine 兩條下行白分開 26px 等距、不重疊）、dialog bus=x500（lanes 右側）。金環②從 machine
+         右緣 y534「白線下方」進（那帶上→下＝standby/checkout/thankyou 白·金，四線清楚）。
+         全圖唯一交叉群＝dialog 單一共用 feed stub(y645＝cc 卡中線) 垂直穿 gold/thankyou/checkout 三縱
+         線（單橫線 90°、異色不壓字）；cc 即此 stub 直行入卡（零彎折）、其餘走線零交叉。 -->
+  <svg class="edges" viewBox="0 0 1960 1320" preserveAspectRatio="none">
+    <defs>
+      <marker id="ah" markerWidth="13" markerHeight="13" refX="10" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L11,4.5 L0,9 Z" fill="var(--arrow)" stroke="none"/>
+      </marker>
+      <marker id="ah-hawk" markerWidth="15" markerHeight="15" refX="11" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L12,5 L0,10 Z" fill="var(--arrow-hawk)" stroke="none"/>
+      </marker>
+    </defs>
+
+    <!-- ══ 下行 emit → phase（安靜 .flow 白線）══
+         machine._emit 右側那帶（使用者指定 143727）：兩條下行白線（checkout / thankyou）上移 +
+         各走自己 lane 分開不重疊（checkout lane=448、thankyou lane=422，28px 等距分離）；
+         金②回程改從 machine 右緣「白線下方」y534 進（見 hawk ②），那帶由上到下＝白·白·金、三線清楚。
+         standby（上行）仍走 lane 448；dialog 兩條走 bus 500。一致 r=18 圓角、橫入卡中線。 -->
+    <!-- machine._emit（右緣 348）→ standby(lane452↑) / checkout(lane452↓) / thankyou(lane426↓)
+         兩條下行白線分開：checkout lane452、thankyou lane426（26px 等距、不重疊）。 -->
+    <!-- · → standby（左緣 560,中線 226）：右緣 y418 → lane452 上行 -->
+    <path class="flow" marker-end="url(#ah)" d="M348,418 L434,418 Q452,418 452,400 L452,244 Q452,226 470,226 L560,226"/>
+    <!-- · → checkout（左緣 610,中線 852）：右緣 y458（上移）→ lane452 下行 -->
+    <path class="flow" marker-end="url(#ah)" d="M348,458 L434,458 Q452,458 452,476 L452,834 Q452,852 470,852 L610,852"/>
+    <!-- · → thankyou（左緣 560,中線 1064）：右緣 y496（上移）→ lane426（分開的外側 lane）下行 -->
+    <path class="flow" marker-end="url(#ah)" d="M348,496 L408,496 Q426,496 426,514 L426,1046 Q426,1064 444,1064 L560,1064"/>
+    <!-- emit→phase 映射由 emit 卡內文 + 各 phase 卡 meta（標 emit 源）承載，不另加 gutter 標籤（去冗 + 清走廊）。 -->
+    <!-- dialog io.display（右緣 348）→ 單一共用 feed stub（y645＝cc 卡中線）橫穿 machine 三縱線
+         （gold398/thankyou426/checkout452，單一橫線、90°、異色不壓字）→ x500 後分流：
+           cc  → 直行續走 y645、實接 ConfirmSheet 左緣（零彎折、零鉤、箭頭直觸卡邊）。
+           ordering → 在 x500 圓角上行 y645→438（一致 r=18）→ 入卡 610。
+         （前版 stub 在 y660、cc 需上行 15px<2r 致兩圓角重疊倒鉤＝被使用者抓的連接缺陷；
+          改 stub 落 cc 中線 y645 後 cc 全程水平、無倒鉤。）-->
+    <!-- · → checkout_confirm（左緣 760,中線 645,縮排卡）：共用 stub 直行入卡（零彎折） -->
+    <path class="flow" marker-end="url(#ah)" d="M348,645 L760,645"/>
+    <!-- · → ordering（左緣 610,中線 438）：共用 stub 至 x500 → 圓角上行 y438 → 入卡 -->
+    <path class="flow" marker-end="url(#ah)" d="M348,645 L482,645 Q500,645 500,627 L500,456 Q500,438 518,438 L610,438"/>
+
+    <!-- transport 下行傳輸：以 transport 卡本身承載（eyebrow「TRANSPORT · 下行傳輸」+ 內文列全鏈），
+         不另拉長線到 phase 欄（避免左走廊過度擁擠；下行語意由卡 + emit 箭頭承載）。 -->
+
+    <!-- ══ 上行 chips → to_token → inject（安靜 .flow；右欄 x1728 縱向直收束）══
+         標籤落兩卡間清空 gap（非壓卡）、自帶深色 halo。 -->
+    <path class="flow" marker-end="url(#ah)" d="M1728,432 L1728,492"/>
+    <text class="elabel" x="1728" y="468" text-anchor="middle">json → to_token</text>
+    <path class="flow" marker-end="url(#ah)" d="M1728,594 L1728,636"/>
+    <text class="elabel" x="1728" y="622" text-anchor="middle">非 None → inject</text>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         ★ 主角：phase 驅動閉環（粗暖金 .hawk）— 三段串成一圈：
+           ① inject(queue) → 主線程（queue→read）
+           ② 主線程決策 → emit 新 phase（長回程繞底帶 + 左走廊，閉「請求繞回後端」半圈）
+           ③ 畫面就緒（standby）→ 顧客再觸控（直線回 chips，閉整環）
+         白線承載資料管路（chips→to_token→inject、emit→phase 換畫面）；
+         金環只走「繞一圈回後端」這半圈 → boldness 集中、點明「畫面非觸控直接改」。
+         全段正交圓角 r=18、收束點對齊卡中線；交叉僅②穿 dialog 兩 stub（垂直×水平、異色不壓字）。
+         ══════════════════════════════════════════════════════════════ -->
+    <!-- ① inject（queue）→ 主線程：inject 底 x1700 ↓ → y898 左入 main 右緣（落 main 中線）。單一 ⌐ 圓角。 -->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M1700,780 L1700,880 Q1700,898 1682,898 L1530,898"/>
+    <text class="hawklabel" x="1612" y="884" text-anchor="middle">queue → read</text>
+    <!-- ② 主線程 → emit 源：main 左緣 x1170 出 → 左到 x1130（清開 note 左緣 1170 + thankyou 右緣 980 間
+         gutter）→ ↓ 底帶 y1210（thankyou·note 下方全淨空）← x398 → ↑ 左走廊 x398 → y534 ← 左入
+         machine._emit 右緣（落在兩條白下行線 458/496 之下 → 那帶由上到下＝checkout白·thankyou白·金，
+         三線清楚不互蓋；金箭頭朝 emit 卡指）。riser x398 僅與 dialog 共用 feed stub(y645)交叉一次（90°異色）。 -->
+    <path class="hawk" marker-end="url(#ah-hawk)"
+      d="M1170,944 L1148,944 Q1130,944 1130,962 L1130,1192 Q1130,1210 1112,1210 L416,1210 Q398,1210 398,1192 L398,552 Q398,534 380,534 L348,534"/>
+    <text class="hawklabel" x="852" y="1198" text-anchor="middle">主線程決策 → emit 新 phase</text>
+    <!-- ③ 畫面就緒（standby）→ 顧客再觸控：standby 右緣 y180 → 直線右入 wake chip 左緣。零彎折。 -->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M980,180 L1548,180"/>
+    <text class="hawklabel" x="1264" y="164" text-anchor="middle">畫面就緒 → 顧客再觸控（閉環）</text>
+  </svg>
+
+  <!-- ═══ A · legend（左上，6 列）═══ -->
+  <div class="legend" style="left:48px; top:116px; width:320px;">
+    <h4>色彩語意 · phase=畫面類別</h4>
+    <div class="row"><span class="sw" style="background:var(--blue-fill);border-color:var(--blue-edge)"></span><span class="lb">standby 待機歡迎（全屏）</span></div>
+    <div class="row"><span class="sw" style="background:var(--green-fill);border-color:var(--green-edge)"></span><span class="lb">ordering 點餐主畫面（cart 增量）</span></div>
+    <div class="row"><span class="sw" style="background:var(--cyan-fill);border-color:var(--cyan-edge)"></span><span class="lb">checkout_confirm 確認閘（子 phase）</span></div>
+    <div class="row"><span class="sw" style="background:var(--orange-fill);border-color:var(--orange-edge)"></span><span class="lb">checkout 結帳 QR（overlay）</span></div>
+    <div class="row"><span class="sw" style="background:var(--purple-fill);border-color:var(--purple-edge)"></span><span class="lb">thankyou 致謝（帶 paid）</span></div>
+    <div class="row"><span class="sw" style="background:var(--gray-fill);border-color:var(--gray-edge)"></span><span class="lb">transport · 上行命令 · queue · 外部</span></div>
+  </div>
+
+  <!-- ═══ B · 左欄 emit 源（綠：machine._emit 4 phase / dialog io.display 子 phase）═══ -->
+  <div class="card green" style="left:48px; top:404px; width:300px; height:150px;">
+    <div class="eyebrow">EMIT 源 · 機台進場</div>
+    <div class="name">machine._emit</div>
+    <div class="meta">_PHASE_BY_STATE 映 4 phase</div>
+    <div class="desc">進每層發 standby / ordering / checkout / thankyou；paid 僅 l5 帶。</div>
+  </div>
+  <div class="card green" style="left:48px; top:600px; width:300px; height:168px;
+       border-style:dashed;">
+    <div class="eyebrow">EMIT 源 · DIALOG 內</div>
+    <div class="name">dialog io.display</div>
+    <div class="meta">machine 不參與</div>
+    <div class="desc">主迴圈每輪重發 ordering + 最新 cart（增量鏡像）；進確認時發 checkout_confirm。</div>
+  </div>
+
+  <!-- ═══ D · transport 帶（灰，emit → 前端 applyState 的下行傳輸）═══ -->
+  <div class="card gray" style="left:48px; top:828px; width:300px; height:200px; padding:14px 18px;">
+    <div class="eyebrow">TRANSPORT · 下行傳輸</div>
+    <div class="desc" style="margin-top:2px; line-height:1.85;">
+      <b style="color:var(--ink)">EventBus.publish</b>（存 last_state）<br>
+      → run_coroutine_threadsafe（跨執行緒）<br>
+      → <b style="color:var(--ink)">/ws/state broadcast</b><br>
+      → 前端 <b style="color:var(--ink)">applyState</b> 折 phase
+    </div>
+  </div>
+
+  <!-- ═══ C · 中央 5 phase 卡縱列階梯 ═══
+       standby（藍）→ ordering（綠）→〔縮排〕checkout_confirm（青）→ checkout（橘）→ thankyou（紫）
+       每卡：eyebrow=PHASE <NAME> + 前端折法；name=顯示 template；meta=emit 源；desc=折法逐字。 -->
+
+  <!-- ① standby（藍） -->
+  <div class="card blue" style="left:560px; top:150px; width:420px; height:152px;">
+    <div class="eyebrow">PHASE STANDBY · <span class="fold">standby=true · overlay=null</span></div>
+    <div class="name">Standby() 全屏歡迎</div>
+    <div class="meta">machine._emit（l1）</div>
+    <div class="desc">歡迎光臨／輕觸螢幕；機器人沒 emit 過時 /api/state 回 _STANDBY 預設。</div>
+  </div>
+
+  <!-- ② ordering（綠） -->
+  <div class="card green" style="left:610px; top:362px; width:420px; height:152px;">
+    <div class="eyebrow">PHASE ORDERING · <span class="fold">standby=false · overlay=null</span></div>
+    <div class="name">Menu + CartRail</div>
+    <div class="meta">dialog io.display（每輪 + cart）</div>
+    <div class="desc">點餐主畫面；cart 空 / 非空 → empty / filled。後端 ordering ↔ 前端「無 overlay」。</div>
+  </div>
+
+  <!-- ③ checkout_confirm（青）— 視覺縮排掛在 ordering 下 -->
+  <div class="card cyan" style="left:760px; top:566px; width:420px; height:158px;">
+    <div class="eyebrow">PHASE CHECKOUT_CONFIRM · <span class="fold">overlay="confirm"</span></div>
+    <div class="name">ConfirmSheet() 確認卡</div>
+    <div class="meta">dialog io.display（_dialog_checkout_confirm）</div>
+    <div class="desc">明細 + 確認結帳／返回購物車。standby=false。</div>
+  </div>
+
+  <!-- ④ checkout（橘） -->
+  <div class="card orange" style="left:610px; top:776px; width:420px; height:152px;">
+    <div class="eyebrow">PHASE CHECKOUT · <span class="fold">overlay="checkout"</span></div>
+    <div class="name">CheckoutSheet() 結帳卡</div>
+    <div class="meta">machine._emit（l4）</div>
+    <div class="desc">QR + 我已完成付款。standby=false。</div>
+  </div>
+
+  <!-- ⑤ thankyou（紫） -->
+  <div class="card purple" style="left:560px; top:988px; width:420px; height:152px;">
+    <div class="eyebrow">PHASE THANKYOU · <span class="fold">overlay="thankyou"</span></div>
+    <div class="name">ThankYou() 全屏謝謝惠顧</div>
+    <div class="meta">machine._emit（l5 · 帶 paid）</div>
+    <div class="desc">致謝；paid 僅此 phase 帶（falsy 時前端保留上一筆 paidTotal）。</div>
+  </div>
+
+  <!-- checkout_confirm「dialog 內子 phase」標籤 + 名稱不對齊標註 -->
+  <div class="subphase-tag" style="left:1196px; top:580px;">DIALOG 內子 phase · 非機台狀態</div>
+  <div class="misalign" style="left:1196px; top:626px; width:330px;">
+    名稱不對齊：後端 <b>checkout_confirm</b><br>↔ 前端 overlay 值 <b>"confirm"</b>
+  </div>
+  <div class="misalign" style="left:1052px; top:392px; width:300px;">
+    名稱不對齊：後端 <b>ordering</b><br>↔ 前端 <b>無 overlay</b>（非某 overlay 名）
+  </div>
+
+  <!-- ═══ E · 右欄上行回路（灰：6 觸控 chip → commands.to_token → inject → 共用 input queue）═══ -->
+  <!-- 6 觸控命令 chip（縱排，右上） -->
+  <div class="cmd" style="left:1560px; top:158px; width:336px;">
+    <span class="ct">wake</span><span class="cui">歡迎頁輕觸</span><span class="tok">t</span>
+  </div>
+  <div class="cmd" style="left:1560px; top:206px; width:336px;">
+    <span class="ct">order</span><span class="cui">加入購物車</span><span class="tok">{item}{qty}</span>
+  </div>
+  <div class="cmd" style="left:1560px; top:254px; width:336px;">
+    <span class="ct">checkout</span><span class="cui">購物車結帳鈕</span><span class="tok">結帳</span>
+  </div>
+  <div class="cmd" style="left:1560px; top:302px; width:336px;">
+    <span class="ct">confirm</span><span class="cui">確認卡「確認結帳」</span><span class="tok">正確</span>
+  </div>
+  <div class="cmd" style="left:1560px; top:350px; width:336px;">
+    <span class="ct">resume</span><span class="cui">確認卡「返回購物車」</span><span class="tok">繼續</span>
+  </div>
+  <div class="cmd" style="left:1560px; top:398px; width:336px;">
+    <span class="ct">pay</span><span class="cui">結帳卡「我已完成付款」</span><span class="tok">s</span>
+  </div>
+
+  <!-- commands.to_token 匯聚卡（6 chip 收束點） -->
+  <div class="card gray" style="left:1560px; top:498px; width:336px; height:96px; padding:13px 18px;">
+    <div class="eyebrow">上行 · 翻 token</div>
+    <div class="name" style="font-size:15px;">commands.to_token</div>
+    <div class="meta">非法 / 未知 → None（caller 忽略）</div>
+  </div>
+
+  <!-- input_reader.inject → 共用 input queue（金 hero，上行回路樞紐 = 主角環的右下角） -->
+  <div class="card gray" style="left:1560px; top:642px; width:336px; height:138px; padding:15px 20px;
+       border:1.5px solid oklch(85% 0.15 82 / 0.85);
+       box-shadow: inset 0 1px 0 oklch(100% 0 0 / 0.3), 0 18px 38px -14px oklch(0% 0 0 / 0.6), 0 0 40px -6px oklch(80% 0.15 82 / 0.55);">
+    <div class="eyebrow" style="--c-tone:oklch(88% 0.13 84);">★ 上行 · INJECT</div>
+    <div class="name" style="font-size:15px;">input_reader.inject</div>
+    <div class="meta">put 進共用 input queue</div>
+    <div class="desc" style="margin-top:5px;">鍵盤 / 語音 / 觸控同一 queue；對話層零新意圖碼。</div>
+  </div>
+
+  <!-- 主線程決策卡（input queue → read → 機台/dialog 轉態 → emit；環的左上回到 emit 源） -->
+  <div class="card blue" style="left:1170px; top:828px; width:360px; height:140px; padding:15px 20px;">
+    <div class="eyebrow">主線程 · 決策</div>
+    <div class="name" style="font-size:15px;">read_* 單一消費</div>
+    <div class="meta">機台 / dialog 轉態</div>
+    <div class="desc" style="margin-top:5px;">吃 token → 轉態 → emit 新 phase 下行；UI 不直接改畫面。</div>
+  </div>
+
+  <!-- ═══ F · note（右下空角，3 設計鐵則；移右下讓開左下走廊給金環 →emit 段）═══ -->
+  <div class="note" style="left:1170px; top:1004px; width:726px;">
+    <h4>所以呢 · phase 驅動三鐵則</h4>
+    <ul>
+      <li><span class="dot">●</span><b>phase 是唯一權威</b>：畫面切換只認後端 emit 的 phase，<b>禁前端樂觀</b>改畫面。</li>
+      <li><span class="dot">●</span><b>三觸發殊途同歸</b>：checkout_confirm 由語音 keyword / 沉默自動結帳 / UI 觸控三條路經同一 io.display ── UI 非唯一源。</li>
+      <li><span class="dot">●</span><b>斷線降級不卡死</b>：WS onclose → resetToWelcome（回 standby）+「重新連線中」+ 指數退避（1s×2 上限 10s）。</li>
+    </ul>
+  </div>
+
+</div>
+</body>
+</html>
