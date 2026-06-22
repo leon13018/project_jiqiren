@@ -1,0 +1,433 @@
+<!doctype html>
+<!-- ════════════════════════════════════════════════════════════════
+  圖⑤ 部署 / 網路拓樸 — 純 HTML/CSS 絕對定位 + SVG overlay。
+  淺色蠟筆換膚（2026-06-23）：自足單檔，原 theme/diagram.css 改內聯淺色 tokens + 蠟筆濾鏡(#crayon/#crayonEdge/#crayonText) + Rough.js hachure 填色；
+  逐字逐座標保留深色原版（_legacy-dark/05-*.html）結構，只換視覺。風格權威：report-design-system skill。依賴同層平放 rough.js / jason8.ttf。
+  拓樸（非時序）四區：
+    上=雲端（橘，虛線 .async 過網際網路）；中=Pi 4 裝置框（藍 frame，內含對話程式卡 + FastAPI 綠卡）；
+    左=本地硬體（灰 chip：ReSpeaker USB / 喇叭 / TonyPi 伺服，短實線 .flow）；
+    右=同 wifi LAN 渲染端（青：筆電 + 手機瀏覽器）。下角=獨立預覽（serve.py demo，compact 小卡）。
+  主角（boldness 集中）：render-offload 金鏈 —— Pi :8137 server ↔ client 瀏覽器（金 .hawk + ah-hawk 雙向 WS）。
+    「Pi 自身瀏覽器跑不動前端（GPU + Chromium<111 無 OKLCH）→ client 渲染、Pi 只當 server」。
+  ════════════════════════════════════════════════════════════════ -->
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>圖⑤ · 部署 / 網路拓樸</title>
+<style>
+  /* ── 字型（Google Fonts；繁中思源黑體 Noto Sans TC）+ 手繪塗鴉標題字 ── */
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Shantell+Sans:wght@400..800&family=Huninn&display=swap');
+  @font-face { font-family: 'Jason Scribble'; src: url('jason8.ttf') format('truetype'); font-display: swap; }
+
+  /* ════ 設計 tokens — Anthropic 淺色編輯風（取代原 dark-neon theme/tokens.css）════ */
+  :root {
+    color-scheme: light;
+    --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+    --font-display: "Fraunces", "Noto Serif TC", serif;
+    --font-cjk: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    --font: "Hanken Grotesk", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    --ink:#141413; --ink-dim:#2c2b28; --ink-mute:#5c5b57;
+    --paper:#ffffff; --ivory:#faf9f5; --bg-base:#faf9f5;
+    --rule:#e3dacc; --rule-soft:#ece6da;
+    --blue-fill:#eef3f8;  --blue-edge:#6a9bcc;  --blue-tone:#3f6c97;
+    --green-fill:#eef1e8; --green-edge:#788c5d; --green-tone:#566840;
+    --cyan-fill:#eef4f1;  --cyan-edge:#8fb4a8;  --cyan-tone:#4f7367;
+    --purple-fill:#f1eff7;--purple-edge:#9b8bc7;--purple-tone:#645293;
+    --orange-fill:#fbeee8;--orange-edge:#c46686;--orange-tone:#9e3f60;
+    --gray-fill:#f4f2ec;  --gray-edge:#cdc4b2;  --gray-tone:#6f6b60;
+    --arrow:#141413; --arrow-hawk:#d97757; --arrow-hawk-label:#b0512f;
+    --coral:#d97757; --tan:#e3dacc; --grid-line:#ece6da;
+    --frame-edge:#d2c9b6; --frame-fill:#fbfaf6;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; }
+  body { font-family: var(--font); background: var(--bg-base); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+
+  /* —— 固定畫布（截圖尺寸即此）：淺底 + 極淡格線 —— */
+  .stage {
+    width: 1960px; height: 1020px;
+    position: relative; overflow: hidden; margin: 0 auto;
+    background:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+      var(--bg-base);
+    background-size: 40px 40px, 40px 40px, auto;
+  }
+
+  /* —— 標題：FIG.NN 牌 + 手繪塗鴉字 —— */
+  .title {
+    position: absolute; top: 32px; left: 0; right: 0; text-align: center; color: var(--ink);
+    font-family: "Shantell Sans", "Jason Scribble", "Huninn", var(--font-display);
+    font-size: 33px; font-weight: 800; letter-spacing: 0.2px; filter: url(#crayonText);
+  }
+  .title .num {
+    font-family: "Shantell Sans", "Jason Scribble", var(--font-mono);
+    font-size: 21px; font-weight: 700; color: #c25e39;
+    margin-right: 12px; padding: 2px 9px; border: 2.5px solid #c25e39; border-radius: 7px; vertical-align: 3px;
+  }
+  .subtitle {
+    position: absolute; top: 80px; left: 0; right: 0; text-align: center; color: var(--ink-mute);
+    font-family: var(--font-mono); font-size: 13px; font-weight: 400; letter-spacing: 0.2px;
+  }
+
+  /* —— Pi 4 裝置框（淺色：細藍虛線蠟筆框 + 極淡藍洗；frame-label 浮框內側使虛線框完整）—— */
+  .frame {
+    position: absolute;
+    border: 1.5px dashed transparent;
+    background: rgba(106,155,204,0.05);
+    border-radius: 26px;
+    --framec: #6a9bcc;   /* Pi 藍：供 Rough hachure 填色取用 */
+  }
+  .frame-label {
+    position: absolute;
+    transform: translate(22px, 12px);   /* 下移 ~5px：在框頂↔卡片間上下置中 */
+    color: var(--ink-mute);
+    font-family: var(--font-mono);
+    font-size: 12.5px; font-weight: 500; letter-spacing: 0.2px;
+    background: var(--ivory);
+    padding: 4px 13px; border-radius: 10px;
+  }
+
+  /* —— 卡：乾淨扁平卡（去發光）—— */
+  .card {
+    position: absolute; border-radius: 18px; padding: 13px 16px;
+    display: flex; flex-direction: column; justify-content: center;
+    background-color: var(--c-fill, var(--gray-fill));
+    border: 1.5px solid var(--c-edge, var(--gray-edge));
+    box-shadow: 0 2px 6px -3px rgba(20, 20, 19, 0.14); overflow: hidden;
+  }
+  .card > * { position: relative; }
+  .eyebrow {
+    font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+    letter-spacing: 1.4px; text-transform: uppercase; color: var(--c-tone, var(--gray-tone));
+    margin-bottom: 5px; display: flex; align-items: center; gap: 6px;
+  }
+  .eyebrow::before { content: ""; width: 14px; height: 2px; border-radius: 2px; background: var(--c-tone, var(--gray-tone)); }
+  .card .name { font-family: var(--font-mono); color: var(--ink); font-size: 16px; font-weight: 600; letter-spacing: 0.2px; }
+  .card .meta { font-family: var(--font-mono); color: var(--ink-mute); font-size: 11.5px; font-weight: 400; margin-top: 3px; }
+  .card .desc { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 12.5px; font-weight: 400; line-height: 1.55; margin-top: 6px; }
+  .blue   { --c-fill: var(--blue-fill);   --c-edge: var(--blue-edge);   --c-tone: var(--blue-tone); }
+  .green  { --c-fill: var(--green-fill);  --c-edge: var(--green-edge);  --c-tone: var(--green-tone); }
+  .cyan   { --c-fill: var(--cyan-fill);   --c-edge: var(--cyan-edge);   --c-tone: var(--cyan-tone); }
+  .purple { --c-fill: var(--purple-fill); --c-edge: var(--purple-edge); --c-tone: var(--purple-tone); }
+  .orange { --c-fill: var(--orange-fill); --c-edge: var(--orange-edge); --c-tone: var(--orange-tone); }
+  .gray   { --c-fill: var(--gray-fill);   --c-edge: var(--gray-edge);   --c-tone: var(--gray-tone); }
+
+  /* —— 子框（渲染端 LAN 容器，淺色 ivory + 蠟筆 cyan 框）—— */
+  .group {
+    position: absolute; border-radius: 20px;
+    border: 1.5px solid var(--c-edge, var(--cyan-edge));
+    background: var(--c-fill-soft, var(--ivory));
+  }
+  .group-label {
+    position: absolute; top: 14px; left: 22px;
+    font-family: var(--font-mono);
+    color: var(--c-tone, var(--cyan-tone)); font-size: 11px; font-weight: 600;
+    letter-spacing: 0.8px; text-transform: uppercase;
+  }
+
+  /* —— 外部子程序小掛件（灰）—— */
+  .chip {
+    position: absolute; border-radius: 11px; padding: 6px 11px;
+    background: var(--gray-fill); border: 1.5px solid var(--gray-edge);
+    color: var(--ink-dim); font-family: var(--font-cjk); font-size: 11.5px; font-weight: 400;
+    box-shadow: 0 2px 5px -3px rgba(20, 20, 19, 0.12);
+  }
+  .chip b { font-family: var(--font-mono); font-weight: 600; color: var(--ink); }
+
+  /* —— 箭頭層（SVG overlay）：墨線、珊瑚主角、無發光 —— */
+  .edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+  .edges path, .edges line { fill: none; stroke: var(--arrow); stroke-width: 3.0; stroke-linecap: round; }
+  .edges path[class] { filter: url(#crayon); stroke-opacity: 0.82; }
+  .edges marker path { stroke: none; }
+  .edges marker#ah path      { fill: var(--arrow); }
+  .edges marker#ah-hawk path { fill: var(--arrow-hawk); }
+  .edges .flow { stroke-dasharray: none; }
+  .edges .async { stroke-dasharray: 7 5; }
+  .edges .hawk { stroke: var(--arrow-hawk); stroke-width: 3.8; }
+  .edges .hawklabel {
+    fill: var(--arrow-hawk-label); font-family: var(--font-mono);
+    font-size: 13.5px; font-weight: 700; letter-spacing: 0.3px;
+    paint-order: stroke; stroke: var(--ivory); stroke-width: 5px;
+  }
+  .edges .elabel {
+    fill: var(--ink-mute); font-family: var(--font-mono);
+    font-size: 12px; font-weight: 600;
+    paint-order: stroke; stroke: var(--bg-base); stroke-width: 4px;
+  }
+
+  /* —— legend / note（膠囊風乾淨卡）—— */
+  .legend {
+    position: absolute; border-radius: 16px; padding: 13px 15px;
+    background: var(--ivory); border: 1.5px solid var(--rule);
+    box-shadow: 0 2px 8px -4px rgba(20, 20, 19, 0.12);
+  }
+  .legend h4 { font-family: var(--font-mono); color: var(--ink); font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 9px; }
+  .legend .row { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+  .legend .sw { width: 22px; height: 13px; border-radius: 5px; border: 1.5px solid var(--rule); }
+  .legend .lb { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 12px; font-weight: 400; white-space: nowrap; }
+  .note {
+    position: absolute; border-radius: 16px; padding: 14px 18px;
+    background: var(--ivory); border: 1.5px solid var(--rule);
+    box-shadow: 0 2px 8px -4px rgba(20, 20, 19, 0.12);
+  }
+  .note h4 { font-family: var(--font-mono); color: var(--ink); font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+  .note ul { list-style: none; }
+  .note li { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 12.5px; font-weight: 400; line-height: 1.7; }
+  .note li b { font-weight: 600; color: var(--ink); }
+  .note li code { font-family: var(--font-mono); font-weight: 600; color: var(--orange-tone); font-size: 11.5px; }
+  .note li .dot { color: var(--coral); margin-right: 6px; }
+
+  /* ── 手繪蠟筆外框：原乾淨邊改透明，用 ::before 畫蠟筆框（frame 走虛線）── */
+  .card, .group, .chip, .frame, .legend, .note, .sw { border-color: transparent; overflow: visible; }
+  .card::before, .group::before, .chip::before, .frame::before, .legend::before, .note::before, .sw::before {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    border: 2px solid var(--edge, var(--gray-edge)); filter: url(#crayonEdge);
+  }
+  .card::before  { --edge: var(--c-edge, var(--gray-edge)); }
+  .group::before { --edge: var(--c-edge, var(--cyan-edge)); }
+  .chip::before  { --edge: var(--gray-edge); }
+  .frame::before { --edge: var(--blue-edge); border-style: dashed; border-width: 1.5px; }
+  .legend::before, .note::before { --edge: var(--rule); }
+  /* 所有填色框自成 stacking context：讓 Rough 填色(z-1)墊在蠟筆框後、又在頁面之上 */
+  .card, .group, .chip, .frame, .frame-label, .legend, .note, .sw { isolation: isolate; }
+  .sw { position: relative; }
+
+  /* —— z 分層：背景面板（frame/group）1 < 箭頭 2 < 卡/掛件/標籤 3（否則不透明面板蓋掉 SVG 箭頭）—— */
+  .frame, .group { z-index: 1; }
+  .card, .chip, .frame-label, .group-label, .legend, .note { z-index: 3; }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <div class="title"><span class="num">FIG.05</span>部署 / 網路拓樸</div>
+  <div class="subtitle">Pi serves · client renders — single device, two clouds, LAN-rendered glass UI</div>
+
+  <!-- ═══ 箭頭層（SVG overlay）：座標於卡片層定版後填 ═══ -->
+  <svg class="edges" viewBox="0 0 1960 1020" preserveAspectRatio="none">
+    <defs>
+      <marker id="ah" markerWidth="13" markerHeight="13" refX="10" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L11,4.5 L0,9 Z" fill="var(--arrow)" stroke="none"/>
+      </marker>
+      <marker id="ah-hawk" markerWidth="15" markerHeight="15" refX="11" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L12,5 L0,10 Z" fill="var(--arrow-hawk)" stroke="none"/>
+      </marker>
+      <!-- 手繪蠟筆濾鏡：低頻位移=手繪抖動不直；高頻噪聲侵蝕 alpha=蠟筆紙面顆粒粉感。
+           ⚠ #crayon 用 userSpaceOnUse、width/height 綁 edges viewBox（此圖 1960×1020 + 邊界）。 -->
+      <filter id="crayon" filterUnits="userSpaceOnUse" x="-40" y="-40" width="2040" height="1100" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="5" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="5" xChannelSelector="R" yChannelSelector="G" result="line"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.5 0.62" numOctaves="2" seed="9" result="grain"/>
+        <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.9 -0.1" result="grainMask"/>
+        <feComposite in="line" in2="grainMask" operator="in"/>
+      </filter>
+      <filter id="crayonEdge" x="-12%" y="-15%" width="124%" height="130%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="4" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="4" result="ln"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.5 0.6" numOctaves="2" seed="8" result="gr"/>
+        <feColorMatrix in="gr" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.95 -0.05" result="grm"/>
+        <feComposite in="ln" in2="grm" operator="in"/>
+      </filter>
+      <filter id="crayonText" x="-8%" y="-18%" width="116%" height="136%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="7" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="2.6" result="ln"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.6 0.7" numOctaves="2" seed="3" result="gr"/>
+        <feColorMatrix in="gr" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.4 2.0" result="grm"/>
+        <feComposite in="ln" in2="grm" operator="in"/>
+      </filter>
+    </defs>
+
+    <!-- ════ 雲端 ↔ Pi（虛線 .async，過網際網路；兩朵雲各下扇入 Pi 框頂 y400）════ -->
+    <!-- Deepgram → Pi（STT 串流 WSS）；雲底(620,276) → 框頂(760,400) -->
+    <path class="async" marker-end="url(#ah)" d="M620,276 C620,338 760,338 760,400"/>
+    <text class="elabel" x="612" y="346" text-anchor="middle">WSS · STT 串流</text>
+    <!-- edge-tts → Pi（TTS 合成 HTTPS）；雲底(1110,276) → 框頂(980,400) -->
+    <path class="async" marker-end="url(#ah)" d="M1110,276 C1110,338 980,338 980,400"/>
+    <text class="elabel" x="1118" y="346" text-anchor="middle">HTTPS · TTS 合成</text>
+
+    <!-- ════ 本地硬體 ↔ Pi（短實線 .flow；左 chip 右緣 x384 ↔ Pi 框左緣 x500，皆落框內 y 區間）════ -->
+    <!-- ReSpeaker USB 麥 → Pi（輸入）；卡中 y456 -->
+    <path class="flow" marker-end="url(#ah)" d="M384,456 L520,456"/>
+    <text class="elabel" x="452" y="444" text-anchor="middle">USB · ch0</text>
+    <!-- Pi → 喇叭（輸出）；卡中 y582 -->
+    <path class="flow" marker-end="url(#ah)" d="M520,582 L384,582"/>
+    <text class="elabel" x="452" y="570" text-anchor="middle">ALSA · mpg123</text>
+    <!-- Pi → TonyPi 伺服（輸出）；卡中 y708 -->
+    <path class="flow" marker-end="url(#ah)" d="M520,708 L384,708"/>
+    <text class="elabel" x="452" y="696" text-anchor="middle">serial · SDK</text>
+
+    <!-- ════ ★ 主角：Pi server ↔ client 金 WS 鏈（雙向，.hawk + ah-hawk）════
+         綠卡 server 右緣（x1180）↔ 右上「渲染端」group 左框邊（x1466，接整個 LAN 渲染端）；走清空 gutter（x1200–1460）斜入。
+         下行鏡像入 group 左緣(筆電高 y259)、上行觸控出 group 左緣(手機高 y471) 收束回 server 右緣；兩弧平行對稱、端點落框邊不穿框。 -->
+    <!-- 下行：Pi server → 渲染端 group（WS phase 鏡像）；server 右緣(1180,560) → group 左框邊(1466,259) -->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M1180,560 C1300,560 1346,259 1466,259"/>
+    <text class="hawklabel" x="1330" y="392" text-anchor="middle">/ws/state 下行鏡像</text>
+    <!-- 上行：渲染端 group → Pi server（觸控命令 inject）；group 左框邊(1466,471) → server 右緣(1180,600) -->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M1466,471 C1346,471 1300,600 1180,600"/>
+    <text class="hawklabel" x="1330" y="556" text-anchor="middle">觸控命令上行 inject</text>
+
+    <!-- ════ 獨立預覽：client → serve.py 短鏈（自成一鏈、與 Pi 區分開；安靜 .flow）════
+         瀏覽器 client chip（上，bottom≈661）→ serve.py 卡（下，top=700）；純看 UI、不連 Pi。 -->
+    <path class="flow" marker-end="url(#ah)" d="M1676,665 L1676,698"/>
+    <text class="elabel" x="1734" y="685" text-anchor="middle">?demo=1</text>
+  </svg>
+
+  <!-- ═══ 上帶 · 雲端（橘，兩朵雲；過網際網路）═══ -->
+  <div class="card orange" style="left:470px; top:130px; width:300px; height:146px;">
+    <div class="eyebrow">CLOUD · 雲端 STT</div>
+    <div class="name">Deepgram Nova-3</div>
+    <div class="meta">WSS 串流 · model=nova-3 zh-TW</div>
+    <div class="desc">需 DEEPGRAM_API_KEY；缺金鑰 / 401 → STT 停用走鍵盤。</div>
+  </div>
+  <div class="card orange" style="left:960px; top:130px; width:300px; height:146px;">
+    <div class="eyebrow">CLOUD · 雲端 TTS</div>
+    <div class="name">edge-tts</div>
+    <div class="meta">Microsoft · HTTPS 合成</div>
+    <div class="desc">命中內容定址快取則零網路（斷網可播已快取句）。</div>
+  </div>
+
+  <!-- ═══ 中央 · Pi 4 裝置框（藍 frame，內含對話程式卡 + FastAPI 綠卡）═══ -->
+  <div class="frame" style="left:500px; top:400px; width:700px; height:360px;"></div>
+  <div class="frame-label" style="left:500px; top:400px;">
+    Raspberry Pi 4 · python -m myProgram --hawk --web · 單一 process</div>
+
+  <!-- 對話程式（主線程 + workers，→ 圖①）-->
+  <div class="card blue" style="left:524px; top:448px; width:312px; height:264px;">
+    <div class="eyebrow">HOST · 對話程式</div>
+    <div class="name">SalesMachine</div>
+    <div class="meta">主線程 + 背景 daemon workers</div>
+    <div class="desc">單一 process：L0–L5 對話迴圈 + TtsWorker / ActionWorker / InputReader / 每輪 STT（並行模型細節 → 圖①）。</div>
+  </div>
+  <!-- FastAPI server :8137（綠，網路服務）-->
+  <div class="card green" style="left:868px; top:448px; width:312px; height:264px;">
+    <div class="eyebrow">SERVICE · FastAPI</div>
+    <div class="name">uvicorn :8137</div>
+    <div class="meta">host 0.0.0.0 · daemon webui-server</div>
+    <div class="desc">--web 才起；路由 /api/state（GET 快照）· /ws/state（WS 雙向）· /（webui 靜態檔）。</div>
+  </div>
+
+  <!-- ═══ 左側 · 本地硬體（灰小卡，垂直對齊 Pi 框內 400–760；卡間距 34px ≥30 鐵則）═══ -->
+  <div class="card gray" style="left:160px; top:410px; width:224px; height:92px;">
+    <div class="eyebrow">PERIPHERAL · 輸入</div>
+    <div class="name">ReSpeaker Mic</div>
+    <div class="meta">USB · 4 麥 + XVF-3000</div>
+  </div>
+  <div class="card gray" style="left:160px; top:536px; width:224px; height:92px;">
+    <div class="eyebrow">PERIPHERAL · 輸出</div>
+    <div class="name">喇叭 Speaker</div>
+    <div class="meta">ALSA ← mpg123 播放</div>
+  </div>
+  <div class="card gray" style="left:160px; top:662px; width:224px; height:92px;">
+    <div class="eyebrow">PERIPHERAL · 動作</div>
+    <div class="name">TonyPi 伺服</div>
+    <div class="meta">vendor SDK · serial</div>
+  </div>
+
+  <!-- ═══ 右側 · 同 wifi LAN 渲染端（青；group 框 + 筆電 / 手機；主角區，貼齊雲端帶高度填右上）═══ -->
+  <div class="group" style="left:1466px; top:130px; width:412px; height:440px;
+       --c-edge:var(--cyan-edge);"></div>
+  <div class="group-label" style="left:1488px; top:144px;">WIFI LAN · 渲染端 client（瀏覽器渲染）</div>
+  <div class="card cyan" style="left:1496px; top:184px; width:352px; height:150px;">
+    <div class="eyebrow">CLIENT · 筆電</div>
+    <div class="name">筆電瀏覽器</div>
+    <div class="meta">raspberrypi.local:8137/</div>
+    <div class="desc">渲染玻璃 UI（OKLCH）+ WS /ws/state 鏡像下行。</div>
+  </div>
+  <div class="card cyan" style="left:1496px; top:396px; width:352px; height:150px;">
+    <div class="eyebrow">CLIENT · 手機</div>
+    <div class="name">手機瀏覽器</div>
+    <div class="meta">raspberrypi.local:8137/</div>
+    <div class="desc">同源渲染玻璃 UI + 觸控命令上行 inject。</div>
+  </div>
+
+  <!-- ═══ 下角 · 獨立預覽（次要拓樸，自成 client→serve.py 短鏈，不需 Pi；填右下）═══ -->
+  <div class="chip" style="left:1576px; top:632px;"><b>瀏覽器</b> client（本機）</div>
+  <div class="card cyan" style="left:1496px; top:700px; width:352px; height:150px;">
+    <div class="eyebrow">PREVIEW · 純看 UI</div>
+    <div class="name">serve.py 8137</div>
+    <div class="meta">localhost/?demo=1 · 純 stdlib no-cache</div>
+    <div class="desc">本機假資料 + 切換器；無 API / WS、不需 Pi、不需對話程式。</div>
+  </div>
+
+  <!-- ═══ legend（左上角，6 列）═══ -->
+  <div class="legend" style="left:90px; top:170px; width:330px;">
+    <h4>色彩語意 · 拓樸分區</h4>
+    <div class="row"><span class="sw" style="background:var(--blue-fill);border-color:var(--blue-edge)"></span><span class="lb">Pi 主機（host · single process）</span></div>
+    <div class="row"><span class="sw" style="background:var(--green-fill);border-color:var(--green-edge)"></span><span class="lb">Pi 上網路服務（FastAPI :8137）</span></div>
+    <div class="row"><span class="sw" style="background:var(--cyan-fill);border-color:var(--cyan-edge)"></span><span class="lb">渲染端 client（筆電 / 手機）</span></div>
+    <div class="row"><span class="sw" style="background:var(--orange-fill);border-color:var(--orange-edge)"></span><span class="lb">雲端服務（需網際網路）</span></div>
+    <div class="row"><span class="sw" style="background:var(--gray-fill);border-color:var(--gray-edge)"></span><span class="lb">本地硬體周邊</span></div>
+    <div class="row"><span class="sw" style="background:var(--arrow-hawk);border-color:var(--arrow-hawk)"></span><span class="lb">★ render-offload 金鏈（WS）</span></div>
+  </div>
+
+  <!-- ═══ note（底帶，3 點「所以呢」；橫貫左下＋中下填底帶，距硬體 / Pi 框 ≥30px）═══ -->
+  <div class="note" style="left:90px; top:800px; width:1090px;">
+    <h4>所以呢 · 部署三鐵則</h4>
+    <ul>
+      <li><span class="dot">●</span><b>Pi serves, client renders</b>：Pi 4 自身瀏覽器跑不動玻璃 UI（GPU + Chromium&lt;111 無 OKLCH）→ 畫面由同 wifi 的筆電 / 手機渲染，Pi 只當 server。</li>
+      <li><span class="dot">●</span><b>兩朵雲需網際網路</b>：Deepgram（STT，需 API key）/ edge-tts（TTS 合成，命中快取則免網）；斷網時 STT 走鍵盤、TTS 走已快取句。</li>
+      <li><span class="dot">●</span><b>兩條出菜路徑</b>：真機 live = <code>--web</code> FastAPI（含 API/WS）；純看 UI = <code>serve.py ?demo=1</code>（純靜態、不需 Pi）。</li>
+    </ul>
+  </div>
+
+</div>
+<!-- Rough.js：把每張填色框（卡/group/chip/legend/note/色票）的填色重畫成 hachure 手繪上色（Excalidraw 同款），墊在蠟筆 ::before 框後 -->
+<script src="rough.js"></script>
+<script>
+window.addEventListener('load', () => {
+  if (!window.rough) return;
+  const NS = 'http://www.w3.org/2000/svg';
+  const rr = (x, y, w, h, r) =>
+    `M${x+r},${y}L${x+w-r},${y}Q${x+w},${y} ${x+w},${y+r}L${x+w},${y+h-r}Q${x+w},${y+h} ${x+w-r},${y+h}` +
+    `L${x+r},${y+h}Q${x},${y+h} ${x},${y+h-r}L${x},${y+r}Q${x},${y} ${x+r},${y}Z`;
+  document.querySelectorAll('.card, .group, .chip, .frame, .frame-label, .legend, .note, .sw').forEach((card, i) => {
+    const w = card.offsetWidth, h = card.offsetHeight;
+    if (!w || !h) return;
+    const cs = getComputedStyle(card);
+    const isSw = card.classList.contains('sw');
+    const isFrame = card.classList.contains('frame');
+    let fill = cs.backgroundColor, neutral = false, stroke = 'none', inset = 3.5;
+    if (isSw) {
+      card.style.setProperty('--edge', cs.borderTopColor);
+      card.style.borderColor = 'transparent';
+      inset = 1.6;
+    } else if (isFrame) {
+      // Pi 裝置框：用 --framec 藍畫斜線（蠟筆填滿），低 opacity 當底層藍區、不蓋過框內卡
+      fill = cs.getPropertyValue('--framec').trim() || fill;
+      inset = 4;
+    } else {
+      const m = fill.match(/[\d.]+/g);
+      if (m && m.length >= 3) {
+        const r = +m[0], g = +m[1], b = +m[2];
+        if (r > 235 && Math.abs(r - g) < 4 && Math.abs(g - b) < 8) {
+          fill = `rgb(${Math.round(r * 0.95)},${Math.round(g * 0.95)},${Math.round(b * 0.95)})`;
+          neutral = true;
+        }
+      }
+    }
+    const radius = Math.max(0, Math.min(parseFloat(cs.borderRadius) || 14, Math.min(w, h) / 2 - inset - 0.5));
+    card.style.background = 'transparent';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('width', w);
+    svg.setAttribute('height', h);
+    svg.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:-1;';
+    const rc = rough.svg(svg);
+    const d = rr(inset, inset, w - inset * 2, h - inset * 2, radius);
+    const node = rc.path(d, {
+      fill, fillStyle: 'hachure', hachureGap: isFrame ? 6 : (isSw ? 2.2 : 5.5), fillWeight: isSw ? 1.0 : 1.4,
+      hachureAngle: -41 + (i % 3) * 8, roughness: 1.4, bowing: isSw ? 0.7 : 1.4,
+      stroke, strokeWidth: 1.4
+    });
+    if (neutral) node.setAttribute('opacity', '0.6');
+    if (isFrame) node.setAttribute('opacity', '0.18');
+    svg.appendChild(node);
+    card.insertBefore(svg, card.firstChild);
+  });
+});
+</script>
+</body>
+</html>

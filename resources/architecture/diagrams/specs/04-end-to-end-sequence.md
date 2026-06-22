@@ -8,6 +8,8 @@
 > `constants/products.py`（冰紅茶 30→九折27/瓶）。
 
 > ✅ **已交付（2026-06-22 Wave B）**：`04-end-to-end-sequence.{html,png,svg}` 三式同名（stage 2040×2482）。最終版面隨使用者多輪逐項 QA 微調定版（band 標籤清開首節點≥60 / 文字溢框縮字+⑧⑲縮短 / do_action 垂直插 Action 底緣 / 旁註補 `.async` 虛線連⑨「替代輸入」/ **圖身整體下移 180 + legend·note 移頂排**[`.shift` 容器] / **phase 標籤左緣對齊下方卡片**[`.pband left:66`]），**以交付 html 為準**；下方「畫圖計畫」為原始設計、與最終 html 略有出入。自檢由 3-opus QA panel 執行（見 skill SKILL.md step 6）。
+>
+> ✅ **淺色換膚交付（2026-06-23）**：copy `_legacy-dark/04` → 外科改 head/濾鏡/inline，**body 座標逐字保留**；6-opus QA panel 0 內容錯誤。使用者多輪視覺精修：5 phase 帶加 Rough 蠟筆 hachure 填（gap4 / op0.12）、6 條時序線改**蠟筆外框膠囊**（`<rect>`+`#crayon`，飽和深框+淡填）壓**最底層 z-index -1**、實色延伸到底 y2482。**以 `diagrams/04-end-to-end-sequence.html` 淺色版為準**（深色版在 `_legacy-dark/`）。
 
 ## 主題一句話
 一輪完整互動（顧客觸控喚醒 → 點一瓶冰紅茶 → 結帳確認 → 掃碼付款 → 致謝 → 回叫賣）跨

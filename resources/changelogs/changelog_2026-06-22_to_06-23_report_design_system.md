@@ -41,8 +41,19 @@
 - `specs/00-diagram-backlog` + `01` spec 去過時（改宗淺色 pivot）；resources code_map + skill 路徑（theme→`_legacy-dark/theme/`）同步。
 - `_archive/` 舊願景保留（使用者選）；5 個架構 .md（README/00/10/20/30）未動（本就整齊）。
 
+## 6. 圖④⑤ 淺色蠟筆換膚 + 使用者視覺精修（2026-06-23）
+
+承「下一步」，把 ④⑤ 從 `_legacy-dark/` **換膚**成淺色蠟筆（產線 B：copy 深色 → 外科改 `<head>` 內聯淺色 tokens + `<defs>` 注入 3 蠟筆濾鏡 + 兩處 inline OKLCH 換淺 + 補 rough.js loader，**body 座標逐字保留＝零漂移**）：
+- **6-opus QA panel**（每圖 3 lens：版面 / 箭頭 / 風格+內容稽核）只讀靜態 PNG + 回讀 `.py`：**0 內容事實錯誤**（`_PHASE_BY_STATE` / checkout_confirm ★ 直發 `l2_l3_dialog.py:734` / 6 token 映射 / 冰紅茶 27 元九折 / l4 36s·12s / arecord -c6 ch0 / host 0.0.0.0:8137 三路由 / `_run_wiring` 防呆 / Pi 純 uvicorn 依賴 ── 全對碼命中）、風格 8/8、箭頭方向正確。few flags 皆 orchestrator 裁切複核為 over-flag 或 preserved-from-dark。
+- **使用者多輪像素級視覺精修**（orchestrator 自跑 render→裁切迴圈、每修即交，非全外包 QA 文字裁決）：
+  - **④**：5 個 phase 帶加 Rough 蠟筆 hachure 填（細密淡透，定 gap 4 / opacity 0.12 / 提亮色 / z-index 0）；6 條時序線從實線→**蠟筆外框膠囊**（`<rect>` 圓角 + `#crayon` 濾鏡：飽和深色外框 stroke + 淡填底 fill）、壓到**最底層 z-index -1**（不蓋任何東西）、原向下淡出漸層改實色**完整延伸到底 y2482**。
+  - **⑤**：Pi 4 裝置框 + frame-label 加蠟筆 hachure 填；frame-label 移除外框、下移 ~5px 在框頂↔卡片間上下置中。
+- 交付三式 `04/05-*.{html,png,svg}` 進 `diagrams/` 主層（**html 源在此**，∵ ④⑤ 無對照基準）、四角驗無黑邊、SVG 內嵌 2×。
+
+> ⚠️ **本 session 偵測到並行 actor**：另一 session 同時做 Wave C（⑥⑦ html+spec 已草、未交付/未 commit）+ 改 4 個 skill 檔（architecture-diagram `SKILL.md`/`skeleton.html`/`render-pipeline.md`、report-design-system `render-and-qa.md`）+ `code_map.md`。**全程未碰其改動**；本批 commit 只明列 ④⑤ 六檔 + 乾淨 doc（backlog/changelog/roadmap/spec），`code_map.md` 的 ④⑤ 狀態更新留工作區**不 commit**（避免綁進並行 actor 的改動，留它收尾）。
+
 ## 狀態 / 下一步
 
-- 雙生 skill 定版、6 commits 全 push、codemap-health 全綠、4 個 worktree 全清。
-- **圖**：淺色 ①②③ 已交付（`diagrams/` png+svg）；**④⑤ 待淺色重畫**（深色源在 `_legacy-dark/`、取 layout/座標起手 + report-design-system 風格 + 三基準對照）；⑥–⑪ 待畫（淺色）。
-- **下一步（使用者指定，新 session）＝載 `architecture-diagram` skill、把圖④⑤ 轉淺色。**
+- 雙生 skill 定版；report-design-system 弧 commits 全 push、codemap-health 全綠。
+- **圖**：淺色 **①–⑤ 已交付**（`diagrams/` html/png/svg）；**⑥⑦ 另一並行 session 進行中**（Wave C 管線，html+spec 已草、未交付）；⑧–⑪ 待畫（淺色）。
+- **下一步＝⑥–⑪ 淺色 → 報告 PDF（`report.html`/`tokens.css` 待建）/ PPT。**

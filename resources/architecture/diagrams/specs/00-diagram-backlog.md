@@ -1,7 +1,7 @@
 # 00 · 報告系統圖 backlog（待畫清單 + 待辦）
 
 > **本檔＝索引 / 待辦單**。「怎麼畫」全在 **`architecture-diagram` skill**（`.claude/skills/architecture-diagram/`），不在此重述。新 session 從零重畫時：載入該 skill，逐張照它的完整流程跑，畫哪張就回本檔對照來源檔與 spec 狀態。
-> 訂於 2026-06-22；**2026-06-23 改宗淺色蠟筆風**（風格權威移交 `report-design-system` skill、深色霓虹退場）。現況：**深色 ①–⑤ 已歸檔 `_legacy-dark/`**（含舊 `theme/`，保留為淺色重畫的來源素材）；**淺色 ①②③ 已交付**（png+svg 置 `diagrams/` 主層，html 源在 report-design-system 基準）；**④⑤ 待淺色重畫**（從 `_legacy-dark/` 取座標起手）；**⑥–⑪ 待畫**（淺色）。`specs/` 內容 spec 沿用（風格無關）。
+> 訂於 2026-06-22；**2026-06-23 改宗淺色蠟筆風**（風格權威移交 `report-design-system` skill、深色霓虹退場）。現況：**深色 ①–⑤ 已歸檔 `_legacy-dark/`**（含舊 `theme/`，保留為淺色重畫的來源素材）；**淺色 ①②③ 已交付**（png+svg 置 `diagrams/` 主層，html 源在 report-design-system 基準）；**④⑤ 淺色已交付**（2026-06-23 換膚，html/png/svg 在 `diagrams/` 主層、源在 `_legacy-dark/`）；**⑥–⑪ 待畫**（淺色；⑥⑦ 另一並行 session 進行中）。`specs/` 內容 spec 沿用（風格無關）。
 
 ## 怎麼用本檔
 
@@ -29,7 +29,7 @@
 ## 波次順序（建議）
 
 - **Wave A 核心**：① ② ③ —— ✅ **淺色已交付**（深色原版 → `_legacy-dark/`；淺色 png+svg 在 `diagrams/`、html 源在 report-design-system 基準）。釘定全系列風格基準 + 硬化 skill（9 條視覺 gotchas + 色彩 token 化）。
-- **Wave B 高值**：④ 時序、⑤ 部署 —— **深色已交付、待淺色重畫**（深色 → `_legacy-dark/`，重畫從那取 layout 起手）。本波硬化 skill：QA 平行 3 opus 質檢（只讀靜態 PNG+bbox dump）、render 必序列化（Playwright 單一共享瀏覽器）、§5.5 canonical bbox dump、CSS 改動換新埠繞快取。
+- **Wave B 高值**：④ 時序、⑤ 部署 —— ✅ **淺色已交付**（2026-06-23 換膚：copy `_legacy-dark/` → 外科改 head/濾鏡/inline、body 座標逐字保留；html/png/svg 進 `diagrams/` 主層、html 源在此）。本波硬化 skill：QA 平行 3 opus 質檢（只讀靜態 PNG+bbox dump）、render 必序列化（Playwright 單一共享瀏覽器）、§5.5 canonical bbox dump、CSS 改動換新埠繞快取。
 - **Wave C 管線**：⑥ STT、⑦ TTS（線性機械，風格穩後快）。
 - **Wave D 結構**：⑧ 模組依賴、⑨ 類別。
 - **Wave E 低**：⑩ 資料契約、⑪ 啟動分流。
@@ -41,7 +41,7 @@
 每張「done」＝ 照 skill 流程完成 + 多方自檢通過（先全圖再局部、無黑邊/截字/線交纏/跨 band 相撞）+ **使用者驗收** + 交付 2× PNG + SVG + 更新本檔勾選 + commit。
 
 - [x] ① Process / Thread　- [x] ② L0–L5 狀態機　- [x] ③ web phase　✅ **淺色已交付**（深色原版在 `_legacy-dark/`）
-- [ ] ④ 時序　- [ ] ⑤ 部署 / 網路　← **深色已交付（在 `_legacy-dark/`）、待淺色重畫**
+- [x] ④ 時序　- [x] ⑤ 部署 / 網路　✅ **淺色已交付**（2026-06-23 換膚；html/png/svg 在 `diagrams/` 主層；深色原版在 `_legacy-dark/`）
 - [ ] ⑥ STT 管線　- [ ] ⑦ TTS 管線
 - [ ] ⑧ 模組依賴　- [ ] ⑨ 類別
 - [ ] ⑩ 資料契約　- [ ] ⑪ 啟動分流
