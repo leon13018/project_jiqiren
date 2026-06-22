@@ -52,8 +52,18 @@
 
 > ⚠️ **本 session 偵測到並行 actor**：另一 session 同時做 Wave C（⑥⑦ html+spec 已草、未交付/未 commit）+ 改 4 個 skill 檔（architecture-diagram `SKILL.md`/`skeleton.html`/`render-pipeline.md`、report-design-system `render-and-qa.md`）+ `code_map.md`。**全程未碰其改動**；本批 commit 只明列 ④⑤ 六檔 + 乾淨 doc（backlog/changelog/roadmap/spec），`code_map.md` 的 ④⑤ 狀態更新留工作區**不 commit**（避免綁進並行 actor 的改動，留它收尾）。
 
+## 7. 圖⑥⑦ STT/TTS 管線交付（Wave C，2026-06-23）+ 視覺 QA 教訓 + skill 硬化（`196f7be`）
+
+承 §6「⑥⑦ 並行 session 進行中」——本 session 即該 actor，現 ⑥⑦ 交付定版。
+- **產線**：讀 `stt.py`/`tts.py`/`tts_prewarm.py`/`queue_worker.py` 逐項核對 → 寫 spec → 平行 2 opus implementer 各寫 HTML（不 render）→ orchestrator 序列獨占 render + §5.5 bbox dump → 平行 6 opus QA panel（每圖 3 lens、讀靜態 PNG+dump、QA-C 回讀 `.py` 稽核）。
+- **QA round-1**：兩張內容真實性 + 箭頭皆 PASS（無捏造、1-deep 沒誤畫成多深、8 邊逐端裁），各一版面 FAIL（死空白分布）→ 迭代（⑥ 改 **3-band 縱向蛇行**＋Deepgram 寬橫帶滿寬；⑦ 右欄 mpg123 上提加大 + 鏈攤到底）→ **正式 QA panel 複核全 3/3 PASS**。
+- 🔴 **核心教訓**：QA panel 文字裁決可「線↔頭同色 / overlaps=[] / 內容無捏造」全 PASS，**卻漏掉「整體看起來亂」**（三扇入線糾纏、長線怪繞、attribute 偏左、文字溢框）——使用者一眼抓到。**視覺收斂不可外包給 QA 文字裁決；orchestrator 必親自跑 render→截圖→改 迴圈到肉眼乾淨，使用者眼睛是最終裁判**（已寫進 memory `diagram-qa-cadence`）。
+- **使用者逐輪像素級精修定版**：⑦ 箭頭**全部重拉** + 長標籤拆兩行（q.get/取一句、1-deep prefetch/播放時預取下一句、預先 seed/灌快取）+ 三扇入→單一 `mp3_path`（語意：三層 fallback 都解析成一個 cache 檔）+ seed 從 prewarm 左緣中心→HERO（使用者建議）+ FIFO→① 連接修（原浮空在 frame 邊）+ prewarm/FIFO 文字溢框修（加高貼內容置中）；⑥ ch0 HERO / normalize / input-queue 移到左右鄰**置中** + ws.recv 對齊 SttReceiver 頂中心（與 ws.send 同線）+ prearm 改短連 SttReceiver（原 400px 長虛線穿 speech_final）。
+- **skill 硬化**（治本「死空白每次中」＋ DPR 陷阱）：① bbox dump 加 `fill`（內容垂直 extent + `bottomDeadRatio`）+ `occupancy`（6×5 占用網格、**排除容器 frame** 露 frame 內空洞）+ **ink-ratio 抽查**（<~5% 視同空，補 binary occupancy 盲點）；`render-and-qa` 把「畫大」澄清成**只指寬度、height 貼內容**、死空白改可量 FAIL 閘；`skeleton.html` 註解修；`SKILL.md` QA-A 判準。② **DPR 陷阱**：Playwright `scale:'css'` 截圖內容隨 session DPR 浮動（1.0/0.8/0.5）→ native×dpr 座標錯位、裁圖一直裁錯 → 視覺迭代改 `chrome --headless --force-device-scale-factor=2`（確定性 2×、免 server、crops 用 native×2）。（skill 檔在 `.claude/skills/`、本地生效不入 git。）
+- 交付三式 `06/07-*.{html,png,svg}` 進 `diagrams/` 主層（html 源在此）、四角驗無黑邊、SVG 內嵌 2×。本 session 一併收 §6 遺留的 `code_map.md` ④⑤ 狀態進 commit（並行 actor 已 idle/shutdown）。
+
 ## 狀態 / 下一步
 
-- 雙生 skill 定版；report-design-system 弧 commits 全 push、codemap-health 全綠。
-- **圖**：淺色 **①–⑤ 已交付**（`diagrams/` html/png/svg）；**⑥⑦ 另一並行 session 進行中**（Wave C 管線，html+spec 已草、未交付）；⑧–⑪ 待畫（淺色）。
-- **下一步＝⑥–⑪ 淺色 → 報告 PDF（`report.html`/`tokens.css` 待建）/ PPT。**
+- 雙生 skill 定版 + 死空白量測 / ink-ratio / 確定性 chrome render 硬化；report-design-system 弧 commits 全 push。
+- **圖**：淺色 **①–⑦ 已交付**（`diagrams/` html/png/svg）；**⑧⑨ 另一並行 session 進行中**（模組依賴 / 類別，html+spec 已草、未交付）；⑩⑪ 待畫（淺色）。
+- **下一步＝⑧–⑪ 淺色 → 報告 PDF（`report.html`/`tokens.css` 待建）/ PPT。**
