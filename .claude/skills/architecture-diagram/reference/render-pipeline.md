@@ -50,7 +50,7 @@ py -3.14 "<skill>/scripts/nocache_server.py" "<repo>/resources/architecture/diag
   }
   ```
   > 不縮放 + 用 `flex/margin:auto` 置中 → device viewport 比畫布大時畫布只佔中間一塊、四周變黑邊(這就是圖① 黑邊的成因)。**填滿才無邊。**
-- `browser_take_screenshot`(存根目錄,檔名 `NN-vN.png` —— 已 gitignore)。
+- `browser_take_screenshot`(存進 `resources/snapshots/`,檔名 `NN-vN.png` —— gitignored)。
 
 ## 5. 自檢:裁切放大逐項核對
 **自檢順序:先全圖、再局部 —— 兩者都要,缺一不可。**
@@ -68,10 +68,10 @@ py -3.14 "<skill>/scripts/nocache_server.py" "<repo>/resources/architecture/diag
 裁切範本(改座標即可):
 ```powershell
 Add-Type -AssemblyName System.Drawing
-$src=[System.Drawing.Image]::FromFile("<root>\NN-vN.png")
+$src=[System.Drawing.Image]::FromFile("<repo>\resources\snapshots\NN-vN.png")
 $b=New-Object System.Drawing.Bitmap($w,$h);$g=[System.Drawing.Graphics]::FromImage($b)
 $g.DrawImage($src,(New-Object Drawing.Rectangle(0,0,$w,$h)),(New-Object Drawing.Rectangle($x,$y,$w,$h)),'Pixel')
-$b.Save("<root>\_crops\c.png");$g.Dispose();$b.Dispose();$src.Dispose()
+$b.Save("<repo>\resources\snapshots\NN-crop.png");$g.Dispose();$b.Dispose();$src.Dispose()
 ```
 > System.Drawing 踩坑:`Add-Type -AssemblyName System.Drawing` **每個獨立 ps 腳本都要重下**(否則 `[System.Drawing.Image]` TypeNotFound);若要高品質縮圖,`$g.InterpolationMode` 要賦 **enum 型別**(`[System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic`),賦字串會 PropertyNotFound。
 
@@ -98,7 +98,7 @@ $b.Save("<root>\_crops\c.png");$g.Dispose();$b.Dispose();$src.Dispose()
    }
    ```
    - **`margin` 一定歸 0**:留著 `margin:0 auto` 會把畫布**佈局框**置中(偏移 transform 原點)→ 右下角變灰 / 黑(圖① 踩過)。box 要回報 `@(0,0)`。
-3. `browser_take_screenshot` → `NN-2x.png`。
+3. `browser_take_screenshot` → `resources/snapshots/NN-2x.png`(暫存;四角驗過再複製進 `diagrams/NN-topic.png` 交付)。
 4. **驗證(PowerShell `GetPixel` 四角)**:尺寸 = `nativeW*N × nativeH*N`,**四角像素都該是畫布本身深色背景 / 光暈**(約 `(4,7,16)` 或帶色光暈);**大片**灰 `(44,44,44)` / 純黑 = margin/scale 真錯,回 step 2 查(`@(0,0)` 嗎、margin 歸 0 嗎)。**單一角 1px 灰** = dpr 浮點邊縫,step 2 的 `--bg-base` 底色已蓋掉,不再灰。
 
 > 數學:截圖像素 = device viewport;CSS 視窗 = device ÷ dpr;畫布縮放 s 後 CSS 尺寸 = native×s,要 = CSS 視窗 → **`s = (device/dpr)/native = N/dpr`**。N=2 時:dpr=1 → s=2;dpr=0.667 → s=3。**務必用實測 dpr 算,別套這兩個例子。**
@@ -115,4 +115,4 @@ native(如 1960×1280)為邏輯尺寸;內嵌的是 2× png → 顯示時 2× 密
 > ⚠️ PowerShell `Remove-Item` 對含路徑的刪除可能被 sandbox 擋(整條命令含 Remove-Item 會被預掃 block,連 Copy/Write 一起沒跑)→ 刪 scratch 用 Bash `rm -f`,建檔命令裡別混 Remove-Item。
 
 ## 8. gitignore render 暫存
-這些非交付,`.gitignore` 收(圖① 已加):`.playwright-mcp/`、`_crops/`、`/smoke-*.png`、`/[0-9][0-9]-*.png`。交付的 `NN-topic.{png,svg}` 在 `diagrams/` 內,不受影響。
+**自檢截圖 / 裁切 / 2× 暫存一律存進 `resources/snapshots/`**(2026-06-22 統一;舊版散落根目錄 `NN-*.png` + `_crops/` 已棄)。`.gitignore` 以 `resources/snapshots/*` 收、只追蹤 `README.md` 讓資料夾常駐;另收 MCP 自輸出 `.playwright-mcp/`。交付的 `NN-topic.{png,svg}` 在 `diagrams/` 內、明確列檔 commit,不受影響。

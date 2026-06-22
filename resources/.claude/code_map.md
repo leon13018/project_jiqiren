@@ -17,6 +17,7 @@
 - `reflections/` — （gitignored）人定奪帳本：`proposals.md`（反思提議）+ `memory_ledger.md`（memory 健檢/整併定奪）；處理完的反思 → `archive/`（比照 pineedtodo 歸檔慣例，active 帳本只留待定奪）。
 - `presentation/` — （gitignored）報告 / 簡報。
 - `userPrompt/` — （gitignored）prompt 存檔。
+- `snapshots/` — （gitignored，只追蹤 README）架構圖自檢截圖暫存：畫圖時 Chromium 截圖確認 / 裁切放大逐項核對用，非交付物（正式圖檔交付進 `architecture/diagrams/`）；製作工作流見 skill `architecture-diagram`。
 - `.claude/` — 本層 CC 配置（`code_map.md` 本檔）。
 
 ## 檔案
