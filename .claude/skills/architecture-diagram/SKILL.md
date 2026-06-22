@@ -1,6 +1,6 @@
 ---
 name: architecture-diagram
-description: 畫 Project_01 報告用系統架構圖 / 流程圖 / 狀態機 —— 純 HTML/CSS（深色霓虹毛玻璃 + IBM Plex + OKLCH）經本機 Chromium 截圖成 2× PNG + SVG。新增或修改 resources/architecture/diagrams/ 任何圖時載入本 skill 並嚴格照流程走。
+description: 畫 / 重畫 Project_01（Raspberry Pi 人形銷售機器人）報告用的任何系統視覺圖 —— 架構圖 / 流程圖 / L0–L5 狀態機 / 時序圖 / 部署 / 網路拓樸 / 模組依賴 / 類別圖 / STT / TTS 管線圖 / 並行模型圖等。只要使用者想把主程式某部分視覺化、弄成一張圖、或放進報告，即使沒明說「畫圖」（如「弄成一張圖」「視覺化」「重畫那張」「報告要一張…」「draw a … diagram」）都要載入本 skill。產出純 HTML/CSS（深色霓虹毛玻璃 + IBM Plex + OKLCH）→ 本機 Chromium 截圖成 2× PNG + SVG，嚴格照內附流程（讀實際碼 → SDD → opus 實作 → 多方自檢）。不觸發：改 webui 點餐頁前端 / 改寫 architecture 文字文件(.md) / 微調 theme CSS / 讀文件 / 口頭解釋邏輯 / 截產品 UI 存報告 / 跟 Project_01 無關的圖（別科作業 ER 圖、generic mermaid）。
 ---
 
 # 架構圖製作工作流（Project_01 報告用）

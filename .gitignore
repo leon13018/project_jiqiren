@@ -21,3 +21,6 @@ myProgram/tts_cache/*.tmp
 _crops/
 /smoke-*.png
 /[0-9][0-9]-*.png
+
+# skill-creator description-trigger 優化暫存（eval set + run_loop 輸出），非交付
+.claude/skills/*-workspace/
