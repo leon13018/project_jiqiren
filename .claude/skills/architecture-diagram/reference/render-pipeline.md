@@ -84,7 +84,7 @@ $b.Save("<repo>\resources\snapshots\NN-crop.png");$g.Dispose();$b.Dispose();$src
 
 ## 5.5 QA 產出物:bbox dump（canonical 配方,implementer 產給 QA panel 讀）
 
-QA panel 只讀靜態產出物(PNG + 此 dump)、不 render → 影像 token 不進主對話。implementer render 後跑下面 `browser_evaluate`、把回傳字串 **`Write` 到絕對路徑** `<repo>/resources/snapshots/NN-bbox.json`。
+QA panel 只讀靜態產出物(PNG + 此 dump)、不 render → 影像 token 不進主對話。**由 orchestrator**（非 implementer，見 SKILL step 5.5）render 後跑下面 `browser_evaluate`、把回傳字串 **`Write` 到絕對路徑** `<repo>/resources/snapshots/NN-bbox.json`；再用 PowerShell 對 `NN-2x.png` 補 `arrowSamples[]` 像素取樣（見下「§5.5b」）併入同一 JSON。
 
 > 🔴 **路徑寫死、絕不用相對路徑/CWD**：subagent 的 CWD **不保證在 repo root**,相對路徑會落到根目錄 → 觸發 code_map Stop hook(已踩 ≥3 次「`NN-bbox.json` 誤落 root」)。一律用上面**絕對路徑**寫進 `resources/snapshots/`(已 gitignore)。`NN-2x.png`/`NN-native.png` 截圖同理走絕對 snapshots 路徑。
 
@@ -113,6 +113,31 @@ async () => {
 }
 ```
 > `overlaps` 非空即版面 FAIL(含標籤撞節點)。「band/group 標籤 vs 該帶首節點」尤其要 clear ≥ 標籤高 + 留白(時序帶實測首節點 top 需 ≥ band_top + ~60px)。
+
+**dump schema（QA panel 依此欄位讀；缺欄位＝dump 不合格、orchestrator 重產，否則 QA 靜默略過 = 假 PASS）**：
+- `stage{w,h}` · `dpr` — 畫布尺寸 + 實測 DPR。
+- `elements[]{cls,label,box{left,top,right,bottom,w,h}}` — 每個可見元素 bbox（相對 stage）。
+- `overlaps[][2]` — 兩兩相交配對（**非空＝版面 FAIL**）。
+- `textOverflow[]{owner,part,scroll,client}` — 文字溢框（**非空＝FAIL**）。
+- `cards[]{label,topGap,botGap}` — 每卡內容上下留白（topGap≠botGap 即非垂直置中）。
+- `arrowSamples[]{edge,lineMidRGB:[r,g,b],headTipRGB:[r,g,b]}` — 每條有色邊（`.hawk` / 任何非墨色線）的「線中段」與「箭頭頭三角實體」像素（**QA-B 比色用，免 live GetPixel**；兩者色相明度相近才算「線↔頭同色」過）。
+
+### 5.5b arrowSamples — orchestrator render 後補像素取樣
+`browser_evaluate` 量不到 rendered 點陣 → orchestrator 在截完 `NN-2x.png` 後，兩步補進 dump：
+1. `browser_evaluate` 回每條有色邊的取樣座標（stage 座標）：
+   ```js
+   async () => [...document.querySelectorAll('.edges path.hawk, .edges path[class]')].map(p=>{
+     const L=p.getTotalLength(), m=p.getPointAtLength(L/2), e=p.getPointAtLength(L); // 中點 + 終點(≈箭頭頭)
+     return {edge:p.getAttribute('class'), mid:[Math.round(m.x),Math.round(m.y)], tip:[Math.round(e.x),Math.round(e.y)]};
+   })
+   ```
+2. PowerShell 對 `NN-2x.png` GetPixel（座標 ×2 = 2× PNG 像素；箭頭頭往線反方向內縮幾 px 取三角實體而非尖端空白），寫成 `arrowSamples[]` 併入 `NN-bbox.json`：
+   ```powershell
+   Add-Type -AssemblyName System.Drawing
+   $bmp=New-Object System.Drawing.Bitmap("<repo>\resources\snapshots\NN-2x.png")
+   $p=$bmp.GetPixel($x*2,$y*2); "{0},{1},{2}" -f $p.R,$p.G,$p.B; $bmp.Dispose()
+   ```
+> 為何不讓 QA 自己 GetPixel：QA panel 不 render（無活瀏覽器、且影像 token 要留在 QA 外），GetPixel 需對 render 後的 PNG 操作 → 由 orchestrator render 當下一次取樣寫進 dump，QA 比 dump 數值即可（解「GetPixel ⊥ no-render」矛盾）。
 
 ## 6. 高解析匯出配方（DPR 反推 + 填滿，零黑邊）
 要 **N× native** 的交付圖(預設 N=2):
