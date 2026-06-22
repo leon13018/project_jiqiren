@@ -2,6 +2,8 @@
 
 > 來源:digest `30-web-mirror-and-frontend.md`(當索引)+ **實讀** `web/{bus,display,app,commands,models}.py`、`webui/{app.js,index.html}`、`sales/states/machine.py`、`sales/states/l2_l3_dialog.py`(2026-06-22 逐檔核對)。圖①②theme 為基準。
 
+> ✅ **已交付（2026-06-22 Wave A）**：`03-web-phase-state-machine.{html,png,svg}` 三式同名。最終版面：emit 源左 / 5 phase 縱列中（checkout_confirm 縮排子 phase）/ 上行回路 6 命令右 / phase 驅動金弧閉環主角 / 白 emit 平行 bus，**以交付 html 為準**。
+
 ## 主題一句話
 
 機器人後端在每個對話/機台節點 **emit 一個 phase**(`standby / ordering / checkout_confirm / checkout / thankyou`),經 EventBus → WS 廣播到瀏覽器;前端 `applyState` 把 phase **折成 standby + overlay 兩個正交維度**切畫面。觸控命令(wake / order / checkout / confirm / pay…)只「上行請求」、**不本地樂觀改畫面** —— 因為同一個 phase 也可能由**語音**或**沉默自動結帳**觸發(非 UI)。**畫面切換的唯一權威是後端 phase**,這是本圖核心。
@@ -117,3 +119,17 @@ phase 是本圖主角 → 用顏色編碼「畫面類別」:
 - checkout_confirm「縮排掛 ordering」的視覺關係清楚、不被誤讀成獨立機台狀態。
 - 每張 phase 卡最長文字(emit 源 + 折法 + template)不溢出 / 不截斷。
 - 名稱不對齊標註(checkout_confirm↔confirm、ordering↔無 overlay)看得到。
+
+---
+
+## 畫圖計畫戳記（2026-06-22 重畫；全碼複核完成）
+
+> 本檔上半「★ 核對過的硬事實」+「版面」+「signature」+「自檢重點」**即畫圖計畫**(已夠詳細,實作者直接照畫;座標近似 + lane 規則由 render 迴圈微調)。骨架 + theme 同圖①②。
+
+**鐵則 1 複核(2026-06-22 親讀)**:後端 `machine.py`(_PHASE_BY_STATE 4 phase、_emit、paid 只 l5) + `l2_l3_dialog.py:734`(checkout_confirm 是 dialog 內 io.display 子 phase) + transport `bus.py`(publish/run_coroutine_threadsafe/loop 未綁只存) + `server.py`(uvicorn daemon) + `commands.py`(6 命令→token,**checkout→「結帳」非「結賬」**) + `models.py`(5-Literal 契約) + `display.py`(total 後端算) + `app.py`(/api/state·/ws 上行 inject·_STANDBY·bind_loop) —— **全數對得上**。前端 `app.js:271-276` applyState 折法以 spec 內逐字引用為準。
+
+**畫布**:`.stage` **1960 × 1320**(本圖基準;5 phase 縱軸 + 左 emit 源 + 上游 transport 帶 + 右上行金弧回路 + note/legend)。
+
+**主角**:下行 phase 驅動環(粗暖金 `.hawk` 閉環:上行觸控 → input queue → 主線程決策 → emit 新 phase → 下行換畫面)。
+
+**畫圖必中的 3 個差異化細節**(失真即返工):① `checkout_confirm` 視覺縮排掛 `ordering` 下、標「dialog 內子 phase,非機台狀態」;② 名稱不對齊標註(後端 `checkout_confirm` ↔ 前端 overlay `"confirm"`;後端 `ordering` ↔ 前端「無 overlay」);③ 觸控只是「語音 / 沉默自動 / UI」三觸發源之一(證明「不能前端樂觀」)。

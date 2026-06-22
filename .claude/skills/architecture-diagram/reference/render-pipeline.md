@@ -63,7 +63,7 @@ py -3.14 "<skill>/scripts/nocache_server.py" "<repo>/resources/architecture/diag
 - **每張卡的最長文字**(desc / note / 命令列)—— 看有沒有 `overflow:hidden` 截字。
 - **箭頭標籤**—— SVG 在卡片 DOM 之前 = **渲染在卡下層**,標籤延伸進卡片 bbox 會被卡蓋住,看起來像「框裏字被截」→ 標籤一律落在卡片之間空白、別超進卡。
 
-逐項清單:字看得到嗎 / 有沒有截斷 / 有沒有衝出框 / 顏色對比夠嗎 / 箭頭線可見嗎(**有沒有箭頭頭** —— 別只有線沒頭,見 §7 marker)/ 標籤壓在自己的線上嗎 / 組件之間 ≥30px 不相碰嗎 / 卡內容垂直置中嗎(`browser_evaluate` 量每卡 top/bot gap 應相等)/ **跨 band 元件 y 區間不重疊嗎**(常見:某條 flow lane 或某排卡的 y 撞穿另一 band 的卡 → `browser_evaluate` 量各 band top/bottom)。
+逐項清單:字看得到嗎 / 有沒有截斷 / 有沒有衝出框 / 顏色對比夠嗎 / 箭頭線可見嗎(**有沒有箭頭頭** —— 別只有線沒頭,見 §7 marker;**箭頭頭顏色與線同色嗎** —— theme `.edges marker#id path` 修後 by-construction 同色,若要驗一律 **GetPixel 取「線中段」+「箭頭頭三角形實體」各一點比色相明度**,別用 `getComputedStyle(markerPath).fill`,marker context 它會回 `none`/未解析 `var()` 誤判)/ 標籤壓在自己的線上嗎 / 組件之間 ≥30px 不相碰嗎 / 卡內容垂直置中嗎(`browser_evaluate` 量每卡 top/bot gap 應相等)/ **跨 band 元件 y 區間不重疊嗎**(常見:某條 flow lane 或某排卡的 y 撞穿另一 band 的卡 → `browser_evaluate` 量各 band top/bottom)。
 
 裁切範本(改座標即可):
 ```powershell
@@ -83,7 +83,12 @@ $b.Save("<root>\_crops\c.png");$g.Dispose();$b.Dispose();$src.Dispose()
    async () => {
      await document.fonts.ready;
      const dpr = window.devicePixelRatio;             // 量
-     document.documentElement.style.background='transparent';
+     // html/body 背景填 --bg-base(別用 transparent):dpr 常是 1.0000000149 這種浮點,
+     // scale=N/dpr 比理想小一丁點 → 畫布右/上邊角差 ~1px 沒蓋到 → 透出灰 (44,44,44)。
+     // 填深底 → 那 1px 縫顯深色、四角驗得過(圖① 踩過,只 TR 角 (44,44,44))。
+     const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg-base').trim();
+     document.documentElement.style.background = bg;
+     document.body.style.background = bg;
      document.body.style.margin='0';
      const st=document.querySelector('.stage');
      st.style.margin='0'; st.style.transformOrigin='top left';
@@ -94,7 +99,7 @@ $b.Save("<root>\_crops\c.png");$g.Dispose();$b.Dispose();$src.Dispose()
    ```
    - **`margin` 一定歸 0**:留著 `margin:0 auto` 會把畫布**佈局框**置中(偏移 transform 原點)→ 右下角變灰 / 黑(圖① 踩過)。box 要回報 `@(0,0)`。
 3. `browser_take_screenshot` → `NN-2x.png`。
-4. **驗證(PowerShell `GetPixel` 四角)**:尺寸 = `nativeW*N × nativeH*N`,**四角像素都該是畫布本身深色背景 / 光暈**(約 `(4,7,16)` 或帶色光暈);若出現灰 `(44,44,44)` 或純黑大片 = 沒填滿,回 step 2 檢查 margin/scale。
+4. **驗證(PowerShell `GetPixel` 四角)**:尺寸 = `nativeW*N × nativeH*N`,**四角像素都該是畫布本身深色背景 / 光暈**(約 `(4,7,16)` 或帶色光暈);**大片**灰 `(44,44,44)` / 純黑 = margin/scale 真錯,回 step 2 查(`@(0,0)` 嗎、margin 歸 0 嗎)。**單一角 1px 灰** = dpr 浮點邊縫,step 2 的 `--bg-base` 底色已蓋掉,不再灰。
 
 > 數學:截圖像素 = device viewport;CSS 視窗 = device ÷ dpr;畫布縮放 s 後 CSS 尺寸 = native×s,要 = CSS 視窗 → **`s = (device/dpr)/native = N/dpr`**。N=2 時:dpr=1 → s=2;dpr=0.667 → s=3。**務必用實測 dpr 算,別套這兩個例子。**
 

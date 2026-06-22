@@ -1,7 +1,7 @@
 # 00 · 報告系統圖 backlog（待畫清單 + 待辦）
 
 > **本檔＝索引 / 待辦單**。「怎麼畫」全在 **`architecture-diagram` skill**（`.claude/skills/architecture-diagram/`），不在此重述。新 session 從零重畫時：載入該 skill，逐張照它的完整流程跑，畫哪張就回本檔對照來源檔與 spec 狀態。
-> 訂於 2026-06-22（棄 Mermaid 改 HTML/CSS + Chromium 截圖管線、skill 固化之後）。圖①②③ 成品已 reset、待依 skill 重畫；`theme/` 與 `specs/01,02,03.md` 保留。
+> 訂於 2026-06-22（棄 Mermaid 改 HTML/CSS + Chromium 截圖管線、skill 固化之後）。**圖①②③ 已依 skill 重畫交付**（三式同名 `NN-*.{html,png,svg}`，2026-06-22 Wave A；版面隨使用者 mockup 反覆微調定版，以交付 html 為準）；**④–⑪ 待畫**（Wave B 起，新 session 接續）。`theme/` 與 `specs/` 沿用。
 
 ## 怎麼用本檔
 
@@ -28,19 +28,19 @@
 
 ## 波次順序（建議）
 
-- **Wave A 核心**：① ② ③ —— spec 已存，先重畫；順便驗證硬化後 skill + 釘定全系列風格基準。
+- **Wave A 核心**：① ② ③ —— ✅ **已交付（2026-06-22）**；釘定全系列風格基準 + 大幅硬化 skill（9 條視覺 critical gotchas + 平行派工 + 色彩 token 化）。
 - **Wave B 高值**：④ 時序、⑤ 部署。
 - **Wave C 管線**：⑥ STT、⑦ TTS（線性機械，風格穩後快）。
 - **Wave D 結構**：⑧ 模組依賴、⑨ 類別。
 - **Wave E 低**：⑩ 資料契約、⑪ 啟動分流。
 
-> 波內可平行派 opus subagent（每張一個 SDD 循環）；但 render 自檢共用單一瀏覽器、序列化（skill 已述）。
+> 波內**獨立的圖一次平行派 ≥2 個 opus subagent**（各寫各檔、各自 render —— 2026-06-22 使用者實證可平行、已固化 SKILL「⚡ 平行加速」）；唯 **orchestrator 別跟某圖 subagent 同時 render 同一張 / 編同一檔**（會搶瀏覽器 + 同檔寫入衝突，本 session 踩過）。
 
 ## 待辦 checklist
 
 每張「done」＝ 照 skill 流程完成 + 多方自檢通過（先全圖再局部、無黑邊/截字/線交纏/跨 band 相撞）+ **使用者驗收** + 交付 2× PNG + SVG + 更新本檔勾選 + commit。
 
-- [ ] ① Process / Thread　- [ ] ② L0–L5 狀態機　- [ ] ③ web phase
+- [x] ① Process / Thread　- [x] ② L0–L5 狀態機　- [x] ③ web phase　✅ **Wave A 全交付（2026-06-22）**
 - [ ] ④ 時序　- [ ] ⑤ 部署 / 網路
 - [ ] ⑥ STT 管線　- [ ] ⑦ TTS 管線
 - [ ] ⑧ 模組依賴　- [ ] ⑨ 類別

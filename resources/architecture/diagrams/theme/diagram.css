@@ -136,7 +136,9 @@ body {
   box-shadow: 0 0 30px -14px var(--c-glow, var(--cyan-glow));
 }
 .group-label {
-  position: absolute; top: 11px; left: 16px;
+  /* left/top 必須 ≥ group 圓角半徑(20px)否則文字被頂左彎角切到看起來溢出
+     (圖① STT label left:16 貼角被使用者抓;調到清開彎角)。 */
+  position: absolute; top: 14px; left: 22px;
   font-family: var(--font-mono);
   color: var(--c-tone, var(--cyan-tone)); font-size: 11px; font-weight: 600;
   letter-spacing: 0.8px; text-transform: uppercase;
@@ -160,12 +162,20 @@ body {
 .edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;
   filter: drop-shadow(0 1px 2px oklch(0% 0 0 / 0.55)); }
 .edges path, .edges line { fill: none; stroke: var(--arrow); stroke-width: 2.4; stroke-linecap: round; }
+/* ⚠️ 箭頭頭 marker 的 <path> 也是 `.edges path`,會被上行 `fill:none; stroke:var(--arrow)` 劫持
+   → 三角形變「無填色 + 淡藍描邊」、與線不同色(線↔頭不搭嘎,使用者多次抓包)。此處用 ID 提高
+   specificity 把 marker 三角形改回「實心填色 + 無描邊」,且 fill 與對應線條共用同一 token →
+   線↔頭永遠同色。新圖 marker 沿用 id=ah(白) / id=ah-hawk(金) 即自動吃到此修正,毋須再於 HTML
+   寫死或加 inline style。 */
+.edges marker path { stroke: none; }
+.edges marker#ah path      { fill: var(--arrow); }
+.edges marker#ah-hawk path { fill: var(--arrow-hawk); }
 .edges .flow { stroke-dasharray: none; }
 .edges .async { stroke-dasharray: 7 5; }
 /* 主角弧線(如圖②的 enter_hawk 回流):粗 + 暖金高亮 */
-.edges .hawk { stroke: oklch(85% 0.15 82 / 0.96); stroke-width: 3.8; }
+.edges .hawk { stroke: var(--arrow-hawk); stroke-width: 3.0; }
 .edges .hawklabel {
-  fill: oklch(89% 0.14 84); font-family: var(--font-mono);
+  fill: var(--arrow-hawk-label); font-family: var(--font-mono);
   font-size: 13.5px; font-weight: 700; letter-spacing: 0.3px;
   paint-order: stroke; stroke: oklch(13% 0.02 268 / 0.92); stroke-width: 5px;
 }

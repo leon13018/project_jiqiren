@@ -11,7 +11,7 @@
 ## ⛔ 絕對禁止（違反就壞東西）
 
 1. **不要修改廠商 Hiwonder TonyPi SDK** 🔒 — `myProgram/vendor/ActionGroupControl.py` / `Board.py`，改了破壞硬體通訊。只能 `Read` 引用、`import` 使用。（Pi-only 依賴等局部細節見 `myProgram/vendor/CLAUDE.md`）
-2. **不要在 Windows 本機安裝任何依賴**（`pip` / `npm` / `apt`）🔒 — 執行環境是 Pi，本機只負責編輯與 git。（pytest 已全域裝為例外）
+2. **不要在 Windows 本機安裝任何依賴**（`pip` / `npm` / `apt`）🔒 — 執行環境是 Pi，本機只負責編輯與 git。（pytest 已全域裝為例外；會觸發 `npm`/`pip` 安裝的 skill 如 `/design-sync` 在本 zero-package.json repo 不適用、勿呼叫）
 3. **不要嘗試在 Windows import / 執行任何依賴廠商 SDK 的程式碼** — 必 ImportError。
 4. **不要用 `git add -A` / `git add .`** 🔒 — 明確列出檔名，避免誤加。
 
