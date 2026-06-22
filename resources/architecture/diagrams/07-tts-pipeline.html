@@ -1,0 +1,505 @@
+<!doctype html>
+<!-- ════════════════════════════════════════════════════════════════
+  圖⑦ TTS 管線 — Anthropic 淺色編輯＋手繪蠟筆風（self-contained 單檔）。
+  事實來源：resources/architecture/diagrams/specs/07-tts-pipeline.md（已逐項回讀
+  myProgram/tts.py / tts_prewarm.py / queue_worker.py 核對）。
+  風格權威：report-design-system skill（reference/diagram-crayon.md + report-pdf.md），
+  以 benchmarks/01-process-thread.html 為起手骨架（tokens / 3 蠟筆濾鏡 / Rough.js loader）。
+  本地依賴同層平放引用：rough.js / jason8.ttf（diagrams/ 主層，非 ../）。
+  畫布 1960×1100（內容三欄底部齊平、無死空白）→ #crayon 濾鏡 height 1480（綽綽涵蓋）。
+  ════════════════════════════════════════════════════════════════ -->
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>圖⑦ · TTS 管線</title>
+<style>
+  /* —— 字型：標題 Fraunces；繁中思源黑體；英數 Hanken Grotesk；識別字 JetBrains Mono —— */
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+  /* 手繪塗鴉標題字：Shantell Sans(拉丁/數字 marker) ＋ jf 粉圓 Huninn(繁中圓潤手寫) */
+  @import url('https://fonts.googleapis.com/css2?family=Shantell+Sans:wght@400..800&family=Huninn&display=swap');
+  /* 清松手寫體⑧隨性（自託管 ttf；最狂塗鴉感繁中手寫,缺字 fallback 給 Huninn）— 同層平放 */
+  @font-face { font-family: 'Jason Scribble'; src: url('jason8.ttf') format('truetype'); font-display: swap; }
+
+  /* ============================================================
+     淺色設計系統 tokens（取自 report-design-system skill reference/ §2/§3）
+     ============================================================ */
+  :root {
+    /* 紙與墨 */
+    --paper:#ffffff; --ivory:#faf9f5; --ink:#141413; --ink-soft:#5c5b57;
+    /* 品牌 */
+    --coral:#d97757; --tan:#e3dacc; --rule:#d9d1c0;
+    /* 章節 palette（節點分類色） */
+    --ch1:#788c5d; --ch2:#c46686; --ch3:#9b8bc7; --ch4:#6a9bcc; --ch5:#bcd1ca; --ch6:#e3dacc;
+
+    /* 字型族 */
+    --font-mono:    "JetBrains Mono", ui-monospace, Consolas, monospace;
+    --font-display: "Fraunces", "Noto Serif TC", serif;
+    --font-cjk:     "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    --font:         "Hanken Grotesk", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+
+    /* 墨色階（淺底深字） */
+    --ink-dim:  #3a3a37;   /* 次文字 */
+    --ink-mute: #5c5b57;   /* 註解 / 標籤 */
+
+    /* —— 六色語意 → palette 章節色（同類別同色、整圖協調）——
+       本圖映射：藍=caller·主線程(speak/say) / 綠=常駐 daemon(_process) /
+       紫=FIFO queue·同步原語(_cv+_pending) / 青=內容定址快取層(cache dir/store) /
+       橘=一次性(tts_prewarm bootstrap) / 砂=子程序 mpg123·雲端 edge-tts。
+       fill=極淡 tint、edge=細彩線、tone=eyebrow 文字色（深到夠對比）。 */
+    --blue-fill:   #eef3f8;  --blue-edge:   #6a9bcc;  --blue-glow:   transparent;  --blue-tone:   #3f6f9e;
+    --green-fill:  #f1f4ec;  --green-edge:  #788c5d;  --green-glow:  transparent;  --green-tone:  #566a3e;
+    --cyan-fill:   #eef4f2;  --cyan-edge:   #8fb3aa;  --cyan-glow:   transparent;  --cyan-tone:   #4d7268;
+    --purple-fill: #f2eff7;  --purple-edge: #9b8bc7;  --purple-glow: transparent;  --purple-tone: #6b5d96;
+    --orange-fill: #f9eef2;  --orange-edge: #c46686;  --orange-glow: transparent;  --orange-tone: #9c4763;
+    --gray-fill:   #f5f3ee;  --gray-edge:   #d9d1c0;  --gray-glow:   transparent;  --gray-tone:   #6b6a64;
+
+    /* 箭頭 / 線 */
+    --arrow:            #141413;                /* 安靜流線：墨色 */
+    --arrow-hawk:       var(--coral);           /* 主角弧 → 珊瑚（1-deep prefetch 回流） */
+    --arrow-hawk-label: #b85a3c;                /* 珊瑚標籤文字（深一階保 legibility） */
+    --grid-line:        #ece6da;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; }
+  body {
+    font-family: var(--font);
+    background: var(--ivory);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* —— 固定畫布：紙白底 + 極淡儀表格線 —— */
+  .stage {
+    width: 1960px; height: 1100px;
+    position: relative;
+    overflow: hidden;
+    margin: 0 auto;
+    background:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+      var(--ivory);
+    background-size: 40px 40px, 40px 40px, auto;
+  }
+
+  /* —— 標題：FIG.NN 等寬膠囊 + 主題用塗鴉字 —— */
+  .title {
+    position: absolute; top: 32px; left: 0; right: 0;
+    text-align: center;
+    color: var(--ink);
+    font-family: "Shantell Sans", "Jason Scribble", "Huninn", var(--font-display);
+    font-size: 33px; font-weight: 800; letter-spacing: 0.2px;
+    filter: url(#crayonText);
+  }
+  .title .num {
+    font-family: "Shantell Sans", "Jason Scribble", var(--font-mono);
+    font-size: 21px; font-weight: 700;
+    color: #c25e39;
+    margin-right: 12px;
+    padding: 2px 9px;
+    border: 2.5px solid #c25e39;
+    border-radius: 7px;
+    vertical-align: 3px;
+  }
+  .subtitle {
+    position: absolute; top: 80px; left: 0; right: 0;
+    text-align: center;
+    color: var(--ink-mute);
+    font-family: var(--font-mono);
+    font-size: 13px; font-weight: 400; letter-spacing: 0.2px;
+  }
+
+  /* —— 卡片：乾淨扁平卡（色由 modifier 設 --c-fill / --c-edge / --c-tone）—— */
+  .card {
+    position: absolute;
+    border-radius: 18px;
+    padding: 13px 16px;
+    display: flex; flex-direction: column; justify-content: center;
+    background: var(--c-fill, var(--gray-fill));
+    border: 1.5px solid var(--c-edge, var(--gray-edge));
+    box-shadow: 0 2px 6px -3px rgba(20,20,19,0.14);
+    overflow: hidden;
+  }
+  .card > * { position: relative; }
+
+  /* eyebrow 分類標：等寬大寫 + 短色條 */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 10.5px; font-weight: 600;
+    letter-spacing: 1.4px; text-transform: uppercase;
+    color: var(--c-tone, var(--gray-tone));
+    margin-bottom: 5px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .eyebrow::before {
+    content: ""; width: 14px; height: 2px; border-radius: 2px;
+    background: var(--c-tone, var(--gray-tone));
+  }
+
+  .card .name { font-family: var(--font-mono); color: var(--ink); font-size: 16px; font-weight: 600; letter-spacing: 0.2px; }
+  .card .meta { font-family: var(--font-mono); color: var(--ink-mute); font-size: 11.5px; font-weight: 400; margin-top: 3px; }
+  .card .desc { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 12.5px; font-weight: 400; line-height: 1.55; margin-top: 6px; }
+  .card .desc code, .card .meta code { font-family: var(--font-mono); color: var(--coral); font-weight: 500; font-size: 0.92em; }
+
+  /* 色 modifier（連帶設 eyebrow 文字色 --c-tone） */
+  .blue   { --c-fill: var(--blue-fill);   --c-edge: var(--blue-edge);   --c-tone: var(--blue-tone); }
+  .green  { --c-fill: var(--green-fill);  --c-edge: var(--green-edge);  --c-tone: var(--green-tone); }
+  .cyan   { --c-fill: var(--cyan-fill);   --c-edge: var(--cyan-edge);   --c-tone: var(--cyan-tone); }
+  .purple { --c-fill: var(--purple-fill); --c-edge: var(--purple-edge); --c-tone: var(--purple-tone); }
+  .orange { --c-fill: var(--orange-fill); --c-edge: var(--orange-edge); --c-tone: var(--orange-tone); }
+  .gray   { --c-fill: var(--gray-fill);   --c-edge: var(--gray-edge);   --c-tone: var(--gray-tone); }
+
+  /* 三層 fallback 序號併進 eyebrow 文字（LAYER N · ① 本就表序，獨立圓徽冗餘且壓卡緣） */
+
+  /* 子框（group container：三層 fallback 包框 / daemon 主體框） */
+  .group {
+    position: absolute;
+    border-radius: 20px;
+    border: 1px solid var(--c-edge, var(--cyan-edge));
+    background: var(--c-fill-soft, #f4f7f5);
+  }
+  .group-label {
+    position: absolute;
+    font-family: var(--font-mono);
+    color: var(--c-tone, var(--cyan-tone)); font-size: 11px; font-weight: 600;
+    letter-spacing: 0.8px; text-transform: uppercase;
+  }
+
+  /* 外部子程序 / 雲端 小掛件（砂色膠囊） */
+  .chip {
+    position: absolute;
+    border-radius: 11px;
+    padding: 6px 11px;
+    background: var(--ivory);
+    border: 1px solid var(--tan);
+    color: var(--ink-dim); font-family: var(--font-cjk); font-size: 11.5px; font-weight: 400;
+    box-shadow: 0 1px 2px rgba(20,20,19,0.04);
+  }
+  .chip b { font-family: var(--font-mono); font-weight: 600; color: var(--ink); }
+  .chip.mono { font-family: var(--font-mono); font-size: 11px; }
+
+  /* —— 箭頭層（SVG overlay）—— */
+  .group { z-index: 1; }
+  .edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+  .title, .subtitle, .legend, .note, .card, .chip, .group-label { z-index: 3; }
+  .edges path, .edges line { fill: none; stroke: var(--arrow); stroke-width: 3.0; stroke-linecap: round; }
+  /* 手繪蠟筆感：抖動+顆粒濾鏡 + 半透明粉感（只套有 class 的邊，不套 marker 定義與文字）*/
+  .edges path[class] { filter: url(#crayon); stroke-opacity: 0.82; }
+
+  /* ── 手繪蠟筆外框：原乾淨邊改透明，用 ::before 畫蠟筆框 ── */
+  .card, .legend, .note, .chip, .group { border-color: transparent; overflow: visible; }
+  .card::before, .legend::before, .note::before, .chip::before, .group::before, .sw::before {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    border: 2px solid var(--edge, var(--gray-edge));
+    filter: url(#crayonEdge);
+  }
+  .card::before  { --edge: var(--c-edge, var(--gray-edge)); }
+  .legend::before, .note::before { --edge: var(--rule); }
+  .chip::before  { --edge: var(--gray-edge); }
+  .group::before { --edge: var(--c-edge, var(--cyan-edge)); }
+  /* .card 自成 stacking context：讓 Rough 填色(z-1)墊在蠟筆框後、又在頁面之上 */
+  .card, .legend, .note, .chip, .group, .sw { isolation: isolate; }
+  .sw { position: relative; }
+  .edges marker path { stroke: none; }
+  .edges marker#ah path      { fill: var(--arrow); }
+  .edges marker#ah-hawk path { fill: var(--arrow-hawk); }
+  .edges .flow { stroke-dasharray: none; }
+  .edges .async { stroke-dasharray: 7 5; }
+  /* 主角弧線（1-deep prefetch 回流）：粗 + 珊瑚高亮 */
+  .edges .hawk { stroke: var(--arrow-hawk); stroke-width: 3.8; }
+  .edges .hawklabel {
+    fill: var(--arrow-hawk-label); font-family: var(--font-mono);
+    font-size: 13.5px; font-weight: 600; letter-spacing: 0.3px;
+    paint-order: stroke; stroke: var(--paper); stroke-width: 5px;
+  }
+  .edges .elabel {
+    fill: var(--ink-mute); font-family: var(--font-mono);
+    font-size: 12px; font-weight: 500;
+    paint-order: stroke; stroke: var(--paper); stroke-width: 4px;
+  }
+
+  /* —— legend：扁平 ivory 卡 —— */
+  .legend {
+    position: absolute;
+    border-radius: 16px;
+    padding: 13px 15px;
+    background: var(--ivory);
+    border: 1px solid var(--rule);
+    box-shadow: 0 1px 3px rgba(20,20,19,0.05);
+  }
+  .legend h4 { font-family: var(--font-mono); color: var(--ink); font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 9px; }
+  .legend .row { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+  .legend .sw { width: 22px; height: 13px; border-radius: 5px; border: 1px solid rgba(20,20,19,0.18); }
+  .legend .lb { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 12px; font-weight: 400; white-space: nowrap; }
+  .legend .star { color: var(--coral); font-weight: 700; }
+
+  /* —— 說明 note：扁平 ivory 卡 —— */
+  .note {
+    position: absolute;
+    border-radius: 16px;
+    padding: 14px 18px;
+    background: var(--ivory);
+    border: 1px solid var(--rule);
+    box-shadow: 0 1px 3px rgba(20,20,19,0.05);
+  }
+  .note h4 { font-family: var(--font-mono); color: var(--ink); font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+  .note ul { list-style: none; }
+  .note li { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 12.5px; font-weight: 400; line-height: 1.7; margin-bottom: 3px; }
+  .note li b { font-weight: 600; color: var(--ink); }
+  .note li code { font-family: var(--font-mono); font-weight: 500; color: var(--coral); font-size: 11.5px; }
+  .note li .dot { color: var(--coral); margin-right: 6px; }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <div class="title"><span class="num">FIG.07</span>TTS 管線</div>
+  <div class="subtitle">queue → 3-layer mp3 fetch (content-addressed cache) → mpg123 · 1-deep prefetch hides synth latency</div>
+
+  <!-- ═══ 箭頭層（SVG overlay）═══ -->
+  <svg class="edges" viewBox="0 0 1960 1100" preserveAspectRatio="none">
+    <defs>
+      <marker id="ah" markerWidth="13" markerHeight="13" refX="10" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L11,4.5 L0,9 Z" fill="var(--arrow)" stroke="none"/>
+      </marker>
+      <marker id="ah-hawk" markerWidth="15" markerHeight="15" refX="11" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L12,5 L0,10 Z" fill="var(--arrow-hawk)" stroke="none"/>
+      </marker>
+      <!-- 手繪蠟筆濾鏡：低頻位移=手繪抖動不直；高頻噪聲侵蝕 alpha=蠟筆紙面顆粒粉感。
+           ⚠ userSpaceOnUse 綁畫布：畫布高 1280 → height 加大到 1480（y 高的線才不落濾鏡外）。 -->
+      <filter id="crayon" filterUnits="userSpaceOnUse" x="-40" y="-40" width="2040" height="1480" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="5" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="5" xChannelSelector="R" yChannelSelector="G" result="line"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.5 0.62" numOctaves="2" seed="9" result="grain"/>
+        <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.9 -0.1" result="grainMask"/>
+        <feComposite in="line" in2="grainMask" operator="in"/>
+      </filter>
+      <!-- 手繪蠟筆外框濾鏡（套卡片 ::before；objectBoundingBox 隨卡縮放）-->
+      <filter id="crayonEdge" x="-12%" y="-15%" width="124%" height="130%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="4" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="4" result="ln"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.5 0.6" numOctaves="2" seed="8" result="gr"/>
+        <feColorMatrix in="gr" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.95 -0.05" result="grm"/>
+        <feComposite in="ln" in2="grm" operator="in"/>
+      </filter>
+      <!-- 手繪標題濾鏡：輕位移(邊抖)+顆粒只咬邊(字心保實);scale 小保易讀 -->
+      <filter id="crayonText" x="-8%" y="-18%" width="116%" height="136%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="7" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="2.6" result="ln"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.6 0.7" numOctaves="2" seed="3" result="gr"/>
+        <feColorMatrix in="gr" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.4 2.0" result="grm"/>
+        <feComposite in="ln" in2="grm" operator="in"/>
+      </filter>
+    </defs>
+
+    <!-- ════ 全箭頭重拉（節點不動）：標籤過長一律拆兩行、halo 描白、落卡間清空處 ════ -->
+
+    <!-- 左欄縱列 speak → say → FIFO（乾淨直線；put 為唯一標籤）-->
+    <path class="flow" marker-end="url(#ah)" d="M295,520 L295,546"/>
+    <path class="flow" marker-end="url(#ah)" d="M295,656 L295,682"/>
+    <text class="elabel" x="333" y="673" text-anchor="middle">put</text>
+
+    <!-- FIFO _q → _process（worker 取句，箭頭頭實接 ① _prefetched 左緣＝第一層 fallback；標籤兩行落 gap）-->
+    <path class="flow" marker-end="url(#ah)" d="M470,748 C552,714 600,478 634,430"/>
+    <text class="elabel" x="540" y="588" text-anchor="middle">q.get()</text>
+    <text class="elabel" x="540" y="606" text-anchor="middle">取一句</text>
+
+    <!-- ③ synth → edge-tts 雲端合成（短直線下行）-->
+    <path class="flow" marker-end="url(#ah)" d="M770,924 L770,950"/>
+    <text class="elabel" x="712" y="942" text-anchor="middle">合成</text>
+    <!-- ③ synth → ② 快取（os.replace 原子回灌＝執行期自我增長；短上行，落 ②↔③ gap）-->
+    <path class="flow" marker-end="url(#ah)" d="M992,770 L992,726"/>
+    <text class="elabel" x="876" y="750" text-anchor="middle">os.replace 回灌</text>
+
+    <!-- ② HERO 快取 → mpg123（單一 mp3_path 上行對角；三路 fallback 最終都從快取播）-->
+    <path class="flow" marker-end="url(#ah)" d="M1176,580 C1248,522 1300,412 1330,388"/>
+    <text class="elabel" x="1230" y="452" text-anchor="middle">mp3_path</text>
+
+    <!-- mpg123 → ALSA → 喇叭（play 鏈乾淨直線）-->
+    <path class="flow" marker-end="url(#ah)" d="M1520,432 L1520,498"/>
+    <text class="elabel" x="1566" y="468" text-anchor="middle">播放</text>
+    <path class="flow" marker-end="url(#ah)" d="M1520,531 L1520,610"/>
+
+    <!-- 1-deep prefetch 珊瑚 loop：mpg123 → ② 快取（與 mp3_path 上下分弧、明確分離；標籤兩行）-->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M1420,430 C1374,556 1278,650 1182,668"/>
+    <text class="hawklabel" x="1294" y="590" text-anchor="middle">1-deep prefetch</text>
+    <text class="hawklabel" x="1294" y="608" text-anchor="middle" style="font-size:11.5px;">播放時預取下一句</text>
+
+    <!-- tts_prewarm 虛線 seed → ② HERO 快取（使用者建議：從 prewarm 左緣中心(540,205) 出、走左 gap 下行、入 HERO 左緣）-->
+    <path class="async" marker-end="url(#ah)" d="M540,205 C490,356 512,556 634,632"/>
+    <text class="elabel" x="512" y="450" text-anchor="middle">預先 seed</text>
+    <text class="elabel" x="512" y="468" text-anchor="middle">灌快取</text>
+  </svg>
+
+  <!-- ═══ legend（左上角，6 列 + 珊瑚 hero 註）═══ -->
+  <div class="legend" style="left:60px; top:128px; width:336px;">
+    <h4>色彩語意 · 角色分類</h4>
+    <div class="row"><span class="sw" style="background:var(--blue-fill);border-color:var(--blue-edge)"></span><span class="lb">caller · 主線程（speak / say）</span></div>
+    <div class="row"><span class="sw" style="background:var(--green-fill);border-color:var(--green-edge)"></span><span class="lb">常駐 daemon（_process）</span></div>
+    <div class="row"><span class="sw" style="background:var(--purple-fill);border-color:var(--purple-edge)"></span><span class="lb">FIFO queue · 同步原語（_cv+_pending）</span></div>
+    <div class="row"><span class="sw" style="background:var(--cyan-fill);border-color:var(--cyan-edge)"></span><span class="lb">內容定址快取層（cache / store）</span></div>
+    <div class="row"><span class="sw" style="background:var(--orange-fill);border-color:var(--orange-edge)"></span><span class="lb">一次性（tts_prewarm bootstrap）</span></div>
+    <div class="row"><span class="sw" style="background:var(--gray-fill);border-color:var(--gray-edge)"></span><span class="lb">子程序 mpg123 · 雲端 edge-tts</span></div>
+    <div class="row" style="margin-top:8px;"><span class="sw" style="background:#fdf0eb;border-color:var(--coral)"></span><span class="lb"><span class="star">★</span> 主角：內容定址快取 + 1-deep prefetch</span></div>
+  </div>
+
+  <!-- ═══ A · caller（blue，左欄 上→下，落於 legend 下方）═══ -->
+  <!-- speak(text)：對外 API -->
+  <div class="card blue" style="left:120px; top:386px; width:350px; height:134px;">
+    <div class="eyebrow">CALLER · 對外 API</div>
+    <div class="name">speak(text)</div>
+    <div class="meta">非阻塞入 queue · 立即返回</div>
+    <div class="desc"><code>print</code> 在 caller thread（保 SSH log 時序）· <code>_VOICE</code> gate echo · singleton <code>_worker</code> import 即啟 daemon。</div>
+  </div>
+  <!-- say(text)：producer -->
+  <div class="card blue" style="left:120px; top:548px; width:350px; height:108px;">
+    <div class="eyebrow">PRODUCER · 入列</div>
+    <div class="name">say(text)</div>
+    <div class="meta">with <code>_cv</code>: 先 inc <code>_pending</code> 後 put</div>
+    <div class="desc">順序關鍵（修 R1 race）· FIFO 不中斷。</div>
+  </div>
+
+  <!-- ═══ B · queue / 同步原語（purple，左欄下）═══ -->
+  <div class="card purple" style="left:120px; top:684px; width:350px; height:128px;">
+    <div class="eyebrow">QUEUE · 同步</div>
+    <div class="name">FIFO _q</div>
+    <div class="meta">單 queue · 單消費者（daemon thread）</div>
+    <div class="desc"><code>_cv + _pending</code>：Condition+int 三方同步（say / on_done / wait_idle）。</div>
+  </div>
+
+  <!-- ═══ C · TtsWorker daemon _process 主體框（green）內含三層 fallback ＋ 雲端 synth 節點 ═══
+       框拉高填滿中欄（y300→1040，與左欄/右欄底部齊平），三層卡加大、層間距加大、HERO 最突出。 -->
+  <div class="group" style="left:612px; top:300px; width:624px; height:740px;
+       --c-edge:var(--green-edge); background:#f1f4ec;">
+  </div>
+  <div class="group-label" style="left:636px; top:314px; color:var(--green-tone);">DAEMON · TtsWorker._process（single-iteration · 階段1 取 mp3 三層 fallback）</div>
+
+  <!-- ① prefetch 命中（cyan 小卡，框內上；序號併進 eyebrow）-->
+  <div class="card cyan" style="left:636px; top:360px; width:460px; height:140px;">
+    <div class="eyebrow" style="--c-tone:var(--green-tone);">LAYER 1 · ① prefetch 命中</div>
+    <div class="name">_prefetched[0] == text</div>
+    <div class="meta">上輪預取（1-deep tuple，單一）→ mp3 瞬時</div>
+    <div class="desc" style="margin-top:5px;">命中即清 <code>_prefetched</code>（僅 worker thread 觸碰、不需鎖）。</div>
+  </div>
+
+  <!-- ② 內容定址快取 HERO（珊瑚，框內中，本圖招牌；最大最突出）-->
+  <div class="card" style="left:636px; top:552px; width:540px; height:168px; padding:16px 20px;
+       background:#fdf0eb; --c-edge:var(--coral);
+       box-shadow: 0 3px 14px -3px rgba(217,119,87,0.42);">
+    <div class="eyebrow" style="--c-tone:var(--coral);">LAYER 2 · ★ 內容定址快取 HERO</div>
+    <div class="name" style="font-size:18px;">os.path.exists(cache_path) 命中</div>
+    <div class="meta" style="color:#9c4763; margin-top:4px;">零合成零網路 · 斷網可播 · package-anchored（非 cwd）· 執行期自我增長</div>
+    <div class="desc" style="color:#7a3a4f; margin-top:7px;">key = SHA1(<code style="color:#b85a3c;">VOICE|rate|text</code>) · 任一合成參數變即自然失效 → 同文字永遠同檔名。</div>
+  </div>
+
+  <!-- ③ 未命中 synth（gray，框內下）-->
+  <div class="card gray" style="left:636px; top:772px; width:460px; height:150px;">
+    <div class="eyebrow">LAYER 3 · ③ 未命中 synth</div>
+    <div class="name">run_until_complete(_synthesize)</div>
+    <div class="meta">tmp = cache_path+".tmp" · rate 三段 +3 / +6 / +12%（字數 14·23 閾）</div>
+    <div class="desc" style="margin-top:5px;">→ <code>_store_into_cache</code> 原子 os.replace 入快取（失敗 noisy print + return）。</div>
+  </div>
+
+  <!-- edge-tts 雲端 synth 節點（③ 唯一走雲端的分支，緊貼 ③ 下方、框內底）-->
+  <div class="card gray" style="left:636px; top:952px; width:460px; height:76px; padding:11px 16px;">
+    <div class="eyebrow">CLOUD · 雲端 synth</div>
+    <div class="name">edge-tts（Azure）</div>
+    <div class="meta">voice = zh-TW-HsiaoChenNeural · 台灣女聲</div>
+  </div>
+
+  <!-- ═══ D · 播放（green→gray，右欄；卡頂上提至 group/prewarm 帶 y200、加大加內容吃右上空洞，
+       垂直鏈往下攤到 ~y1000 與中/左欄齊平）═══ -->
+  <div class="card green" style="left:1330px; top:200px; width:380px; height:230px;">
+    <div class="eyebrow">PLAY · 子程序（階段2）</div>
+    <div class="name">mpg123 -q mp3_path</div>
+    <div class="meta">subprocess.Popen · stdin=subprocess.DEVNULL</div>
+    <div class="desc">stdin=DEVNULL 防 mpg123 偷父 stdin control char（q/s/p/+/-）誤吃使用者輸入或誤觸 quit。</div>
+    <div class="desc" style="margin-top:7px;">with <code>_lock</code>：僅包 Popen spawn（短臨界區）· <code>_proc.wait()</code> <b>不</b>持 lock（shutdown 可隨時 terminate）· rc≠0 → raise <code>CalledProcessError</code> noisy print continue · finally 清 <code>_proc=None</code>。</div>
+  </div>
+  <!-- ALSA chip（play 鏈，mpg123 正下方）-->
+  <div class="chip mono" style="left:1466px; top:500px;"><b>ALSA</b> 音訊輸出</div>
+  <!-- 喇叭 chip -->
+  <div class="chip" style="left:1488px; top:612px;">🔊 <b>喇叭</b></div>
+
+  <!-- ═══ F · ALSA drain 行為註（chip，收進 mpg123 下方當行為註腳）═══ -->
+  <div class="chip" style="left:1330px; top:712px; width:380px;">階段3 drain · 成功且 <b>_peek_next()</b> 非空才 <b>time.sleep(0.3s)</b>；即將 idle 跳過省 0.3s（防截尾）</div>
+
+  <!-- ═══ G · 常駐 event loop 小註（chip，收進 mpg123 下方當行為註腳）═══ -->
+  <div class="chip" style="left:1330px; top:828px; width:380px;">on_thread_start · <b>new_event_loop</b>+set_event_loop（取代每句 asyncio.run）· 不在 shutdown close（daemon 同壽命，os._exit）</div>
+
+  <!-- shutdown 行為註（chip，鏈尾；mpg123 SIGTERM + drain queue）-->
+  <div class="chip" style="left:1330px; top:944px; width:380px;">shutdown · with <b>_lock</b>：terminate 當前 mpg123（SIGTERM·rc=-15）+ <b>drain()</b> 清空 queue</div>
+
+  <!-- ═══ H · 一次性 tts_prewarm（orange，頂中側欄）═══ -->
+  <div class="card orange" style="left:540px; top:126px; width:430px; height:158px;">
+    <div class="eyebrow">ONE-SHOT · bootstrap</div>
+    <div class="name">tts_prewarm</div>
+    <div class="meta">python3.11 -m myProgram.tts_prewarm（需網路）</div>
+    <div class="desc">枚舉固定文案（l1~l5_text + shared + HAWK_SLOGANS + 商品 qty 插值）→ asyncio.run synth → seed cache → git commit · 共用同一內容定址檔名＝runtime 命中 · ⚠️ 勿與 demo 並跑。</div>
+  </div>
+
+  <!-- ═══ note（左下「所以呢 · TTS 三鐵則」）═══ -->
+  <div class="note" style="left:60px; top:824px; width:512px;">
+    <h4>所以呢 · TTS 三鐵則</h4>
+    <ul>
+      <li><span class="dot">●</span><b>內容定址快取</b>：key＝SHA1(<code>VOICE|rate|text</code>)，任一合成參數變即自然失效；package-anchored（非 cwd）；執行期自我增長（動態句首播後永久免合成、斷網可播）。</li>
+      <li><span class="dot">●</span><b>1-deep prefetch</b>：播放阻塞期間合成<b>下一句</b>進快取，句間靜默從一次 synth round-trip 降到趨近 0（單 thread 重疊、零新鎖、各句快取檔名互異）。</li>
+      <li><span class="dot">●</span><b>常駐 event loop</b> 取代每句 asyncio.run；<code>print</code> 在 caller thread 保 SSH log 時序；ALSA drain 僅在還有下一句時 sleep 0.3s（防 mpg123 沖 ALSA buffer 截尾）。</li>
+    </ul>
+  </div>
+
+</div>
+
+<!-- Rough.js：把每張 .card 的填色重畫成 hachure 手繪上色（fill 在蠟筆框後），框維持 ::before 蠟筆框 -->
+<script src="rough.js"></script>
+<script>
+window.addEventListener('load', () => {
+  if (!window.rough) return;
+  const NS = 'http://www.w3.org/2000/svg';
+  const rr = (x, y, w, h, r) =>
+    `M${x+r},${y}L${x+w-r},${y}Q${x+w},${y} ${x+w},${y+r}L${x+w},${y+h-r}Q${x+w},${y+h} ${x+w-r},${y+h}` +
+    `L${x+r},${y+h}Q${x},${y+h} ${x},${y+h-r}L${x},${y+r}Q${x},${y} ${x+r},${y}Z`;
+  document.querySelectorAll('.card, .legend, .note, .chip, .group, .sw').forEach((card, i) => {
+    const w = card.offsetWidth, h = card.offsetHeight;
+    if (!w || !h) return;
+    const cs = getComputedStyle(card);
+    const isSw = card.classList.contains('sw');
+    let fill = cs.backgroundColor, neutral = false, stroke = 'none', inset = 3.5;
+    if (isSw) {
+      card.style.setProperty('--edge', cs.borderTopColor);  // ::before 蠟筆框用色票邊色
+      card.style.borderColor = 'transparent';
+      inset = 1.6;                       // 幾乎填滿小框；填色維持原淺色票色
+    } else {
+      const m = fill.match(/[\d.]+/g);
+      if (m && m.length >= 3) {
+        const r = +m[0], g = +m[1], b = +m[2];
+        // 中性淺色框（ivory/gray）：只壓深一點點 + 半透明，讓 hachure 淡淡顯色
+        if (r > 235 && Math.abs(r - g) < 4 && Math.abs(g - b) < 8) {
+          fill = `rgb(${Math.round(r * 0.95)},${Math.round(g * 0.95)},${Math.round(b * 0.95)})`;
+          neutral = true;
+        }
+      }
+    }
+    const radius = Math.max(0, Math.min(parseFloat(cs.borderRadius) || 14, Math.min(w, h) / 2 - inset - 0.5));
+    card.style.background = 'transparent';
+    card.classList.add('rough-done');
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('width', w);
+    svg.setAttribute('height', h);
+    svg.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:-1;';
+    const rc = rough.svg(svg);
+    const d = rr(inset, inset, w - inset * 2, h - inset * 2, radius);
+    const node = rc.path(d, {
+      fill, fillStyle: 'hachure', hachureGap: isSw ? 2.2 : 5.5, fillWeight: isSw ? 1.0 : 1.4,
+      hachureAngle: -41 + (i % 3) * 8, roughness: 1.4, bowing: isSw ? 0.7 : 1.4,
+      stroke, strokeWidth: 1.4
+    });
+    if (neutral) node.setAttribute('opacity', '0.6');
+    svg.appendChild(node);
+    card.insertBefore(svg, card.firstChild);
+  });
+});
+</script>
+</body>
+</html>

@@ -19,8 +19,8 @@
 | ③ | web phase 交互狀態機 | 後端 emit phase 驅動前端切畫面（standby/ordering/**checkout_confirm**/checkout/thankyou）；觸控命令上行 inject；**phase-driven、禁前端樂觀**。⚠️ `checkout_confirm` 不在 `machine.py:29 _PHASE_BY_STATE`、是 dialog 內子 phase（`l2_l3_dialog.py` `io.display` emit）——別當平行 5 phase | `web/{bus,display,app,server,commands,models}.py` `webui/app.js` `index.html` `states/machine.py`(_emit)；doc `30` | ✅ `03` |
 | ④ | 端到端時序圖 | 一輪互動（觸控喚醒→點冰紅茶→結帳→致謝）跨**泳道**：前端 / WS / 主線程 / STT / TTS / Action | `00§5` 為骨架，逐步回讀 ①②③ 對應碼 | ✅ `04` |
 | ⑤ | 部署 / 網路拓樸 | Pi=server（`--hawk --web`）、筆電/手機=渲染端（連 `:8137`）、ReSpeaker USB、Deepgram 雲；**Pi 自身瀏覽器跑不動前端**（GPU+Chromium<111 無 OKLCH） | `00§7` `30`；`webui/serve.py` `web/server.py`；`resources/requirements/raspberry_pi_setup.md` | ✅ `05` |
-| ⑥ | STT 管線 | arecord `-c6` 抽 ch0（XVF-3000 處理過 ASR 聲道）→ Deepgram Nova-3 WS → speech_final → `inject`；**每輪 arm/disarm**（SttSender/Receiver）；prearm 藏握手 | `stt.py`；doc `10` | ✗ |
-| ⑦ | TTS 管線 | queue → edge-tts synth → **內容定址快取**（命中/未命中分支）+ 1-deep prefetch → mpg123；常駐 asyncio loop；語速三段 | `tts.py` `tts_prewarm.py` `queue_worker.py`；doc `10` | ✗ |
+| ⑥ | STT 管線 | arecord `-c6` 抽 ch0（XVF-3000 處理過 ASR 聲道）→ Deepgram Nova-3 WS → speech_final → `inject`；**每輪 arm/disarm**（SttSender/Receiver）；prearm 藏握手 | `stt.py`；doc `10` | ✅ `06` |
+| ⑦ | TTS 管線 | queue → edge-tts synth → **內容定址快取**（命中/未命中分支）+ 1-deep prefetch → mpg123；常駐 asyncio loop；語速三段 | `tts.py` `tts_prewarm.py` `queue_worker.py`；doc `10` | ✅ `07` |
 | ⑧ | 模組依賴地圖 | `sales/`（純邏輯、零硬體）↔ `main.py` wire-up ↔ workers ↔ `web/` ↔ `webui/`；**callback 注入邊界**（sales 不 import 硬體/廠商 SDK） | `00§4`；各模組 import 結構 | ✗ |
 | ⑨ | 類別圖 | `SalesMachine` / `State`(ABC) / `Transition` / 4 個 `*State` / `Cart` / `DialogIO` / nlu 純函式 關係 | `states/machine.py` `cart.py` `dialog_io.py` `nlu.py`；doc `20` | ✗ |
 | ⑩ | 資料契約圖（原「資料模型」改框） | ⚠️**無真 DB** → 畫 `Cart`(dict[str,int]) ↔ Pydantic DTO ↔ 前端；`commands.py` 觸控→token 對照；2 商品常數（冰紅茶/刮刮樂，九折硬編） | `web/models.py` `cart.py` `web/commands.py` `constants/products.py` | ✗ |
@@ -42,6 +42,6 @@
 
 - [x] ① Process / Thread　- [x] ② L0–L5 狀態機　- [x] ③ web phase　✅ **淺色已交付**（深色原版在 `_legacy-dark/`）
 - [x] ④ 時序　- [x] ⑤ 部署 / 網路　✅ **淺色已交付**（2026-06-23 換膚；html/png/svg 在 `diagrams/` 主層；深色原版在 `_legacy-dark/`）
-- [ ] ⑥ STT 管線　- [ ] ⑦ TTS 管線
+- [x] ⑥ STT 管線　- [x] ⑦ TTS 管線　✅ **淺色已交付**（2026-06-23；html/png/svg 在 `diagrams/` 主層；使用者逐輪像素級 QA + 箭頭全重拉 + attribute 置中後定版）
 - [ ] ⑧ 模組依賴　- [ ] ⑨ 類別
 - [ ] ⑩ 資料契約　- [ ] ⑪ 啟動分流

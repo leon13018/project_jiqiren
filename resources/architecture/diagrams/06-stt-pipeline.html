@@ -1,0 +1,577 @@
+<!doctype html>
+<!-- ════════════════════════════════════════════════════════════════
+  圖⑥ STT 管線 — Anthropic 淺色編輯風（self-contained 單檔）。
+  事實來源：myProgram/stt.py（逐項核對，見 specs/06-stt-pipeline.md §2）。
+  風格：report-design-system skill（benchmarks/01-process-thread.html 為起手骨架）
+       + reference/diagram-crayon.md（蠟筆濾鏡 / Rough.js hachure 填色）。
+  畫布 1960×1240（貼內容）；本地依賴同層平放（rough.js / jason8.ttf）。
+  ════════════════════════════════════════════════════════════════ -->
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>圖⑥ · STT 管線</title>
+<style>
+  /* —— 字型：標題 Fraunces；繁中思源黑體；英數 Hanken Grotesk；識別字 JetBrains Mono —— */
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+  /* 手繪塗鴉標題字：Shantell Sans(拉丁/數字 marker) ＋ jf 粉圓 Huninn(繁中圓潤手寫) */
+  @import url('https://fonts.googleapis.com/css2?family=Shantell+Sans:wght@400..800&family=Huninn&display=swap');
+  /* 清松手寫體⑧隨性（自託管 ttf；缺字 fallback 給 Huninn）——同層平放 */
+  @font-face { font-family: 'Jason Scribble'; src: url('jason8.ttf') format('truetype'); font-display: swap; }
+
+  /* ============================================================
+     淺色設計系統 tokens（report-design-system §2/§3）
+     ============================================================ */
+  :root {
+    /* 紙與墨 */
+    --paper:#ffffff; --ivory:#faf9f5; --ink:#141413; --ink-soft:#5c5b57;
+    /* 品牌 */
+    --coral:#d97757; --tan:#e3dacc; --rule:#d9d1c0;
+    /* 章節 palette（節點分類色） */
+    --ch1:#788c5d; --ch2:#c46686; --ch3:#9b8bc7; --ch4:#6a9bcc; --ch5:#bcd1ca; --ch6:#e3dacc;
+
+    /* 字型族 */
+    --font-mono:    "JetBrains Mono", ui-monospace, Consolas, monospace;
+    --font-display: "Fraunces", "Noto Serif TC", serif;
+    --font-cjk:     "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    --font:         "Hanken Grotesk", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+
+    /* 墨色階（淺底深字） */
+    --ink-dim:  #3a3a37;   /* 次文字 */
+    --ink-mute: #5c5b57;   /* 註解 / 標籤 */
+
+    /* —— 六色語意 → palette 章節色（同類別同色、整圖協調）——
+       blue=主線程編排 / cyan=每輪一生 session thread / purple=注入點·共用 queue /
+       orange=一次性(SttPrearm) / gray=子程序 arecord·雲端 Deepgram。
+       fill=極淡 tint、edge=細彩線、tone=eyebrow 文字色（深到夠對比）。 */
+    --blue-fill:   #eef3f8;  --blue-edge:   #6a9bcc;  --blue-glow:   transparent;  --blue-tone:   #3f6f9e;
+    --green-fill:  #f1f4ec;  --green-edge:  #788c5d;  --green-glow:  transparent;  --green-tone:  #566a3e;
+    --cyan-fill:   #eef4f2;  --cyan-edge:   #8fb3aa;  --cyan-glow:   transparent;  --cyan-tone:   #4d7268;
+    --purple-fill: #f2eff7;  --purple-edge: #9b8bc7;  --purple-glow: transparent;  --purple-tone: #6b5d96;
+    --orange-fill: #f9eef2;  --orange-edge: #c46686;  --orange-glow: transparent;  --orange-tone: #9c4763;
+    --gray-fill:   #f5f3ee;  --gray-edge:   #d9d1c0;  --gray-glow:   transparent;  --gray-tone:   #6b6a64;
+
+    /* 箭頭 / 線 */
+    --arrow:            #141413;                /* 安靜流線：墨色 */
+    --arrow-hawk:       var(--coral);           /* 主角珊瑚 */
+    --arrow-hawk-label: #b85a3c;                /* 珊瑚標籤文字（深一階保 legibility） */
+    --grid-line:        #ece6da;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; }
+  body {
+    font-family: var(--font);
+    background: var(--ivory);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* —— 固定畫布：紙白底 + 極淡儀表格線 —— */
+  .stage {
+    width: 1960px; height: 1240px;
+    position: relative;
+    overflow: hidden;
+    margin: 0 auto;
+    background:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+      var(--ivory);
+    background-size: 40px 40px, 40px 40px, auto;
+  }
+
+  /* —— 標題：FIG.NN 等寬膠囊 + 主題用 display 襯線 —— */
+  .title {
+    position: absolute; top: 32px; left: 0; right: 0;
+    text-align: center;
+    color: var(--ink);
+    font-family: "Shantell Sans", "Jason Scribble", "Huninn", var(--font-display);
+    font-size: 33px; font-weight: 800; letter-spacing: 0.2px;
+    filter: url(#crayonText);
+  }
+  .title .num {
+    font-family: "Shantell Sans", "Jason Scribble", var(--font-mono);
+    font-size: 21px; font-weight: 700;
+    color: #c25e39;
+    margin-right: 12px;
+    padding: 2px 9px;
+    border: 2.5px solid #c25e39;
+    border-radius: 7px;
+    vertical-align: 3px;
+  }
+  .subtitle {
+    position: absolute; top: 80px; left: 0; right: 0;
+    text-align: center;
+    color: var(--ink-mute);
+    font-family: var(--font-mono);
+    font-size: 13px; font-weight: 400; letter-spacing: 0.2px;
+  }
+
+  /* —— 卡片：乾淨扁平卡 —— */
+  .card {
+    position: absolute;
+    border-radius: 18px;
+    padding: 13px 16px;
+    display: flex; flex-direction: column; justify-content: center;
+    background: var(--c-fill, var(--gray-fill));
+    border: 1.5px solid var(--c-edge, var(--gray-edge));
+    box-shadow: 0 2px 6px -3px rgba(20,20,19,0.14);
+    overflow: hidden;
+  }
+  .card > * { position: relative; }
+
+  /* eyebrow 分類標：等寬大寫 + 短色條 */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 10.5px; font-weight: 600;
+    letter-spacing: 1.4px; text-transform: uppercase;
+    color: var(--c-tone, var(--gray-tone));
+    margin-bottom: 5px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .eyebrow::before {
+    content: ""; width: 14px; height: 2px; border-radius: 2px;
+    background: var(--c-tone, var(--gray-tone));
+  }
+
+  .card .name { font-family: var(--font-mono); color: var(--ink); font-size: 16px; font-weight: 600; letter-spacing: 0.2px; }
+  .card .meta { font-family: var(--font-mono); color: var(--ink-mute); font-size: 11.5px; font-weight: 400; margin-top: 3px; }
+  .card .desc { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 12.5px; font-weight: 400; line-height: 1.55; margin-top: 6px; }
+  .card .desc code, .card .meta code { font-family: var(--font-mono); color: var(--coral); font-size: 11.5px; font-weight: 500; }
+
+  /* 色 modifier（連帶設 eyebrow 文字色 --c-tone） */
+  .blue   { --c-fill: var(--blue-fill);   --c-edge: var(--blue-edge);   --c-tone: var(--blue-tone); }
+  .green  { --c-fill: var(--green-fill);  --c-edge: var(--green-edge);  --c-tone: var(--green-tone); }
+  .cyan   { --c-fill: var(--cyan-fill);   --c-edge: var(--cyan-edge);   --c-tone: var(--cyan-tone); }
+  .purple { --c-fill: var(--purple-fill); --c-edge: var(--purple-edge); --c-tone: var(--purple-tone); }
+  .orange { --c-fill: var(--orange-fill); --c-edge: var(--orange-edge); --c-tone: var(--orange-tone); }
+  .gray   { --c-fill: var(--gray-fill);   --c-edge: var(--gray-edge);   --c-tone: var(--gray-tone); }
+
+  /* 編排步驟小卡（左欄 numbered）——緊湊單列 */
+  .step {
+    position: absolute;
+    border-radius: 14px;
+    padding: 10px 14px 10px 44px;
+    display: flex; flex-direction: column; justify-content: center;
+    background: var(--blue-fill);
+    border: 1.5px solid var(--blue-edge);
+    box-shadow: 0 2px 6px -3px rgba(20,20,19,0.14);
+    overflow: hidden;
+  }
+  .step > * { position: relative; }
+  .step .sn {
+    position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+    width: 22px; height: 22px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 12.5px; font-weight: 700;
+    color: var(--paper); background: var(--blue-tone);
+    z-index: 4;
+  }
+  .step .nm { font-family: var(--font-mono); color: var(--ink); font-size: 13.5px; font-weight: 600; letter-spacing: 0.1px; }
+  .step .nm code { color: var(--coral); }
+  .step .dt { font-family: var(--font-cjk); color: var(--ink-mute); font-size: 11px; font-weight: 400; margin-top: 2px; line-height: 1.4; }
+  .step.opt { border-style: solid; opacity: 0.96; }
+  .step.opt .sn { background: var(--ink-mute); }
+
+  /* 子框（group container，STT session） */
+  .group {
+    position: absolute;
+    border-radius: 20px;
+    border: 1px solid var(--c-edge, var(--cyan-edge));
+    background: var(--c-fill-soft, #f4f7f5);
+  }
+  .group-label {
+    position: absolute;
+    font-family: var(--font-mono);
+    color: var(--c-tone, var(--cyan-tone)); font-size: 11.5px; font-weight: 600;
+    letter-spacing: 0.8px; text-transform: uppercase;
+  }
+
+  /* 外部子程序小掛件（砂色膠囊） */
+  .chip {
+    position: absolute;
+    border-radius: 11px;
+    padding: 8px 13px;
+    background: var(--ivory);
+    border: 1px solid var(--tan);
+    color: var(--ink-dim); font-family: var(--font-cjk); font-size: 11.5px; font-weight: 400;
+    box-shadow: 0 1px 2px rgba(20,20,19,0.04);
+  }
+  .chip b { font-family: var(--font-mono); font-weight: 600; color: var(--ink); }
+  .chip .ct { font-family: var(--font-mono); font-size: 11px; color: var(--ink-mute); margin-top: 3px; display: block; }
+
+  /* —— 箭頭層（SVG overlay）—— */
+  .group { z-index: 1; }
+  .edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+  .title, .subtitle, .legend, .note, .card, .step, .chip, .group-label { z-index: 3; }
+  .edges path, .edges line { fill: none; stroke: var(--arrow); stroke-width: 3.0; stroke-linecap: round; }
+  /* 手繪蠟筆感：抖動+顆粒濾鏡 + 半透明粉感（只套有 class 的邊，不套 marker 定義與文字）*/
+  .edges path[class] { filter: url(#crayon); stroke-opacity: 0.82; }
+
+  /* ── 手繪蠟筆外框：原乾淨邊改透明，用 ::before 畫蠟筆框 ── */
+  .card, .step, .legend, .note, .chip, .group { border-color: transparent; overflow: visible; }
+  .card::before, .step::before, .legend::before, .note::before, .chip::before, .group::before, .sw::before {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    border: 2px solid var(--edge, var(--gray-edge));
+    filter: url(#crayonEdge);
+  }
+  .card::before  { --edge: var(--c-edge, var(--gray-edge)); }
+  .step::before  { --edge: var(--blue-edge); }
+  .legend::before, .note::before { --edge: var(--rule); }
+  .chip::before  { --edge: var(--gray-edge); }
+  .group::before { --edge: var(--c-edge, var(--cyan-edge)); }
+  /* 自成 stacking context：讓 Rough 填色(z-1)墊在蠟筆框後、又在頁面之上 */
+  .card, .step, .legend, .note, .chip, .group, .sw { isolation: isolate; }
+  .sw { position: relative; }
+  .edges marker path { stroke: none; }
+  .edges marker#ah path      { fill: var(--arrow); }
+  .edges marker#ah-hawk path { fill: var(--arrow-hawk); }
+  .edges .flow { stroke-dasharray: none; }
+  .edges .async { stroke-dasharray: 7 5; stroke-opacity: 0.7; }
+  /* 主角線（ch0 hero 出入）：粗一階 + 珊瑚高亮 */
+  .edges .hawk { stroke: var(--arrow-hawk); stroke-width: 3.8; }
+  .edges .hawklabel {
+    fill: var(--arrow-hawk-label); font-family: var(--font-mono);
+    font-size: 13.5px; font-weight: 600; letter-spacing: 0.3px;
+    paint-order: stroke; stroke: var(--paper); stroke-width: 5px;
+  }
+  .edges .elabel {
+    fill: var(--ink-mute); font-family: var(--font-mono);
+    font-size: 12px; font-weight: 500;
+    paint-order: stroke; stroke: var(--paper); stroke-width: 4px;
+  }
+  .edges .alabel {
+    fill: var(--ink-mute); font-family: var(--font-mono);
+    font-size: 11px; font-weight: 500; font-style: italic;
+    paint-order: stroke; stroke: var(--paper); stroke-width: 4px;
+  }
+
+  /* —— legend：扁平 ivory 卡 —— */
+  .legend {
+    position: absolute;
+    border-radius: 16px;
+    padding: 13px 15px;
+    background: var(--ivory);
+    border: 1px solid var(--rule);
+    box-shadow: 0 1px 3px rgba(20,20,19,0.05);
+  }
+  .legend h4 { font-family: var(--font-mono); color: var(--ink); font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 9px; }
+  .legend .row { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+  .legend .sw { width: 22px; height: 13px; border-radius: 5px; border: 1px solid rgba(20,20,19,0.18); }
+  .legend .lb { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 12px; font-weight: 400; white-space: nowrap; }
+  .legend .star { color: var(--coral); font-weight: 700; }
+
+  /* —— 說明 note：扁平 ivory 卡 —— */
+  .note {
+    position: absolute;
+    border-radius: 16px;
+    padding: 14px 18px;
+    background: var(--ivory);
+    border: 1px solid var(--rule);
+    box-shadow: 0 1px 3px rgba(20,20,19,0.05);
+  }
+  .note h4 { font-family: var(--font-mono); color: var(--ink); font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+  .note ul { list-style: none; }
+  .note li { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 12.5px; font-weight: 400; line-height: 1.7; margin-bottom: 3px; }
+  .note li b { font-weight: 600; color: var(--ink); }
+  .note li code { font-family: var(--font-mono); font-weight: 500; color: var(--coral); font-size: 11.5px; }
+  .note li .dot { color: var(--coral); margin-right: 6px; }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <div class="title"><span class="num">FIG.06</span>STT 管線</div>
+  <div class="subtitle">per-round Deepgram Nova-3 streaming · arecord 6ch→ch0 · one websocket per turn</div>
+
+  <!-- ═══ 箭頭層（SVG overlay）═══ -->
+  <svg class="edges" viewBox="0 0 1960 1240" preserveAspectRatio="none">
+    <defs>
+      <marker id="ah" markerWidth="13" markerHeight="13" refX="10" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L11,4.5 L0,9 Z" fill="var(--arrow)" stroke="none"/>
+      </marker>
+      <marker id="ah-hawk" markerWidth="15" markerHeight="15" refX="11" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L12,5 L0,10 Z" fill="var(--arrow-hawk)" stroke="none"/>
+      </marker>
+      <!-- 手繪蠟筆濾鏡：低頻位移=手繪抖動；高頻噪聲侵蝕 alpha=蠟筆顆粒粉感。
+           ⚠ userSpaceOnUse 綁畫布尺寸——畫布 1960×1240（貼內容），height 1480 充分涵蓋最低線(y~1164)。 -->
+      <filter id="crayon" filterUnits="userSpaceOnUse" x="-40" y="-40" width="2040" height="1480" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="5" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="5" xChannelSelector="R" yChannelSelector="G" result="line"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.5 0.62" numOctaves="2" seed="9" result="grain"/>
+        <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.9 -0.1" result="grainMask"/>
+        <feComposite in="line" in2="grainMask" operator="in"/>
+      </filter>
+      <!-- 手繪蠟筆外框濾鏡（套卡片 ::before；objectBoundingBox 隨卡縮放）-->
+      <filter id="crayonEdge" x="-12%" y="-15%" width="124%" height="130%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="4" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="4" result="ln"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.5 0.6" numOctaves="2" seed="8" result="gr"/>
+        <feColorMatrix in="gr" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.95 -0.05" result="grm"/>
+        <feComposite in="ln" in2="grm" operator="in"/>
+      </filter>
+      <!-- 手繪標題濾鏡：輕位移(邊抖)+顆粒只咬邊(字心保實) -->
+      <filter id="crayonText" x="-8%" y="-18%" width="116%" height="136%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="7" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="2.6" result="ln"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.6 0.7" numOctaves="2" seed="3" result="gr"/>
+        <feColorMatrix in="gr" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.4 2.0" result="grm"/>
+        <feComposite in="ln" in2="grm" operator="in"/>
+      </filter>
+    </defs>
+
+    <!-- ════ A · main.py 編排 lane（6 步縱向下串，墨色 .flow）════
+         x≈230 lane 正中；每段從上一步底連到下一步頂，落在卡間 32px 空白。
+         steps tops 400/496/592/688/784/880 · height 64 → bottoms 464/560/656/752/848。 -->
+    <path class="flow" marker-end="url(#ah)" d="M230,464 L230,494"/>
+    <path class="flow" marker-end="url(#ah)" d="M230,560 L230,590"/>
+    <path class="flow" marker-end="url(#ah)" d="M230,656 L230,686"/>
+    <path class="flow" marker-end="url(#ah)" d="M230,752 L230,782"/>
+    <path class="flow" marker-end="url(#ah)" d="M230,848 L230,878"/>
+
+    <!-- ════ 3-band 縱向蛇行：Band1(收音,L→R) → ws.send↓ → Band2(Deepgram 中段橫帶) → ws.recv↓ → Band3(連線,R→L) ════ -->
+
+    <!-- ── Band 1 · 收音層（左→右，y≈310；Sender 右移至 1536 對齊滿寬）── -->
+    <!-- arecord chip → ch0 HERO（墨色 flow，hero 是節點不是線） -->
+    <path class="flow" marker-end="url(#ah)" d="M828,310 L1028,310"/>
+    <text class="elabel" x="928" y="298" text-anchor="middle">6ch raw</text>
+    <!-- ch0 HERO → SttSender（珊瑚 hawk：ch0 已抽出的單聲道音流，本圖招牌） -->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M1344,310 L1536,310"/>
+    <text class="hawklabel" x="1440" y="298" text-anchor="middle">ch0 單聲道</text>
+
+    <!-- ── ws.send↓：SttSender 底(1699,370) 直下入 Deepgram 橫帶頂(1699,466)── -->
+    <path class="flow" marker-end="url(#ah)" d="M1699,370 L1699,464"/>
+    <text class="elabel" x="1749" y="420" text-anchor="middle">ws.send</text>
+
+    <!-- ── ws.recv↓：Deepgram 底 → SttReceiver 頂「中心」(x1699，對齊 ws.send 同一垂直線)── -->
+    <path class="flow" marker-end="url(#ah)" d="M1699,614 L1699,710"/>
+    <text class="elabel" x="1616" y="666" text-anchor="middle">ws.recv · Results</text>
+
+    <!-- ── Band 3 · 連線層（右→左，y≈776；Receiver 右移至 1536，箭頭拉長橫貫）── -->
+    <path class="flow" marker-end="url(#ah)" d="M1536,776 L1344,776"/>
+    <text class="elabel" x="1440" y="764" text-anchor="middle">speech_final</text>
+    <path class="flow" marker-end="url(#ah)" d="M1028,776 L844,776"/>
+    <text class="elabel" x="936" y="764" text-anchor="middle">收音窗閘</text>
+
+    <!-- ════ F · sink → input queue（墨色 flow，閘卡底先右繞過 note 再下入 queue 頂）════
+         閘底(694,840) 早彎右(y<984 避開 note 右緣 868) 再下入 queue 頂(1102,1018)。 -->
+    <path class="flow" marker-end="url(#ah)" d="M694,840 C900,902 1184,944 1184,1016"/>
+    <text class="elabel" x="952" y="906" text-anchor="middle">sink = input_reader.inject</text>
+
+    <!-- ════ G · SttPrearm 虛線預連（背景預連，非主資料流）════
+         _ensure_connected 建連線 + 起 SttReceiver thread → 短虛線從 SttPrearm 頂(1700,1016) 直上接
+         正上方的 SttReceiver 底(1700,840)；落兩卡間空隙、不穿任何線、標籤水平。 -->
+    <path class="async" marker-end="url(#ah)" d="M1700,1016 L1700,846"/>
+    <text class="elabel" x="1699" y="936" text-anchor="middle">背景預連 · _ensure_connected</text>
+  </svg>
+
+  <!-- process 外框已移除（每輪 session 已由 group frame 表達），背景留乾淨格線 -->
+
+  <!-- ═══ legend（左上角，6 列）═══ -->
+  <div class="legend" style="left:60px; top:150px; width:340px;">
+    <h4>色彩語意 · thread 生命週期</h4>
+    <div class="row"><span class="sw" style="background:var(--blue-fill);border-color:var(--blue-edge)"></span><span class="lb">主線程編排（read_customer_input）</span></div>
+    <div class="row"><span class="sw" style="background:var(--cyan-fill);border-color:var(--cyan-edge)"></span><span class="lb">每輪一生 session（Sender / Receiver）</span></div>
+    <div class="row"><span class="sw" style="background:var(--purple-fill);border-color:var(--purple-edge)"></span><span class="lb">注入點 · 共用 input queue</span></div>
+    <div class="row"><span class="sw" style="background:var(--orange-fill);border-color:var(--orange-edge)"></span><span class="lb">一次性（SttPrearm）</span></div>
+    <div class="row"><span class="sw" style="background:var(--gray-fill);border-color:var(--gray-edge)"></span><span class="lb">子程序 arecord · 雲端 Deepgram</span></div>
+    <div class="row"><span class="lb"><span class="star">★</span> 珊瑚＝主角：ch0 抽取（反交錯）</span></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       A · main.py 編排 lane（blue，左欄縱列 6 步）
+       §2.5 真實有序協議：prearm→arm(capture=False)→wait_idle→arm()→countdown→disarm
+       ═══════════════════════════════════════════════ -->
+  <div class="group-label" style="left:64px; top:374px; color:var(--blue-tone);">A · main.py 編排 · read_customer_input @ main.py:129</div>
+
+  <div class="step" style="left:60px; top:400px; width:340px; height:64px;">
+    <span class="sn">1</span>
+    <div class="nm"><code>stt.prearm()</code></div>
+    <div class="dt">非阻塞預連線，首輪 ~540ms 握手藏進提示音</div>
+  </div>
+  <div class="step opt" style="left:60px; top:496px; width:340px; height:64px;">
+    <span class="sn">2</span>
+    <div class="nm"><code>stt.arm(capture=False)</code></div>
+    <div class="dt">STT_EARLY_MIC=1：提示音期間開 arecord 暖串流、不注入</div>
+  </div>
+  <div class="step" style="left:60px; top:592px; width:340px; height:64px;">
+    <span class="sn">3</span>
+    <div class="nm"><code>tts.wait_idle()</code></div>
+    <div class="dt">等提示音播完才倒數（不扣顧客秒）</div>
+  </div>
+  <div class="step opt" style="left:60px; top:688px; width:340px; height:64px;">
+    <span class="sn">4</span>
+    <div class="nm">等 ALSA 尾音排空</div>
+    <div class="dt">STT_MIC_OPEN_DELAY_MS&gt;0：喇叭尾音排空才開麥</div>
+  </div>
+  <div class="step" style="left:60px; top:784px; width:340px; height:64px;">
+    <span class="sn">5</span>
+    <div class="nm"><code>stt.arm()</code> 翻注入閘</div>
+    <div class="dt">_capturing=True（早麥則復用已開 arecord，不重開）</div>
+  </div>
+  <div class="step" style="left:60px; top:880px; width:340px; height:64px;">
+    <span class="sn">6</span>
+    <div class="nm"><code>_tick_countdown</code> 倒數讀輸入</div>
+    <div class="dt">finally: <code>stt.disarm()</code> — 四路徑都收麥</div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       B · 「每輪一生 SESSION」cyan group frame（包 C 收音層 + D 雲端 + E 連線層）
+       ═══════════════════════════════════════════════ -->
+  <!-- 高 hero frame：從上(對齊 legend 頂 150)到下(對齊 A-lane 底 ~944)填滿右側 2/3。
+       內部 3-band 蛇行跨滿 frame 寬(內容右緣 1862)：Band1 收音層(arecord→ch0→Sender,上) →
+       Deepgram 中段橫帶(中,580–1862 橫貫) → Band3 連線層(Receiver→normalize→gate,下)。 -->
+  <div class="group" style="left:520px; top:150px; width:1404px; height:810px;
+       --c-edge:var(--cyan-edge); background:#eef4f2;">
+  </div>
+  <div class="group-label" style="left:544px; top:166px;">STT SESSION · arm→disarm 一輪 &lt;12s · 棄持久連線</div>
+
+  <!-- ─── Band 1 · C · 收音層（frame 內上排，左→右；row vcenter ~310）─── -->
+  <!-- arecord chip（gray，起點） -->
+  <div class="chip" style="left:560px; top:270px; width:268px;">
+    <b>arecord</b> 子程序（6ch XVF-3000）
+    <span class="ct">-q -f S16_LE -r16000 -c6 -t raw · stdin=DEVNULL</span>
+  </div>
+
+  <!-- ch0 抽取 HERO（珊瑚主角）—— 本圖招牌決策 -->
+  <div class="card" style="left:1028px; top:250px; width:316px; height:120px; padding:14px 18px;
+       background:#fdf0eb; border:1.5px solid transparent; --c-edge:var(--coral);
+       box-shadow: 0 2px 12px -3px rgba(217,119,87,0.38);">
+    <div class="eyebrow" style="--c-tone:var(--coral);">收音層 · ★ ch0 抽取</div>
+    <div class="name" style="font-size:17px;">_ArecordSource.read</div>
+    <div class="meta">ch0 = <code>samples[0::6]</code> 反交錯</div>
+    <div class="desc" style="margin-top:5px;">只抽 ch0（處理過 ASR 聲道）；6ch 降混稀釋＋相位互抵糊掉辨識（2026-06-20 A/B）</div>
+  </div>
+
+  <!-- SttSender（cyan card，band1 右緣，對齊 Deepgram 新右緣 1862） -->
+  <div class="card cyan" style="left:1536px; top:250px; width:326px; height:120px;">
+    <div class="eyebrow">PER-ROUND · 每輪一生</div>
+    <div class="name">SttSender</div>
+    <div class="meta"><code>_send_loop</code> producer · arecord→ws.send</div>
+    <div class="desc" style="margin-top:5px;">100ms chunk(<code>3200B</code>) 經 <code>_send_lock</code> 序列化送出 · pre-roll 靜音暖機（預設 0）</div>
+  </div>
+
+  <!-- ─── D · 雲端 Deepgram（Band 2 中段橫帶，跨滿 frame 寬 580–1862；3 欄填滿：name | 連線參數 | KEYTERMS）─── -->
+  <div class="card gray" style="left:580px; top:466px; width:1282px; height:148px; padding:16px 32px;
+       flex-direction:row; align-items:center; gap:40px;">
+    <div style="min-width:230px;">
+      <div class="eyebrow">CLOUD · 雲端 WS</div>
+      <div class="name" style="font-size:16px;">Deepgram Nova-3</div>
+      <div class="meta">每輪一條 websocket（&lt;12s）</div>
+    </div>
+    <div class="desc" style="margin-top:0; flex:1; line-height:1.85; border-left:1.5px solid var(--rule); padding-left:36px;">
+      <code>model=nova-3</code> · <code>language=zh-TW</code> · 16kHz <code>linear16</code><br>
+      <code>channels=1</code> · <code>interim_results=true</code><br>
+      <code>endpointing=300</code> · <code>smart_format=false</code>
+    </div>
+    <div class="desc" style="margin-top:0; min-width:300px; line-height:1.7; border-left:1.5px solid var(--rule); padding-left:36px;">
+      <b style="color:var(--ink);">+29 詞 KEYTERMS</b> contextual biasing<br>
+      Nova-3 inference 內偏置（一瓶…十瓶 / 一張…十張 / 冰紅茶·紅茶·刮刮樂 / 結帳·取消…）、零額外延遲
+    </div>
+  </div>
+
+  <!-- ─── E · 連線層（frame 內下排，右→左回收；row vcenter ~776）─── -->
+  <!-- SttReceiver（cyan card，band3 右緣，對齊 Deepgram 新右緣 1862） -->
+  <div class="card cyan" style="left:1536px; top:712px; width:326px; height:128px;">
+    <div class="eyebrow">PER-ROUND · 每輪一生</div>
+    <div class="name">SttReceiver</div>
+    <div class="meta"><code>_receive_loop</code> consumer · ws.recv→Results</div>
+    <div class="desc" style="margin-top:5px;">取 <code>speech_final</code>（空白退用本句最後非空 interim <code>_last_nonempty</code>）</div>
+  </div>
+
+  <!-- _normalize_transcript（cyan card；置中於 gate↔SttReceiver 之間） -->
+  <div class="card cyan" style="left:1028px; top:712px; width:316px; height:128px;">
+    <div class="eyebrow">NORMALIZE · 規整</div>
+    <div class="name">_normalize_transcript</div>
+    <div class="meta"><code>text.strip(_PUNCT)</code></div>
+    <div class="desc" style="margin-top:5px;">去頭尾標點與空白（句中不動）；全標點歸空字串、caller 不注入</div>
+  </div>
+
+  <!-- _capturing 閘（cyan card） -->
+  <div class="card cyan" style="left:544px; top:712px; width:300px; height:128px;">
+    <div class="eyebrow">GATE · 注入閘</div>
+    <div class="name">_capturing 閘</div>
+    <div class="meta">僅收音窗才注入</div>
+    <div class="desc" style="margin-top:5px;">擋上一輪殘響 / Finalize 回覆漏入下一輪；窗外清 <code>_last_nonempty</code></div>
+  </div>
+
+  <!-- ═══ F · 輸出（purple，底部帶居中，對齊 note）═══ -->
+  <div class="card purple" style="left:988px; top:1016px; width:392px; height:148px; padding:15px 20px;">
+    <div class="eyebrow">QUEUE · 共用單一入口</div>
+    <div class="name" style="font-size:16px;">input queue</div>
+    <div class="meta">sink = <code>input_reader.inject</code></div>
+    <div class="desc" style="margin-top:5px;">與鍵盤共用單一 queue（producer 端零分流），主線程單一消費</div>
+  </div>
+
+  <!-- ═══ G · 一次性（orange，底部帶右側，對齊 note）═══ -->
+  <div class="card orange" style="left:1500px; top:1016px; width:400px; height:148px;">
+    <div class="eyebrow">ONE-SHOT · 一次性背景</div>
+    <div class="name">SttPrearm</div>
+    <div class="meta">daemon thread · <code>_ensure_connected</code></div>
+    <div class="desc" style="margin-top:5px;">背景預連線藏首輪 ~540ms 握手；401 永久停用本次執行（鍵盤照常）</div>
+  </div>
+
+  <!-- ═══ note（左下「所以呢 · STT 三鐵則」，寬版減少換行高度）═══ -->
+  <div class="note" style="left:60px; top:984px; width:808px;">
+    <h4>所以呢 · STT 三鐵則</h4>
+    <ul>
+      <li><span class="dot">●</span><b>每輪新連線</b>：disarm 無條件收線（<code>CloseStream</code>+關 ws+收 receiver），下輪 prearm/arm 重連——連線只活一輪（&lt;12s）修「用久累積辨識 lag」。</li>
+      <li><span class="dot">●</span><b>不送 Finalize</b>：靠 endpointing(300ms) 自然 finalize；逐輪 mid-stream Finalize 破壞 Deepgram 後續 utterance（speech_final 空白漏字，2026-06-19 鐵證）。</li>
+      <li><span class="dot">●</span><b>ch0 抽取定版</b> + 頂層禁 import websockets（lazy 收在 <code>_default_ws_factory</code>）；<code>_capturing</code> 閘擋跨輪洩漏；三鎖序列化建線 / send。</li>
+    </ul>
+  </div>
+
+</div>
+
+<!-- Rough.js：把每張框的填色重畫成 hachure 手繪上色（fill 在蠟筆框後），框維持 ::before 蠟筆框 -->
+<script src="rough.js"></script>
+<script>
+window.addEventListener('load', () => {
+  if (!window.rough) return;
+  const NS = 'http://www.w3.org/2000/svg';
+  const rr = (x, y, w, h, r) =>
+    `M${x+r},${y}L${x+w-r},${y}Q${x+w},${y} ${x+w},${y+r}L${x+w},${y+h-r}Q${x+w},${y+h} ${x+w-r},${y+h}` +
+    `L${x+r},${y+h}Q${x},${y+h} ${x},${y+h-r}L${x},${y+r}Q${x},${y} ${x+r},${y}Z`;
+  document.querySelectorAll('.card, .step, .legend, .note, .chip, .group, .sw').forEach((card, i) => {
+    const w = card.offsetWidth, h = card.offsetHeight;
+    if (!w || !h) return;
+    const cs = getComputedStyle(card);
+    const isSw = card.classList.contains('sw');
+    let fill = cs.backgroundColor, neutral = false, stroke = 'none', inset = 3.5;
+    if (isSw) {
+      card.style.setProperty('--edge', cs.borderTopColor);  // ::before 蠟筆框用色票邊色
+      card.style.borderColor = 'transparent';
+      inset = 1.6;                       // 幾乎填滿小框
+    } else {
+      const m = fill.match(/[\d.]+/g);
+      if (m && m.length >= 3) {
+        const r = +m[0], g = +m[1], b = +m[2];
+        // 中性淺色框（ivory/gray）：壓深一點 + 半透明，讓 hachure 淡淡顯色
+        if (r > 235 && Math.abs(r - g) < 4 && Math.abs(g - b) < 8) {
+          fill = `rgb(${Math.round(r * 0.95)},${Math.round(g * 0.95)},${Math.round(b * 0.95)})`;
+          neutral = true;
+        }
+      }
+    }
+    const radius = Math.max(0, Math.min(parseFloat(cs.borderRadius) || 14, Math.min(w, h) / 2 - inset - 0.5));
+    card.style.background = 'transparent';
+    card.classList.add('rough-done');
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('width', w);
+    svg.setAttribute('height', h);
+    svg.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:-1;';
+    const rc = rough.svg(svg);
+    const d = rr(inset, inset, w - inset * 2, h - inset * 2, radius);
+    const node = rc.path(d, {
+      fill, fillStyle: 'hachure', hachureGap: isSw ? 2.2 : 5.5, fillWeight: isSw ? 1.0 : 1.4,
+      hachureAngle: -41 + (i % 3) * 8, roughness: 1.4, bowing: isSw ? 0.7 : 1.4,
+      stroke, strokeWidth: 1.4
+    });
+    if (neutral) node.setAttribute('opacity', '0.6');
+    svg.appendChild(node);
+    card.insertBefore(svg, card.firstChild);
+  });
+});
+</script>
+</body>
+</html>
