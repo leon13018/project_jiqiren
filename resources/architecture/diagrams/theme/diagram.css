@@ -66,13 +66,18 @@ body {
   background: var(--frame-fill);
   border-radius: 26px;
 }
+/* frame-label：浮在框「內側」左上角(transform 由框角推進框內)，不再是掛框頂虛線的 tab —
+   讓 .frame 的虛線圓角矩形完整不中斷(2026-06-22 使用者要求「外框顯示完整」)。
+   HTML 把 frame-label 定位在框左上角(left/top = frame left/top)，本 transform 推進框內、
+   避開頂邊虛線 + 26px 圓角。全圓角小 pill，較淡底(框內不需遮邊框故可透)。 */
 .frame-label {
   position: absolute;
+  transform: translate(22px, 7px);
   color: var(--ink-mute);
   font-family: var(--font-mono);
   font-size: 12.5px; font-weight: 500; letter-spacing: 0.2px;
-  background: oklch(18% 0.02 270 / 0.72);
-  padding: 4px 13px; border-radius: 0 0 12px 12px;
+  background: oklch(18% 0.02 270 / 0.58);
+  padding: 4px 13px; border-radius: 10px;
 }
 
 /* —— 毛玻璃卡:色由 modifier 設 --c-fill / --c-edge / --c-glow / --c-tone —— */

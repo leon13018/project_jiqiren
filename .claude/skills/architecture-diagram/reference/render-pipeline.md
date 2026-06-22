@@ -25,6 +25,8 @@ py -3.14 "<skill>/scripts/nocache_server.py" "<repo>/resources/architecture/diag
 ```
 背景跑(`run_in_background`),服務 diagrams 目錄;之後一律 `http://127.0.0.1:8191/NN-*.html`。全程畫圖只需這一個 server,畫完再關。
 
+> 🔴 **改了 theme/CSS 卻沒生效?（瀏覽器層快取,no-cache server 也救不了）**:no-cache server 送 `no-store`,但 **Chromium 本身可能已把同一 origin(同 host:port)的舊 CSS 快取在記憶體** —— 你在**同一個 server 已 serve 過舊版**後改 CSS,重 navigate 仍吃舊值(2026-06-22 圖⑤ theme `translate(22,16)→(22,7)` 改了卻反覆 render 出舊 offset=16、耗多輪才查出)。**正解 = 換全新 origin**:起一個**沒用過的新埠**(如 8193/8194)的 no-cache server,新 origin 強制重抓 CSS。驗證:`browser_evaluate` 量該元素的 `getComputedStyle().transform`(或實際值)＝新值才算 baked,別只看「我改了檔」。多 subagent 各自 render 不同圖時,各用**不同埠**(8191/8192/8193…)也順便避免共用 origin 快取互擾。
+
 > 瀏覽器工具(`browser_navigate` / `browser_resize` / `browser_evaluate` / `browser_take_screenshot`)是 **Playwright MCP**,deferred → 先 `ToolSearch` 載入:`select:mcp__plugin_playwright_playwright__browser_navigate,mcp__plugin_playwright_playwright__browser_resize,mcp__plugin_playwright_playwright__browser_evaluate,mcp__plugin_playwright_playwright__browser_take_screenshot`。下文用短名指稱。
 
 ## 3. Playwright MCP 的 4 個 quirk
@@ -74,6 +76,38 @@ $g.DrawImage($src,(New-Object Drawing.Rectangle(0,0,$w,$h)),(New-Object Drawing.
 $b.Save("<repo>\resources\snapshots\NN-crop.png");$g.Dispose();$b.Dispose();$src.Dispose()
 ```
 > System.Drawing 踩坑:`Add-Type -AssemblyName System.Drawing` **每個獨立 ps 腳本都要重下**(否則 `[System.Drawing.Image]` TypeNotFound);若要高品質縮圖,`$g.InterpolationMode` 要賦 **enum 型別**(`[System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic`),賦字串會 PropertyNotFound。
+
+## 5.5 QA 產出物:bbox dump（canonical 配方,implementer 產給 QA panel 讀）
+
+QA panel 只讀靜態產出物(PNG + 此 dump)、不 render → 影像 token 不進主對話。implementer render 後跑下面 `browser_evaluate`、把回傳字串 **`Write` 到絕對路徑** `<repo>/resources/snapshots/NN-bbox.json`。
+
+> 🔴 **路徑寫死、絕不用相對路徑/CWD**：subagent 的 CWD **不保證在 repo root**,相對路徑會落到根目錄 → 觸發 code_map Stop hook(已踩 ≥3 次「`NN-bbox.json` 誤落 root」)。一律用上面**絕對路徑**寫進 `resources/snapshots/`(已 gitignore)。`NN-2x.png`/`NN-native.png` 截圖同理走絕對 snapshots 路徑。
+
+> 🔴 **selector 必含「所有可見文字元素」,尤其 band/group 標籤**:overlap 掃描的盲點 = 漏掉沒被 selector 量到的標籤(2026-06-22 ④ 踩過 —— band 標籤 vs 首節點重疊、`overlaps=[]` 卻沒抓到,被使用者肉眼抓包)。**band/group 標籤若是 `::before`/pseudo 量不到 → 在 HTML 改成可量測真元素**(span),再納入 selector。dump 完**自己跑兩兩 overlap 檢查**(含標籤 vs 節點、標籤 vs 卡)。
+
+```js
+async () => {
+  await document.fonts.ready;
+  const stage=document.querySelector('.stage'); const sb=stage.getBoundingClientRect();
+  const rel=r=>({left:Math.round(r.left-sb.left),top:Math.round(r.top-sb.top),right:Math.round(r.right-sb.left),bottom:Math.round(r.bottom-sb.top),w:Math.round(r.width),h:Math.round(r.height)});
+  const out={stage:{w:Math.round(sb.width),h:Math.round(sb.height)},dpr:window.devicePixelRatio,elements:[],cards:[],overlaps:[]};
+  // selector 納入所有卡 + 角落說明 + 所有「標籤」類(band/group/frame) + 時序節點(.node/.screen,曾漏致 ④ 節點不在掃描內)
+  const sel='.card,.node,.screen,.group,.chip,.legend,.note,.title,.subtitle,.frame,.frame-label,.group-label,.band-label,.lane,.lifeline,.band';
+  const els=[...document.querySelectorAll(sel)].map(el=>({cls:el.getAttribute('class'),label:(el.querySelector('.name,.eyebrow,.nf,h4')?.textContent||el.textContent||'').trim().slice(0,32),box:rel(el.getBoundingClientRect()),el}));
+  out.elements=els.map(({el,...e})=>e);
+  // 文字溢框檢查(scrollWidth>clientWidth)：卡/節點內任何文字行溢出容器即列入(圖④ node⑧ read_customer_input(timeout) 溢右框、被使用者抓包)
+  out.textOverflow=[];
+  document.querySelectorAll('.card,.node,.screen,.chip,.legend,.note').forEach(c=>c.querySelectorAll('.name,.nf,.nd,.meta,.desc,.eyebrow').forEach(t=>{if(t.scrollWidth>t.clientWidth+1)out.textOverflow.push({owner:(c.querySelector('.name,.nf')?.textContent||'').trim().slice(0,24),part:t.getAttribute('class'),scroll:t.scrollWidth,client:t.clientWidth});}));
+  // 兩兩 overlap(排除背景/容器 band/frame/lane/lifeline/group 自身,但保留其「標籤」)
+  // group 也是容器(像 STT session 子框)、by-design 包成員 → 排除,否則 group vs 內部卡誤報(2026-06-22 圖⑤ 踩過)
+  const bg=/\b(band|frame|lane|lifeline|group)\b/; const isBg=c=>bg.test(c)&&!/label/.test(c);
+  for(let i=0;i<els.length;i++)for(let j=i+1;j<els.length;j++){const a=els[i],b=els[j];if(isBg(a.cls)||isBg(b.cls))continue;const A=a.box,B=b.box;if(A.left<B.right&&B.left<A.right&&A.top<B.bottom&&B.top<A.bottom)out.overlaps.push([a.cls+'|'+a.label.slice(0,16),b.cls+'|'+b.label.slice(0,16)]);}
+  // 每卡內容垂直置中
+  document.querySelectorAll('.card').forEach(el=>{const cr=el.getBoundingClientRect();const kids=[...el.children];if(!kids.length)return;const tops=kids.map(k=>k.getBoundingClientRect().top),bots=kids.map(k=>k.getBoundingClientRect().bottom);out.cards.push({label:(el.querySelector('.name,.eyebrow')?.textContent||'').trim().slice(0,24),topGap:Math.round(Math.min(...tops)-cr.top),botGap:Math.round(cr.bottom-Math.max(...bots))});});
+  return JSON.stringify(out);
+}
+```
+> `overlaps` 非空即版面 FAIL(含標籤撞節點)。「band/group 標籤 vs 該帶首節點」尤其要 clear ≥ 標籤高 + 留白(時序帶實測首節點 top 需 ≥ band_top + ~60px)。
 
 ## 6. 高解析匯出配方（DPR 反推 + 填滿，零黑邊）
 要 **N× native** 的交付圖(預設 N=2):

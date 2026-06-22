@@ -1,0 +1,175 @@
+<!doctype html>
+<!-- ════════════════════════════════════════════════════════════════
+  圖⑤ 部署 / 網路拓樸 — 純 HTML/CSS 絕對定位 + SVG overlay。
+  theme = theme/diagram.css（相對引用，勿改）；座標經 render→截圖自檢迴圈微調。
+  拓樸（非時序）四區：
+    上=雲端（橘，虛線 .async 過網際網路）；中=Pi 4 裝置框（藍 frame，內含對話程式卡 + FastAPI 綠卡）；
+    左=本地硬體（灰 chip：ReSpeaker USB / 喇叭 / TonyPi 伺服，短實線 .flow）；
+    右=同 wifi LAN 渲染端（青：筆電 + 手機瀏覽器）。下角=獨立預覽（serve.py demo，compact 小卡）。
+  主角（boldness 集中）：render-offload 金鏈 —— Pi :8137 server ↔ client 瀏覽器（金 .hawk + ah-hawk 雙向 WS）。
+    「Pi 自身瀏覽器跑不動前端（GPU + Chromium<111 無 OKLCH）→ client 渲染、Pi 只當 server」。
+  ════════════════════════════════════════════════════════════════ -->
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>圖⑤ · 部署 / 網路拓樸</title>
+<link rel="stylesheet" href="theme/diagram.css">
+<style>
+  .stage { width: 1960px; height: 1020px; }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <div class="title"><span class="num">FIG.05</span>部署 / 網路拓樸</div>
+  <div class="subtitle">Pi serves · client renders — single device, two clouds, LAN-rendered glass UI</div>
+
+  <!-- ═══ 箭頭層（SVG overlay）：座標於卡片層定版後填 ═══ -->
+  <svg class="edges" viewBox="0 0 1960 1020" preserveAspectRatio="none">
+    <defs>
+      <marker id="ah" markerWidth="13" markerHeight="13" refX="10" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L11,4.5 L0,9 Z" fill="var(--arrow)" stroke="none"/>
+      </marker>
+      <marker id="ah-hawk" markerWidth="15" markerHeight="15" refX="11" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L12,5 L0,10 Z" fill="var(--arrow-hawk)" stroke="none"/>
+      </marker>
+    </defs>
+
+    <!-- ════ 雲端 ↔ Pi（虛線 .async，過網際網路；兩朵雲各下扇入 Pi 框頂 y400）════ -->
+    <!-- Deepgram → Pi（STT 串流 WSS）；雲底(620,276) → 框頂(760,400) -->
+    <path class="async" marker-end="url(#ah)" d="M620,276 C620,338 760,338 760,400"/>
+    <text class="elabel" x="612" y="346" text-anchor="middle">WSS · STT 串流</text>
+    <!-- edge-tts → Pi（TTS 合成 HTTPS）；雲底(1110,276) → 框頂(980,400) -->
+    <path class="async" marker-end="url(#ah)" d="M1110,276 C1110,338 980,338 980,400"/>
+    <text class="elabel" x="1118" y="346" text-anchor="middle">HTTPS · TTS 合成</text>
+
+    <!-- ════ 本地硬體 ↔ Pi（短實線 .flow；左 chip 右緣 x384 ↔ Pi 框左緣 x500，皆落框內 y 區間）════ -->
+    <!-- ReSpeaker USB 麥 → Pi（輸入）；卡中 y456 -->
+    <path class="flow" marker-end="url(#ah)" d="M384,456 L520,456"/>
+    <text class="elabel" x="452" y="444" text-anchor="middle">USB · ch0</text>
+    <!-- Pi → 喇叭（輸出）；卡中 y582 -->
+    <path class="flow" marker-end="url(#ah)" d="M520,582 L384,582"/>
+    <text class="elabel" x="452" y="570" text-anchor="middle">ALSA · mpg123</text>
+    <!-- Pi → TonyPi 伺服（輸出）；卡中 y708 -->
+    <path class="flow" marker-end="url(#ah)" d="M520,708 L384,708"/>
+    <text class="elabel" x="452" y="696" text-anchor="middle">serial · SDK</text>
+
+    <!-- ════ ★ 主角：Pi server ↔ client 金 WS 鏈（雙向，.hawk + ah-hawk）════
+         綠卡 server 右緣（x1180）↔ 右上「渲染端」group 左框邊（x1466，接整個 LAN 渲染端）；走清空 gutter（x1200–1460）斜入。
+         下行鏡像入 group 左緣(筆電高 y259)、上行觸控出 group 左緣(手機高 y471) 收束回 server 右緣；兩弧平行對稱、端點落框邊不穿框。 -->
+    <!-- 下行：Pi server → 渲染端 group（WS phase 鏡像）；server 右緣(1180,560) → group 左框邊(1466,259) -->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M1180,560 C1300,560 1346,259 1466,259"/>
+    <text class="hawklabel" x="1330" y="392" text-anchor="middle">/ws/state 下行鏡像</text>
+    <!-- 上行：渲染端 group → Pi server（觸控命令 inject）；group 左框邊(1466,471) → server 右緣(1180,600) -->
+    <path class="hawk" marker-end="url(#ah-hawk)" d="M1466,471 C1346,471 1300,600 1180,600"/>
+    <text class="hawklabel" x="1330" y="556" text-anchor="middle">觸控命令上行 inject</text>
+
+    <!-- ════ 獨立預覽：client → serve.py 短鏈（自成一鏈、與 Pi 區分開；安靜 .flow）════
+         瀏覽器 client chip（上，bottom≈661）→ serve.py 卡（下，top=700）；純看 UI、不連 Pi。 -->
+    <path class="flow" marker-end="url(#ah)" d="M1676,665 L1676,698"/>
+    <text class="elabel" x="1734" y="685" text-anchor="middle">?demo=1</text>
+  </svg>
+
+  <!-- ═══ 上帶 · 雲端（橘，兩朵雲；過網際網路）═══ -->
+  <div class="card orange" style="left:470px; top:130px; width:300px; height:146px;">
+    <div class="eyebrow">CLOUD · 雲端 STT</div>
+    <div class="name">Deepgram Nova-3</div>
+    <div class="meta">WSS 串流 · model=nova-3 zh-TW</div>
+    <div class="desc">需 DEEPGRAM_API_KEY；缺金鑰 / 401 → STT 停用走鍵盤。</div>
+  </div>
+  <div class="card orange" style="left:960px; top:130px; width:300px; height:146px;">
+    <div class="eyebrow">CLOUD · 雲端 TTS</div>
+    <div class="name">edge-tts</div>
+    <div class="meta">Microsoft · HTTPS 合成</div>
+    <div class="desc">命中內容定址快取則零網路（斷網可播已快取句）。</div>
+  </div>
+
+  <!-- ═══ 中央 · Pi 4 裝置框（藍 frame，內含對話程式卡 + FastAPI 綠卡）═══ -->
+  <div class="frame" style="left:500px; top:400px; width:700px; height:360px;
+       border-color:var(--blue-edge); background:oklch(58% 0.15 255 / 0.08);"></div>
+  <div class="frame-label" style="left:500px; top:400px;">
+    Raspberry Pi 4 · python -m myProgram --hawk --web · 單一 process</div>
+
+  <!-- 對話程式（主線程 + workers，→ 圖①）-->
+  <div class="card blue" style="left:524px; top:448px; width:312px; height:264px;">
+    <div class="eyebrow">HOST · 對話程式</div>
+    <div class="name">SalesMachine</div>
+    <div class="meta">主線程 + 背景 daemon workers</div>
+    <div class="desc">單一 process：L0–L5 對話迴圈 + TtsWorker / ActionWorker / InputReader / 每輪 STT（並行模型細節 → 圖①）。</div>
+  </div>
+  <!-- FastAPI server :8137（綠，網路服務）-->
+  <div class="card green" style="left:868px; top:448px; width:312px; height:264px;">
+    <div class="eyebrow">SERVICE · FastAPI</div>
+    <div class="name">uvicorn :8137</div>
+    <div class="meta">host 0.0.0.0 · daemon webui-server</div>
+    <div class="desc">--web 才起；路由 /api/state（GET 快照）· /ws/state（WS 雙向）· /（webui 靜態檔）。</div>
+  </div>
+
+  <!-- ═══ 左側 · 本地硬體（灰小卡，垂直對齊 Pi 框內 400–760；卡間距 34px ≥30 鐵則）═══ -->
+  <div class="card gray" style="left:160px; top:410px; width:224px; height:92px;">
+    <div class="eyebrow">PERIPHERAL · 輸入</div>
+    <div class="name">ReSpeaker Mic</div>
+    <div class="meta">USB · 4 麥 + XVF-3000</div>
+  </div>
+  <div class="card gray" style="left:160px; top:536px; width:224px; height:92px;">
+    <div class="eyebrow">PERIPHERAL · 輸出</div>
+    <div class="name">喇叭 Speaker</div>
+    <div class="meta">ALSA ← mpg123 播放</div>
+  </div>
+  <div class="card gray" style="left:160px; top:662px; width:224px; height:92px;">
+    <div class="eyebrow">PERIPHERAL · 動作</div>
+    <div class="name">TonyPi 伺服</div>
+    <div class="meta">vendor SDK · serial</div>
+  </div>
+
+  <!-- ═══ 右側 · 同 wifi LAN 渲染端（青；group 框 + 筆電 / 手機；主角區，貼齊雲端帶高度填右上）═══ -->
+  <div class="group" style="left:1466px; top:130px; width:412px; height:440px;
+       --c-edge:var(--cyan-edge); --c-glow:var(--cyan-glow);
+       background:oklch(62% 0.10 205 / 0.07);"></div>
+  <div class="group-label" style="left:1488px; top:144px;">WIFI LAN · 渲染端 client（瀏覽器渲染）</div>
+  <div class="card cyan" style="left:1496px; top:184px; width:352px; height:150px;">
+    <div class="eyebrow">CLIENT · 筆電</div>
+    <div class="name">筆電瀏覽器</div>
+    <div class="meta">raspberrypi.local:8137/</div>
+    <div class="desc">渲染玻璃 UI（OKLCH）+ WS /ws/state 鏡像下行。</div>
+  </div>
+  <div class="card cyan" style="left:1496px; top:396px; width:352px; height:150px;">
+    <div class="eyebrow">CLIENT · 手機</div>
+    <div class="name">手機瀏覽器</div>
+    <div class="meta">raspberrypi.local:8137/</div>
+    <div class="desc">同源渲染玻璃 UI + 觸控命令上行 inject。</div>
+  </div>
+
+  <!-- ═══ 下角 · 獨立預覽（次要拓樸，自成 client→serve.py 短鏈，不需 Pi；填右下）═══ -->
+  <div class="chip" style="left:1576px; top:632px;"><b>瀏覽器</b> client（本機）</div>
+  <div class="card cyan" style="left:1496px; top:700px; width:352px; height:150px;">
+    <div class="eyebrow">PREVIEW · 純看 UI</div>
+    <div class="name">serve.py 8137</div>
+    <div class="meta">localhost/?demo=1 · 純 stdlib no-cache</div>
+    <div class="desc">本機假資料 + 切換器；無 API / WS、不需 Pi、不需對話程式。</div>
+  </div>
+
+  <!-- ═══ legend（左上角，6 列）═══ -->
+  <div class="legend" style="left:90px; top:170px; width:330px;">
+    <h4>色彩語意 · 拓樸分區</h4>
+    <div class="row"><span class="sw" style="background:var(--blue-fill);border-color:var(--blue-edge)"></span><span class="lb">Pi 主機（host · single process）</span></div>
+    <div class="row"><span class="sw" style="background:var(--green-fill);border-color:var(--green-edge)"></span><span class="lb">Pi 上網路服務（FastAPI :8137）</span></div>
+    <div class="row"><span class="sw" style="background:var(--cyan-fill);border-color:var(--cyan-edge)"></span><span class="lb">渲染端 client（筆電 / 手機）</span></div>
+    <div class="row"><span class="sw" style="background:var(--orange-fill);border-color:var(--orange-edge)"></span><span class="lb">雲端服務（需網際網路）</span></div>
+    <div class="row"><span class="sw" style="background:var(--gray-fill);border-color:var(--gray-edge)"></span><span class="lb">本地硬體周邊</span></div>
+    <div class="row"><span class="sw" style="background:var(--arrow-hawk);border-color:var(--arrow-hawk)"></span><span class="lb">★ render-offload 金鏈（WS）</span></div>
+  </div>
+
+  <!-- ═══ note（底帶，3 點「所以呢」；橫貫左下＋中下填底帶，距硬體 / Pi 框 ≥30px）═══ -->
+  <div class="note" style="left:90px; top:800px; width:1090px;">
+    <h4>所以呢 · 部署三鐵則</h4>
+    <ul>
+      <li><span class="dot">●</span><b>Pi serves, client renders</b>：Pi 4 自身瀏覽器跑不動玻璃 UI（GPU + Chromium&lt;111 無 OKLCH）→ 畫面由同 wifi 的筆電 / 手機渲染，Pi 只當 server。</li>
+      <li><span class="dot">●</span><b>兩朵雲需網際網路</b>：Deepgram（STT，需 API key）/ edge-tts（TTS 合成，命中快取則免網）；斷網時 STT 走鍵盤、TTS 走已快取句。</li>
+      <li><span class="dot">●</span><b>兩條出菜路徑</b>：真機 live = <code>--web</code> FastAPI（含 API/WS）；純看 UI = <code>serve.py ?demo=1</code>（純靜態、不需 Pi）。</li>
+    </ul>
+  </div>
+
+</div>
+</body>
+</html>

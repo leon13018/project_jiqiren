@@ -7,7 +7,7 @@
 
 1. 載入 `architecture-diagram` skill。
 2. 依下方**波次順序**選一張，照 skill 流程一個循環：主題 spec → **讀實際碼核對**（鐵則 1，別信 digest）→ 設計 SDD（`/frontend-design` + `/superpowers:brainstorming`）→ `/superpowers:writing-plans` 寫畫圖計畫 → 派 **opus** subagent 實作 → 多方截圖自檢（先全圖再局部）→ 你驗收 → 2× PNG + SVG commit。
-3. **①②③ 已有 spec**（`specs/01,02,03.md`）可複用其「核對過的碼事實 + 版面」起手；**④–⑪ 無 spec**，照 skill step 1–2 現寫。
+3. **①–⑤ 已有 spec**（`specs/01–05.md`）可複用其「核對過的碼事實 + 版面」起手；**⑥–⑪ 無 spec**，照 skill step 1–2 現寫。
 4. 共用前提（**skill 內已詳述，不重複**）：canonical theme = `diagrams/theme/{tokens.css,diagram.css}`；起手骨架 = `<skill>/assets/skeleton.html`；DPR **每次實測**（非寫死）；交付 2× PNG（native×2、四角驗無黑邊）+ 內嵌 2×PNG 的 SVG，三式同名並存。
 
 ## 11 張清單（已核准）
@@ -17,8 +17,8 @@
 | ① | Process / Thread 並行模型 | 單 process：1 主線程 + N daemon；queue + EventBus 解耦；**3 producer 扇入單一 input queue**；daemon=True → os._exit | `main.py` `queue_worker.py` `tts.py` `action.py` `input_reader.py` `stt.py` `web/server.py` `web/bus.py`；doc `00§3`/`10` | ✅ `01` |
 | ② | L0–L5 銷售對話狀態機 | 4 運行層 L1→dialog→L4→L5；**cart 驅動轉移**；**enter_hawk 回流循環**（主角）；錢包保守 confirm 閘（cancel6s/service24s/checkout12s/C-2 6s/qty12s）；L0 共通 NLU 基座 | `states/machine.py` `l1.py` `l2_l3_dialog.py` `l4.py` `l5.py` `_cancel_confirm.py` `_service_confirm.py` `_timed_confirm.py` `_invalid_qty_reask.py` `_l2_l3_qty_followup.py` `constants/timing.py`；doc `20` | ✅ `02` |
 | ③ | web phase 交互狀態機 | 後端 emit phase 驅動前端切畫面（standby/ordering/**checkout_confirm**/checkout/thankyou）；觸控命令上行 inject；**phase-driven、禁前端樂觀**。⚠️ `checkout_confirm` 不在 `machine.py:29 _PHASE_BY_STATE`、是 dialog 內子 phase（`l2_l3_dialog.py` `io.display` emit）——別當平行 5 phase | `web/{bus,display,app,server,commands,models}.py` `webui/app.js` `index.html` `states/machine.py`(_emit)；doc `30` | ✅ `03` |
-| ④ | 端到端時序圖 | 一輪互動（觸控喚醒→點冰紅茶→結帳→致謝）跨**泳道**：前端 / WS / 主線程 / STT / TTS / Action | `00§5` 為骨架，逐步回讀 ①②③ 對應碼 | ✗ |
-| ⑤ | 部署 / 網路拓樸 | Pi=server（`--hawk --web`）、筆電/手機=渲染端（連 `:8137`）、ReSpeaker USB、Deepgram 雲；**Pi 自身瀏覽器跑不動前端**（GPU+Chromium<111 無 OKLCH） | `00§7` `30`；`webui/serve.py` `web/server.py`；`requirements/` | ✗ |
+| ④ | 端到端時序圖 | 一輪互動（觸控喚醒→點冰紅茶→結帳→致謝）跨**泳道**：前端 / WS / 主線程 / STT / TTS / Action | `00§5` 為骨架，逐步回讀 ①②③ 對應碼 | ✅ `04` |
+| ⑤ | 部署 / 網路拓樸 | Pi=server（`--hawk --web`）、筆電/手機=渲染端（連 `:8137`）、ReSpeaker USB、Deepgram 雲；**Pi 自身瀏覽器跑不動前端**（GPU+Chromium<111 無 OKLCH） | `00§7` `30`；`webui/serve.py` `web/server.py`；`resources/requirements/raspberry_pi_setup.md` | ✅ `05` |
 | ⑥ | STT 管線 | arecord `-c6` 抽 ch0（XVF-3000 處理過 ASR 聲道）→ Deepgram Nova-3 WS → speech_final → `inject`；**每輪 arm/disarm**（SttSender/Receiver）；prearm 藏握手 | `stt.py`；doc `10` | ✗ |
 | ⑦ | TTS 管線 | queue → edge-tts synth → **內容定址快取**（命中/未命中分支）+ 1-deep prefetch → mpg123；常駐 asyncio loop；語速三段 | `tts.py` `tts_prewarm.py` `queue_worker.py`；doc `10` | ✗ |
 | ⑧ | 模組依賴地圖 | `sales/`（純邏輯、零硬體）↔ `main.py` wire-up ↔ workers ↔ `web/` ↔ `webui/`；**callback 注入邊界**（sales 不 import 硬體/廠商 SDK） | `00§4`；各模組 import 結構 | ✗ |
@@ -29,7 +29,7 @@
 ## 波次順序（建議）
 
 - **Wave A 核心**：① ② ③ —— ✅ **已交付（2026-06-22）**；釘定全系列風格基準 + 大幅硬化 skill（9 條視覺 critical gotchas + 平行派工 + 色彩 token 化）。
-- **Wave B 高值**：④ 時序、⑤ 部署。
+- **Wave B 高值**：④ 時序、⑤ 部署 —— ✅ **已交付（2026-06-22）**；本波踩坑硬化 skill：QA 改「每圖平行派 3 opus 質檢 subagent」（只讀靜態 PNG+bbox dump、影像 token 不進主對話）、render 必序列化（Playwright 單一共享瀏覽器、平行 render 互搶截圖）、§5.5 canonical bbox dump（含 `.node/.screen`+band/group 標籤+`textOverflow`+overlaps）、theme `.frame-label` 改浮框內側（虛線框完整）、CSS 改動換新埠 origin 繞瀏覽器快取。
 - **Wave C 管線**：⑥ STT、⑦ TTS（線性機械，風格穩後快）。
 - **Wave D 結構**：⑧ 模組依賴、⑨ 類別。
 - **Wave E 低**：⑩ 資料契約、⑪ 啟動分流。
@@ -41,7 +41,7 @@
 每張「done」＝ 照 skill 流程完成 + 多方自檢通過（先全圖再局部、無黑邊/截字/線交纏/跨 band 相撞）+ **使用者驗收** + 交付 2× PNG + SVG + 更新本檔勾選 + commit。
 
 - [x] ① Process / Thread　- [x] ② L0–L5 狀態機　- [x] ③ web phase　✅ **Wave A 全交付（2026-06-22）**
-- [ ] ④ 時序　- [ ] ⑤ 部署 / 網路
+- [x] ④ 時序　- [x] ⑤ 部署 / 網路　✅ **Wave B 全交付（2026-06-22）**（① 因 theme `.frame-label` 改動連帶重出）
 - [ ] ⑥ STT 管線　- [ ] ⑦ TTS 管線
 - [ ] ⑧ 模組依賴　- [ ] ⑨ 類別
 - [ ] ⑩ 資料契約　- [ ] ⑪ 啟動分流
