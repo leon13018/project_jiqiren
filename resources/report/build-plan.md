@@ -21,7 +21,7 @@
 - **技術取材**：`architecture/00/10/20/30` 四文件為 SSOT；本報告改寫成報告語氣，**不複製**亦不臆造主程式不存在的狀態 / 欄位 / 計時。
 - **篇幅**：文字/敘事頁求精（原訂 ~15–20 標準頁）；但**大圖可讀性優先於頁數**——詳圖各用自訂大頁（見下），報告實際頁數會因此增加、可超 20，可接受。
 - **🔑 系統圖＝全屏 hero 頁（使用者定）**：每張系統圖獨佔一頁、**頁尺寸＝該圖長寬比、零頁邊、圖滿版 edge-to-edge**（`.page--bleed{padding:0}` + per-圖具名 `@page bleedNN{size:<圖aspect>;margin:0}` + `.page--bleedNN`；img `width/height:100%;object-fit:cover`）營造 hero 視覺張力；圖內已含 FIG.NN 標題故**不另加圖說**（說明文字放前一頁敘事）。各圖**先量 PNG aspect**（`System.Drawing`/pdfinfo）再定頁：tall 圖（④ 0.82）直式、wide 圖（①②③⑤⑥⑦⑧⑨）橫式。Chromium print-to-PDF 實證支援同檔多頁尺寸。
-- **🔑 圖檔畫質（使用者定：盡量 SVG／不失真）**：系統圖 `.svg` 實為「邏輯尺寸容器內嵌 **2× PNG**」（蠟筆濾鏡/毛玻璃本質點陣、無法真向量化），放大仍會軟。full-bleed hero 需 ~250–300dpi：**⑥⑦⑧⑨ 已 3920px（足）；①②③④⑤ ~2000px 偏軟 → 須從源 HTML 以高 `--force-device-scale-factor`（如 4×）重算高解析 PNG/SVG**（render 配方見 `render-and-qa.md §1`、`architecture-diagram` skill）。webui 截圖 3440×1440 點陣、無 SVG，原生夠用。
+- **圖檔畫質（使用者定：盡量 SVG／不失真）— 已驗證足夠、無須重算**：系統圖 `.svg` ＝「邏輯尺寸殼內嵌 **2× PNG**」（蠟筆/毛玻璃點陣、無法真向量），但**內嵌即為 2×**（④ 4080×4964、①②③⑤ ~3920px、⑥⑦⑧⑨ 3920px）；Chromium print-to-PDF **不降採樣、原樣保留**（`pdfimages -list` 實測 ④ full-bleed = 4080×4964 @ **371ppi**）→ 全屏 hero 已印刷級清晰。**⚠️ 教訓：判畫質看 `.svg` 內嵌 PNG 解析（或 `pdfimages -list` 驗 PDF 內實際 ppi），別只量 `.png` 交付檔**——`.png` 是 1× 縮圖（如 ④ 2040×2482），會誤判成「偏軟」而做白工重算。webui 截圖 3440×1440 點陣、無 SVG，原生夠用。
 - **真機照片**：P1–P4 由使用者提供；先用 `.photo-ph` 虛線佔位框（標「待補：P1…」）。
 - **手繪塗鴉（§6）**：每章首頁右上一張 inline SVG（`stroke:var(--ink)` 粗筆觸 round cap/join + `fill:var(--ivory)` 幾何塊），呼應主題 — 1緒論＝燈泡、2概觀＝對話泡泡、3架構＝盒子+插頭、4並行＝多軌平行線、5狀態機＝節點連線、6語音＝聲波、7前端＝畫面框+觸點、8成果＝勾選、9結論＝旗幟。塗鴉 `.chap-doodle` 絕對定位右上、與章頭/prose ≥30px 不壓（守 `render-and-qa.md §2` 零覆蓋）。
 - **封面/封底資訊**：林秉宏・11013018・資工4A・人形機器人(2708)・吳世弘教授・2026-06-25（封面 `.cover__meta`、封底 `.backlink`）。
