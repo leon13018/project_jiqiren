@@ -87,6 +87,14 @@ code { font-family:var(--font-mono); font-size:.92em; }
   border:2px dashed var(--rule); border-radius:8px; background:var(--ivory);
   color:var(--ink-soft); font-family:var(--font-sans); font-size:var(--fs-label);
   min-height:2.2in; }
+
+/* 章頭 band：章節色卡（複刻 Anthropic 章頁「米白幾何形狀疊彩色底」）——色底 + 左下標題 + 右上塗鴉 */
+.chap-band { position:relative; background:var(--cc); border-radius:14px;
+  height:1.95in; margin-bottom:.24in; overflow:hidden; }
+.chap-band__title { position:absolute; left:.42in; top:50%; transform:translateY(-50%); }
+.chap-band__h { margin:.13in 0 0; font-family:var(--font-display); font-weight:400;
+  font-size:30pt; line-height:1.05; letter-spacing:-0.01em; color:var(--ink); }
+.chap-doodle { position:absolute; top:.26in; right:.46in; width:2.3in; height:1.45in; }
 </style>
 </head>
 <body>
@@ -129,6 +137,49 @@ code { font-family:var(--font-mono); font-size:.92em; }
     <p>本專題在 Raspberry Pi 4 上實作一台互動式銷售輔助機器人：以 Hiwonder TonyPi 人形機器人站在攤位前，透過規則匹配（非大型語言模型）與顧客完成冰紅茶、刮刮樂兩項商品的點餐與收款模擬。系統核心是一個多層對話狀態機（L1 叫賣 → L2／L3 點餐 → L4 結帳掃碼 → L5 致謝），搭配語音合成（TTS）、語音辨識（STT，Deepgram Nova-3 串流）、機器人動作，以及一個即時鏡像到瀏覽器的玻璃風點餐畫面，支援語音與觸控雙模態操作。架構上業務邏輯嚴格不碰硬體、全靠回呼注入，使整套對話邏輯可在一般電腦上以 711 項 pytest 完整回歸；硬體與輸入輸出僅在入口層與四個背景 worker 接合。本報告依序說明系統的動機、整體架構、核心對話引擎、語音管線、前端雙模態互動，以及實機驗收成果。</p>
   </div>
   <span class="folio">3</span>
+</section>
+
+<!-- ===== 第 1 章 · 緒論 ===== -->
+<section class="page page--content">
+  <div class="chap-band" style="--cc:var(--ch1)">
+    <div class="chap-band__title">
+      <span class="pill">Chapter 1</span>
+      <h1 class="chap-band__h">緒論：動機與目標</h1>
+    </div>
+    <!-- 原創塗鴉：本專題銷售機器人，蠟筆童趣手繪風（原創圖案，非仿 Anthropic 美術圖形） -->
+    <svg class="chap-doodle" viewBox="0 0 300 190" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <defs>
+        <filter id="crayonDoodle" filterUnits="userSpaceOnUse" x="-24" y="-24" width="348" height="238" color-interpolation-filters="sRGB">
+          <feTurbulence type="fractalNoise" baseFrequency="0.022" numOctaves="2" seed="7" result="wob"/>
+          <feDisplacementMap in="SourceGraphic" in2="wob" scale="5.5" xChannelSelector="R" yChannelSelector="G" result="line"/>
+          <feTurbulence type="fractalNoise" baseFrequency="0.5 0.62" numOctaves="2" seed="9" result="grain"/>
+          <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.88 -0.08" result="grainMask"/>
+          <feComposite in="line" in2="grainMask" operator="in"/>
+        </filter>
+      </defs>
+      <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="86" y="54" width="128" height="96" rx="26" fill="var(--ivory)"/>
+        <line x1="150" y1="54" x2="150" y2="28"/>
+        <circle cx="150" cy="22" r="8" fill="var(--ink)" stroke="none"/>
+        <circle cx="123" cy="96" r="10" fill="var(--ink)" stroke="none"/>
+        <circle cx="177" cy="96" r="10" fill="var(--ink)" stroke="none"/>
+        <path d="M120,122 Q150,141 180,122"/>
+      </g>
+    </svg>
+  </div>
+  <div class="prose">
+    <h2>研究動機</h2>
+    <p>近年人形機器人逐漸走入零售與服務場景。本專題設想一個擺攤銷售情境：由人形機器人 Hiwonder TonyPi 站在攤位前主動向往來顧客叫賣，並引導顧客完成點餐與結帳。</p>
+    <p>與直接串接大型語言模型（LLM）的對話系統不同，本系統刻意採用<strong>規則匹配</strong>（rule-based）的對話設計——意圖與數量以關鍵字比對與本地解析推導，對話決策本身不經雲端推論。這讓對話行為可預測、可控，且每一條規則都能被自動化測試覆蓋，適合課程專題在有限資源下穩定且可重現地展示。</p>
+    <h2>系統目標</h2>
+    <p>系統要在 Raspberry Pi 4 上完成一段完整的銷售對話閉環：從叫賣招攬（L1）、點餐與數量確認（L2／L3）、結帳掃碼（L4）到致謝送客（L5）。</p>
+    <p>互動同時支援<strong>語音與觸控</strong>兩種模態：顧客可口說「我要一瓶冰紅茶」，也可在鏡像到瀏覽器的點餐畫面上直接觸控。另一項核心目標是<strong>可測試性</strong>——業務邏輯與硬體徹底解耦，使整套對話狀態機能在一般電腦上以自動化測試完整驗證，而非只能在實機上手動試。</p>
+    <h2>範圍與限制</h2>
+    <p>展示商品聚焦兩項——冰紅茶與刮刮樂；結帳為掃碼付款的<strong>模擬</strong>（產生視覺化 QR 佔位，無真實金流）。需特別說明：雖然對話決策為本地規則匹配、不使用 LLM，但<strong>語音辨識（STT）與語音合成（TTS）仍仰賴雲端服務、需要網路連線</strong>；其中固定語句已預先快取、斷網亦可播放，動態語句則需連線即時合成。</p>
+    <h2>成果速覽</h2>
+    <p>系統已完成全部 L1–L5 對話層與語音、前端雙模態，並通過 711 項自動化測試與多輪 Raspberry Pi 實機驗收，達到可實地展示（demo-ready）的狀態。後續章節將依序說明整體架構、執行期並行模型、核心對話引擎、語音管線與前端鏡像。</p>
+  </div>
+  <span class="folio">4</span>
 </section>
 
 <script>
