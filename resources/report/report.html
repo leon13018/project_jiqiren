@@ -25,25 +25,13 @@ html, body { margin: 0; padding: 0; background: #d9d9d9; }
 /* 系統圖全屏 hero 頁：頁尺寸 = 圖長寬比、無頁邊、圖滿版（使用者定：hero 視覺張力）。
    每張圖一個具名 @page（size = 圖 aspect）；圖內已含 FIG.NN 標題故不另加圖說。 */
 .page--bleed { padding: 0; }
-.page--bleed img { width: 100%; height: 100%; object-fit: cover; display: block; }
-@page bleed4 { size: 11in 13.38in; margin: 0; }   /* 圖④ 端到端時序 2040x2482 aspect 0.82（直式） */
+.page--bleed img { width: 100%; height: 100%; object-fit: contain; display: block; }
+/* 全屏圖統一頁尺寸（時序圖除外）：14×8.5 橫式、圖置中 contain 不裁切、米底襯邊 */
+@page bleedU { size: 14in 8.5in; margin: 0; }
+.page--bleedU { page: bleedU; width: 14in; height: 8.5in; background: var(--ivory); }
+/* 時序圖維持直式滿版（aspect 0.82） */
+@page bleed4 { size: 11in 13.38in; margin: 0; }
 .page--bleed4 { page: bleed4; width: 11in; height: 13.38in; }
-@page bleed5 { size: 16.33in 8.5in; margin: 0; }  /* 圖⑤ 部署拓樸 aspect 1.92（橫式，高 8.5in 同標準頁） */
-.page--bleed5 { page: bleed5; width: 16.33in; height: 8.5in; }
-@page bleed8 { size: 13.88in 8.5in; margin: 0; }  /* 圖⑧ 模組依賴 aspect 1.63（橫式，高 8.5in） */
-.page--bleed8 { page: bleed8; width: 13.88in; height: 8.5in; }
-@page bleed1 { size: 14.03in 8.5in; margin: 0; }  /* 圖① 並行模型 aspect 1.65（橫式） */
-.page--bleed1 { page: bleed1; width: 14.03in; height: 8.5in; }
-@page bleed2 { size: 14.49in 8.5in; margin: 0; }  /* 圖② 銷售狀態機 aspect 1.70 */
-.page--bleed2 { page: bleed2; width: 14.49in; height: 8.5in; }
-@page bleed9 { size: 13.88in 8.5in; margin: 0; }  /* 圖⑨ 類別圖 aspect 1.63 */
-.page--bleed9 { page: bleed9; width: 13.88in; height: 8.5in; }
-@page bleed6 { size: 13.43in 8.5in; margin: 0; }  /* 圖⑥ STT 管線 aspect 1.58 */
-.page--bleed6 { page: bleed6; width: 13.43in; height: 8.5in; }
-@page bleed7 { size: 15.13in 8.5in; margin: 0; }  /* 圖⑦ TTS 管線 aspect 1.78 */
-.page--bleed7 { page: bleed7; width: 15.13in; height: 8.5in; }
-@page bleed3 { size: 12.58in 8.5in; margin: 0; }  /* 圖③ web phase aspect 1.48 */
-.page--bleed3 { page: bleed3; width: 12.58in; height: 8.5in; }
 @page uigrid { size: 11in 9.5in; margin: 0; }     /* webui 截圖總覽（2×3，較高內容頁） */
 .page--uigrid { page: uigrid; width: 11in; height: 9.5in; padding: var(--margin);
   display: flex; flex-direction: column; justify-content: center;
@@ -375,12 +363,12 @@ code { font-family:var(--font-mono); font-size:.92em; }
 </section>
 
 <!-- ===== 第 3 章 · 頁 2：部署拓樸 ⑤（全屏 hero） ===== -->
-<section class="page page--bleed page--bleed5">
+<section class="page page--bleed page--bleedU">
   <img src="../architecture/diagrams/05-deployment-topology.svg">
 </section>
 
 <!-- ===== 第 3 章 · 頁 3：模組依賴 ⑧（全屏 hero） ===== -->
-<section class="page page--bleed page--bleed8">
+<section class="page page--bleed page--bleedU">
   <img src="../architecture/diagrams/08-module-dependency.svg">
 </section>
 
@@ -440,7 +428,7 @@ code { font-family:var(--font-mono); font-size:.92em; }
 </section>
 
 <!-- ===== 第 4 章 · 頁 2：並行模型 ①（全屏 hero） ===== -->
-<section class="page page--bleed page--bleed1">
+<section class="page page--bleed page--bleedU">
   <img src="../architecture/diagrams/01-process-thread.svg">
 </section>
 
@@ -523,12 +511,12 @@ code { font-family:var(--font-mono); font-size:.92em; }
 </section>
 
 <!-- ===== 第 5 章 · 頁 3：銷售狀態機 ②（全屏 hero） ===== -->
-<section class="page page--bleed page--bleed2">
+<section class="page page--bleed page--bleedU">
   <img src="../architecture/diagrams/02-sales-state-machine.svg">
 </section>
 
 <!-- ===== 第 5 章 · 頁 4：類別圖 ⑨（全屏 hero） ===== -->
-<section class="page page--bleed page--bleed9">
+<section class="page page--bleed page--bleedU">
   <img src="../architecture/diagrams/09-class-diagram.svg">
 </section>
 
@@ -569,12 +557,12 @@ code { font-family:var(--font-mono); font-size:.92em; }
 </section>
 
 <!-- ===== 第 6 章 · 頁 2：STT 管線 ⑥（全屏 hero） ===== -->
-<section class="page page--bleed page--bleed6">
+<section class="page page--bleed page--bleedU">
   <img src="../architecture/diagrams/06-stt-pipeline.svg">
 </section>
 
 <!-- ===== 第 6 章 · 頁 3：TTS 管線 ⑦（全屏 hero） ===== -->
-<section class="page page--bleed page--bleed7">
+<section class="page page--bleed page--bleedU">
   <img src="../architecture/diagrams/07-tts-pipeline.svg">
 </section>
 
@@ -614,7 +602,7 @@ code { font-family:var(--font-mono); font-size:.92em; }
 </section>
 
 <!-- ===== 第 7 章 · 頁 2：web phase 狀態機 ③（全屏 hero） ===== -->
-<section class="page page--bleed page--bleed3">
+<section class="page page--bleed page--bleedU">
   <img src="../architecture/diagrams/03-web-phase-state-machine.svg">
 </section>
 
