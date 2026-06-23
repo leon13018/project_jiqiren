@@ -1,0 +1,25 @@
+/* tokens.css — 報告設計系統變數
+   權威：report-design-system skill reference/report-pdf.md §2（色票）/ §3（字型）。
+   改設計改該 skill reference，本檔只是抽出供 report.html @import 的 :root。 */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;600&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+
+:root {
+  /* 紙與墨 */
+  --paper:#ffffff; --ivory:#faf9f5; --ink:#141413; --ink-soft:#5c5b57;
+  /* 品牌 */
+  --coral:#d97757; --tan:#e3dacc; --code-bg:#f4f5f0; --rule:#d9d1c0;
+  /* 章節分隔色（循環，目前內聯章頭未用滿版色，保留供未來） */
+  --ch1:#788c5d; --ch2:#c46686; --ch3:#9b8bc7; --ch4:#6a9bcc; --ch5:#bcd1ca; --ch6:#e3dacc;
+  /* 版面 */
+  --page-w:11in; --page-h:8.5in; --margin:0.85in; --col-gap:0.5in;
+  /* 字型 */
+  --font-display:"Fraunces","Noto Serif TC",serif;
+  --font-serif:"Source Serif 4","Noto Serif TC",Georgia,serif;
+  --font-sans:"Hanken Grotesk","Noto Sans TC",sans-serif;
+  --font-mono:"JetBrains Mono",monospace;
+  /* 字級（pt，橫式 11×8.5 印刷） */
+  --fs-cover:64pt; --fs-chapter:52pt; --fs-h1:34pt;
+  --fs-h2:13pt; --fs-h3:11pt; --fs-body:10.5pt; --fs-label:9.5pt;
+  --fs-pill:8.5pt; --fs-folio:8pt; --fs-code:9pt;
+}

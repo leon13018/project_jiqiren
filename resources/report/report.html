@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>互動式銷售輔助機器人 — 期末專題報告</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+/* —— §1 頁面格式 —— */
+@page { size: 11in 8.5in; margin: 0; }
+html, body { margin: 0; padding: 0; background: #d9d9d9; }
+* { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; }
+.page { position: relative; width: 11in; height: 8.5in; overflow: hidden;
+  background: var(--paper); page-break-after: always; }
+.page:last-child { page-break-after: auto; }
+.page--content { padding: var(--margin); }
+.page--hero { background: var(--bg); color: var(--ink); }
+
+/* —— §5 元件庫（只列本報告實際使用的類；整頁分隔 hero / 塗鴉未採用故略） —— */
+/* 5.1 封面 */
+.cover { position:absolute; inset:var(--margin); display:flex; flex-direction:column; }
+.cover__title { margin:0; max-width:64%; font-family:var(--font-display); font-weight:300;
+  font-size:var(--fs-cover); line-height:1.05; letter-spacing:-0.01em; color:var(--ink); }
+.cover__title span { font-size:0.6em; }
+.cover__meta { margin-top:.3in; font-family:var(--font-sans); font-size:11pt;
+  line-height:1.6; color:var(--ink); }
+.brand { margin-top:auto; display:flex; align-items:center; gap:.16in; }
+.brand__name { font-family:var(--font-display); font-size:22pt; color:var(--ink); }
+
+/* 5.2/5.4 膠囊標籤（內聯章頭） */
+.pill { display:inline-block; border:1.5px solid var(--ink); border-radius:999px;
+  padding:.05in .17in; font-family:var(--font-sans); font-weight:600;
+  font-size:var(--fs-pill); letter-spacing:.02em; color:var(--ink); }
+.pill--inline { margin-bottom:.12in; }
+
+/* 5.3 目錄 */
+.h-page { margin:0 0 .4in; font-family:var(--font-display); font-weight:400;
+  font-size:var(--fs-h1); color:var(--ink); }
+.toc { max-width:6.4in; }
+.toc__row { display:flex; align-items:baseline; justify-content:space-between;
+  padding:.13in 0; font-family:var(--font-sans); font-weight:500; font-size:13pt;
+  color:var(--ink); text-decoration:none; }
+.toc__page { font-variant-numeric:tabular-nums; }
+
+/* 5.4 內文（雙欄） */
+.prose { column-count:2; column-gap:var(--col-gap); font-family:var(--font-serif);
+  font-size:var(--fs-body); line-height:1.5; color:var(--ink); }
+.prose--single { column-count:1; max-width:7.3in; }
+.prose h2 { font-family:var(--font-sans); font-weight:600; font-size:var(--fs-h2);
+  margin:.22in 0 .07in; break-after:avoid; }
+.prose h3 { font-family:var(--font-sans); font-weight:600; font-size:var(--fs-h3);
+  margin:.15in 0 .04in; break-after:avoid; }
+.prose p { margin:0 0 .12in; }
+.prose ul { margin:0 0 .12in; padding-left:1.1em; }
+.prose li { margin:.04in 0; }
+.prose h2:first-child, .prose h3:first-child { margin-top:0; }
+.prose a { color:var(--coral); text-decoration:underline; text-underline-offset:2px;
+  text-decoration-thickness:1px; }
+
+/* 5.5 表格 */
+.t { width:100%; border-collapse:collapse; font-family:var(--font-sans);
+  font-size:var(--fs-label); color:var(--ink); margin:.1in 0 .18in; }
+.t th { background:var(--tan); font-weight:600; text-align:left; }
+.t th, .t td { border:1px solid var(--rule); padding:.1in .14in; vertical-align:top; }
+
+/* 5.6 程式碼塊 */
+code { font-family:var(--font-mono); font-size:.92em; }
+.code { background:var(--code-bg); border-radius:6px; padding:.16in .18in;
+  font-family:var(--font-mono); font-size:var(--fs-code); line-height:1.45;
+  white-space:pre; overflow:hidden; color:var(--ink); margin:.1in 0 .16in; }
+
+/* 5.7 Aside / 重點 */
+.aside { font-style:italic; color:var(--ink-soft); }
+.aside--bar { font-style:italic; border-left:2px solid var(--coral); padding-left:.16in; }
+
+/* 5.9 頁碼 / 5.10 封底連結 */
+.folio { position:absolute; right:var(--margin); bottom:var(--margin);
+  font-family:var(--font-sans); font-size:var(--fs-folio); color:var(--ink); }
+.backlink { position:absolute; right:var(--margin); bottom:var(--margin);
+  font-family:var(--font-sans); font-weight:600; font-size:10pt; color:var(--ink); }
+
+/* —— 報告專用：系統圖容器 + 真機照片佔位 —— */
+.fig { margin:.12in 0; break-inside:avoid; }
+.fig img { width:100%; height:auto; display:block; border:1px solid var(--rule); border-radius:6px; }
+.fig figcaption { font-family:var(--font-sans); font-size:var(--fs-label);
+  color:var(--ink-soft); margin-top:.06in; }
+.photo-ph { display:flex; align-items:center; justify-content:center; text-align:center;
+  border:2px dashed var(--rule); border-radius:8px; background:var(--ivory);
+  color:var(--ink-soft); font-family:var(--font-sans); font-size:var(--fs-label);
+  min-height:2.2in; }
+</style>
+</head>
+<body>
+
+<!-- ===== 封面（煙霧測試；課程/學號資訊於 Task 2 補） ===== -->
+<section class="page page--hero" style="--bg:var(--coral)">
+  <div class="cover">
+    <h1 class="cover__title">互動式銷售輔助機器人<br><span>期末專題報告</span></h1>
+    <div class="brand"><span class="brand__name">Project_01</span></div>
+  </div>
+</section>
+
+<script>
+  // 列印前確保字型就緒，避免 PDF 內 FOUT / 繁中掉字（report-pdf.md §7 鐵則 4）
+  window.READY = document.fonts.ready.then(() => document.documentElement.classList.add('fonts-ready'));
+</script>
+</body>
+</html>
