@@ -25,6 +25,8 @@ html, body { margin: 0; padding: 0; background: #d9d9d9; }
 .page--bleed5 { page: bleed5; width: 16.33in; height: 8.5in; }
 @page bleed8 { size: 13.88in 8.5in; margin: 0; }  /* 圖⑧ 模組依賴 aspect 1.63（橫式，高 8.5in） */
 .page--bleed8 { page: bleed8; width: 13.88in; height: 8.5in; }
+@page bleed1 { size: 14.03in 8.5in; margin: 0; }  /* 圖① 並行模型 aspect 1.65（橫式） */
+.page--bleed1 { page: bleed1; width: 14.03in; height: 8.5in; }
 
 /* —— §5 元件庫（只列本報告實際使用的類；整頁分隔 hero / 塗鴉未採用故略） —— */
 /* 5.1 封面 */
@@ -288,6 +290,62 @@ code { font-family:var(--font-mono); font-size:.92em; }
 <!-- ===== 第 3 章 · 頁 3：模組依賴 ⑧（全屏 hero） ===== -->
 <section class="page page--bleed page--bleed8">
   <img src="../architecture/diagrams/08-module-dependency.svg">
+</section>
+
+<!-- ===== 第 4 章 · 執行期與並行模型（頁 1：敘事 + 程式碼） ===== -->
+<section class="page page--content">
+  <div class="chap-band" style="--cc:var(--ch4)">
+    <div class="chap-band__title">
+      <span class="pill">Chapter 4</span>
+      <h1 class="chap-band__h">執行期與並行模型</h1>
+    </div>
+    <!-- 原創塗鴉：多軌平行線（並行執行緒），蠟筆童趣；原創非仿 Anthropic -->
+    <svg class="chap-doodle" viewBox="0 0 300 190" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="74" y1="58" x2="226" y2="58"/>
+        <line x1="74" y1="98" x2="226" y2="98"/>
+        <line x1="74" y1="138" x2="226" y2="138"/>
+        <circle cx="120" cy="58" r="10" fill="var(--ink)" stroke="none"/>
+        <circle cx="178" cy="98" r="10" fill="var(--ink)" stroke="none"/>
+        <circle cx="142" cy="138" r="10" fill="var(--ink)" stroke="none"/>
+      </g>
+    </svg>
+  </div>
+  <div style="display:flex; gap:.5in; align-items:flex-start; margin-top:.04in;">
+    <div class="prose prose--single" style="flex:1;">
+      <h2>主線程 + 四個 worker</h2>
+      <p>主線程只跑純單線程的對話狀態機；所有會阻塞或需並行的工作都交給背景常駐執行緒，透過佇列（queue）與事件匯流排（EventBus）與主線程解耦。</p>
+      <p>四個背景 worker：<strong>TtsWorker</strong>（語音合成）、<strong>ActionWorker</strong>（機器人動作）、<strong>InputReader</strong>（輸入）、<strong>SttWorker</strong>（語音辨識）；前三者常駐、STT 每輪收音時動態起停。如此機器人能<strong>邊說、邊動、邊聽</strong>而互不阻塞。</p>
+      <h2>共用消費者骨架</h2>
+      <p>TtsWorker 與 ActionWorker 都是「FIFO 佇列 + daemon 執行緒 + 取出→處理→收尾」的消費者，這套骨架收斂在 <code>QueueWorker</code> 基底（右）。</p>
+      <p class="aside--bar">設計取捨：所有背景執行緒皆為 daemon，程式結束時以 <code>os._exit(0)</code> 強退、隨之而死；輸入則「單一佇列、單一消費者」收斂鍵盤／語音／觸控三來源，避免多旗號分流的競態。</p>
+    </div>
+    <div style="flex:1;">
+      <div class="code">class QueueWorker(ABC):
+    def __init__(self):
+        self._q = queue.Queue()
+        threading.Thread(
+            target=self._loop,
+            name=self.thread_name,
+            daemon=True).start()
+
+    def _loop(self):
+        self.on_thread_start()
+        while True:
+            item = self._q.get()
+            try:
+                self._process(item)
+            finally:
+                self.on_done(item)</div>
+      <p style="font-family:var(--font-sans); font-size:var(--fs-label); color:var(--ink-soft); margin:.05in 0 0;">▲ <code>QueueWorker</code> 消費者骨架（<code>myProgram/queue_worker.py</code>）：tts／action 共用</p>
+    </div>
+  </div>
+  <span class="folio">10</span>
+</section>
+
+<!-- ===== 第 4 章 · 頁 2：並行模型 ①（全屏 hero） ===== -->
+<section class="page page--bleed page--bleed1">
+  <img src="../architecture/diagrams/01-process-thread.svg">
 </section>
 
 <script>
