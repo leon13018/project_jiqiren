@@ -62,8 +62,16 @@
 - **skill 硬化**（治本「死空白每次中」＋ DPR 陷阱）：① bbox dump 加 `fill`（內容垂直 extent + `bottomDeadRatio`）+ `occupancy`（6×5 占用網格、**排除容器 frame** 露 frame 內空洞）+ **ink-ratio 抽查**（<~5% 視同空，補 binary occupancy 盲點）；`render-and-qa` 把「畫大」澄清成**只指寬度、height 貼內容**、死空白改可量 FAIL 閘；`skeleton.html` 註解修；`SKILL.md` QA-A 判準。② **DPR 陷阱**：Playwright `scale:'css'` 截圖內容隨 session DPR 浮動（1.0/0.8/0.5）→ native×dpr 座標錯位、裁圖一直裁錯 → 視覺迭代改 `chrome --headless --force-device-scale-factor=2`（確定性 2×、免 server、crops 用 native×2）。（skill 檔在 `.claude/skills/`、本地生效不入 git。）
 - 交付三式 `06/07-*.{html,png,svg}` 進 `diagrams/` 主層（html 源在此）、四角驗無黑邊、SVG 內嵌 2×。本 session 一併收 §6 遺留的 `code_map.md` ④⑤ 狀態進 commit（並行 actor 已 idle/shutdown）。
 
+## 8. 圖⑨ 類別 + 圖⑧ 模組依賴交付（Wave D，2026-06-23）+ 畫圖階段收官（`a44895f` / `5d17d57` / `cce9b94`）
+
+承 §7「⑧⑨ 並行 session 進行中」——本 session 即該 actor，現 ⑧⑨ 全交付，**畫圖階段正式收官**。
+
+- **⑨ 類別圖（State pattern）**：UML 三格框 + generalization 空心三角逐輪像素級調（**底邊⊥線切線、箭頭線從三角底邊中點穿入、外側兩個轉正**——subagent 多次會錯意 → 教訓「像素級幾何微調 orchestrator 自己改別派 subagent」寫進 memory `diagram-fixes-self-not-subagent`）。**正確性驗證**回讀 `machine.py`/`cart.py`/`dialog_io.py`/`nlu.py` 抓出假依賴鏈（run_*→nlu→DialogIO→Cart 不存在）→ 三條 «uses» 改全自 `states.run_*` 發出。交付 `a44895f`。**收尾再修**（`5d17d57`）：«returns» 箭頭終點 x1498 越過 Transition 左緣 x1480 戳進框 → 改 x1474 觸左緣外側。
+- **⑧ 模組依賴地圖（Hexagonal 注入邊界）**：初版「慘」整張刪、**orchestrator 自己從零重做**。thesis＝注入邊界（sales/ 純核心零向外依賴；main.py 組合根 `callbacks()` 10 鍵注入 `logic.run`＝依賴反轉）。**鐵則1 核對**回讀 `main.py`+`sales/*`+`tts/action/stt/web/webui` 的 top-level vs lazy import 逐項落圖（pypinyin/vendor/websockets 皆 lazy；web stdlib `bus·display·commands` vs Pi-only `models·app·server`；web→`sales.constants` 向內；web.app StaticFiles 出 webui）。**使用者 10+ 輪像素級驗收定版**：注入 seam signature／5 條 lazy 自 main 右緣中點扇出落 adapter 左緣中點／queue_worker 3 依賴邊右側 gutter 收束／**全卡蠟筆 hachure 著色**（core 綠底+crow+badge coral）／透明度調高／main+core 收窄使頁面變窄（右緣 1920→1848）。交付 `cce9b94`。
+- 🔴 **新視覺 gotcha（已寫進 report-design-system `diagram-crayon.md`）**：① **蠟筆 hachure 可見度取決於 fill 飽和度**——太淡 token fill（coral-fill `#fdf0eb`）hachure 近隱形；Rough loader neutral 偵測再壓成 opacity 0.6 灰 → 要可見用更飽和 fill。② 內層子卡（`.crow`/`.badge`）要進 Rough querySelectorAll + 蠟筆 `::before` 才有 hachure+框。③ 箭頭終點落卡邊外側（算進 marker refX + ::before 抖動 ~4px），別戳框內。
+
 ## 狀態 / 下一步
 
-- 雙生 skill 定版 + 死空白量測 / ink-ratio / 確定性 chrome render 硬化；report-design-system 弧 commits 全 push。
-- **圖**：淺色 **①–⑦ 已交付**（`diagrams/` html/png/svg）；**⑧⑨ 另一並行 session 進行中**（模組依賴 / 類別，html+spec 已草、未交付）；⑩⑪ 待畫（淺色）。
-- **下一步＝⑧–⑪ 淺色 → 報告 PDF（`report.html`/`tokens.css` 待建）/ PPT。**
+- 雙生 skill 定版 + 死空白量測 / ink-ratio / 確定性 chrome render + 新增 3 蠟筆 gotcha 硬化；report-design-system 弧 commits 全 push。
+- **圖：淺色 ①–⑨ 全交付 ✅（`diagrams/` html/png/svg）。2026-06-23 畫圖階段正式收官——使用者宣告不再製作其他系統圖（⑩⑪ 決定不畫）。**
+- **下一階段＝用這 9 張圖製作期末專題報告 PDF**（`report-design-system` 設計系統就緒；`report.html`/`tokens.css` 待建，做法見 `reference/report-pdf.md`）。使用者將開新 session 啟動報告製作。

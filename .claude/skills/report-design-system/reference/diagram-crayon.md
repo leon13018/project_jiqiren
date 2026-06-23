@@ -71,6 +71,8 @@
 - **退場**：無 JS → 卡片保留實色 + 蠟筆 ::before 框（graceful fallback）。
 - 變體：`fillStyle` 可換 `cross-hatch`（交叉影線）/`zigzag`/`dots`/`sunburst`；密度調 `hachureGap`。
 - **範圍＝所有 attribute 框**：選擇器 `.card, .legend, .note, .chip, .cmd, .gate, .group, .misalign, .subphase-tag, .tok, .sw` 全納入（各自 `isolation:isolate`）。**中性淺色框**（ivory/gray,`r≈g≈b`）填色壓深 ×0.95 + `node.opacity 0.6`（否則與頁同色看不見）；**色票 `.sw`** 用其**邊色**填、`hachureGap` 加密(2.2)、inset 1.6 幾乎填滿；**所有框的外框一律走 §9.2 蠟筆 `::before`**（含 `.sw`/`.tok`,JS 把該元素邊色寫進 inline `--edge` 讓框用對色;虛線框 `.misalign::before { border-style:dashed }`）；**`.group` 容器**也填(內層卡浮其上)。
+- ⚠️ **填色飽和度＝可見度**（⑧ 踩過）：hachure 線色＝該卡 fill；**太淡的 token fill（如 `coral-fill #fdf0eb`、`green-fill`）hachure 近乎隱形、看似平塗未上色**——使用者會抓「沒用蠟筆填滿」。要明顯可見就把該卡 fill 換**更飽和**值（coral 用 `#f4d6c6`、子卡綠用 `#e9eedf`/`#e3ecd6` 視層次）。Rough loader 的 neutral 偵測（`r>235 且 r≈g≈b`）會把淺色再壓 ×0.95 + opacity 0.6 灰 → 更淡。想整體調透：在 loader 統一 `node.opacity`（有色 ~0.62 / 中性 ~0.45），個別卡可給專屬更高透明度。
+- ⚠️ **新增任何 attribute 框 class 務必三件套同步**（⑧ `.crow`/`.badge` 踩過）：加進 ① Rough `querySelectorAll` ② 蠟筆 `::before` 框規則（含 `--edge` 對色）③ `border-color:transparent; overflow:visible; isolation:isolate` ——少一件就只剩平塗無 hachure 或無蠟筆框。**群組容器（如 `.core`）若也填 hachure 會與內層子卡同色相融**→ 可讓容器走較淡 fill 或平塗當底、子卡較飽和浮其上（靠子卡蠟筆框分層）。
 > 來源：[Rough.js fill styles](https://roughjs.com/)、[RoughJS 演算法](https://shihn.ca/posts/2020/roughjs-algorithms/)、[draw.io rough 模式](https://www.drawio.com/blog/rough-style)（Excalidraw 同源技法）。
 
 ## 9.2c 手繪塗鴉標題（FIG.NN · 主題）
@@ -92,6 +94,7 @@
 - 本機 Chrome 截圖：`chrome --headless --disable-gpu --force-device-scale-factor=2 --window-size=W,H --virtual-time-budget=15000 "--screenshot=out.png" "file:///…/NN.html"`（路徑空白用 `%20`）。
 - ⚠ **`--headless=new` + `--screenshot` 本機不寫檔**（踩過）→ 用舊 `--headless`;濾鏡重,`--virtual-time-budget` 給足（≥12000）。
 - 驗收：Read 截圖目視 + PowerShell `System.Drawing.Bitmap.GetPixel` 取樣關鍵點色值（如確認接點/底色 hex）。
+- ⚠️ **箭頭終點落卡片邊緣「外側」、別戳進框內**（⑨ x1498 戳入 Transition 踩過）：path 終點 x 要算進 ① marker `refX` 偏移（箭頭尖 ≈ pathEnd + ~1px）② 蠟筆 `::before` 框抖動 ~4px → 終點設在卡邊外 ~4–6px，箭頭尖剛好觸抖動框、不入框。**箭頭連到卡片建議落該邊「垂直/水平中點」**（使用者偏好）；同一卡邊塞「進+出」兩箭頭必糾纏 → 改其一走他處或移入卡內文。
 
 ## 9.4 強度旋鈕
 - 更粉/顆粒重 → grain `feColorMatrix` alpha 末兩值更負（`0.9 -0.1` → `0.9 -0.15`）。
