@@ -15,11 +15,12 @@ html, body { margin: 0; padding: 0; background: #d9d9d9; }
 .page--content { padding: var(--margin); }
 .page--hero { background: var(--bg); color: var(--ink); }
 
-/* 超大圖專用頁：跳脫標準 11×8.5 頁框，依圖最大化（每頁尺寸可自訂、不必統一）。
-   具名 @page 給 PDF 實際紙張尺寸，.page--tallA 設元素內容框；大圖各自可再開不同尺寸頁。 */
-@page tallA { size: 13in 17in; margin: 0; }
-.page--tallA { page: tallA; width: 13in; height: 17in; padding: .55in; }
-.page--tallA .fig img { width: 100%; height: auto; }
+/* 系統圖全屏 hero 頁：頁尺寸 = 圖長寬比、無頁邊、圖滿版（使用者定：hero 視覺張力）。
+   每張圖一個具名 @page（size = 圖 aspect）；圖內已含 FIG.NN 標題故不另加圖說。 */
+.page--bleed { padding: 0; }
+.page--bleed img { width: 100%; height: 100%; object-fit: cover; display: block; }
+@page bleed4 { size: 11in 13.38in; margin: 0; }   /* 圖④ 端到端時序 2040x2482 aspect 0.82（直式） */
+.page--bleed4 { page: bleed4; width: 11in; height: 13.38in; }
 
 /* —— §5 元件庫（只列本報告實際使用的類；整頁分隔 hero / 塗鴉未採用故略） —— */
 /* 5.1 封面 */
@@ -233,18 +234,14 @@ code { font-family:var(--font-mono); font-size:.92em; }
     <h3>⑤ 致謝</h3>
     <p>系統送出 <code>thankyou</code> 畫面並帶入實付金額，平板顯示「謝謝惠顧」；機器人揮手道別，禮貌停頓後清空購物車、回到叫賣，等待下一位顧客。</p>
     <p>下一頁以<strong>時序圖</strong>呈現同一段旅程的內部訊息流動，逐一展開上述各步驟背後的元件互動。</p>
+    <p class="aside--bar">關鍵原則：畫面切換一律由機器人端送出的「狀態（phase）」驅動——觸控只「請求」、不本地改畫面（同一請求也可能來自語音或自動結帳），集中由狀態驅動可避免前後端不一致。</p>
   </div>
-  <div class="photo-ph" style="margin-top:.18in; min-height:1.5in;">待補：P1 攤位＋機器人＋平板全景（demo 現場）</div>
   <span class="folio">5</span>
 </section>
 
-<!-- ===== 第 2 章 · 系統概觀（頁 2：端到端時序圖 ④，超大圖專用頁） ===== -->
-<section class="page page--tallA">
-  <figure class="fig" style="margin:0;">
-    <img src="../architecture/diagrams/04-end-to-end-sequence.svg">
-    <figcaption>圖 4 · 一輪互動的端到端時序：顧客 / 前端 / 主線程 / 各背景執行緒（TTS·動作·輸入·STT）/ 雲端服務之間的訊息流動。畫面切換一律由機器人端 emit 的「狀態（phase）」驅動——觸控只「請求」、不本地改畫面（同一請求也可能來自語音或自動結帳）。</figcaption>
-  </figure>
-  <span class="folio">6</span>
+<!-- ===== 第 2 章 · 系統概觀（頁 2：端到端時序圖 ④，全屏 hero 頁） ===== -->
+<section class="page page--bleed page--bleed4">
+  <img src="../architecture/diagrams/04-end-to-end-sequence.svg">
 </section>
 
 <script>
