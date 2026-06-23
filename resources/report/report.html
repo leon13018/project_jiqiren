@@ -27,6 +27,10 @@ html, body { margin: 0; padding: 0; background: #d9d9d9; }
 .page--bleed8 { page: bleed8; width: 13.88in; height: 8.5in; }
 @page bleed1 { size: 14.03in 8.5in; margin: 0; }  /* 圖① 並行模型 aspect 1.65（橫式） */
 .page--bleed1 { page: bleed1; width: 14.03in; height: 8.5in; }
+@page bleed2 { size: 14.49in 8.5in; margin: 0; }  /* 圖② 銷售狀態機 aspect 1.70 */
+.page--bleed2 { page: bleed2; width: 14.49in; height: 8.5in; }
+@page bleed9 { size: 13.88in 8.5in; margin: 0; }  /* 圖⑨ 類別圖 aspect 1.63 */
+.page--bleed9 { page: bleed9; width: 13.88in; height: 8.5in; }
 
 /* —— §5 元件庫（只列本報告實際使用的類；整頁分隔 hero / 塗鴉未採用故略） —— */
 /* 5.1 封面 */
@@ -346,6 +350,87 @@ code { font-family:var(--font-mono); font-size:.92em; }
 <!-- ===== 第 4 章 · 頁 2：並行模型 ①（全屏 hero） ===== -->
 <section class="page page--bleed page--bleed1">
   <img src="../architecture/diagrams/01-process-thread.svg">
+</section>
+
+<!-- ===== 第 5 章 · L0–L5 狀態機（頁 1：敘事 + 程式碼） ===== -->
+<section class="page page--content">
+  <div class="chap-band" style="--cc:var(--ch5)">
+    <div class="chap-band__title">
+      <span class="pill">Chapter 5</span>
+      <h1 class="chap-band__h">核心對話引擎：L0–L5 狀態機</h1>
+    </div>
+    <!-- 原創塗鴉：狀態節點連線（狀態機），蠟筆童趣；原創非仿 Anthropic -->
+    <svg class="chap-doodle" viewBox="0 0 300 190" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="96" y1="66" x2="168" y2="56"/>
+        <line x1="188" y1="74" x2="172" y2="120"/>
+        <circle cx="78" cy="70" r="22" fill="var(--ivory)"/>
+        <circle cx="186" cy="54" r="22" fill="var(--ivory)"/>
+        <circle cx="162" cy="134" r="22" fill="var(--ivory)"/>
+      </g>
+    </svg>
+  </div>
+  <div style="display:flex; gap:.5in; align-items:flex-start; margin-top:.04in;">
+    <div class="prose prose--single" style="flex:1;">
+      <h2>cart 是唯一驅動</h2>
+      <p>層與層之間的轉移由「世界狀態」——也就是購物車（cart）——驅動，而非動作歷史。dialog 層每一輪都即時依 cart 推導模式：cart 空＝詢問需求（L2）、cart 非空＝加單或結帳（L3）。</p>
+      <p>主線轉移：<strong>L1 叫賣 → dialog 點餐 → L4 結帳 → L5 致謝 → 回 L1</strong>。每一層是一個 <code>State</code> 類別，其 <code>run()</code> 回傳 <code>Transition(next_state, enter_hawk)</code>。</p>
+      <h2>State pattern 調度</h2>
+      <p><code>SalesMachine.run</code> 是一個 <code>while</code> 主迴圈：進每層先 fail-fast 驗證 cart invariant（該空卻非空＝系統 bug 立刻爆），再 emit 網頁 phase，最後呼叫該層 <code>run()</code> 取得下一個轉移（右）。</p>
+    </div>
+    <div style="flex:1;">
+      <div class="code">def run(self):
+    current = "l1"
+    while True:
+        state = self._states[current]
+        # 進場 cart invariant fail-fast
+        if state.entry_invariant == "empty":
+            _assert_cart_empty(self.cart, state.entry_ctx)
+        elif state.entry_invariant == "nonempty":
+            _assert_cart_nonempty(self.cart, state.entry_ctx)
+        self._emit(current)          # emit web phase
+        result = state.run(self)     # -> Transition | None
+        if result is None:
+            return
+        if result.enter_hawk:
+            self.enter_hawk_immediately = True
+        current = result.next_state</div>
+      <p style="font-family:var(--font-sans); font-size:var(--fs-label); color:var(--ink-soft); margin:.05in 0 0;">▲ <code>SalesMachine.run</code> 主迴圈（<code>myProgram/sales/states/machine.py</code>）</p>
+    </div>
+  </div>
+  <span class="folio">12</span>
+</section>
+
+<!-- ===== 第 5 章 · 頁 2：跨層流程 + 設計取捨 ===== -->
+<section class="page page--content">
+  <span class="pill pill--inline">Chapter 5（續）</span>
+  <div class="prose prose--single">
+    <h2>跨層流程</h2>
+    <p>除了 L1–L5 的主線轉移，系統還有五個「橫切」所有層的流程，處理取消、客服、結帳確認、自動結帳與數量追問——它們都遵循同一個錢包保守原則。</p>
+    <table class="t">
+      <thead><tr><th>跨層流程</th><th>觸發</th><th>結果（保守 default）</th></tr></thead>
+      <tbody>
+        <tr><td>取消確認（6 秒）</td><td>任何輸入點偵測到「拒絕」意圖</td><td>靜默／逾時 → 視為取消、退回叫賣</td></tr>
+        <tr><td>客服確認（24 秒）</td><td>顧客在點餐／結帳喊「客服」</td><td>靜默／逾時 → 保守退出、清空購物車</td></tr>
+        <tr><td>結帳前確認</td><td>L3 喊「結帳」</td><td>須明確答覆才進 L4（保護錢包）</td></tr>
+        <tr><td>C-2 自動結帳</td><td>L3 逾時 12 秒／第 4 次「想一下」</td><td>倒數 6 秒三選一，取消優先</td></tr>
+        <tr><td>數量追問</td><td>加單缺數量／數量無效（&gt;50 或 0）</td><td>重問（逾時 12 秒、最多 3 次）</td></tr>
+      </tbody>
+    </table>
+    <h2>設計取捨</h2>
+    <p class="aside--bar">錢包保守原則：所有確認子狀態在顧客靜默或逾時，一律落到「保守」結果——取消、退出、或不進結帳——寧可不成交，也不替顧客做出花錢的決定。三種確認（取消 6 秒／客服 24 秒／無效數量 6 秒）共用同一個 wall-clock 倒數骨架（<code>TimedConfirm</code> 範本方法），差異以 hook 下放。</p>
+  </div>
+  <span class="folio">13</span>
+</section>
+
+<!-- ===== 第 5 章 · 頁 3：銷售狀態機 ②（全屏 hero） ===== -->
+<section class="page page--bleed page--bleed2">
+  <img src="../architecture/diagrams/02-sales-state-machine.svg">
+</section>
+
+<!-- ===== 第 5 章 · 頁 4：類別圖 ⑨（全屏 hero） ===== -->
+<section class="page page--bleed page--bleed9">
+  <img src="../architecture/diagrams/09-class-diagram.svg">
 </section>
 
 <script>
