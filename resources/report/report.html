@@ -21,6 +21,10 @@ html, body { margin: 0; padding: 0; background: #d9d9d9; }
 .page--bleed img { width: 100%; height: 100%; object-fit: cover; display: block; }
 @page bleed4 { size: 11in 13.38in; margin: 0; }   /* 圖④ 端到端時序 2040x2482 aspect 0.82（直式） */
 .page--bleed4 { page: bleed4; width: 11in; height: 13.38in; }
+@page bleed5 { size: 16.33in 8.5in; margin: 0; }  /* 圖⑤ 部署拓樸 aspect 1.92（橫式，高 8.5in 同標準頁） */
+.page--bleed5 { page: bleed5; width: 16.33in; height: 8.5in; }
+@page bleed8 { size: 13.88in 8.5in; margin: 0; }  /* 圖⑧ 模組依賴 aspect 1.63（橫式，高 8.5in） */
+.page--bleed8 { page: bleed8; width: 13.88in; height: 8.5in; }
 
 /* —— §5 元件庫（只列本報告實際使用的類；整頁分隔 hero / 塗鴉未採用故略） —— */
 /* 5.1 封面 */
@@ -242,6 +246,48 @@ code { font-family:var(--font-mono); font-size:.92em; }
 <!-- ===== 第 2 章 · 系統概觀（頁 2：端到端時序圖 ④，全屏 hero 頁） ===== -->
 <section class="page page--bleed page--bleed4">
   <img src="../architecture/diagrams/04-end-to-end-sequence.svg">
+</section>
+
+<!-- ===== 第 3 章 · 系統架構與部署（頁 1：敘事） ===== -->
+<section class="page page--content">
+  <div class="chap-band" style="--cc:var(--ch3)">
+    <div class="chap-band__title">
+      <span class="pill">Chapter 3</span>
+      <h1 class="chap-band__h">系統架構與部署</h1>
+    </div>
+    <!-- 原創塗鴉：分層模組盒子 + 接腳（架構/部署），蠟筆童趣；原創非仿 Anthropic -->
+    <svg class="chap-doodle" viewBox="0 0 300 190" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="96" y="36" width="108" height="48" rx="13" fill="var(--ivory)"/>
+        <rect x="96" y="98" width="108" height="48" rx="13" fill="var(--ivory)"/>
+        <line x1="150" y1="84" x2="150" y2="98"/>
+        <line x1="132" y1="146" x2="132" y2="168"/>
+        <line x1="168" y1="146" x2="168" y2="168"/>
+      </g>
+    </svg>
+  </div>
+  <div class="prose">
+    <h2>整體形狀</h2>
+    <p>整個系統是<strong>單一程序</strong>：一條主線程跑純單線程的對話狀態機，所有會阻塞或需並行的工作（語音合成、語音辨識、機器人動作、網頁推送）都交給背景常駐執行緒，彼此以佇列與事件匯流排解耦。</p>
+    <p>最關鍵的設計鐵則是：<strong>業務邏輯（<code>sales/</code>）嚴格不碰硬體、廠商 SDK 與 I/O</strong>，一切對外動作都經由注入的回呼（callback）完成。硬體與輸入輸出只在入口層 <code>main.py</code> 與各 worker 接上。</p>
+    <h2>硬體拓樸</h2>
+    <p>機器人本體為 Hiwonder TonyPi，運算核心是 Raspberry Pi 4。Pi 上跑主程式並兼任網頁伺服器；麥克風為 ReSpeaker 陣列、動作經 TonyPi SDK 驅動、語音由喇叭播放，語音辨識走 Deepgram 雲端串流。</p>
+    <p>點餐畫面則由<strong>顧客端的筆電或手機瀏覽器</strong>渲染——因為 Pi 4 自身瀏覽器跑不動前端（GPU 與舊版 Chromium 不支援 OKLCH 色彩），Pi 只負責當伺服器、推送狀態（見圖 5 部署拓樸）。</p>
+    <h2>模組地圖</h2>
+    <p>程式碼分為六層：入口 <code>main.py</code>、廠商 <code>vendor/</code>、核心 <code>sales/</code> 對話邏輯、<code>web/</code> 顯示鏡像傳輸層、<code>webui/</code> 前端，以及四個背景 worker。各層職責單一、依賴方向清楚（見圖 8 模組依賴）。</p>
+    <p class="aside--bar">設計取捨：為何業務邏輯完全不碰硬體？因為這讓整套對話狀態機能在一般電腦上以 711 項 pytest 完整驗證，而非只能在實機手動試——把「難測的硬體」隔到邊界，核心邏輯就變得可測、可重現。</p>
+  </div>
+  <span class="folio">7</span>
+</section>
+
+<!-- ===== 第 3 章 · 頁 2：部署拓樸 ⑤（全屏 hero） ===== -->
+<section class="page page--bleed page--bleed5">
+  <img src="../architecture/diagrams/05-deployment-topology.svg">
+</section>
+
+<!-- ===== 第 3 章 · 頁 3：模組依賴 ⑧（全屏 hero） ===== -->
+<section class="page page--bleed page--bleed8">
+  <img src="../architecture/diagrams/08-module-dependency.svg">
 </section>
 
 <script>
