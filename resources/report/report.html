@@ -24,14 +24,27 @@ html, body { margin: 0; padding: 0; background: #d9d9d9; }
 
 /* 系統圖全屏 hero 頁：頁尺寸 = 圖長寬比、無頁邊、圖滿版（使用者定：hero 視覺張力）。
    每張圖一個具名 @page（size = 圖 aspect）；圖內已含 FIG.NN 標題故不另加圖說。 */
-.page--bleed { padding: 0; }
-.page--bleed img { width: 100%; height: 100%; object-fit: contain; display: block; }
-/* 全屏圖統一頁尺寸（時序圖除外）：14×8.5 橫式、圖置中 contain 不裁切、米底襯邊 */
-@page bleedU { size: 14in 8.5in; margin: 0; }
-.page--bleedU { page: bleedU; width: 14in; height: 8.5in; background: var(--ivory); }
-/* 時序圖維持直式滿版（aspect 0.82） */
-@page bleed4 { size: 11in 13.38in; margin: 0; }
-.page--bleed4 { page: bleed4; width: 11in; height: 13.38in; }
+.page--bleed { padding: 0; background: var(--ivory); }
+.page--bleed img { width: 100%; height: 100%; object-fit: contain; object-position: center; display: block; }
+/* 全屏圖：統一寬度 14in、頁高近各圖長寬比 → 圖填寬置中（可留白、米底襯邊不裁切）；時序圖同寬但頁很長 */
+@page bleed1 { size: 14in 8.486in; margin: 0; }
+.page--bleed1 { page: bleed1; width: 14in; height: 8.486in; }
+@page bleed2 { size: 14in 8.214in; margin: 0; }
+.page--bleed2 { page: bleed2; width: 14in; height: 8.214in; }
+@page bleed3 { size: 14in 9.429in; margin: 0; }
+.page--bleed3 { page: bleed3; width: 14in; height: 9.429in; }
+@page bleed4 { size: 14in 17.033in; margin: 0; }
+.page--bleed4 { page: bleed4; width: 14in; height: 17.033in; }
+@page bleed5 { size: 14in 7.286in; margin: 0; }
+.page--bleed5 { page: bleed5; width: 14in; height: 7.286in; }
+@page bleed6 { size: 14in 8.857in; margin: 0; }
+.page--bleed6 { page: bleed6; width: 14in; height: 8.857in; }
+@page bleed7 { size: 14in 7.857in; margin: 0; }
+.page--bleed7 { page: bleed7; width: 14in; height: 7.857in; }
+@page bleed8 { size: 14in 8.571in; margin: 0; }
+.page--bleed8 { page: bleed8; width: 14in; height: 8.571in; }
+@page bleed9 { size: 14in 8.571in; margin: 0; }
+.page--bleed9 { page: bleed9; width: 14in; height: 8.571in; }
 @page uigrid { size: 11in 9.5in; margin: 0; }     /* webui 截圖總覽（2×3，較高內容頁） */
 .page--uigrid { page: uigrid; width: 11in; height: 9.5in; padding: var(--margin);
   display: flex; flex-direction: column; justify-content: center;
@@ -363,12 +376,12 @@ code { font-family:var(--font-mono); font-size:.92em; }
 </section>
 
 <!-- ===== 第 3 章 · 頁 2：部署拓樸 ⑤（全屏 hero） ===== -->
-<section class="page page--bleed page--bleedU">
+<section class="page page--bleed page--bleed5">
   <img src="../architecture/diagrams/05-deployment-topology.svg">
 </section>
 
 <!-- ===== 第 3 章 · 頁 3：模組依賴 ⑧（全屏 hero） ===== -->
-<section class="page page--bleed page--bleedU">
+<section class="page page--bleed page--bleed8">
   <img src="../architecture/diagrams/08-module-dependency.svg">
 </section>
 
@@ -428,7 +441,7 @@ code { font-family:var(--font-mono); font-size:.92em; }
 </section>
 
 <!-- ===== 第 4 章 · 頁 2：並行模型 ①（全屏 hero） ===== -->
-<section class="page page--bleed page--bleedU">
+<section class="page page--bleed page--bleed1">
   <img src="../architecture/diagrams/01-process-thread.svg">
 </section>
 
@@ -511,12 +524,12 @@ code { font-family:var(--font-mono); font-size:.92em; }
 </section>
 
 <!-- ===== 第 5 章 · 頁 3：銷售狀態機 ②（全屏 hero） ===== -->
-<section class="page page--bleed page--bleedU">
+<section class="page page--bleed page--bleed2">
   <img src="../architecture/diagrams/02-sales-state-machine.svg">
 </section>
 
 <!-- ===== 第 5 章 · 頁 4：類別圖 ⑨（全屏 hero） ===== -->
-<section class="page page--bleed page--bleedU">
+<section class="page page--bleed page--bleed9">
   <img src="../architecture/diagrams/09-class-diagram.svg">
 </section>
 
@@ -557,12 +570,12 @@ code { font-family:var(--font-mono); font-size:.92em; }
 </section>
 
 <!-- ===== 第 6 章 · 頁 2：STT 管線 ⑥（全屏 hero） ===== -->
-<section class="page page--bleed page--bleedU">
+<section class="page page--bleed page--bleed6">
   <img src="../architecture/diagrams/06-stt-pipeline.svg">
 </section>
 
 <!-- ===== 第 6 章 · 頁 3：TTS 管線 ⑦（全屏 hero） ===== -->
-<section class="page page--bleed page--bleedU">
+<section class="page page--bleed page--bleed7">
   <img src="../architecture/diagrams/07-tts-pipeline.svg">
 </section>
 
@@ -602,7 +615,7 @@ code { font-family:var(--font-mono); font-size:.92em; }
 </section>
 
 <!-- ===== 第 7 章 · 頁 2：web phase 狀態機 ③（全屏 hero） ===== -->
-<section class="page page--bleed page--bleedU">
+<section class="page page--bleed page--bleed3">
   <img src="../architecture/diagrams/03-web-phase-state-machine.svg">
 </section>
 
