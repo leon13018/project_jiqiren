@@ -14,7 +14,8 @@ chrome --headless --disable-gpu --force-device-scale-factor=2 \
   --user-data-dir=/tmp/cr-NN \
   "--screenshot=OUT.png" "file:///C:/…/NN.html"
 ```
-- `--window-size` = `.stage` 尺寸（如 1960×1188）→ 滿版無黑邊。`--force-device-scale-factor=2` → 輸出 2× 像素。
+- `--window-size` = `.stage` 尺寸（如 1960×1188）→ 滿版無黑邊。`--force-device-scale-factor=2` → 輸出 2× 像素（**要 ~6K 高保真改 `=3` → 5880px**；2026-06-23 報告 9 圖已升 3× 重拍、base64 換回相同 viewBox）。
+- 🔴 **dsf 只作用於 screenshot——對 `--print-to-pdf` 完全無效**（print-to-PDF 是向量輸出，加不加 `--force-device-scale-factor` 輸出**位元組相同**，踩過）。報告 PDF 內嵌系統圖的保真度＝各 `.svg` 內嵌 PNG 的原生像素數；要更高**只能重拍源 HTML（拉高 dsf）再 base64 換回**，不能靠任何 print flag。判畫質用 `pdfimages -list` 看 ppi，別量 1× `.png` 交付檔。
 - 🔴 **用舊 `--headless`**：`--headless=new` + `--screenshot` 本機不寫檔（踩過）。
 - 蠟筆/Rough 濾鏡重 + Rough.js 在 `window load` 跑 → `--virtual-time-budget` 給足（**≥12000**）。
 - 各 stage 尺寸：圖①1960×1188 / 圖②1960×1150 / 圖③1960×1320。
