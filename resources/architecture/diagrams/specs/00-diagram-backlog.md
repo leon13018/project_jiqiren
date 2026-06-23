@@ -1,7 +1,7 @@
 # 00 · 報告系統圖 backlog（待畫清單 + 待辦）
 
 > **本檔＝索引 / 待辦單**。「怎麼畫」全在 **`architecture-diagram` skill**（`.claude/skills/architecture-diagram/`），不在此重述。新 session 從零重畫時：載入該 skill，逐張照它的完整流程跑，畫哪張就回本檔對照來源檔與 spec 狀態。
-> 訂於 2026-06-22；**2026-06-23 改宗淺色蠟筆風**（風格權威移交 `report-design-system` skill、深色霓虹退場）。現況：**深色 ①–⑤ 已歸檔 `_legacy-dark/`**（含舊 `theme/`，保留為淺色重畫的來源素材）；**淺色 ①②③ 已交付**（png+svg 置 `diagrams/` 主層，html 源在 report-design-system 基準）；**④⑤ 淺色已交付**（2026-06-23 換膚，html/png/svg 在 `diagrams/` 主層、源在 `_legacy-dark/`）；**⑥–⑪ 待畫**（淺色；⑥⑦ 另一並行 session 進行中）。`specs/` 內容 spec 沿用（風格無關）。
+> 訂於 2026-06-22；**2026-06-23 改宗淺色蠟筆風**（風格權威移交 `report-design-system` skill、深色霓虹退場）。**2026-06-23 畫圖階段收官：①–⑨ 全部淺色交付完成，使用者宣告畫圖階段到此結束（⑩⑪ 不畫）。** 現況：**深色 ①–⑤ 已歸檔 `_legacy-dark/`**（含舊 `theme/`，淺色重畫來源素材）；**淺色 ①–⑨ 全已交付**（png+svg 置 `diagrams/` 主層；①②③ html 源在 report-design-system 基準，④⑤ 源在 `_legacy-dark/`，⑥⑦⑧⑨ html 在主層自足）；**⑩⑪ 未畫**（階段結束、不在本批範圍）。`specs/` 內容 spec 沿用（風格無關）。
 
 ## 怎麼用本檔
 
@@ -21,7 +21,7 @@
 | ⑤ | 部署 / 網路拓樸 | Pi=server（`--hawk --web`）、筆電/手機=渲染端（連 `:8137`）、ReSpeaker USB、Deepgram 雲；**Pi 自身瀏覽器跑不動前端**（GPU+Chromium<111 無 OKLCH） | `00§7` `30`；`webui/serve.py` `web/server.py`；`resources/requirements/raspberry_pi_setup.md` | ✅ `05` |
 | ⑥ | STT 管線 | arecord `-c6` 抽 ch0（XVF-3000 處理過 ASR 聲道）→ Deepgram Nova-3 WS → speech_final → `inject`；**每輪 arm/disarm**（SttSender/Receiver）；prearm 藏握手 | `stt.py`；doc `10` | ✅ `06` |
 | ⑦ | TTS 管線 | queue → edge-tts synth → **內容定址快取**（命中/未命中分支）+ 1-deep prefetch → mpg123；常駐 asyncio loop；語速三段 | `tts.py` `tts_prewarm.py` `queue_worker.py`；doc `10` | ✅ `07` |
-| ⑧ | 模組依賴地圖 | `sales/`（純邏輯、零硬體）↔ `main.py` wire-up ↔ workers ↔ `web/` ↔ `webui/`；**callback 注入邊界**（sales 不 import 硬體/廠商 SDK） | `00§4`；各模組 import 結構 | ✗ |
+| ⑧ | 模組依賴地圖 | `sales/`（純邏輯、零硬體）↔ `main.py` wire-up ↔ workers ↔ `web/` ↔ `webui/`；**callback 注入邊界**（sales 不 import 硬體/廠商 SDK） | `00§4`；各模組 import 結構 | ✅ `08` |
 | ⑨ | 類別圖 | `SalesMachine` / `State`(ABC) / `Transition` / 4 個 `*State` / `Cart` / `DialogIO` / nlu 純函式 關係 | `states/machine.py` `cart.py` `dialog_io.py` `nlu.py`；doc `20` | ✅ `09` |
 | ⑩ | 資料契約圖（原「資料模型」改框） | ⚠️**無真 DB** → 畫 `Cart`(dict[str,int]) ↔ Pydantic DTO ↔ 前端；`commands.py` 觸控→token 對照；2 商品常數（冰紅茶/刮刮樂，九折硬編） | `web/models.py` `cart.py` `web/commands.py` `constants/products.py` | ✗ |
 | ⑪ | 啟動分流流程（新增） | `main._run_wiring`：`--hawk` / `--web` / `SALES_KEYBOARD` 三旗標分支 + **防呆**（無 mode flag 又無鍵盤 → early return）；webui-boot 背景啟 server | `main.py`（`_run_wiring` / `main`） | ✗ |
@@ -43,5 +43,5 @@
 - [x] ① Process / Thread　- [x] ② L0–L5 狀態機　- [x] ③ web phase　✅ **淺色已交付**（深色原版在 `_legacy-dark/`）
 - [x] ④ 時序　- [x] ⑤ 部署 / 網路　✅ **淺色已交付**（2026-06-23 換膚；html/png/svg 在 `diagrams/` 主層；深色原版在 `_legacy-dark/`）
 - [x] ⑥ STT 管線　- [x] ⑦ TTS 管線　✅ **淺色已交付**（2026-06-23；html/png/svg 在 `diagrams/` 主層；使用者逐輪像素級 QA + 箭頭全重拉 + attribute 置中後定版）
-- [ ] ⑧ 模組依賴（初版不滿意、**整張刪掉重做中** by orchestrator 自己）　- [x] ⑨ 類別　✅ **淺色已交付**（2026-06-23；html/png/svg 在 `diagrams/` 主層；UML 三格框 + generalization 三角逐輪像素級調：底邊⊥線切線、箭頭線從底邊中點穿入、外側兩個轉正後使用者定版）
-- [ ] ⑩ 資料契約　- [ ] ⑪ 啟動分流
+- [x] ⑧ 模組依賴　- [x] ⑨ 類別　✅ **淺色已交付**（2026-06-23；html/png/svg 在 `diagrams/` 主層）。⑧＝Hexagonal 注入邊界（orchestrator 自己從零重做，使用者逐項像素級驗收：注入 seam signature、5 條 lazy 自 main 右緣中點扇出、queue_worker 三依賴邊補上、全卡蠟筆 hachure 著色、main/core 收窄頁面變窄）；⑨ UML 三格框 + generalization 三角逐輪調 +（123620 修）«returns» 箭頭尖不戳入 Transition 框
+- [ ] ⑩ 資料契約　- [ ] ⑪ 啟動分流　—— **不畫**（2026-06-23 畫圖階段收官止於 ⑨；未來若要補再開）

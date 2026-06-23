@@ -1,0 +1,481 @@
+<!doctype html>
+<!-- ════════════════════════════════════════════════════════════════
+  圖⑧ 模組依賴地圖（Hexagonal 注入邊界）— 純 HTML/CSS 絕對定位 + SVG overlay。
+  淺色蠟筆風（report-design-system skill 風格權威；不在此重述）：自足單檔，內聯淺色 tokens +
+  蠟筆濾鏡(#crayon/#crayonEdge/#crayonText) + Rough.js hachure 填色。依賴同層平放 rough.js / jason8.ttf。
+
+  主角（thesis）＝ Hexagonal 注入邊界：sales/ 純邏輯核心零向外依賴；main.py 組合根唯一橋樑，
+  把 adapter 的 bound method 當 callback 注入 logic.run(**callbacks)（依賴反轉）。
+  碼事實逐項核對自 main.py / sales/* import / tts.py / action.py / stt.py / web/* / webui/*（spec 08）。
+
+  signature ＝ 注入 seam（main ══▶ core，珊瑚粗箭頭「callbacks 注入·10 鍵」）。
+  色語意：coral=組合根 main / green=sales 純核心 / blue=worker(tts·action·stt·input_reader) /
+          gray=stdlib 基座 queue_worker / purple=web transport / cyan=webui 前端 / 中性 chip=外部依賴(進程外)。
+  ════════════════════════════════════════════════════════════════ -->
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>圖⑧ · 模組依賴地圖（Hexagonal 注入邊界）</title>
+<style>
+  /* ── 字型（Google Fonts；繁中思源黑體）+ 手繪塗鴉標題字 ── */
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Shantell+Sans:wght@400..800&family=Huninn&display=swap');
+  @font-face { font-family: 'Jason Scribble'; src: url('jason8.ttf') format('truetype'); font-display: swap; }
+
+  /* ════ 設計 tokens — Anthropic 淺色編輯風 ════ */
+  :root {
+    color-scheme: light;
+    --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+    --font-display: "Fraunces", "Noto Serif TC", serif;
+    --font-cjk: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    --font: "Hanken Grotesk", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    --ink:#141413; --ink-dim:#2c2b28; --ink-mute:#5c5b57;
+    --paper:#ffffff; --ivory:#faf9f5; --bg-base:#faf9f5;
+    --coral:#d97757; --tan:#e3dacc; --rule:#d9d1c0; --rule-soft:#ece6da;
+
+    /* 六色語意：fill 淺底 / edge 細彩線 / tone 文字深色 */
+    --blue-fill:#eef3f8;   --blue-edge:#6a9bcc;   --blue-tone:#3f6c97;
+    --green-fill:#eef1e8;  --green-edge:#788c5d;  --green-tone:#566840;
+    --cyan-fill:#eef4f1;   --cyan-edge:#8fb4a8;   --cyan-tone:#4f7367;
+    --purple-fill:#f1eff7; --purple-edge:#9b8bc7; --purple-tone:#645293;
+    --orange-fill:#fbeee8; --orange-edge:#c46686; --orange-tone:#9e3f60;
+    --gray-fill:#f4f2ec;   --gray-edge:#cdc4b2;   --gray-tone:#6f6b60;
+    --coral-fill:#fdf0eb;  --coral-edge:#d97757;  --coral-tone:#b0512f;
+
+    --arrow:#141413; --arrow-inject:#d97757; --arrow-inject-label:#b0512f;
+    --grid-line:#ece6da;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; }
+  body { font-family: var(--font); background: var(--bg-base); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+
+  /* —— 固定畫布（截圖尺寸即此）：淺底 + 極淡格線 —— */
+  .stage {
+    width: 1960px; height: 1200px;
+    position: relative; overflow: hidden; margin: 0 auto;
+    background:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+      var(--bg-base);
+    background-size: 40px 40px, 40px 40px, auto;
+  }
+
+  /* —— 標題：FIG.NN 牌 + 手繪塗鴉字 —— */
+  .title {
+    position: absolute; top: 32px; left: 0; right: 0; text-align: center; color: var(--ink);
+    font-family: "Shantell Sans", "Jason Scribble", "Huninn", var(--font-display);
+    font-size: 33px; font-weight: 800; letter-spacing: 0.2px; filter: url(#crayonText);
+  }
+  .title .num {
+    font-family: "Shantell Sans", "Jason Scribble", var(--font-mono);
+    font-size: 21px; font-weight: 700; color: #c25e39;
+    margin-right: 12px; padding: 2px 9px; border: 2.5px solid #c25e39; border-radius: 7px; vertical-align: 3px;
+  }
+  .subtitle {
+    position: absolute; top: 80px; left: 0; right: 0; text-align: center; color: var(--ink-mute);
+    font-family: var(--font-mono); font-size: 13px; font-weight: 400; letter-spacing: 0.2px;
+  }
+
+  /* ════════════════════════════════════════════════════════════════
+     卡片元件：.hero（組合根）/ .core（純核心 region）/ .card（adapter）/ .chip（外部）
+     外框走蠟筆 ::before；填色 Rough.js hachure（z-1，墊框後）。
+     ════════════════════════════════════════════════════════════════ */
+  .hero, .core, .card, .chip {
+    position: absolute; border-radius: 14px;
+    background: var(--c-fill, var(--gray-fill));
+    border: 1.5px solid var(--c-edge, var(--gray-edge));
+    box-shadow: 0 2px 6px -3px rgba(20,20,19,0.14);
+  }
+  .hero > *, .core > *, .card > *, .chip > * { position: relative; }
+
+  /* —— 組合根 main.py（coral hero）—— */
+  .hero { display: flex; flex-direction: column; justify-content: center; padding: 14px 22px; }
+  .hero .stereo { font-family: var(--font-mono); color: var(--coral-tone); font-size: 12px; font-weight: 600; letter-spacing: 0.6px; }
+  .hero .cname { font-family: var(--font-mono); color: var(--ink); font-size: 22px; font-weight: 700; letter-spacing: 0.3px; margin: 1px 0 8px; }
+  .hero .hrow { font-family: var(--font-mono); color: var(--ink-dim); font-size: 12.5px; font-weight: 400; line-height: 1.7; }
+  .hero .hrow code { color: var(--coral-tone); font-weight: 600; }
+  .hero .hrow .k { color: var(--ink); font-weight: 600; }
+
+  /* —— sales/ 純核心 region（green，內部 rows）—— */
+  .core { display: flex; flex-direction: column; justify-content: space-between; padding: 16px 18px 18px; gap: 7px; }
+  .core .core-head { text-align: left; margin-bottom: 3px; }
+  .core .core-head .stereo { font-family: var(--font-mono); color: var(--green-tone); font-size: 12px; font-weight: 600; letter-spacing: 0.6px; }
+  .core .core-head .cname { display: inline-block; font-family: var(--font-mono); color: var(--ink); font-size: 21px; font-weight: 700; margin: 1px 0; }
+  .core .core-head .sub { display: block; font-family: var(--font-cjk); color: var(--green-tone); font-size: 12.5px; font-weight: 600; margin-top: 2px; }
+  .core .crow {
+    border-radius: 9px; background: #e9eedf;
+    padding: 7px 12px; display: flex; flex-direction: column; gap: 1px;
+  }
+  .core .crow b { font-family: var(--font-mono); color: var(--green-tone); font-size: 13px; font-weight: 700; }
+  .core .crow span { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 11.5px; font-weight: 400; }
+  .core .badge {
+    margin-top: 2px; padding: 8px 12px; border-radius: 9px;
+    background: #f4d6c6; border: 1.5px solid transparent; overflow: visible; isolation: isolate; position: relative;
+    font-family: var(--font-cjk); color: var(--coral-tone); font-size: 12px; font-weight: 700; text-align: center; line-height: 1.5;
+  }
+  .core .badge::before {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    border: 2px solid var(--coral-edge); filter: url(#crayonEdge);
+  }
+
+  /* —— adapter 卡（worker / web / webui）—— */
+  .card { display: flex; flex-direction: column; justify-content: center; padding: 11px 16px; }
+  .card .cname { font-family: var(--font-mono); color: var(--ink); font-size: 15.5px; font-weight: 700; letter-spacing: 0.2px; display: flex; align-items: center; gap: 8px; }
+  .card .tag { font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: var(--c-tone, var(--gray-tone)); border: 1px solid var(--c-edge, var(--gray-edge)); border-radius: 5px; padding: 1px 6px; letter-spacing: 0.4px; }
+  .card .cdesc { font-family: var(--font-cjk); color: var(--ink-mute); font-size: 11.5px; font-weight: 400; line-height: 1.45; margin-top: 4px; }
+  .card .cdesc code { font-family: var(--font-mono); color: var(--c-tone, var(--gray-tone)); font-size: 11px; font-weight: 500; }
+  /* web 卡內部雙列拆分（stdlib vs Pi-only） */
+  .card .split { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
+  .card .split .line { font-family: var(--font-mono); font-size: 11px; line-height: 1.4; color: var(--ink-dim); }
+  .card .split .line .pill { font-size: 9.5px; font-weight: 700; padding: 0 5px; border-radius: 4px; margin-right: 6px; letter-spacing: 0.3px; }
+  .card .split .line .pill.std { background: var(--green-fill); color: var(--green-tone); border: 1px solid var(--green-edge); }
+  .card .split .line .pill.pi  { background: var(--orange-fill); color: var(--orange-tone); border: 1px solid var(--orange-edge); }
+
+  /* —— 外部依賴 chip（進程外，中性）—— */
+  .chip { display: flex; flex-direction: column; justify-content: center; padding: 8px 14px; border-radius: 11px; }
+  .chip .xname { font-family: var(--font-mono); color: var(--ink-dim); font-size: 12.5px; font-weight: 600; }
+  .chip .xsub { font-family: var(--font-cjk); color: var(--ink-mute); font-size: 10.5px; font-weight: 400; margin-top: 2px; }
+
+  /* 色 modifier */
+  .blue   { --c-fill: var(--blue-fill);   --c-edge: var(--blue-edge);   --c-tone: var(--blue-tone); }
+  .green  { --c-fill: var(--green-fill);  --c-edge: var(--green-edge);  --c-tone: var(--green-tone); }
+  .cyan   { --c-fill: var(--cyan-fill);   --c-edge: var(--cyan-edge);   --c-tone: var(--cyan-tone); }
+  .purple { --c-fill: var(--purple-fill); --c-edge: var(--purple-edge); --c-tone: var(--purple-tone); }
+  .orange { --c-fill: var(--orange-fill); --c-edge: var(--orange-edge); --c-tone: var(--orange-tone); }
+  .gray   { --c-fill: var(--gray-fill);   --c-edge: var(--gray-edge);   --c-tone: var(--gray-tone); }
+  .coral  { --c-fill: var(--coral-fill);  --c-edge: var(--coral-edge);  --c-tone: var(--coral-tone); }
+
+  /* —— 箭頭層（SVG overlay）—— */
+  .edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+  .hero, .core, .card, .chip, .legend, .note { z-index: 3; }
+  .title, .subtitle { z-index: 4; }
+  .edges path, .edges line { fill: none; stroke: var(--arrow); stroke-width: 3.0; stroke-linecap: round; }
+  .edges path[class] { filter: url(#crayon); stroke-opacity: 0.82; }
+
+  /* 線型 */
+  .edges .imp    { stroke: var(--ink-mute); stroke-width: 2.6; }                    /* import 實線 */
+  .edges .lazy   { stroke: var(--ink-mute); stroke-width: 2.4; stroke-dasharray: 7 5; } /* lazy import 虛線 */
+  .edges .inject { stroke: var(--arrow-inject); stroke-width: 5.0; }                /* 注入 hero 珊瑚粗 */
+
+  /* —— marker 著色 —— */
+  .edges marker#ah path { fill: none; stroke: var(--ink-mute); }
+  .edges marker#inject path { fill: var(--arrow-inject); stroke: none; }
+
+  /* 邊標籤 */
+  .edges .elabel { fill: var(--ink-mute); font-family: var(--font-mono); font-size: 11.5px; font-weight: 500; paint-order: stroke; stroke: var(--ivory); stroke-width: 4px; }
+  .edges .injlabel { fill: var(--arrow-inject-label); font-family: var(--font-mono); font-size: 13px; font-weight: 700; letter-spacing: 0.3px; paint-order: stroke; stroke: var(--ivory); stroke-width: 5px; }
+
+  /* ── 手繪蠟筆外框 ── */
+  .hero, .core, .card, .chip, .crow, .legend, .note { border-color: transparent; overflow: visible; }
+  .hero::before, .core::before, .card::before, .chip::before, .crow::before, .legend::before, .note::before, .sw::before {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    border: 2px solid var(--edge, var(--gray-edge)); filter: url(#crayonEdge);
+  }
+  .hero::before, .core::before, .card::before, .chip::before { --edge: var(--c-edge, var(--gray-edge)); }
+  .crow::before { --edge: var(--green-edge); border-width: 1.6px; }
+  .legend::before, .note::before { --edge: var(--rule); }
+  .hero, .core, .card, .chip, .crow, .legend, .note, .sw { isolation: isolate; }
+  .sw { position: relative; }
+
+  /* —— legend（左上，雙區堆疊：依賴角色 + 色彩語意）—— */
+  .legend {
+    position: absolute; border-radius: 16px; padding: 14px 18px;
+    background: var(--ivory); border: 1px solid var(--rule);
+    box-shadow: 0 1px 3px rgba(20,20,19,0.05);
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .legend h4 { font-family: var(--font-mono); color: var(--ink); font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 9px; }
+  .legend .row { display: flex; align-items: center; gap: 9px; margin: 4px 0; }
+  .legend .sw { width: 22px; height: 13px; border-radius: 5px; border: 1px solid rgba(20,20,19,0.18); }
+  .legend .lb { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 12px; font-weight: 400; line-height: 1.4; }
+  .legend .relsym { width: 34px; height: 14px; flex: 0 0 34px; }
+
+  /* —— 說明 note —— */
+  .note {
+    position: absolute; border-radius: 16px; padding: 15px 20px;
+    background: var(--ivory); border: 1px solid var(--rule);
+    box-shadow: 0 1px 3px rgba(20,20,19,0.05);
+  }
+  .note h4 { font-family: var(--font-mono); color: var(--ink); font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 11px; }
+  .note ul { list-style: none; }
+  .note li { font-family: var(--font-cjk); color: var(--ink-dim); font-size: 12px; font-weight: 400; line-height: 1.85; margin-bottom: 16px; }
+  .note li:last-child { margin-bottom: 0; }
+  .note li b { font-weight: 700; color: var(--ink); }
+  .note li code { font-family: var(--font-mono); font-weight: 500; color: var(--coral); font-size: 11px; }
+  .note li .dot { color: var(--coral); margin-right: 7px; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <div class="title"><span class="num">FIG.08</span>模組依賴地圖 · Hexagonal 注入邊界</div>
+  <div class="subtitle">sales/ 純核心零硬體 import ｜ main.py 組合根把 adapter 當 callback 注入 logic.run(**cb) ｜ 依賴只准向內指 ◀（依賴反轉）</div>
+
+  <!-- ═══ 箭頭層（SVG overlay）═══ -->
+  <svg class="edges" viewBox="0 0 1960 1200" preserveAspectRatio="none">
+    <defs>
+      <marker id="ah" markerWidth="13" markerHeight="13" refX="10" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L11,4.5 L0,9" fill="none" stroke="var(--ink-mute)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+      </marker>
+      <marker id="inject" markerWidth="16" markerHeight="16" refX="11" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L13,6 L0,12 Z"/>
+      </marker>
+
+      <!-- 手繪蠟筆濾鏡 -->
+      <filter id="crayon" filterUnits="userSpaceOnUse" x="-40" y="-40" width="2040" height="1280" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="5" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="5" xChannelSelector="R" yChannelSelector="G" result="line"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.5 0.62" numOctaves="2" seed="9" result="grain"/>
+        <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.9 -0.1" result="grainMask"/>
+        <feComposite in="line" in2="grainMask" operator="in"/>
+      </filter>
+      <filter id="crayonEdge" x="-12%" y="-15%" width="124%" height="130%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="4" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="4" result="ln"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.5 0.6" numOctaves="2" seed="8" result="gr"/>
+        <feColorMatrix in="gr" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.95 -0.05" result="grm"/>
+        <feComposite in="ln" in2="grm" operator="in"/>
+      </filter>
+      <filter id="crayonText" x="-8%" y="-18%" width="116%" height="136%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="7" result="wob"/>
+        <feDisplacementMap in="SourceGraphic" in2="wob" scale="2.6" result="ln"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.6 0.7" numOctaves="2" seed="3" result="gr"/>
+        <feColorMatrix in="gr" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.4 2.0" result="grm"/>
+        <feComposite in="ln" in2="grm" operator="in"/>
+      </filter>
+    </defs>
+
+    <!-- ════ 注入 seam（signature）：main.py ══▶ sales/ core，珊瑚粗箭頭 ════
+         main 底緣 y300（中心 x715）→ core 頂緣 y340。短垂直、最顯眼。 -->
+    <path class="inject" marker-end="url(#inject)" d="M715,300 L715,334"/>
+    <text class="injlabel" x="735" y="322" text-anchor="start">callbacks 注入（10 鍵）</text>
+
+    <!-- ════ main ⤏ lazy import adapters（虛線，首用才載）：main 右緣中點 (960,225) → 各 adapter 左緣中點 ════
+         5 條全自 main 右緣垂直中點扇出，走 x960–1020 gutter（core 右緣 x960、adapter 左緣 x1020 之間）。 -->
+    <path class="lazy" marker-end="url(#ah)" d="M960,225 C990,214 1000,204 1016,202"/>
+    <path class="lazy" marker-end="url(#ah)" d="M960,225 C992,256 1000,312 1016,330"/>
+    <path class="lazy" marker-end="url(#ah)" d="M960,225 C998,312 1010,436 1016,466"/>
+    <path class="lazy" marker-end="url(#ah)" d="M960,225 C1004,382 1012,562 1016,597"/>
+    <path class="lazy" marker-end="url(#ah)" d="M960,225 C1010,505 1014,808 1016,858"/>
+    <text class="elabel" x="1220" y="140" text-anchor="middle">main ⤏ lazy import（首用才載）</text>
+
+    <!-- ════ adapter → external（短樁，adapter 右緣 x1420 → external 左緣 x1510）════ -->
+    <!-- tts → edge-tts -->
+    <path class="imp" marker-end="url(#ah)" d="M1420,202 L1510,202"/>
+    <!-- action ⤏ Hiwonder（lazy vendor） -->
+    <path class="lazy" marker-end="url(#ah)" d="M1420,330 L1510,330"/>
+    <!-- stt → Deepgram -->
+    <path class="imp" marker-end="url(#ah)" d="M1420,466 L1510,466"/>
+    <!-- web → fastapi/uvicorn/pydantic -->
+    <path class="imp" marker-end="url(#ah)" d="M1420,858 L1510,858"/>
+
+    <!-- ════ tts·action 繼承 / input_reader 共用 → queue_worker（stdlib 基座）════
+         90px gutter（x1420–1510）內：input_reader 正上方直下短樁；
+         tts·action 走右側從容弧線、停在 gutter 內、由 qw 右緣中點附近進。 -->
+    <path class="imp" marker-end="url(#ah)" d="M1220,644 L1220,664"/>
+    <path class="imp" marker-end="url(#ah)" d="M1420,236 C1486,330 1486,630 1422,700"/>
+    <path class="imp" marker-end="url(#ah)" d="M1420,362 C1468,425 1468,645 1422,714"/>
+    <text class="elabel" x="1232" y="660" text-anchor="start">繼承 / 共用 基座</text>
+
+    <!-- ════ web.app → webui（StaticFiles 服務靜態檔）════ web 底 y946 → webui 頂 y970 -->
+    <path class="imp" marker-end="url(#ah)" d="M1220,946 L1220,966"/>
+    <text class="elabel" x="1236" y="962" text-anchor="start">StaticFiles 服務</text>
+
+    <!-- ════ phonetic ⤏ pypinyin（core 唯一外部觸點，lazy + 缺則 no-op）════
+         core 底 y940（x645）→ pypinyin 頂 y968。 -->
+    <path class="lazy" marker-end="url(#ah)" d="M645,940 L645,964"/>
+    <text class="elabel" x="661" y="958" text-anchor="start">phonetic ⤏ lazy · 缺則 no-op</text>
+  </svg>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       legend（左上，堆疊：依賴角色 + 色彩語意）
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="legend" style="left:60px; top:150px; width:360px;">
+    <div class="col">
+      <h4>依賴角色（線型）</h4>
+      <div class="row">
+        <svg class="relsym" viewBox="0 0 34 14"><line x1="2" y1="7" x2="26" y2="7" stroke="#5c5b57" stroke-width="2.4"/><path d="M25,3 L32,7 L25,11" fill="none" stroke="#5c5b57" stroke-width="1.7"/></svg>
+        <span class="lb">import（原始碼依賴）</span>
+      </div>
+      <div class="row">
+        <svg class="relsym" viewBox="0 0 34 14"><line x1="2" y1="7" x2="26" y2="7" stroke="#5c5b57" stroke-width="2.2" stroke-dasharray="5 3"/><path d="M25,3 L32,7 L25,11" fill="none" stroke="#5c5b57" stroke-width="1.7"/></svg>
+        <span class="lb">lazy import（首用才載 / Windows 紅線隔離）</span>
+      </div>
+      <div class="row">
+        <svg class="relsym" viewBox="0 0 34 14"><line x1="2" y1="7" x2="24" y2="7" stroke="#d97757" stroke-width="3.4"/><path d="M23,2.5 L33,7 L23,11.5 Z" fill="#d97757"/></svg>
+        <span class="lb">callback 注入（依賴反轉）</span>
+      </div>
+    </div>
+    <div class="col">
+      <h4>色彩語意</h4>
+      <div class="row"><span class="sw" style="background:var(--coral-fill);border-color:var(--coral-edge)"></span><span class="lb">組合根 main.py（注入點）</span></div>
+      <div class="row"><span class="sw" style="background:var(--green-fill);border-color:var(--green-edge)"></span><span class="lb">sales/ 純邏輯核心（Ports）</span></div>
+      <div class="row"><span class="sw" style="background:var(--blue-fill);border-color:var(--blue-edge)"></span><span class="lb">worker / adapter（tts·action·stt·input_reader）</span></div>
+      <div class="row"><span class="sw" style="background:var(--gray-fill);border-color:var(--gray-edge)"></span><span class="lb">stdlib 基座（queue_worker）</span></div>
+      <div class="row"><span class="sw" style="background:var(--purple-fill);border-color:var(--purple-edge)"></span><span class="lb">web transport（顯示鏡像）</span></div>
+      <div class="row"><span class="sw" style="background:var(--cyan-fill);border-color:var(--cyan-edge)"></span><span class="lb">webui 前端（獨立 process）</span></div>
+      <div class="row"><span class="sw" style="background:var(--gray-fill);border-color:var(--rule)"></span><span class="lb">外部依賴 / 進程外（chip）</span></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       note（所以呢 · 依賴三鐵則）
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="note" style="left:60px; top:536px; width:360px;">
+    <h4>所以呢 · 依賴鐵則</h4>
+    <ul>
+      <li><span class="dot">●</span><b>核心零向外依賴</b>：<code>sales/</code> 不 import 任何硬體 / vendor / web / <code>edge_tts</code> / <code>websockets</code> / <code>fastapi</code>；唯一外部 <code>pypinyin</code> 也是 lazy ＋ 注入 ＋ 缺則 no-op。</li>
+      <li><span class="dot">●</span><b>main.py 組合根唯一橋樑</b>：top-level 只 import <code>sales.logic</code>（核心）；worker / web 全在 method 內 lazy import；<code>callbacks()</code> 10 鍵注入 <code>logic.run</code>。</li>
+      <li><span class="dot">●</span><b>依賴反轉</b>：核心透過注入的 callback 函式指標 runtime 呼叫外部（speak / do_action / read_customer_input / display），原始碼層級對 adapter 零依賴 → 換 adapter 不動核心。</li>
+      <li><span class="dot">●</span><b>web / webui 與 sales 解耦</b>：sales 不知 web 存在，只多呼叫注入的 <code>display</code> 回呼；web/ 的 <code>bus · display · commands</code> 亦純 stdlib → 核心與鏡像皆可單獨 pytest。</li>
+    </ul>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       組合根 main.py（coral hero，頂中）
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="hero coral" style="left:470px; top:150px; width:490px; height:150px;">
+    <span class="stereo">«composition root · 組合根»</span>
+    <span class="cname">main.py</span>
+    <div class="hrow"><span class="k">__main__.py → main()</span> ｜ <span class="k">_run_wiring</span>（<code>--hawk</code> / <code>--web</code> / <code>SALES_KEYBOARD</code> 分流 + 防呆）</div>
+    <div class="hrow"><span class="k">TerminalSim.callbacks()</span> → <code>10 鍵 dict</code> 注入 <code>logic.run(**cb)</code></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       sales/ 純邏輯核心（green region，內部 rows）
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="core green" style="left:470px; top:340px; width:490px; height:600px;">
+    <div class="core-head">
+      <span class="stereo">«pure core · Ports»</span><br>
+      <span class="cname">sales/ 純邏輯核心</span>
+      <span class="sub">依賴只准向內 ◀ · 零硬體 import · Windows 可 pytest</span>
+    </div>
+    <div class="crow"><b>logic</b><span>對話編排入口 logic.run(**callbacks)</span></div>
+    <div class="crow"><b>states/</b><span>SalesMachine · State(ABC) · Transition · L1–L5（State pattern，見圖⑨）</span></div>
+    <div class="crow"><b>nlu · product_parser · phonetic</b><span>NLU 意圖 / 商品·數量解析（純函式）</span></div>
+    <div class="crow"><b>cart · dialog_io</b><span>Cart = dict[str,int] 純資料 · DialogIO（IO callback 束）</span></div>
+    <div class="crow"><b>constants/</b><span>葉層資料：PRODUCTS · timing · 各層文案</span></div>
+    <div class="badge">import 僅 stdlib ＋ 自身模組 ｜ 零 vendor · 硬體 · web · edge_tts · websockets · fastapi</div>
+  </div>
+
+  <!-- pypinyin chip（core 唯一外部觸點） -->
+  <div class="chip gray" style="left:510px; top:968px; width:270px; height:58px;">
+    <span class="xname">pypinyin</span>
+    <span class="xsub">phonetic 近音糾錯（lazy 注入 seam · 缺則 graceful no-op）</span>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       ADAPTERS（右欄，直立堆）
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="card blue" style="left:1020px; top:150px; width:400px; height:104px;">
+    <div class="cname">tts <span class="tag">worker · lazy</span></div>
+    <div class="cdesc">語音合成；繼承 <code>QueueWorker</code>。頂層 <code>import edge_tts</code> + <code>subprocess</code> 跑 mpg123 播放</div>
+  </div>
+  <div class="card blue" style="left:1020px; top:278px; width:400px; height:104px;">
+    <div class="cname">action <span class="tag">worker · lazy</span></div>
+    <div class="cdesc">動作組；繼承 <code>QueueWorker</code>。<code>vendor</code> SDK <b>lazy import</b>（on_thread_start）</div>
+  </div>
+  <div class="card blue" style="left:1020px; top:406px; width:400px; height:120px;">
+    <div class="cname">stt <span class="tag">adapter · lazy</span></div>
+    <div class="cdesc">語音辨識；持久 WS。<code>websockets</code> lazy import（Windows 紅線）+ <code>subprocess</code> 跑 arecord 收音（-c6 抽 ch0）</div>
+  </div>
+  <div class="card blue" style="left:1020px; top:550px; width:400px; height:94px;">
+    <div class="cname">input_reader <span class="tag">producer · lazy</span></div>
+    <div class="cdesc">非阻塞鍵盤輸入；<code>inject</code> 供 STT / web 共用單 queue。純 stdlib，無外部依賴</div>
+  </div>
+  <div class="card gray" style="left:1020px; top:668px; width:400px; height:78px;">
+    <div class="cname">queue_worker <span class="tag">stdlib 基座</span></div>
+    <div class="cdesc"><code>QueueWorker(ABC)</code> + <code>drain_queue</code>：tts·action 繼承、input_reader 共用</div>
+  </div>
+  <div class="card purple" style="left:1020px; top:770px; width:400px; height:176px;">
+    <div class="cname">web/ <span class="tag">transport</span></div>
+    <div class="cdesc">顯示鏡像（與 sales 解耦；sales 只多呼叫注入的 display 回呼）。讀 <code>sales.constants</code> ＝唯一向內依賴</div>
+    <div class="split">
+      <div class="line"><span class="pill std">stdlib</span>bus · display · commands（Windows 可 pytest）</div>
+      <div class="line"><span class="pill pi">Pi-only</span>models(pydantic) · app(fastapi) · server(uvicorn)</div>
+    </div>
+  </div>
+  <div class="card cyan" style="left:1020px; top:970px; width:400px; height:108px;">
+    <div class="cname">webui/ <span class="tag">前端 · 獨立 process</span></div>
+    <div class="cdesc">buildless 靜態（index.html · app.js · tokens）；純 <code>http.server</code>，由 web.app StaticFiles 出檔</div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       EXTERNAL（最右，緊貼 adapter）
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="chip gray" style="left:1510px; top:173px; width:340px; height:58px;">
+    <span class="xname">edge-tts · mpg123 (ALSA)</span>
+    <span class="xsub">TTS 雲端合成 + 本地 ALSA 播放（子程序）</span>
+  </div>
+  <div class="chip gray" style="left:1510px; top:301px; width:340px; height:58px;">
+    <span class="xname">Hiwonder TonyPi SDK</span>
+    <span class="xsub">廠商動作組（vendor · lazy；Windows 不可 import）</span>
+  </div>
+  <div class="chip gray" style="left:1510px; top:432px; width:340px; height:68px;">
+    <span class="xname">Deepgram Nova-3 WSS · arecord (ALSA)</span>
+    <span class="xsub">雲端串流辨識 wss://api.deepgram.com + ALSA 收音（子程序）</span>
+  </div>
+  <!-- stdlib-only adapters 釐清（無進程外依賴，故不畫外部 chip）：正規 chip（蠟筆框 + hachure 填色） -->
+  <div class="chip gray" style="left:1510px; top:572px; width:340px; height:128px;">
+    <span class="xsub" style="font-size:11.5px; line-height:1.7;"><b style="color:var(--ink-mute)">※ 說明（非節點）</b>：input_reader · queue_worker · webui/ 三者皆 <b style="color:var(--green-tone)">純 stdlib</b>，無進程外依賴 → 不畫外部 chip。</span>
+  </div>
+  <div class="chip gray" style="left:1510px; top:826px; width:340px; height:64px;">
+    <span class="xname">fastapi · uvicorn · pydantic</span>
+    <span class="xsub">web Pi-only 依賴（Windows 裝不了，只能 ast.parse）</span>
+  </div>
+
+</div>
+
+<!-- Rough.js：把每張卡的填色重畫成 hachure 手繪上色（fill 在蠟筆框後），框維持 ::before 蠟筆框 -->
+<script src="rough.js"></script>
+<script>
+window.addEventListener('load', () => {
+  if (!window.rough) return;
+  const NS = 'http://www.w3.org/2000/svg';
+  const rr = (x, y, w, h, r) =>
+    `M${x+r},${y}L${x+w-r},${y}Q${x+w},${y} ${x+w},${y+r}L${x+w},${y+h-r}Q${x+w},${y+h} ${x+w-r},${y+h}` +
+    `L${x+r},${y+h}Q${x},${y+h} ${x},${y+h-r}L${x},${y+r}Q${x},${y} ${x+r},${y}Z`;
+  document.querySelectorAll('.hero, .core, .card, .chip, .crow, .badge, .legend, .note, .sw').forEach((card, i) => {
+    const w = card.offsetWidth, h = card.offsetHeight;
+    if (!w || !h) return;
+    const cs = getComputedStyle(card);
+    const isSw = card.classList.contains('sw');
+    let fill = cs.backgroundColor, neutral = false, stroke = 'none', inset = 3.5;
+    if (isSw) {
+      card.style.setProperty('--edge', cs.borderTopColor);
+      card.style.borderColor = 'transparent';
+      inset = 1.6;
+    } else {
+      const m = fill.match(/[\d.]+/g);
+      if (m && m.length >= 3) {
+        const r = +m[0], g = +m[1], b = +m[2];
+        if (r > 235 && Math.abs(r - g) < 4 && Math.abs(g - b) < 8) {
+          fill = `rgb(${Math.round(r * 0.95)},${Math.round(g * 0.95)},${Math.round(b * 0.95)})`;
+          neutral = true;
+        }
+      }
+    }
+    const radius = Math.max(0, Math.min(parseFloat(cs.borderRadius) || 14, Math.min(w, h) / 2 - inset - 0.5));
+    card.style.background = 'transparent';
+    card.classList.add('rough-done');
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('width', w);
+    svg.setAttribute('height', h);
+    svg.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:-1;';
+    const rc = rough.svg(svg);
+    const d = rr(inset, inset, w - inset * 2, h - inset * 2, radius);
+    const node = rc.path(d, {
+      fill, fillStyle: 'hachure', hachureGap: isSw ? 2.2 : 5.5, fillWeight: isSw ? 1.0 : 1.4,
+      hachureAngle: -41 + (i % 3) * 8, roughness: 1.4, bowing: isSw ? 0.7 : 1.4,
+      stroke, strokeWidth: 1.4
+    });
+    node.setAttribute('opacity', card.classList.contains('crow') ? '0.42' : (neutral ? '0.45' : '0.62'));
+    svg.appendChild(node);
+    card.insertBefore(svg, card.firstChild);
+  });
+});
+</script>
+</body>
+</html>
