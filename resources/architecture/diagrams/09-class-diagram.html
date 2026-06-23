@@ -309,20 +309,20 @@
     <!-- 各 *State ..calls(晚綁定)..▷ states.run_*：4 具體框底 → states.run_* 框（gray，底帶最右）。
          避免 4 條太密：用 2 條代表線（最左 L1State / 最右 L5State）匯入 run_* 頂，文字承載「各 *State」。
          L1State 底 x618 y642 / L5State 底 x1608 y642 → run_* 框頂 x1655 y770。 -->
-    <path class="dep" marker-end="url(#ah)" d="M1608,642 C1620,690 1640,730 1650,768"/>
-    <path class="dep" marker-end="url(#ah)" d="M618,642 C618,700 1500,716 1630,766"/>
-    <text class="elabel" x="1120" y="704" text-anchor="middle">«calls»（各 *State 晚綁定 states.run_*）</text>
+    <path class="dep" marker-end="url(#ah)" d="M1608,642 C1614,668 1636,704 1650,762"/>
+    <path class="dep" marker-end="url(#ah)" d="M618,642 C772,658 1486,662 1636,758"/>
+    <text class="elabel" x="1015" y="680" text-anchor="middle">«calls»（各 *State 晚綁定 states.run_*）</text>
 
-    <!-- states.run_* ..uses..▷ nlu / DialogIO / Cart（協作層內部牽線，底帶橫向）。各只牽 1 條代表線。 -->
-    <!-- run_*(left 1480) → nlu(right 1440)：相鄰邊短線 -->
+    <!-- states.run_* ..uses..▷ nlu / DialogIO / Cart：三條**皆自 run_* 發出**（nlu/DialogIO/Cart 互不相依、
+         皆被 states.run_* 使用——不可串成 run_*→nlu→DialogIO→Cart 假鏈，那會誤示 nlu 依賴 DialogIO、
+         DialogIO 依賴 Cart，碼裡不存在）。run_*→nlu 相鄰短線；run_*→DialogIO / run_*→Cart 走 collaborator
+         列上方 gutter（y<770）左行、箭頭下接框頂，全程不穿框（nlu/DialogIO 頂 y770，弧線在其上）。 -->
     <path class="dep" marker-end="url(#ah)" d="M1478,904 L1442,904"/>
-    <text class="elabel" x="1460" y="890" text-anchor="middle">«uses»</text>
-    <!-- nlu(left 1010) → DialogIO(right 970)：相鄰邊短線 -->
-    <path class="dep" marker-end="url(#ah)" d="M1008,904 L972,904"/>
-    <text class="elabel" x="990" y="890" text-anchor="middle">«uses»</text>
-    <!-- DialogIO(left 530) → Cart(right 490)：相鄰邊短線（io 束 → 資料操作） -->
-    <path class="dep" marker-end="url(#ah)" d="M528,904 L492,904"/>
-    <text class="elabel" x="510" y="890" text-anchor="middle">«uses»</text>
+    <text class="elabel" x="1460" y="884" text-anchor="middle">«uses»</text>
+    <path class="dep" marker-end="url(#ah)" d="M1534,770 C1410,700 556,700 282,772"/>
+    <text class="elabel" x="800" y="704" text-anchor="middle">«uses»</text>
+    <path class="dep" marker-end="url(#ah)" d="M1492,770 C1386,726 940,726 762,772"/>
+    <text class="elabel" x="1170" y="730" text-anchor="middle">«uses»</text>
 
     <!-- SalesMachine ..uses..▷ Cart（is_empty / calc_total）：SalesMachine 底 x250 y702 → Cart 頂 x250 y770。
          短垂直線；標籤水平擺線右側、落 68px 窄隙內（長字會溢，故簡化為 «uses»）。 -->
@@ -467,7 +467,7 @@
     <div class="sep"></div>
     <div class="comp">
       <div class="row">entry_invariant = <span class="ty">"nonempty"</span></div>
-      <div class="row">entry_ctx = <span class="ty">"進 L5"</span></div>
+      <div class="row" style="font-size:10.5px;">entry_ctx = <span class="ty">"進 L5（從 L4-A 帶 cart）"</span></div>
     </div>
     <div class="sep"></div>
     <div class="comp">
@@ -488,7 +488,7 @@
     <div class="sep"></div>
     <div class="comp">
       <div class="row">Cart: <span class="ty">TypeAlias = dict[str, int]</span></div>
-      <div class="row">QtyVerdict: <span class="ty">Literal[...]</span></div>
+      <div class="row">QtyVerdict: <span class="ty">TypeAlias = Literal[...]</span></div>
     </div>
     <div class="sep"></div>
     <div class="comp">
