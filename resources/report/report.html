@@ -18,13 +18,13 @@ html, body { margin: 0; padding: 0; background: #d9d9d9; }
 /* —— §5 元件庫（只列本報告實際使用的類；整頁分隔 hero / 塗鴉未採用故略） —— */
 /* 5.1 封面 */
 .cover { position:absolute; inset:var(--margin); display:flex; flex-direction:column; }
-.cover__title { margin:0; max-width:64%; font-family:var(--font-display); font-weight:300;
+.cover__title { margin:0; max-width:64%; font-family:var(--font-display); font-weight:450;
   font-size:var(--fs-cover); line-height:1.05; letter-spacing:-0.01em; color:var(--ink); }
 .cover__title span { font-size:0.6em; }
 .cover__meta { margin-top:.3in; font-family:var(--font-sans); font-size:11pt;
   line-height:1.6; color:var(--ink); }
 .brand { margin-top:auto; display:flex; align-items:center; gap:.16in; }
-.brand__name { font-family:var(--font-display); font-size:22pt; color:var(--ink); }
+.brand__name { font-family:var(--font-serif); font-size:22pt; color:var(--ink); }
 
 /* 5.2/5.4 膠囊標籤（內聯章頭） */
 .pill { display:inline-block; border:1.5px solid var(--ink); border-radius:999px;
@@ -33,7 +33,7 @@ html, body { margin: 0; padding: 0; background: #d9d9d9; }
 .pill--inline { margin-bottom:.12in; }
 
 /* 5.3 目錄 */
-.h-page { margin:0 0 .4in; font-family:var(--font-display); font-weight:400;
+.h-page { margin:0 0 .4in; font-family:var(--font-display); font-weight:450;
   font-size:var(--fs-h1); color:var(--ink); }
 .toc { max-width:6.4in; }
 .toc__row { display:flex; align-items:baseline; justify-content:space-between;
@@ -91,12 +91,44 @@ code { font-family:var(--font-mono); font-size:.92em; }
 </head>
 <body>
 
-<!-- ===== 封面（煙霧測試；課程/學號資訊於 Task 2 補） ===== -->
+<!-- ===== 封面 ===== -->
 <section class="page page--hero" style="--bg:var(--coral)">
   <div class="cover">
     <h1 class="cover__title">互動式銷售輔助機器人<br><span>期末專題報告</span></h1>
+    <div class="cover__meta">
+      人形機器人 (Humanoid Robots)・課程代碼 2708・吳世弘 教授<br>
+      資工4A　學號 11013018　林秉宏<br>
+      2026 年 6 月 25 日
+    </div>
     <div class="brand"><span class="brand__name">Project_01</span></div>
   </div>
+</section>
+
+<!-- ===== 目錄 ===== -->
+<section class="page page--content">
+  <h1 class="h-page">目錄</h1>
+  <nav class="toc">
+    <a class="toc__row"><span class="toc__title">1　緒論：動機與目標</span><span class="toc__page">—</span></a>
+    <a class="toc__row"><span class="toc__title">2　系統概觀：一杯飲料的旅程</span><span class="toc__page">—</span></a>
+    <a class="toc__row"><span class="toc__title">3　系統架構與部署</span><span class="toc__page">—</span></a>
+    <a class="toc__row"><span class="toc__title">4　執行期與並行模型</span><span class="toc__page">—</span></a>
+    <a class="toc__row"><span class="toc__title">5　核心對話引擎：L0–L5 狀態機</span><span class="toc__page">—</span></a>
+    <a class="toc__row"><span class="toc__title">6　語音管線：聽與說</span><span class="toc__page">—</span></a>
+    <a class="toc__row"><span class="toc__title">7　前端鏡像與雙模態互動</span><span class="toc__page">—</span></a>
+    <a class="toc__row"><span class="toc__title">8　成果與驗證</span><span class="toc__page">—</span></a>
+    <a class="toc__row"><span class="toc__title">9　結論與展望</span><span class="toc__page">—</span></a>
+    <a class="toc__row"><span class="toc__title">參考資料</span><span class="toc__page">—</span></a>
+  </nav>
+  <span class="folio">2</span>
+</section>
+
+<!-- ===== 摘要 ===== -->
+<section class="page page--content">
+  <h1 class="h-page">摘要</h1>
+  <div class="prose prose--single">
+    <p>本專題在 Raspberry Pi 4 上實作一台互動式銷售輔助機器人：以 Hiwonder TonyPi 人形機器人站在攤位前，透過規則匹配（非大型語言模型）與顧客完成冰紅茶、刮刮樂兩項商品的點餐與收款模擬。系統核心是一個多層對話狀態機（L1 叫賣 → L2／L3 點餐 → L4 結帳掃碼 → L5 致謝），搭配語音合成（TTS）、語音辨識（STT，Deepgram Nova-3 串流）、機器人動作，以及一個即時鏡像到瀏覽器的玻璃風點餐畫面，支援語音與觸控雙模態操作。架構上業務邏輯嚴格不碰硬體、全靠回呼注入，使整套對話邏輯可在一般電腦上以 711 項 pytest 完整回歸；硬體與輸入輸出僅在入口層與四個背景 worker 接合。本報告依序說明系統的動機、整體架構、核心對話引擎、語音管線、前端雙模態互動，以及實機驗收成果。</p>
+  </div>
+  <span class="folio">3</span>
 </section>
 
 <script>
