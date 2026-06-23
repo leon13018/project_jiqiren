@@ -15,6 +15,13 @@ html, body { margin: 0; padding: 0; background: #d9d9d9; }
 .page--content { padding: var(--margin); }
 .page--hero { background: var(--bg); color: var(--ink); }
 
+/* 章節分隔 hero（整頁沉浸式）：滿版章節色 + 右上大塗鴉 + 左下膠囊+大章名 */
+.page--divider { background: var(--cc); padding: 0; color: var(--ink); }
+.divider__doodle { position: absolute; top: 1.08in; right: .8in; width: 5.6in; height: 4.2in; }
+.divider__foot { position: absolute; left: var(--margin); bottom: 0.8in; }
+.divider__title { margin: .70in 0 0; max-width: 8.4in; font-family: var(--font-display);
+  font-weight: 400; font-size: var(--fs-chapter); line-height: 1.04; letter-spacing: -0.01em; color: var(--ink); }
+
 /* 系統圖全屏 hero 頁：頁尺寸 = 圖長寬比、無頁邊、圖滿版（使用者定：hero 視覺張力）。
    每張圖一個具名 @page（size = 圖 aspect）；圖內已含 FIG.NN 標題故不另加圖說。 */
 .page--bleed { padding: 0; }
@@ -117,13 +124,6 @@ code { font-family:var(--font-mono); font-size:.92em; }
   color:var(--ink-soft); font-family:var(--font-sans); font-size:var(--fs-label);
   min-height:2.2in; }
 
-/* 章頭 band：章節色卡（複刻 Anthropic 章頁「米白幾何形狀疊彩色底」）——色底 + 左下標題 + 右上塗鴉 */
-.chap-band { position:relative; background:var(--cc); border-radius:14px;
-  height:1.95in; margin-bottom:.24in; overflow:hidden; }
-.chap-band__title { position:absolute; left:.42in; top:50%; transform:translateY(-50%); }
-.chap-band__h { margin:.13in 0 0; font-family:var(--font-display); font-weight:400;
-  font-size:30pt; line-height:1.05; letter-spacing:-0.01em; color:var(--ink); }
-.chap-doodle { position:absolute; top:.26in; right:.46in; width:2.3in; height:1.45in; }
 </style>
 </head>
 <body>
@@ -135,6 +135,14 @@ code { font-family:var(--font-mono); font-size:.92em; }
     <feDisplacementMap in="SourceGraphic" in2="wob" scale="5.5" xChannelSelector="R" yChannelSelector="G" result="line"/>
     <feTurbulence type="fractalNoise" baseFrequency="0.5 0.62" numOctaves="2" seed="9" result="grain"/>
     <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.88 -0.08" result="grainMask"/>
+    <feComposite in="line" in2="grainMask" operator="in"/>
+  </filter>
+  <!-- 大塗鴉（章節分隔 hero）：較大 userSpace 區域、較低頻=大尺度手繪 -->
+  <filter id="crayonBig" filterUnits="userSpaceOnUse" x="-30" y="-30" width="400" height="320" color-interpolation-filters="sRGB">
+    <feTurbulence type="fractalNoise" baseFrequency="0.013" numOctaves="2" seed="7" result="wob"/>
+    <feDisplacementMap in="SourceGraphic" in2="wob" scale="5" xChannelSelector="R" yChannelSelector="G" result="line"/>
+    <feTurbulence type="fractalNoise" baseFrequency="0.4 0.5" numOctaves="2" seed="9" result="grain"/>
+    <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.9 -0.08" result="grainMask"/>
     <feComposite in="line" in2="grainMask" operator="in"/>
   </filter>
 </defs></svg>
@@ -170,15 +178,15 @@ code { font-family:var(--font-mono); font-size:.92em; }
   <h1 class="h-page">目錄</h1>
   <nav class="toc">
     <a class="toc__row"><span class="toc__title">1　緒論：動機與目標</span><span class="toc__page">4</span></a>
-    <a class="toc__row"><span class="toc__title">2　系統概觀：一杯飲料的旅程</span><span class="toc__page">5</span></a>
-    <a class="toc__row"><span class="toc__title">3　系統架構與部署</span><span class="toc__page">7</span></a>
-    <a class="toc__row"><span class="toc__title">4　執行期與並行模型</span><span class="toc__page">10</span></a>
-    <a class="toc__row"><span class="toc__title">5　核心對話引擎：L0–L5 狀態機</span><span class="toc__page">12</span></a>
-    <a class="toc__row"><span class="toc__title">6　語音管線：聽與說</span><span class="toc__page">16</span></a>
-    <a class="toc__row"><span class="toc__title">7　前端鏡像與雙模態互動</span><span class="toc__page">19</span></a>
-    <a class="toc__row"><span class="toc__title">8　成果與驗證</span><span class="toc__page">22</span></a>
-    <a class="toc__row"><span class="toc__title">9　結論與展望</span><span class="toc__page">24</span></a>
-    <a class="toc__row"><span class="toc__title">參考資料</span><span class="toc__page">25</span></a>
+    <a class="toc__row"><span class="toc__title">2　系統概觀：一杯飲料的旅程</span><span class="toc__page">6</span></a>
+    <a class="toc__row"><span class="toc__title">3　系統架構與部署</span><span class="toc__page">9</span></a>
+    <a class="toc__row"><span class="toc__title">4　執行期與並行模型</span><span class="toc__page">13</span></a>
+    <a class="toc__row"><span class="toc__title">5　核心對話引擎：L0–L5 狀態機</span><span class="toc__page">16</span></a>
+    <a class="toc__row"><span class="toc__title">6　語音管線：聽與說</span><span class="toc__page">21</span></a>
+    <a class="toc__row"><span class="toc__title">7　前端鏡像與雙模態互動</span><span class="toc__page">25</span></a>
+    <a class="toc__row"><span class="toc__title">8　成果與驗證</span><span class="toc__page">29</span></a>
+    <a class="toc__row"><span class="toc__title">9　結論與展望</span><span class="toc__page">32</span></a>
+    <a class="toc__row"><span class="toc__title">參考資料</span><span class="toc__page">34</span></a>
   </nav>
   <span class="folio">2</span>
 </section>
@@ -192,25 +200,29 @@ code { font-family:var(--font-mono); font-size:.92em; }
   <span class="folio">3</span>
 </section>
 
-<!-- ===== 第 1 章 · 緒論 ===== -->
-<section class="page page--content">
-  <div class="chap-band" style="--cc:var(--ch1)">
-    <div class="chap-band__title">
-      <span class="pill">Chapter 1</span>
-      <h1 class="chap-band__h">緒論：動機與目標</h1>
-    </div>
-    <!-- 原創塗鴉：本專題銷售機器人，蠟筆童趣手繪風（原創圖案，非仿 Anthropic 美術圖形） -->
-    <svg class="chap-doodle" viewBox="0 0 300 190" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-      <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="86" y="54" width="128" height="96" rx="26" fill="var(--ivory)"/>
-        <line x1="150" y1="54" x2="150" y2="28"/>
-        <circle cx="150" cy="22" r="8" fill="var(--ink)" stroke="none"/>
-        <circle cx="123" cy="96" r="10" fill="var(--ink)" stroke="none"/>
-        <circle cx="177" cy="96" r="10" fill="var(--ink)" stroke="none"/>
-        <path d="M120,122 Q150,141 180,122"/>
-      </g>
-    </svg>
+<!-- ===== 第 1 章 · 緒論 — 分隔 hero ===== -->
+<section class="page page--divider" style="--cc:var(--ch1)">
+  <!-- 原創大塗鴉：靶 + 朝靶心的箭，意象「動機與目標」；抽象、原創非仿 Anthropic 美術 -->
+  <svg class="divider__doodle" viewBox="0 0 320 240" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <g filter="url(#crayonBig)" fill="none" stroke="var(--ink)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="200" cy="116" r="88" fill="var(--ivory)" stroke="none"/>
+      <circle cx="200" cy="116" r="52"/>
+      <circle cx="200" cy="116" r="16" fill="var(--ink)" stroke="none"/>
+      <path d="M44,208 Q120,178 182,130"/>
+      <path d="M158,124 L184,130 L178,153"/>
+    </g>
+  </svg>
+  <div class="divider__foot">
+    <span class="pill">Chapter 1</span>
+    <h1 class="divider__title">緒論：動機與目標</h1>
   </div>
+  <span class="folio">4</span>
+</section>
+
+<!-- ===== 第 1 章 · 緒論 — 內文 ===== -->
+<section class="page page--content">
+  <span class="pill pill--inline">Chapter 1</span>
+  <h1 class="h-page">緒論：動機與目標</h1>
   <div class="prose">
     <h2>研究動機</h2>
     <p>近年人形機器人逐漸走入零售與服務場景。本專題設想一個擺攤銷售情境：由人形機器人 Hiwonder TonyPi 站在攤位前主動向往來顧客叫賣，並引導顧客完成點餐與結帳。</p>
@@ -223,25 +235,30 @@ code { font-family:var(--font-mono); font-size:.92em; }
     <h2>成果速覽</h2>
     <p>系統已完成全部 L1–L5 對話層與語音、前端雙模態，並通過 711 項自動化測試與多輪 Raspberry Pi 實機驗收，達到可實地展示（demo-ready）的狀態。後續章節將依序說明整體架構、執行期並行模型、核心對話引擎、語音管線與前端鏡像。</p>
   </div>
-  <span class="folio">4</span>
+  <span class="folio">5</span>
 </section>
 
 <!-- ===== 第 2 章 · 系統概觀（頁 1：旅程敘事） ===== -->
-<section class="page page--content">
-  <div class="chap-band" style="--cc:var(--ch2)">
-    <div class="chap-band__title">
-      <span class="pill">Chapter 2</span>
-      <h1 class="chap-band__h">系統概觀：一杯飲料的旅程</h1>
-    </div>
-    <!-- 原創塗鴉：飲料杯（扣本章「一杯飲料」），蠟筆童趣；原創圖案非仿 Anthropic -->
-    <svg class="chap-doodle" viewBox="0 0 300 190" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-      <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M110,60 L190,60 L178,166 L122,166 Z" fill="var(--ivory)"/>
-        <line x1="110" y1="80" x2="190" y2="80"/>
-        <line x1="170" y1="60" x2="200" y2="30"/>
-      </g>
-    </svg>
+<section class="page page--divider" style="--cc:var(--ch2)">
+  <!-- 原創大塗鴉：旅程路徑 + 飲料杯終點（意象「一杯飲料的旅程」）；抽象、原創非仿 Anthropic -->
+  <svg class="divider__doodle" viewBox="0 0 320 240" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <g filter="url(#crayonBig)" fill="none" stroke="var(--ink)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="52" cy="188" r="15" fill="var(--ivory)"/>
+      <path d="M52,188 C112,120 152,208 198,150 S252,100 286,132"/>
+      <path d="M250,86 L300,86 L292,152 L262,152 Z" fill="var(--ivory)"/>
+      <line x1="282" y1="86" x2="298" y2="60"/>
+    </g>
+  </svg>
+  <div class="divider__foot">
+    <span class="pill">Chapter 2</span>
+    <h1 class="divider__title">系統概觀：一杯飲料的旅程</h1>
   </div>
+  <span class="folio">6</span>
+</section>
+
+<section class="page page--content">
+  <span class="pill pill--inline">Chapter 2</span>
+  <h1 class="h-page">系統概觀：一杯飲料的旅程</h1>
   <div class="prose">
     <p>在深入各子系統之前，本章先以一次完整的互動為例，描繪顧客從走近攤位到取得商品的整段旅程，建立全局印象。以下以「一位顧客點一瓶冰紅茶並完成結帳」為例。</p>
     <h3>① 喚醒</h3>
@@ -257,7 +274,7 @@ code { font-family:var(--font-mono); font-size:.92em; }
     <p>下一頁以<strong>時序圖</strong>呈現同一段旅程的內部訊息流動，逐一展開上述各步驟背後的元件互動。</p>
     <p class="aside--bar">關鍵原則：畫面切換一律由機器人端送出的「狀態（phase）」驅動——觸控只「請求」、不本地改畫面（同一請求也可能來自語音或自動結帳），集中由狀態驅動可避免前後端不一致。</p>
   </div>
-  <span class="folio">5</span>
+  <span class="folio">7</span>
 </section>
 
 <!-- ===== 第 2 章 · 系統概觀（頁 2：端到端時序圖 ④，全屏 hero 頁） ===== -->
@@ -266,23 +283,25 @@ code { font-family:var(--font-mono); font-size:.92em; }
 </section>
 
 <!-- ===== 第 3 章 · 系統架構與部署（頁 1：敘事） ===== -->
-<section class="page page--content">
-  <div class="chap-band" style="--cc:var(--ch3)">
-    <div class="chap-band__title">
-      <span class="pill">Chapter 3</span>
-      <h1 class="chap-band__h">系統架構與部署</h1>
-    </div>
-    <!-- 原創塗鴉：分層模組盒子 + 接腳（架構/部署），蠟筆童趣；原創非仿 Anthropic -->
-    <svg class="chap-doodle" viewBox="0 0 300 190" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-      <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="96" y="36" width="108" height="48" rx="13" fill="var(--ivory)"/>
-        <rect x="96" y="98" width="108" height="48" rx="13" fill="var(--ivory)"/>
-        <line x1="150" y1="84" x2="150" y2="98"/>
-        <line x1="132" y1="146" x2="132" y2="168"/>
-        <line x1="168" y1="146" x2="168" y2="168"/>
-      </g>
-    </svg>
+<section class="page page--divider" style="--cc:var(--ch3)">
+  <!-- 原創大塗鴉：分層堆疊方塊（意象「架構/分層」）；抽象、原創非仿 Anthropic -->
+  <svg class="divider__doodle" viewBox="0 0 320 240" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <g filter="url(#crayonBig)" fill="none" stroke="var(--ink)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="120" y="50" width="118" height="46" rx="12" fill="var(--ivory)"/>
+      <rect x="98" y="106" width="162" height="46" rx="12" fill="var(--ivory)"/>
+      <rect x="76" y="162" width="206" height="46" rx="12" fill="var(--ivory)"/>
+    </g>
+  </svg>
+  <div class="divider__foot">
+    <span class="pill">Chapter 3</span>
+    <h1 class="divider__title">系統架構與部署</h1>
   </div>
+  <span class="folio">9</span>
+</section>
+
+<section class="page page--content">
+  <span class="pill pill--inline">Chapter 3</span>
+  <h1 class="h-page">系統架構與部署</h1>
   <div class="prose">
     <h2>整體形狀</h2>
     <p>整個系統是<strong>單一程序</strong>：一條主線程跑純單線程的對話狀態機，所有會阻塞或需並行的工作（語音合成、語音辨識、機器人動作、網頁推送）都交給背景常駐執行緒，彼此以佇列與事件匯流排解耦。</p>
@@ -294,7 +313,7 @@ code { font-family:var(--font-mono); font-size:.92em; }
     <p>程式碼分為六層：入口 <code>main.py</code>、廠商 <code>vendor/</code>、核心 <code>sales/</code> 對話邏輯、<code>web/</code> 顯示鏡像傳輸層、<code>webui/</code> 前端，以及四個背景 worker。各層職責單一、依賴方向清楚（見圖 8 模組依賴）。</p>
     <p class="aside--bar">設計取捨：為何業務邏輯完全不碰硬體？因為這讓整套對話狀態機能在一般電腦上以 711 項 pytest 完整驗證，而非只能在實機手動試——把「難測的硬體」隔到邊界，核心邏輯就變得可測、可重現。</p>
   </div>
-  <span class="folio">7</span>
+  <span class="folio">10</span>
 </section>
 
 <!-- ===== 第 3 章 · 頁 2：部署拓樸 ⑤（全屏 hero） ===== -->
@@ -308,24 +327,28 @@ code { font-family:var(--font-mono); font-size:.92em; }
 </section>
 
 <!-- ===== 第 4 章 · 執行期與並行模型（頁 1：敘事 + 程式碼） ===== -->
-<section class="page page--content">
-  <div class="chap-band" style="--cc:var(--ch4)">
-    <div class="chap-band__title">
-      <span class="pill">Chapter 4</span>
-      <h1 class="chap-band__h">執行期與並行模型</h1>
-    </div>
-    <!-- 原創塗鴉：多軌平行線（並行執行緒），蠟筆童趣；原創非仿 Anthropic -->
-    <svg class="chap-doodle" viewBox="0 0 300 190" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-      <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="74" y1="58" x2="226" y2="58"/>
-        <line x1="74" y1="98" x2="226" y2="98"/>
-        <line x1="74" y1="138" x2="226" y2="138"/>
-        <circle cx="120" cy="58" r="10" fill="var(--ink)" stroke="none"/>
-        <circle cx="178" cy="98" r="10" fill="var(--ink)" stroke="none"/>
-        <circle cx="142" cy="138" r="10" fill="var(--ink)" stroke="none"/>
-      </g>
-    </svg>
+<section class="page page--divider" style="--cc:var(--ch4)">
+  <!-- 原創大塗鴉：多軌平行線 + 移動點（意象「並行執行」）；抽象、原創非仿 Anthropic -->
+  <svg class="divider__doodle" viewBox="0 0 320 240" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <g filter="url(#crayonBig)" fill="none" stroke="var(--ink)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="56" y1="76" x2="288" y2="76"/>
+      <line x1="56" y1="128" x2="288" y2="128"/>
+      <line x1="56" y1="180" x2="288" y2="180"/>
+      <circle cx="142" cy="76" r="15" fill="var(--ivory)"/>
+      <circle cx="214" cy="128" r="15" fill="var(--ivory)"/>
+      <circle cx="170" cy="180" r="15" fill="var(--ivory)"/>
+    </g>
+  </svg>
+  <div class="divider__foot">
+    <span class="pill">Chapter 4</span>
+    <h1 class="divider__title">執行期與並行模型</h1>
   </div>
+  <span class="folio">13</span>
+</section>
+
+<section class="page page--content">
+  <span class="pill pill--inline">Chapter 4</span>
+  <h1 class="h-page">執行期與並行模型</h1>
   <div style="display:flex; gap:.5in; align-items:flex-start; margin-top:.04in;">
     <div class="prose prose--single" style="flex:1;">
       <h2>主線程 + 四個 worker</h2>
@@ -355,7 +378,7 @@ code { font-family:var(--font-mono); font-size:.92em; }
       <p style="font-family:var(--font-sans); font-size:var(--fs-label); color:var(--ink-soft); margin:.05in 0 0;">▲ <code>QueueWorker</code> 消費者骨架（<code>myProgram/queue_worker.py</code>）：tts／action 共用</p>
     </div>
   </div>
-  <span class="folio">10</span>
+  <span class="folio">14</span>
 </section>
 
 <!-- ===== 第 4 章 · 頁 2：並行模型 ①（全屏 hero） ===== -->
@@ -364,23 +387,30 @@ code { font-family:var(--font-mono); font-size:.92em; }
 </section>
 
 <!-- ===== 第 5 章 · L0–L5 狀態機（頁 1：敘事 + 程式碼） ===== -->
-<section class="page page--content">
-  <div class="chap-band" style="--cc:var(--ch5)">
-    <div class="chap-band__title">
-      <span class="pill">Chapter 5</span>
-      <h1 class="chap-band__h">核心對話引擎：L0–L5 狀態機</h1>
-    </div>
-    <!-- 原創塗鴉：狀態節點連線（狀態機），蠟筆童趣；原創非仿 Anthropic -->
-    <svg class="chap-doodle" viewBox="0 0 300 190" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-      <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="96" y1="66" x2="168" y2="56"/>
-        <line x1="188" y1="74" x2="172" y2="120"/>
-        <circle cx="78" cy="70" r="22" fill="var(--ivory)"/>
-        <circle cx="186" cy="54" r="22" fill="var(--ivory)"/>
-        <circle cx="162" cy="134" r="22" fill="var(--ivory)"/>
-      </g>
-    </svg>
+<section class="page page--divider" style="--cc:var(--ch5)">
+  <!-- 原創大塗鴉：節點 + 連線環（意象「狀態轉移圖」）；抽象、原創非仿 Anthropic -->
+  <svg class="divider__doodle" viewBox="0 0 320 240" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <g filter="url(#crayonBig)" fill="none" stroke="var(--ink)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M108,82 L196,70"/>
+      <path d="M224,92 L242,168"/>
+      <path d="M214,190 L122,190"/>
+      <path d="M96,166 L88,106"/>
+      <circle cx="88" cy="84" r="27" fill="var(--ivory)"/>
+      <circle cx="214" cy="66" r="27" fill="var(--ivory)"/>
+      <circle cx="232" cy="186" r="27" fill="var(--ivory)"/>
+      <circle cx="106" cy="186" r="27" fill="var(--ivory)"/>
+    </g>
+  </svg>
+  <div class="divider__foot">
+    <span class="pill">Chapter 5</span>
+    <h1 class="divider__title">核心對話引擎：L0–L5 狀態機</h1>
   </div>
+  <span class="folio">16</span>
+</section>
+
+<section class="page page--content">
+  <span class="pill pill--inline">Chapter 5</span>
+  <h1 class="h-page">核心對話引擎：L0–L5 狀態機</h1>
   <div style="display:flex; gap:.5in; align-items:flex-start; margin-top:.04in;">
     <div class="prose prose--single" style="flex:1;">
       <h2>cart 是唯一驅動</h2>
@@ -409,7 +439,7 @@ code { font-family:var(--font-mono); font-size:.92em; }
       <p style="font-family:var(--font-sans); font-size:var(--fs-label); color:var(--ink-soft); margin:.05in 0 0;">▲ <code>SalesMachine.run</code> 主迴圈（<code>myProgram/sales/states/machine.py</code>）</p>
     </div>
   </div>
-  <span class="folio">12</span>
+  <span class="folio">17</span>
 </section>
 
 <!-- ===== 第 5 章 · 頁 2：跨層流程 + 設計取捨 ===== -->
@@ -431,7 +461,7 @@ code { font-family:var(--font-mono); font-size:.92em; }
     <h2>設計取捨</h2>
     <p class="aside--bar">錢包保守原則：所有確認子狀態在顧客靜默或逾時，一律落到「保守」結果——取消、退出、或不進結帳——寧可不成交，也不替顧客做出花錢的決定。三種確認（取消 6 秒／客服 24 秒／無效數量 6 秒）共用同一個 wall-clock 倒數骨架（<code>TimedConfirm</code> 範本方法），差異以 hook 下放。</p>
   </div>
-  <span class="folio">13</span>
+  <span class="folio">18</span>
 </section>
 
 <!-- ===== 第 5 章 · 頁 3：銷售狀態機 ②（全屏 hero） ===== -->
@@ -445,24 +475,29 @@ code { font-family:var(--font-mono); font-size:.92em; }
 </section>
 
 <!-- ===== 第 6 章 · 語音管線（頁 1：敘事） ===== -->
-<section class="page page--content">
-  <div class="chap-band" style="--cc:var(--ch6)">
-    <div class="chap-band__title">
-      <span class="pill">Chapter 6</span>
-      <h1 class="chap-band__h">語音管線：聽與說</h1>
-    </div>
-    <!-- 原創塗鴉：聲波（語音），純墨線（淺砂底）；原創非仿 Anthropic -->
-    <svg class="chap-doodle" viewBox="0 0 300 190" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-      <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="12" stroke-linecap="round">
-        <line x1="78" y1="84" x2="78" y2="106"/>
-        <line x1="108" y1="62" x2="108" y2="128"/>
-        <line x1="138" y1="40" x2="138" y2="150"/>
-        <line x1="168" y1="70" x2="168" y2="120"/>
-        <line x1="198" y1="52" x2="198" y2="138"/>
-        <line x1="228" y1="80" x2="228" y2="110"/>
-      </g>
-    </svg>
+<section class="page page--divider" style="--cc:var(--ch6)">
+  <!-- 原創大塗鴉：聲波波形（意象「語音」）；純墨線、原創非仿 Anthropic -->
+  <svg class="divider__doodle" viewBox="0 0 320 240" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <g filter="url(#crayonBig)" fill="none" stroke="var(--ink)" stroke-width="14" stroke-linecap="round">
+      <line x1="58" y1="104" x2="58" y2="136"/>
+      <line x1="92" y1="74" x2="92" y2="166"/>
+      <line x1="126" y1="44" x2="126" y2="196"/>
+      <line x1="160" y1="84" x2="160" y2="156"/>
+      <line x1="194" y1="58" x2="194" y2="182"/>
+      <line x1="228" y1="98" x2="228" y2="142"/>
+      <line x1="262" y1="78" x2="262" y2="162"/>
+    </g>
+  </svg>
+  <div class="divider__foot">
+    <span class="pill">Chapter 6</span>
+    <h1 class="divider__title">語音管線：聽與說</h1>
   </div>
+  <span class="folio">21</span>
+</section>
+
+<section class="page page--content">
+  <span class="pill pill--inline">Chapter 6</span>
+  <h1 class="h-page">語音管線：聽與說</h1>
   <div class="prose">
     <h2>聽：語音辨識（STT）</h2>
     <p>麥克風為 ReSpeaker 六聲道陣列。收音以 arecord 取得六聲道原始音訊後，反交錯抽出 <strong>ch0</strong>——晶片預先處理過的 ASR 聲道——串流到 Deepgram Nova-3 雲端辨識。每一輪收音由主線程精確 arm／disarm 編排、用完即收線。</p>
@@ -472,7 +507,7 @@ code { font-family:var(--font-mono); font-size:.92em; }
     <p>意圖與數量以規則匹配的純函式推導，並有一層<strong>本地拼音近音糾錯</strong>把辨識錯的同音字校回商品名。意圖分類是「層別語意感知」的——同一個詞在不同層可有不同意義（如「不用」在 L3＝結帳、在 L2＝拒絕）。</p>
     <p class="aside--bar">關鍵突破與取捨：① <strong>ch0 突破</strong>——整體辨識曾極差，根因是六聲道降混稀釋了晶片處理過的 ch0（相位互抵），改為單抽 ch0 後大幅改善。② <strong>真 barge-in 不可行</strong>——硬體 AEC 消音不足（約 10dB），邊播邊聽會自我回授，經實測放棄。③ <strong>首字暖機</strong>是 Deepgram 串流的固有地板（三輪實驗皆回退），demo 靠「自然頓半拍」與觸控備援化解。</p>
   </div>
-  <span class="folio">16</span>
+  <span class="folio">22</span>
 </section>
 
 <!-- ===== 第 6 章 · 頁 2：STT 管線 ⑥（全屏 hero） ===== -->
@@ -486,22 +521,28 @@ code { font-family:var(--font-mono); font-size:.92em; }
 </section>
 
 <!-- ===== 第 7 章 · 前端鏡像與雙模態（頁 1：敘事） ===== -->
-<section class="page page--content">
-  <div class="chap-band" style="--cc:var(--ch1)">
-    <div class="chap-band__title">
-      <span class="pill">Chapter 7</span>
-      <h1 class="chap-band__h">前端鏡像與雙模態互動</h1>
-    </div>
-    <!-- 原創塗鴉：平板畫面 + 觸點（前端/觸控），蠟筆童趣；原創非仿 Anthropic -->
-    <svg class="chap-doodle" viewBox="0 0 300 190" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-      <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="84" y="38" width="132" height="88" rx="12" fill="var(--ivory)"/>
-        <circle cx="150" cy="80" r="12" fill="var(--ink)" stroke="none"/>
-        <line x1="150" y1="126" x2="150" y2="150"/>
-        <line x1="126" y1="152" x2="174" y2="152"/>
-      </g>
-    </svg>
+<section class="page page--divider" style="--cc:var(--ch1)">
+  <!-- 原創大塗鴉：畫面 + 兩路輸入箭頭匯入（意象「語音/觸控雙模態」）；抽象、原創非仿 Anthropic -->
+  <svg class="divider__doodle" viewBox="0 0 320 240" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <g filter="url(#crayonBig)" fill="none" stroke="var(--ink)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="146" y="60" width="150" height="112" rx="16" fill="var(--ivory)"/>
+      <circle cx="221" cy="116" r="14" fill="var(--ink)" stroke="none"/>
+      <path d="M40,92 L128,108"/>
+      <path d="M110,98 L130,109 L113,123"/>
+      <path d="M58,206 L138,156"/>
+      <path d="M122,150 L140,157 L130,174"/>
+    </g>
+  </svg>
+  <div class="divider__foot">
+    <span class="pill">Chapter 7</span>
+    <h1 class="divider__title">前端鏡像與雙模態互動</h1>
   </div>
+  <span class="folio">25</span>
+</section>
+
+<section class="page page--content">
+  <span class="pill pill--inline">Chapter 7</span>
+  <h1 class="h-page">前端鏡像與雙模態互動</h1>
   <div class="prose">
     <h2>phase 驅動的狀態鏡像</h2>
     <p>機器人在每個狀態點送出一個「phase」與購物車快照，經事件匯流排跨執行緒推到 WebSocket、廣播給所有瀏覽器；前端收到後把 phase 折成對應畫面。<strong>畫面切換一律由後端 phase 驅動</strong>，前端不自行樂觀改畫面。</p>
@@ -511,7 +552,7 @@ code { font-family:var(--font-mono); font-size:.92em; }
     <p>連線中斷時前端指數退避重連、並立即退回歡迎畫面不凍結。介面採 Glaze 液態玻璃語彙；因 Pi 4 自身瀏覽器不支援其 OKLCH 色彩，畫面改由顧客端裝置渲染、Pi 專心當伺服器。</p>
     <p class="aside--bar">設計取捨：為何堅持 phase 驅動、禁前端樂觀旗號？因為同一個動作也可能來自語音或自動結帳（非 UI 操作），集中由後端狀態驅動才能保證前後端一致。此外顯示層整段 try／except——<strong>網頁掛了，機器人照常服務客人</strong>。</p>
   </div>
-  <span class="folio">19</span>
+  <span class="folio">26</span>
 </section>
 
 <!-- ===== 第 7 章 · 頁 2：web phase 狀態機 ③（全屏 hero） ===== -->
@@ -531,24 +572,28 @@ code { font-family:var(--font-mono); font-size:.92em; }
     <figure class="ui-shot"><img src="assets/screenshots/ui-checkout.png"><figcaption>checkout · 掃碼付款 QR</figcaption></figure>
     <figure class="ui-shot"><img src="assets/screenshots/ui-thankyou.png"><figcaption>thankyou · 謝謝惠顧</figcaption></figure>
   </div>
-  <span class="folio">21</span>
+  <span class="folio">28</span>
 </section>
 
 <!-- ===== 第 8 章 · 成果與驗證（頁 1：敘事 + 驗收表） ===== -->
-<section class="page page--content">
-  <div class="chap-band" style="--cc:var(--ch2)">
-    <div class="chap-band__title">
-      <span class="pill">Chapter 8</span>
-      <h1 class="chap-band__h">成果與驗證</h1>
-    </div>
-    <!-- 原創塗鴉：圈內勾選（驗收），蠟筆童趣；原創非仿 Anthropic -->
-    <svg class="chap-doodle" viewBox="0 0 300 190" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-      <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="150" cy="95" r="58" fill="var(--ivory)"/>
-        <path d="M120,98 L142,122 L186,70"/>
-      </g>
-    </svg>
+<section class="page page--divider" style="--cc:var(--ch2)">
+  <!-- 原創大塗鴉：圈內勾選（意象「驗收通過」）；抽象、原創非仿 Anthropic -->
+  <svg class="divider__doodle" viewBox="0 0 320 240" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <g filter="url(#crayonBig)" fill="none" stroke="var(--ink)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="186" cy="116" r="80" fill="var(--ivory)"/>
+      <path d="M146,118 L176,150 L232,80"/>
+    </g>
+  </svg>
+  <div class="divider__foot">
+    <span class="pill">Chapter 8</span>
+    <h1 class="divider__title">成果與驗證</h1>
   </div>
+  <span class="folio">29</span>
+</section>
+
+<section class="page page--content">
+  <span class="pill pill--inline">Chapter 8</span>
+  <h1 class="h-page">成果與驗證</h1>
   <div class="prose">
     <h2>自動化測試</h2>
     <p>因為業務邏輯嚴格不碰硬體，整套 L0–L5 對話狀態機能在一般電腦上以 <strong>711 項 pytest 完整回歸</strong>——涵蓋意圖分類、數量解析、購物車上限、各跨層 confirm 與保守 default。每次改動對話邏輯都重跑這張回歸網。</p>
@@ -565,7 +610,7 @@ code { font-family:var(--font-mono); font-size:.92em; }
       <tr><td>斷網固定語音</td><td>內容定址快取命中</td><td>可離線播放 ✅</td></tr>
     </tbody>
   </table>
-  <span class="folio">22</span>
+  <span class="folio">30</span>
 </section>
 
 <!-- ===== 第 8 章 · 頁 2：demo 現場照片（P1 / P4 佔位） ===== -->
@@ -574,24 +619,33 @@ code { font-family:var(--font-mono); font-size:.92em; }
   <h2 style="font-family:var(--font-sans); font-weight:600; font-size:var(--fs-h2); margin:.1in 0 .22in;">demo 現場</h2>
   <div class="photo-ph" style="min-height:2.8in; margin-bottom:.3in;">待補：P1 攤位＋機器人＋平板全景（demo 現場）</div>
   <div class="photo-ph" style="min-height:2.8in;">待補：P4 demo 進行中（顧客互動）</div>
-  <span class="folio">23</span>
+  <span class="folio">31</span>
 </section>
 
 <!-- ===== 第 9 章 · 結論與展望 ===== -->
-<section class="page page--content">
-  <div class="chap-band" style="--cc:var(--ch3)">
-    <div class="chap-band__title">
-      <span class="pill">Chapter 9</span>
-      <h1 class="chap-band__h">結論與展望</h1>
-    </div>
-    <!-- 原創塗鴉：旗幟（里程碑/展望），蠟筆童趣；原創非仿 Anthropic -->
-    <svg class="chap-doodle" viewBox="0 0 300 190" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-      <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="100" y1="32" x2="100" y2="160"/>
-        <path d="M100,44 L196,44 L174,70 L196,96 L100,96 Z" fill="var(--ivory)"/>
-      </g>
-    </svg>
+<section class="page page--divider" style="--cc:var(--ch3)">
+  <!-- 原創大塗鴉：地平線 + 升起的太陽（意象「展望/未來」）；抽象、原創非仿 Anthropic -->
+  <svg class="divider__doodle" viewBox="0 0 320 240" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <g filter="url(#crayonBig)" fill="none" stroke="var(--ink)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="190" cy="152" r="50" fill="var(--ivory)"/>
+      <line x1="44" y1="190" x2="296" y2="190"/>
+      <line x1="190" y1="78" x2="190" y2="56"/>
+      <line x1="248" y1="96" x2="264" y2="80"/>
+      <line x1="132" y1="96" x2="116" y2="80"/>
+      <line x1="262" y1="150" x2="288" y2="150"/>
+      <line x1="118" y1="150" x2="92" y2="150"/>
+    </g>
+  </svg>
+  <div class="divider__foot">
+    <span class="pill">Chapter 9</span>
+    <h1 class="divider__title">結論與展望</h1>
   </div>
+  <span class="folio">32</span>
+</section>
+
+<section class="page page--content">
+  <span class="pill pill--inline">Chapter 9</span>
+  <h1 class="h-page">結論與展望</h1>
   <div class="prose">
     <h2>結論</h2>
     <p>本專題在 Raspberry Pi 4 上完成一台<strong>規則匹配、語音與觸控雙模態</strong>的互動式銷售輔助機器人，涵蓋從叫賣、點餐、結帳到致謝的完整對話閉環。核心設計——業務邏輯與硬體徹底解耦——讓系統既能在實機穩定展示，又能以 711 項自動化測試持續驗證，是整個專題最重要的工程價值。</p>
@@ -599,7 +653,7 @@ code { font-family:var(--font-mono); font-size:.92em; }
     <p>系統保留了清楚的擴充點：結帳掃碼目前以觸控模擬，未來接上真實掃碼器只需替換一個 token 映射、對話層零改動；其餘方向包括顧客超量後的取消對話重設計、搶話中斷（新任務終止舊任務）、更多商品品項，以及 NLU 解析器對更刁鑽口語的強化。</p>
     <p class="aside--bar">這台機器人的價值不在規模，而在它示範了一套「難測的硬體隔到邊界、可測的邏輯留在核心」的架構——讓一個課程專題也能做到可預測、可回歸、可持續演進。</p>
   </div>
-  <span class="folio">24</span>
+  <span class="folio">33</span>
 </section>
 
 <!-- ===== 後置 · 參考資料 ===== -->
@@ -615,7 +669,7 @@ code { font-family:var(--font-mono); font-size:.92em; }
       <li><strong>Raspberry Pi OS · ALSA（arecord）· mpg123</strong> — 音訊輸入與播放。</li>
     </ul>
   </div>
-  <span class="folio">25</span>
+  <span class="folio">34</span>
 </section>
 
 <!-- ===== 封底（滿版珊瑚 + 標誌 lockup） ===== -->
