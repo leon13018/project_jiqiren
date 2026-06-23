@@ -90,8 +90,8 @@ html, body { margin: 0; padding: 0; background: #d9d9d9; }
 
 /* 5.2/5.4 膠囊標籤（內聯章頭） */
 .pill { display:inline-block; border:1.5px solid var(--ink); border-radius:999px;
-  padding:.05in .17in; font-family:var(--font-sans); font-weight:600;
-  font-size:var(--fs-pill); letter-spacing:.02em; color:var(--ink); }
+  padding:.035in .13in; font-family:var(--font-sans); font-weight:600;
+  font-size:10.5pt; line-height:1.15; letter-spacing:.02em; color:var(--ink); }
 .pill--inline { margin-bottom:.12in; }
 
 /* 5.3 目錄 */
@@ -99,7 +99,7 @@ html, body { margin: 0; padding: 0; background: #d9d9d9; }
   font-size:var(--fs-h1); color:var(--ink); }
 .toc { max-width:5in; }
 .toc__row { display:flex; align-items:baseline; justify-content:space-between;
-  padding:.13in 0; font-family:var(--font-sans); font-weight:500; font-size:13pt;
+  padding:.1in 0; font-family:var(--font-sans); font-weight:500; font-size:12pt;
   color:var(--ink); text-decoration:none; }
 .toc__page { font-variant-numeric:tabular-nums; }
 
@@ -231,6 +231,7 @@ code { font-family:var(--font-mono); font-size:.92em; }
 <section class="page page--content">
   <h1 class="h-page">內容</h1>
   <nav class="toc">
+    <a class="toc__row" href="#intro"><span class="toc__title">介紹</span><span class="toc__page">3</span></a>
     <a class="toc__row" href="#ch1"><span class="toc__title">緒論：動機與目標</span><span class="toc__page">4</span></a>
     <a class="toc__row" href="#ch2"><span class="toc__title">系統概觀：一杯飲料的旅程</span><span class="toc__page">6</span></a>
     <a class="toc__row" href="#ch3"><span class="toc__title">系統架構與部署</span><span class="toc__page">9</span></a>
@@ -245,11 +246,14 @@ code { font-family:var(--font-mono); font-size:.92em; }
   <span class="folio">2</span>
 </section>
 
-<!-- ===== 摘要 ===== -->
-<section class="page page--content">
+<!-- ===== 介紹 ===== -->
+<section class="page page--content" id="intro">
   <h1 class="h-page">介紹</h1>
   <div class="prose prose--single">
-    <p>本專題在 Raspberry Pi 4 上實作一台互動式銷售輔助機器人：以 Hiwonder TonyPi 人形機器人站在攤位前，透過規則匹配（非大型語言模型）與顧客完成冰紅茶、刮刮樂兩項商品的點餐與收款模擬。系統核心是一個多層對話狀態機（L1 叫賣 → L2／L3 點餐 → L4 結帳掃碼 → L5 致謝），搭配語音合成（TTS）、語音辨識（STT，Deepgram Nova-3 串流）、機器人動作，以及一個即時鏡像到瀏覽器的玻璃風點餐畫面，支援語音與觸控雙模態操作。架構上業務邏輯嚴格不碰硬體、全靠回呼注入，使整套對話邏輯可在一般電腦上以 711 項 pytest 完整回歸；硬體與輸入輸出僅在入口層與四個背景 worker 接合。本報告依序說明系統的動機、整體架構、核心對話引擎、語音管線、前端雙模態互動，以及實機驗收成果。</p>
+    <p>在零售與服務現場，「迎賓、介紹、點餐、結帳、送客」是一段高度重複、卻又需要即時互動的流程。本專題讓人形機器人擔任這個角色，探討如何在資源有限的嵌入式平台上，使機器人以自然的語音與觸控，與顧客完成一次完整而流暢的銷售互動。</p>
+    <p>具體而言，本專題在 Raspberry Pi 4 上實作一台互動式銷售輔助機器人：以 Hiwonder TonyPi 人形機器人站在攤位前，透過規則匹配（非大型語言模型）與顧客完成冰紅茶、刮刮樂兩項商品的點餐與收款模擬。系統核心是一個多層對話狀態機（L1 叫賣 → L2／L3 點餐 → L4 結帳掃碼 → L5 致謝），搭配語音合成（TTS）、語音辨識（STT，Deepgram Nova-3 串流）、機器人動作，以及一個即時鏡像到瀏覽器的玻璃風點餐畫面，支援語音與觸控雙模態操作。架構上業務邏輯嚴格不碰硬體、全靠回呼注入，使整套對話邏輯可在一般電腦上以 711 項 pytest 完整回歸；硬體與輸入輸出僅在入口層與四個背景 worker 接合。</p>
+    <p>值得一提的是，這套設計天生具備跨機型的適應力。由於對話邏輯與硬體以回呼注入嚴格解耦，銷售核心並不在意它驅動的是哪一台機器人——只要替換入口層的硬體轉接（動作組、語音合成、語音辨識與輸入來源），同一套對話狀態機、意圖辨識與購物車邏輯便能原封不動地搬到不同機型。因此<strong>本專案對小型與大型人形機器人的應用場域同樣適用、也能彈性適應</strong>：小至本專題採用的桌上型 TonyPi 這類教學與展示機器人，大至賣場、展館、櫃台等場域中與真人等高的服務型人形機器人，都能沿用同一套經 711 項測試驗證的「銷售大腦」，只需依場域更換周邊硬體與商品設定即可落地。</p>
+    <p>本報告依序說明系統的動機、整體架構、核心對話引擎、語音管線、前端雙模態互動，以及實機驗收成果。</p>
   </div>
   <span class="folio">3</span>
 </section>
@@ -340,10 +344,10 @@ code { font-family:var(--font-mono); font-size:.92em; }
 <section class="page page--divider" id="ch3" style="--cc:var(--ch3)">
   <!-- 原創大塗鴉：分層堆疊方塊（意象「架構/分層」）；抽象、原創非仿 Anthropic -->
   <svg class="divider__doodle" viewBox="0 0 320 240" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-    <g filter="url(#crayonBig)" fill="none" stroke="var(--ink)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="120" y="50" width="118" height="46" rx="12" fill="var(--ivory)"/>
-      <rect x="98" y="106" width="162" height="46" rx="12" fill="var(--ivory)"/>
-      <rect x="76" y="162" width="206" height="46" rx="12" fill="var(--ivory)"/>
+    <g filter="url(#crayonBig)" fill="none" stroke="var(--ink)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="120" y="48" width="118" height="30" rx="9" fill="var(--ivory)"/>
+      <rect x="98" y="106" width="162" height="30" rx="9" fill="var(--ivory)"/>
+      <rect x="76" y="164" width="206" height="30" rx="9" fill="var(--ivory)"/>
     </g>
   </svg>
   <div class="divider__foot">
@@ -717,8 +721,9 @@ code { font-family:var(--font-mono); font-size:.92em; }
   <div class="prose">
     <h2>結論</h2>
     <p>本專題在 Raspberry Pi 4 上完成一台<strong>規則匹配、語音與觸控雙模態</strong>的互動式銷售輔助機器人，涵蓋從叫賣、點餐、結帳到致謝的完整對話閉環。核心設計——業務邏輯與硬體徹底解耦——讓系統既能在實機穩定展示，又能以 711 項自動化測試持續驗證，是整個專題最重要的工程價值。</p>
-    <h2>未來展望</h2>
-    <p>系統保留了清楚的擴充點：結帳掃碼目前以觸控模擬，未來接上真實掃碼器只需替換一個 token 映射、對話層零改動；其餘方向包括顧客超量後的取消對話重設計、搶話中斷（新任務終止舊任務）、更多商品品項，以及 NLU 解析器對更刁鑽口語的強化。</p>
+    <h2 style="break-before:column">未來展望</h2>
+    <p>未來的演進將從規則匹配邁向 AI 驅動。語音端可導入<strong>神經網路 AEC</strong>，補足目前硬體回聲消除不足、難以即時搶話（barge-in）的限制；感知端可加入<strong>商品影像辨識</strong>，讓機器人以鏡頭直接認出攤位或顧客手中的品項；對話端則導入<strong>大型語言模型（LLM）</strong>，把腳本化的規則匹配升級為能理解任意口語、應對各種銷售情境的智慧助理。</p>
+    <p>更進一步，可將整套軟體重構為一個 <strong>harness sales agent</strong>：以 harness 框架統一編排 LLM 與工具呼叫，使其能自主處理多樣的銷售任務。harness 的價值不只在能力，更在<strong>安全</strong>——它能約束 LLM 的輸出、防止幻覺與亂答，並為 agent 透過 tool／MCP／CLI 存取外部資料庫的行為設下權限與稽核邊界，兼顧顧客資料保密與系統安全。</p>
     <p class="aside--bar">這台機器人的價值不在規模，而在它示範了一套「難測的硬體隔到邊界、可測的邏輯留在核心」的架構——讓一個課程專題也能做到可預測、可回歸、可持續演進。</p>
   </div>
   <span class="folio">33</span>
