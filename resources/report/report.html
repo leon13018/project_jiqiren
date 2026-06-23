@@ -554,17 +554,17 @@ code { font-family:var(--font-mono); font-size:.92em; }
     <p>因為業務邏輯嚴格不碰硬體，整套 L0–L5 對話狀態機能在一般電腦上以 <strong>711 項 pytest 完整回歸</strong>——涵蓋意圖分類、數量解析、購物車上限、各跨層 confirm 與保守 default。每次改動對話邏輯都重跑這張回歸網。</p>
     <h2>實機驗收</h2>
     <p>對話之外的硬體與時序，則在 Raspberry Pi 上實機驗收：語音辨識（改抽 ch0 後大幅改善）、語音與觸控雙模態全鏈路、以及「點餐 → 數量上限 → 結帳 → 付款 → 服務下一位」的連續流程，皆通過實測。</p>
-    <table class="t">
-      <thead><tr><th>驗收項目</th><th>方法</th><th>結果</th></tr></thead>
-      <tbody>
-        <tr><td>對話邏輯回歸</td><td><code>py -3.14 -m pytest</code>（sales 回歸網）</td><td>711 passed ✅</td></tr>
-        <tr><td>語音辨識準確度</td><td>Pi 實機收音（ch0 聲道）</td><td>大幅改善、可用 ✅</td></tr>
-        <tr><td>觸控全鏈路</td><td>Pi 實機：喚醒→點餐→結帳→付款</td><td>通過 ✅</td></tr>
-        <tr><td>連續服務流程</td><td>Pi 實機：點餐→上限→結帳→付款→次客</td><td>通過 ✅</td></tr>
-        <tr><td>斷網固定語音</td><td>內容定址快取命中</td><td>可離線播放 ✅</td></tr>
-      </tbody>
-    </table>
   </div>
+  <table class="t" style="margin-top:.16in; break-inside:avoid;">
+    <thead><tr><th>驗收項目</th><th>方法</th><th>結果</th></tr></thead>
+    <tbody>
+      <tr><td>對話邏輯回歸</td><td><code>py -3.14 -m pytest</code>（sales 回歸網）</td><td>711 passed ✅</td></tr>
+      <tr><td>語音辨識準確度</td><td>Pi 實機收音（ch0 聲道）</td><td>大幅改善、可用 ✅</td></tr>
+      <tr><td>觸控全鏈路</td><td>Pi 實機：喚醒→點餐→結帳→付款</td><td>通過 ✅</td></tr>
+      <tr><td>連續服務流程</td><td>Pi 實機：點餐→上限→結帳→付款→次客</td><td>通過 ✅</td></tr>
+      <tr><td>斷網固定語音</td><td>內容定址快取命中</td><td>可離線播放 ✅</td></tr>
+    </tbody>
+  </table>
   <span class="folio">22</span>
 </section>
 
