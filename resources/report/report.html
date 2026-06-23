@@ -24,7 +24,7 @@ html, body { margin: 0; padding: 0; background: #d9d9d9; }
 .cover__meta { margin-top:.3in; font-family:var(--font-sans); font-size:11pt;
   line-height:1.6; color:var(--ink); }
 .brand { margin-top:auto; display:flex; align-items:center; gap:.04in; }
-.brand__logo { width:.5in; height:.6in; display:block; flex:none; }
+.brand__logo { width:.5in; height:.6in; display:block; flex:none; transform:translateY(-0.09in); }
 .brand__name { font-family:var(--font-serif); font-weight:600; font-size:22pt; color:var(--ink); }
 
 /* 5.2/5.4 膠囊標籤（內聯章頭） */
@@ -196,6 +196,55 @@ code { font-family:var(--font-mono); font-size:.92em; }
     <p>系統已完成全部 L1–L5 對話層與語音、前端雙模態，並通過 711 項自動化測試與多輪 Raspberry Pi 實機驗收，達到可實地展示（demo-ready）的狀態。後續章節將依序說明整體架構、執行期並行模型、核心對話引擎、語音管線與前端鏡像。</p>
   </div>
   <span class="folio">4</span>
+</section>
+
+<!-- ===== 第 2 章 · 系統概觀（頁 1：旅程敘事） ===== -->
+<section class="page page--content">
+  <div class="chap-band" style="--cc:var(--ch2)">
+    <div class="chap-band__title">
+      <span class="pill">Chapter 2</span>
+      <h1 class="chap-band__h">系統概觀：一杯飲料的旅程</h1>
+    </div>
+    <!-- 原創塗鴉：飲料杯（扣本章「一杯飲料」），蠟筆童趣；原創圖案非仿 Anthropic -->
+    <svg class="chap-doodle" viewBox="0 0 300 190" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M110,60 L190,60 L178,166 L122,166 Z" fill="var(--ivory)"/>
+        <line x1="110" y1="80" x2="190" y2="80"/>
+        <line x1="170" y1="60" x2="200" y2="30"/>
+      </g>
+    </svg>
+  </div>
+  <div class="prose">
+    <p>在深入各子系統之前，本章先以一次完整的互動為例，描繪顧客從走近攤位到取得商品的整段旅程，建立全局印象。以下以「一位顧客點一瓶冰紅茶並完成結帳」為例。</p>
+    <h3>① 喚醒</h3>
+    <p>顧客在鏡像到平板的點餐畫面上輕觸「開始點餐」，或直接對機器人說話。觸控請求經 WebSocket 上送，被翻譯成與終端按鍵相同的訊號、注入主線程的輸入佇列；機器人於是從「叫賣」轉入「點餐對話」。</p>
+    <h3>② 招呼</h3>
+    <p>進入點餐後，系統送出 <code>ordering</code> 畫面狀態，平板切到點餐主畫面；機器人同時以語音招呼、揮手致意——語音合成與肢體動作各自在背景執行緒並行，不阻塞對話。</p>
+    <h3>③ 點餐</h3>
+    <p>顧客說「我要一瓶冰紅茶」。麥克風收音串流到雲端語音辨識，結果回注主線程，經意圖分類與商品解析後加入購物車；每加一筆，平板上的購物車就即時長出一項。</p>
+    <h3>④ 結帳</h3>
+    <p>顧客說「結帳」，系統先跳出確認卡片請其確認品項與金額；確認後進入結帳狀態、顯示付款 QR 條碼。掃碼（本專題以觸控模擬）完成後轉入致謝。</p>
+    <h3>⑤ 致謝</h3>
+    <p>系統送出 <code>thankyou</code> 畫面並帶入實付金額，平板顯示「謝謝惠顧」；機器人揮手道別，禮貌停頓後清空購物車、回到叫賣，等待下一位顧客。</p>
+  </div>
+  <span class="folio">5</span>
+</section>
+
+<!-- ===== 第 2 章 · 系統概觀（頁 2：端到端時序圖 ④） ===== -->
+<section class="page page--content">
+  <div style="display:flex; gap:.5in; align-items:flex-start;">
+    <figure class="fig" style="margin:0; flex:none; width:5.05in;">
+      <img src="../architecture/diagrams/04-end-to-end-sequence.svg" style="height:6.05in; width:auto; max-width:100%;">
+      <figcaption>圖 4 · 一輪互動的端到端時序：觸控／語音 → 對話狀態機 → 語音／動作／畫面</figcaption>
+    </figure>
+    <div class="prose prose--single" style="flex:1; column-count:1;">
+      <h2>同一段旅程的內部視角</h2>
+      <p>左圖以時序圖呈現上述同一段互動的內部訊息流動：每一條垂直線是一個元件（顧客、前端、主線程、各背景執行緒、雲端服務），箭頭則是它們之間傳遞的訊息與回應。</p>
+      <p class="aside--bar">關鍵原則：畫面切換一律由機器人端送出的「狀態（phase）」驅動——觸控只負責「請求」、不自行改變畫面。因為同一個請求也可能來自語音或自動結帳，集中由狀態驅動可避免前後端畫面不一致。</p>
+      <div class="photo-ph" style="margin-top:.3in; min-height:2.5in;">待補：P1 攤位＋機器人＋平板全景</div>
+    </div>
+  </div>
+  <span class="folio">6</span>
 </section>
 
 <script>
