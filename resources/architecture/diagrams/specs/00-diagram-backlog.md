@@ -22,7 +22,7 @@
 | ⑥ | STT 管線 | arecord `-c6` 抽 ch0（XVF-3000 處理過 ASR 聲道）→ Deepgram Nova-3 WS → speech_final → `inject`；**每輪 arm/disarm**（SttSender/Receiver）；prearm 藏握手 | `stt.py`；doc `10` | ✅ `06` |
 | ⑦ | TTS 管線 | queue → edge-tts synth → **內容定址快取**（命中/未命中分支）+ 1-deep prefetch → mpg123；常駐 asyncio loop；語速三段 | `tts.py` `tts_prewarm.py` `queue_worker.py`；doc `10` | ✅ `07` |
 | ⑧ | 模組依賴地圖 | `sales/`（純邏輯、零硬體）↔ `main.py` wire-up ↔ workers ↔ `web/` ↔ `webui/`；**callback 注入邊界**（sales 不 import 硬體/廠商 SDK） | `00§4`；各模組 import 結構 | ✗ |
-| ⑨ | 類別圖 | `SalesMachine` / `State`(ABC) / `Transition` / 4 個 `*State` / `Cart` / `DialogIO` / nlu 純函式 關係 | `states/machine.py` `cart.py` `dialog_io.py` `nlu.py`；doc `20` | ✗ |
+| ⑨ | 類別圖 | `SalesMachine` / `State`(ABC) / `Transition` / 4 個 `*State` / `Cart` / `DialogIO` / nlu 純函式 關係 | `states/machine.py` `cart.py` `dialog_io.py` `nlu.py`；doc `20` | ✅ `09` |
 | ⑩ | 資料契約圖（原「資料模型」改框） | ⚠️**無真 DB** → 畫 `Cart`(dict[str,int]) ↔ Pydantic DTO ↔ 前端；`commands.py` 觸控→token 對照；2 商品常數（冰紅茶/刮刮樂，九折硬編） | `web/models.py` `cart.py` `web/commands.py` `constants/products.py` | ✗ |
 | ⑪ | 啟動分流流程（新增） | `main._run_wiring`：`--hawk` / `--web` / `SALES_KEYBOARD` 三旗標分支 + **防呆**（無 mode flag 又無鍵盤 → early return）；webui-boot 背景啟 server | `main.py`（`_run_wiring` / `main`） | ✗ |
 
@@ -43,5 +43,5 @@
 - [x] ① Process / Thread　- [x] ② L0–L5 狀態機　- [x] ③ web phase　✅ **淺色已交付**（深色原版在 `_legacy-dark/`）
 - [x] ④ 時序　- [x] ⑤ 部署 / 網路　✅ **淺色已交付**（2026-06-23 換膚；html/png/svg 在 `diagrams/` 主層；深色原版在 `_legacy-dark/`）
 - [x] ⑥ STT 管線　- [x] ⑦ TTS 管線　✅ **淺色已交付**（2026-06-23；html/png/svg 在 `diagrams/` 主層；使用者逐輪像素級 QA + 箭頭全重拉 + attribute 置中後定版）
-- [ ] ⑧ 模組依賴　- [ ] ⑨ 類別
+- [ ] ⑧ 模組依賴（初版不滿意、**整張刪掉重做中** by orchestrator 自己）　- [x] ⑨ 類別　✅ **淺色已交付**（2026-06-23；html/png/svg 在 `diagrams/` 主層；UML 三格框 + generalization 三角逐輪像素級調：底邊⊥線切線、箭頭線從底邊中點穿入、外側兩個轉正後使用者定版）
 - [ ] ⑩ 資料契約　- [ ] ⑪ 啟動分流
