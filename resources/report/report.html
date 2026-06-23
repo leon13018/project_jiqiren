@@ -23,7 +23,8 @@ html, body { margin: 0; padding: 0; background: #d9d9d9; }
 .cover__title span { font-size:0.6em; }
 .cover__meta { margin-top:.3in; font-family:var(--font-sans); font-size:11pt;
   line-height:1.6; color:var(--ink); }
-.brand { margin-top:auto; display:flex; align-items:center; gap:.16in; }
+.brand { margin-top:auto; display:flex; align-items:center; gap:.18in; }
+.brand__logo { width:.64in; height:.6in; display:block; flex:none; }
 .brand__name { font-family:var(--font-serif); font-size:22pt; color:var(--ink); }
 
 /* 5.2/5.4 膠囊標籤（內聯章頭） */
@@ -99,6 +100,17 @@ code { font-family:var(--font-mono); font-size:.92em; }
 </head>
 <body>
 
+<!-- 共用塗鴉濾鏡：手抖位移 + 蠟筆顆粒（所有章節塗鴉共用，viewBox 300×190） -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <filter id="crayonDoodle" filterUnits="userSpaceOnUse" x="-24" y="-24" width="348" height="238" color-interpolation-filters="sRGB">
+    <feTurbulence type="fractalNoise" baseFrequency="0.022" numOctaves="2" seed="7" result="wob"/>
+    <feDisplacementMap in="SourceGraphic" in2="wob" scale="5.5" xChannelSelector="R" yChannelSelector="G" result="line"/>
+    <feTurbulence type="fractalNoise" baseFrequency="0.5 0.62" numOctaves="2" seed="9" result="grain"/>
+    <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.88 -0.08" result="grainMask"/>
+    <feComposite in="line" in2="grainMask" operator="in"/>
+  </filter>
+</defs></svg>
+
 <!-- ===== 封面 ===== -->
 <section class="page page--hero" style="--bg:var(--coral)">
   <div class="cover">
@@ -108,7 +120,20 @@ code { font-family:var(--font-mono); font-size:.92em; }
       資工4A　學號 11013018　林秉宏<br>
       2026 年 6 月 25 日
     </div>
-    <div class="brand"><span class="brand__name">Project_01</span></div>
+    <div class="brand">
+      <!-- 自創專案標誌：蠟筆小機器人（吉祥物），原創圖案、非仿 Anthropic 星芒商標 -->
+      <svg class="brand__logo" viewBox="0 0 120 112" aria-hidden="true">
+        <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="26" y="32" width="68" height="54" rx="16" fill="var(--ivory)"/>
+          <line x1="60" y1="32" x2="60" y2="14"/>
+          <circle cx="60" cy="9" r="6" fill="var(--ink)" stroke="none"/>
+          <circle cx="47" cy="57" r="6.5" fill="var(--ink)" stroke="none"/>
+          <circle cx="73" cy="57" r="6.5" fill="var(--ink)" stroke="none"/>
+          <path d="M46,71 Q60,81 74,71"/>
+        </g>
+      </svg>
+      <span class="brand__name">Project_01</span>
+    </div>
   </div>
 </section>
 
@@ -148,15 +173,6 @@ code { font-family:var(--font-mono); font-size:.92em; }
     </div>
     <!-- 原創塗鴉：本專題銷售機器人，蠟筆童趣手繪風（原創圖案，非仿 Anthropic 美術圖形） -->
     <svg class="chap-doodle" viewBox="0 0 300 190" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-      <defs>
-        <filter id="crayonDoodle" filterUnits="userSpaceOnUse" x="-24" y="-24" width="348" height="238" color-interpolation-filters="sRGB">
-          <feTurbulence type="fractalNoise" baseFrequency="0.022" numOctaves="2" seed="7" result="wob"/>
-          <feDisplacementMap in="SourceGraphic" in2="wob" scale="5.5" xChannelSelector="R" yChannelSelector="G" result="line"/>
-          <feTurbulence type="fractalNoise" baseFrequency="0.5 0.62" numOctaves="2" seed="9" result="grain"/>
-          <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.88 -0.08" result="grainMask"/>
-          <feComposite in="line" in2="grainMask" operator="in"/>
-        </filter>
-      </defs>
       <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
         <rect x="86" y="54" width="128" height="96" rx="26" fill="var(--ivory)"/>
         <line x1="150" y1="54" x2="150" y2="28"/>
