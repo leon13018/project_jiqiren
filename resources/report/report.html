@@ -31,6 +31,10 @@ html, body { margin: 0; padding: 0; background: #d9d9d9; }
 .page--bleed2 { page: bleed2; width: 14.49in; height: 8.5in; }
 @page bleed9 { size: 13.88in 8.5in; margin: 0; }  /* 圖⑨ 類別圖 aspect 1.63 */
 .page--bleed9 { page: bleed9; width: 13.88in; height: 8.5in; }
+@page bleed6 { size: 13.43in 8.5in; margin: 0; }  /* 圖⑥ STT 管線 aspect 1.58 */
+.page--bleed6 { page: bleed6; width: 13.43in; height: 8.5in; }
+@page bleed7 { size: 15.13in 8.5in; margin: 0; }  /* 圖⑦ TTS 管線 aspect 1.78 */
+.page--bleed7 { page: bleed7; width: 15.13in; height: 8.5in; }
 
 /* —— §5 元件庫（只列本報告實際使用的類；整頁分隔 hero / 塗鴉未採用故略） —— */
 /* 5.1 封面 */
@@ -431,6 +435,47 @@ code { font-family:var(--font-mono); font-size:.92em; }
 <!-- ===== 第 5 章 · 頁 4：類別圖 ⑨（全屏 hero） ===== -->
 <section class="page page--bleed page--bleed9">
   <img src="../architecture/diagrams/09-class-diagram.svg">
+</section>
+
+<!-- ===== 第 6 章 · 語音管線（頁 1：敘事） ===== -->
+<section class="page page--content">
+  <div class="chap-band" style="--cc:var(--ch6)">
+    <div class="chap-band__title">
+      <span class="pill">Chapter 6</span>
+      <h1 class="chap-band__h">語音管線：聽與說</h1>
+    </div>
+    <!-- 原創塗鴉：聲波（語音），純墨線（淺砂底）；原創非仿 Anthropic -->
+    <svg class="chap-doodle" viewBox="0 0 300 190" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="12" stroke-linecap="round">
+        <line x1="78" y1="84" x2="78" y2="106"/>
+        <line x1="108" y1="62" x2="108" y2="128"/>
+        <line x1="138" y1="40" x2="138" y2="150"/>
+        <line x1="168" y1="70" x2="168" y2="120"/>
+        <line x1="198" y1="52" x2="198" y2="138"/>
+        <line x1="228" y1="80" x2="228" y2="110"/>
+      </g>
+    </svg>
+  </div>
+  <div class="prose">
+    <h2>聽：語音辨識（STT）</h2>
+    <p>麥克風為 ReSpeaker 六聲道陣列。收音以 arecord 取得六聲道原始音訊後，反交錯抽出 <strong>ch0</strong>——晶片預先處理過的 ASR 聲道——串流到 Deepgram Nova-3 雲端辨識。每一輪收音由主線程精確 arm／disarm 編排、用完即收線。</p>
+    <h2>說：語音合成（TTS）</h2>
+    <p>語音以 edge-tts 雲端合成，並用<strong>內容定址快取</strong>（以文字＋語者＋語速的雜湊為檔名）存下——固定語句只合成一次、之後永久命中，斷網也能播；播放當下還會預取下一句，句間靜默趨近於零。</p>
+    <h2>聽懂：繁中 NLU</h2>
+    <p>意圖與數量以規則匹配的純函式推導，並有一層<strong>本地拼音近音糾錯</strong>把辨識錯的同音字校回商品名。意圖分類是「層別語意感知」的——同一個詞在不同層可有不同意義（如「不用」在 L3＝結帳、在 L2＝拒絕）。</p>
+    <p class="aside--bar">關鍵突破與取捨：① <strong>ch0 突破</strong>——整體辨識曾極差，根因是六聲道降混稀釋了晶片處理過的 ch0（相位互抵），改為單抽 ch0 後大幅改善。② <strong>真 barge-in 不可行</strong>——硬體 AEC 消音不足（約 10dB），邊播邊聽會自我回授，經實測放棄。③ <strong>首字暖機</strong>是 Deepgram 串流的固有地板（三輪實驗皆回退），demo 靠「自然頓半拍」與觸控備援化解。</p>
+  </div>
+  <span class="folio">16</span>
+</section>
+
+<!-- ===== 第 6 章 · 頁 2：STT 管線 ⑥（全屏 hero） ===== -->
+<section class="page page--bleed page--bleed6">
+  <img src="../architecture/diagrams/06-stt-pipeline.svg">
+</section>
+
+<!-- ===== 第 6 章 · 頁 3：TTS 管線 ⑦（全屏 hero） ===== -->
+<section class="page page--bleed page--bleed7">
+  <img src="../architecture/diagrams/07-tts-pipeline.svg">
 </section>
 
 <script>
