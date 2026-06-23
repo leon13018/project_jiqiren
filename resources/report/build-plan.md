@@ -8,6 +8,36 @@
 
 **Tech Stack:** HTML5 + CSS（`@page` 橫式、`column-count:2` 雙欄、CSS 變數）；Google Fonts CDN（Fraunces / Source Serif 4 / Hanken Grotesk / JetBrains Mono / Noto Serif·Sans TC）；headless Chromium（PDF）；poppler `pdftoppm`（PDF→PNG 供視覺 QA）；系統圖以 `<img>` 引 `../architecture/diagrams/NN-*.svg`。
 
+## 🔖 現況快照與續修指南（2026-06-23；compact 後從這裡接手）
+
+**狀態**：全本**草稿完成、35 頁**，全部 commit 在 `main`（**未 push**；push 會觸發 Pi 同步，等使用者要求）。9 章 + 前後置齊全；只剩 **P1 攤位全景 / P4 demo 互動兩張實體照片**待使用者提供（第 31 頁 `.photo-ph` 佔位）。
+
+**檔案**（皆在 `resources/report/`）：`report.html`（全本，逐頁 `.page`）、`tokens.css`（`:root` 色票/字型/字級）、`assets/screenshots/ui-*.png`（6 張 webui 實機截圖，tracked）、`out/report.pdf`（render 產出，**gitignored**）、`content-design.md`（內容 spec）、本檔（計畫+指南）。
+
+**render + QA 指令**（路徑空白用 `%20`；35 頁→pdftoppm 檔名 2 位數補零 `pg-04.png`）：
+```bash
+"/c/Program Files/Google/Chrome/Application/chrome.exe" --headless=new --disable-gpu \
+  --no-pdf-header-footer --virtual-time-budget=30000 --user-data-dir="$SCRATCH/cr-profile" \
+  --print-to-pdf="C:/Users/LIN HONG/Desktop/Project_01/resources/report/out/report.pdf" \
+  "file:///C:/Users/LIN%20HONG/Desktop/Project_01/resources/report/report.html"
+pdftoppm -r 110 -png -f N -l N "out/report.pdf" "$SCRATCH/pg"   # 讀 pg-NN.png 自檢
+```
+`$SCRATCH` = `/c/Users/LINHON~1/AppData/Local/Temp/claude/C--Users-LIN-HONG-Desktop-Project-01/<session>/scratchpad/pdfpeek`（每 session 不同；用當前 session 的 scratchpad）。**單頁尺寸/畫質驗證**：`pdfinfo -f N -l N out/report.pdf | grep -i "page.*size"` / `pdfimages -list -f N -l N out/report.pdf`（看 ppi）。
+
+**頁面地圖（35 頁）**：1 封面 · 2 目錄 · 3 摘要 ‖ 4 ch1分隔(靶+箭) · 5 ch1內文 ‖ 6 ch2分隔(路徑+杯) · 7 ch2內文 · 8 圖④hero ‖ 9 ch3分隔(分層) · 10 ch3內文 · 11 圖⑤hero · 12 圖⑧hero ‖ 13 ch4分隔(多軌) · 14 ch4內文(+QueueWorker碼) · 15 圖①hero ‖ 16 ch5分隔(節點環) · 17 ch5內文(+SalesMachine.run碼) · 18 ch5跨層流程表 · 19 圖②hero · 20 圖⑨hero ‖ 21 ch6分隔(聲波) · 22 ch6內文 · 23 圖⑥hero · 24 圖⑦hero ‖ 25 ch7分隔(雙向) · 26 ch7內文 · 27 圖③hero · 28 webui6畫面總覽(11×9.5頁) ‖ 29 ch8分隔(勾選) · 30 ch8內文(驗收表) · 31 ch8 demo照片(P1/P4佔位) ‖ 32 ch9分隔(日出) · 33 ch9內文 ‖ 34 參考資料 · 35 封底。目錄頁碼指向各章**分隔頁**：4/6/9/13/16/21/25/29/32/34。
+
+**已鎖定的設計決策（使用者逐項定版，勿回退）**：
+- 字型：標題/章名 `font-weight:400`；`Project_01` 字標 Source Serif 4 **600 粗體**；繁中思源 TC；拉丁 Fraunces(顯示)/Source Serif 4(內文)。Anthropic 專有字無法用 → Fraunces 為最接近免費替代（不必再找）。
+- 機器人吉祥物 logo lockup（封面/封底）：robot SVG + 粗體字標貼緊（gap .04in）；**logo 對齊鐵則＝方形臉中點對齊文字中點**（`.brand__logo{transform:translateY(-0.09in)}`）—— 所有 robot logo 一律照此。
+- 系統圖＝**全屏 hero 頁**（`.page--bleed` + per-圖具名 `@page bleedNN`，頁尺寸=圖 aspect、零邊滿版）；圖內已含 FIG.NN 標題故無外圖說。
+- 每章開頭＝**全頁沉浸式 hero 分隔**（`.page--divider`：滿版章節色 + 右上大塗鴉 `.divider__doodle`/`#crayonBig` + 左下膠囊 + 大章名；layout: `.divider__foot{bottom:.8in}` `.divider__title{margin:.70in 0 0}` `.divider__doodle{top:1.08in;right:.8in;width:5.6in;height:4.2in}`）。
+- 塗鴉：**原創、貼題抽象**、蠟筆童趣（`#crayonDoodle` 小 / `#crayonBig` 分隔大）；**嚴禁照搬 Anthropic 具體圖形**（版權）。
+- **畫質**：系統圖 `.svg` 已內嵌 2× PNG、Chromium print-to-PDF 不降採樣（實測 full-bleed ~300–371ppi）→ **無須重算**；判畫質看 `.svg` 內嵌或 `pdfimages -list`，**別量 `.png` 交付檔**（1× 縮圖會誤判）。
+
+**續修常見操作**：改某頁 → 編 `report.html` 對應 `<section>` → 跑 render+QA loop 讀該頁 PNG → commit（resources/ 純文件可直接 main、明確列檔、繁中 commit + Co-Authored-By）。新增檔 → 更新 `resources/.claude/code_map.md`（Stop hook 會擋）。
+
+---
+
 ## Global Constraints
 
 > 每個 task 的需求都隱含包含本節。值逐字抄自 `content-design.md` 與 `report-design-system` skill。
