@@ -26,25 +26,25 @@ html, body { margin: 0; padding: 0; background: #d9d9d9; }
    每張圖一個具名 @page（size = 圖 aspect）；圖內已含 FIG.NN 標題故不另加圖說。 */
 .page--bleed { padding: 0; background: var(--ivory); }
 .page--bleed img { width: 100%; height: 100%; object-fit: contain; object-position: center; display: block; }
-/* 全屏圖：統一寬度 11in（同封面／標準報告頁寬）、頁高隨各圖長寬比 → 圖填寬置中（可留白、米底襯邊不裁切）；時序圖同寬但頁很長 */
-@page bleed1 { size: 11in 6.667in; margin: 0; }
-.page--bleed1 { page: bleed1; width: 11in; height: 6.667in; }
-@page bleed2 { size: 11in 6.454in; margin: 0; }
-.page--bleed2 { page: bleed2; width: 11in; height: 6.454in; }
-@page bleed3 { size: 11in 7.408in; margin: 0; }
-.page--bleed3 { page: bleed3; width: 11in; height: 7.408in; }
+/* 全屏圖：頁面＝標準報告頁 11×8.5（時序圖除外）；圖以 11in 寬置中、上下留白米底不裁切。時序圖同寬但頁長 11×13.38 */
+@page bleed1 { size: 11in 8.5in; margin: 0; }
+.page--bleed1 { page: bleed1; width: 11in; height: 8.5in; }
+@page bleed2 { size: 11in 8.5in; margin: 0; }
+.page--bleed2 { page: bleed2; width: 11in; height: 8.5in; }
+@page bleed3 { size: 11in 8.5in; margin: 0; }
+.page--bleed3 { page: bleed3; width: 11in; height: 8.5in; }
 @page bleed4 { size: 11in 13.383in; margin: 0; }
 .page--bleed4 { page: bleed4; width: 11in; height: 13.383in; }
-@page bleed5 { size: 11in 5.725in; margin: 0; }
-.page--bleed5 { page: bleed5; width: 11in; height: 5.725in; }
-@page bleed6 { size: 11in 6.959in; margin: 0; }
-.page--bleed6 { page: bleed6; width: 11in; height: 6.959in; }
-@page bleed7 { size: 11in 6.173in; margin: 0; }
-.page--bleed7 { page: bleed7; width: 11in; height: 6.173in; }
-@page bleed8 { size: 11in 6.735in; margin: 0; }
-.page--bleed8 { page: bleed8; width: 11in; height: 6.735in; }
-@page bleed9 { size: 11in 6.735in; margin: 0; }
-.page--bleed9 { page: bleed9; width: 11in; height: 6.735in; }
+@page bleed5 { size: 11in 8.5in; margin: 0; }
+.page--bleed5 { page: bleed5; width: 11in; height: 8.5in; }
+@page bleed6 { size: 11in 8.5in; margin: 0; }
+.page--bleed6 { page: bleed6; width: 11in; height: 8.5in; }
+@page bleed7 { size: 11in 8.5in; margin: 0; }
+.page--bleed7 { page: bleed7; width: 11in; height: 8.5in; }
+@page bleed8 { size: 11in 8.5in; margin: 0; }
+.page--bleed8 { page: bleed8; width: 11in; height: 8.5in; }
+@page bleed9 { size: 11in 8.5in; margin: 0; }
+.page--bleed9 { page: bleed9; width: 11in; height: 8.5in; }
 @page uigrid { size: 11in 9.5in; margin: 0; }     /* webui 截圖總覽（2×3，較高內容頁） */
 .page--uigrid { page: uigrid; width: 11in; height: 9.5in; padding: var(--margin);
   display: flex; flex-direction: column; justify-content: center;
