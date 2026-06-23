@@ -169,16 +169,16 @@ code { font-family:var(--font-mono); font-size:.92em; }
 <section class="page page--content">
   <h1 class="h-page">目錄</h1>
   <nav class="toc">
-    <a class="toc__row"><span class="toc__title">1　緒論：動機與目標</span><span class="toc__page">—</span></a>
-    <a class="toc__row"><span class="toc__title">2　系統概觀：一杯飲料的旅程</span><span class="toc__page">—</span></a>
-    <a class="toc__row"><span class="toc__title">3　系統架構與部署</span><span class="toc__page">—</span></a>
-    <a class="toc__row"><span class="toc__title">4　執行期與並行模型</span><span class="toc__page">—</span></a>
-    <a class="toc__row"><span class="toc__title">5　核心對話引擎：L0–L5 狀態機</span><span class="toc__page">—</span></a>
-    <a class="toc__row"><span class="toc__title">6　語音管線：聽與說</span><span class="toc__page">—</span></a>
-    <a class="toc__row"><span class="toc__title">7　前端鏡像與雙模態互動</span><span class="toc__page">—</span></a>
-    <a class="toc__row"><span class="toc__title">8　成果與驗證</span><span class="toc__page">—</span></a>
-    <a class="toc__row"><span class="toc__title">9　結論與展望</span><span class="toc__page">—</span></a>
-    <a class="toc__row"><span class="toc__title">參考資料</span><span class="toc__page">—</span></a>
+    <a class="toc__row"><span class="toc__title">1　緒論：動機與目標</span><span class="toc__page">4</span></a>
+    <a class="toc__row"><span class="toc__title">2　系統概觀：一杯飲料的旅程</span><span class="toc__page">5</span></a>
+    <a class="toc__row"><span class="toc__title">3　系統架構與部署</span><span class="toc__page">7</span></a>
+    <a class="toc__row"><span class="toc__title">4　執行期與並行模型</span><span class="toc__page">10</span></a>
+    <a class="toc__row"><span class="toc__title">5　核心對話引擎：L0–L5 狀態機</span><span class="toc__page">12</span></a>
+    <a class="toc__row"><span class="toc__title">6　語音管線：聽與說</span><span class="toc__page">16</span></a>
+    <a class="toc__row"><span class="toc__title">7　前端鏡像與雙模態互動</span><span class="toc__page">19</span></a>
+    <a class="toc__row"><span class="toc__title">8　成果與驗證</span><span class="toc__page">22</span></a>
+    <a class="toc__row"><span class="toc__title">9　結論與展望</span><span class="toc__page">24</span></a>
+    <a class="toc__row"><span class="toc__title">參考資料</span><span class="toc__page">25</span></a>
   </nav>
   <span class="folio">2</span>
 </section>
@@ -532,6 +532,108 @@ code { font-family:var(--font-mono); font-size:.92em; }
     <figure class="ui-shot"><img src="assets/screenshots/ui-thankyou.png"><figcaption>thankyou · 謝謝惠顧</figcaption></figure>
   </div>
   <span class="folio">21</span>
+</section>
+
+<!-- ===== 第 8 章 · 成果與驗證（頁 1：敘事 + 驗收表） ===== -->
+<section class="page page--content">
+  <div class="chap-band" style="--cc:var(--ch2)">
+    <div class="chap-band__title">
+      <span class="pill">Chapter 8</span>
+      <h1 class="chap-band__h">成果與驗證</h1>
+    </div>
+    <!-- 原創塗鴉：圈內勾選（驗收），蠟筆童趣；原創非仿 Anthropic -->
+    <svg class="chap-doodle" viewBox="0 0 300 190" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="150" cy="95" r="58" fill="var(--ivory)"/>
+        <path d="M120,98 L142,122 L186,70"/>
+      </g>
+    </svg>
+  </div>
+  <div class="prose">
+    <h2>自動化測試</h2>
+    <p>因為業務邏輯嚴格不碰硬體，整套 L0–L5 對話狀態機能在一般電腦上以 <strong>711 項 pytest 完整回歸</strong>——涵蓋意圖分類、數量解析、購物車上限、各跨層 confirm 與保守 default。每次改動對話邏輯都重跑這張回歸網。</p>
+    <h2>實機驗收</h2>
+    <p>對話之外的硬體與時序，則在 Raspberry Pi 上實機驗收：語音辨識（改抽 ch0 後大幅改善）、語音與觸控雙模態全鏈路、以及「點餐 → 數量上限 → 結帳 → 付款 → 服務下一位」的連續流程，皆通過實測。</p>
+    <table class="t">
+      <thead><tr><th>驗收項目</th><th>方法</th><th>結果</th></tr></thead>
+      <tbody>
+        <tr><td>對話邏輯回歸</td><td><code>py -3.14 -m pytest</code>（sales 回歸網）</td><td>711 passed ✅</td></tr>
+        <tr><td>語音辨識準確度</td><td>Pi 實機收音（ch0 聲道）</td><td>大幅改善、可用 ✅</td></tr>
+        <tr><td>觸控全鏈路</td><td>Pi 實機：喚醒→點餐→結帳→付款</td><td>通過 ✅</td></tr>
+        <tr><td>連續服務流程</td><td>Pi 實機：點餐→上限→結帳→付款→次客</td><td>通過 ✅</td></tr>
+        <tr><td>斷網固定語音</td><td>內容定址快取命中</td><td>可離線播放 ✅</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <span class="folio">22</span>
+</section>
+
+<!-- ===== 第 8 章 · 頁 2：demo 現場照片（P1 / P4 佔位） ===== -->
+<section class="page page--content">
+  <span class="pill pill--inline">Chapter 8</span>
+  <h2 style="font-family:var(--font-sans); font-weight:600; font-size:var(--fs-h2); margin:.1in 0 .22in;">demo 現場</h2>
+  <div class="photo-ph" style="min-height:2.8in; margin-bottom:.3in;">待補：P1 攤位＋機器人＋平板全景（demo 現場）</div>
+  <div class="photo-ph" style="min-height:2.8in;">待補：P4 demo 進行中（顧客互動）</div>
+  <span class="folio">23</span>
+</section>
+
+<!-- ===== 第 9 章 · 結論與展望 ===== -->
+<section class="page page--content">
+  <div class="chap-band" style="--cc:var(--ch3)">
+    <div class="chap-band__title">
+      <span class="pill">Chapter 9</span>
+      <h1 class="chap-band__h">結論與展望</h1>
+    </div>
+    <!-- 原創塗鴉：旗幟（里程碑/展望），蠟筆童趣；原創非仿 Anthropic -->
+    <svg class="chap-doodle" viewBox="0 0 300 190" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="100" y1="32" x2="100" y2="160"/>
+        <path d="M100,44 L196,44 L174,70 L196,96 L100,96 Z" fill="var(--ivory)"/>
+      </g>
+    </svg>
+  </div>
+  <div class="prose">
+    <h2>結論</h2>
+    <p>本專題在 Raspberry Pi 4 上完成一台<strong>規則匹配、語音與觸控雙模態</strong>的互動式銷售輔助機器人，涵蓋從叫賣、點餐、結帳到致謝的完整對話閉環。核心設計——業務邏輯與硬體徹底解耦——讓系統既能在實機穩定展示，又能以 711 項自動化測試持續驗證，是整個專題最重要的工程價值。</p>
+    <h2>未來展望</h2>
+    <p>系統保留了清楚的擴充點：結帳掃碼目前以觸控模擬，未來接上真實掃碼器只需替換一個 token 映射、對話層零改動；其餘方向包括顧客超量後的取消對話重設計、搶話中斷（新任務終止舊任務）、更多商品品項，以及 NLU 解析器對更刁鑽口語的強化。</p>
+    <p class="aside--bar">這台機器人的價值不在規模，而在它示範了一套「難測的硬體隔到邊界、可測的邏輯留在核心」的架構——讓一個課程專題也能做到可預測、可回歸、可持續演進。</p>
+  </div>
+  <span class="folio">24</span>
+</section>
+
+<!-- ===== 後置 · 參考資料 ===== -->
+<section class="page page--content">
+  <h1 class="h-page">參考資料</h1>
+  <div class="prose prose--single">
+    <ul>
+      <li><strong>Deepgram Nova-3</strong> — 雲端串流語音辨識（STT）。</li>
+      <li><strong>Microsoft edge-tts</strong> — 雲端語音合成（TTS）。</li>
+      <li><strong>Hiwonder TonyPi</strong> — 人形機器人本體與動作組 SDK。</li>
+      <li><strong>FastAPI · uvicorn</strong> — 顯示鏡像後端（WebSocket 狀態推送）。</li>
+      <li><strong>pypinyin</strong> — 中文拼音，供本地近音糾錯層。</li>
+      <li><strong>Raspberry Pi OS · ALSA（arecord）· mpg123</strong> — 音訊輸入與播放。</li>
+    </ul>
+  </div>
+  <span class="folio">25</span>
+</section>
+
+<!-- ===== 封底（滿版珊瑚 + 標誌 lockup） ===== -->
+<section class="page page--hero" style="--bg:var(--coral)">
+  <div class="brand" style="position:absolute; left:var(--margin); bottom:var(--margin); margin-top:0;">
+    <svg class="brand__logo" viewBox="18 -6 84 100" aria-hidden="true">
+      <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="26" y="32" width="68" height="54" rx="16" fill="var(--ivory)"/>
+        <line x1="60" y1="32" x2="60" y2="14"/>
+        <circle cx="60" cy="9" r="6" fill="var(--ink)" stroke="none"/>
+        <circle cx="47" cy="57" r="6.5" fill="var(--ink)" stroke="none"/>
+        <circle cx="73" cy="57" r="6.5" fill="var(--ink)" stroke="none"/>
+        <path d="M46,71 Q60,81 74,71"/>
+      </g>
+    </svg>
+    <span class="brand__name">Project_01</span>
+  </div>
+  <span class="backlink">11013018 · 林秉宏 · 2026.06.25</span>
 </section>
 
 <script>
