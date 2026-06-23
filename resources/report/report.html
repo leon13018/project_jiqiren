@@ -35,6 +35,13 @@ html, body { margin: 0; padding: 0; background: #d9d9d9; }
 .page--bleed6 { page: bleed6; width: 13.43in; height: 8.5in; }
 @page bleed7 { size: 15.13in 8.5in; margin: 0; }  /* 圖⑦ TTS 管線 aspect 1.78 */
 .page--bleed7 { page: bleed7; width: 15.13in; height: 8.5in; }
+@page bleed3 { size: 12.58in 8.5in; margin: 0; }  /* 圖③ web phase aspect 1.48 */
+.page--bleed3 { page: bleed3; width: 12.58in; height: 8.5in; }
+@page uigrid { size: 11in 9.5in; margin: 0; }     /* webui 截圖總覽（2×3，較高內容頁） */
+.page--uigrid { page: uigrid; width: 11in; height: 9.5in; padding: var(--margin); }
+.ui-shot { margin: 0; }
+.ui-shot img { width: 100%; height: auto; display: block; border: 1px solid var(--rule); border-radius: 6px; }
+.ui-shot figcaption { font-family: var(--font-sans); font-size: var(--fs-label); color: var(--ink-soft); margin-top: .05in; }
 
 /* —— §5 元件庫（只列本報告實際使用的類；整頁分隔 hero / 塗鴉未採用故略） —— */
 /* 5.1 封面 */
@@ -476,6 +483,55 @@ code { font-family:var(--font-mono); font-size:.92em; }
 <!-- ===== 第 6 章 · 頁 3：TTS 管線 ⑦（全屏 hero） ===== -->
 <section class="page page--bleed page--bleed7">
   <img src="../architecture/diagrams/07-tts-pipeline.svg">
+</section>
+
+<!-- ===== 第 7 章 · 前端鏡像與雙模態（頁 1：敘事） ===== -->
+<section class="page page--content">
+  <div class="chap-band" style="--cc:var(--ch1)">
+    <div class="chap-band__title">
+      <span class="pill">Chapter 7</span>
+      <h1 class="chap-band__h">前端鏡像與雙模態互動</h1>
+    </div>
+    <!-- 原創塗鴉：平板畫面 + 觸點（前端/觸控），蠟筆童趣；原創非仿 Anthropic -->
+    <svg class="chap-doodle" viewBox="0 0 300 190" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <g filter="url(#crayonDoodle)" fill="none" stroke="var(--ink)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="84" y="38" width="132" height="88" rx="12" fill="var(--ivory)"/>
+        <circle cx="150" cy="80" r="12" fill="var(--ink)" stroke="none"/>
+        <line x1="150" y1="126" x2="150" y2="150"/>
+        <line x1="126" y1="152" x2="174" y2="152"/>
+      </g>
+    </svg>
+  </div>
+  <div class="prose">
+    <h2>phase 驅動的狀態鏡像</h2>
+    <p>機器人在每個狀態點送出一個「phase」與購物車快照，經事件匯流排跨執行緒推到 WebSocket、廣播給所有瀏覽器；前端收到後把 phase 折成對應畫面。<strong>畫面切換一律由後端 phase 驅動</strong>，前端不自行樂觀改畫面。</p>
+    <h2>語音／觸控雙模態</h2>
+    <p>觸控按鈕只送出結構化命令，被翻譯成對話層既有的 token、注入同一條輸入佇列——於是<strong>對話邏輯完全不需為觸控改動</strong>，語音與觸控共用同一套流程。喚醒、點餐、結帳、付款都可任一模態完成。</p>
+    <h2>韌性與玻璃介面</h2>
+    <p>連線中斷時前端指數退避重連、並立即退回歡迎畫面不凍結。介面採 Glaze 液態玻璃語彙；因 Pi 4 自身瀏覽器不支援其 OKLCH 色彩，畫面改由顧客端裝置渲染、Pi 專心當伺服器。</p>
+    <p class="aside--bar">設計取捨：為何堅持 phase 驅動、禁前端樂觀旗號？因為同一個動作也可能來自語音或自動結帳（非 UI 操作），集中由後端狀態驅動才能保證前後端一致。此外顯示層整段 try／except——<strong>網頁掛了，機器人照常服務客人</strong>。</p>
+  </div>
+  <span class="folio">19</span>
+</section>
+
+<!-- ===== 第 7 章 · 頁 2：web phase 狀態機 ③（全屏 hero） ===== -->
+<section class="page page--bleed page--bleed3">
+  <img src="../architecture/diagrams/03-web-phase-state-machine.svg">
+</section>
+
+<!-- ===== 第 7 章 · 頁 3：webui 五畫面總覽（實機截圖 2×3） ===== -->
+<section class="page page--uigrid">
+  <span class="pill pill--inline">Chapter 7</span>
+  <h2 style="font-family:var(--font-sans); font-weight:600; font-size:var(--fs-h2); margin:.1in 0 .2in;">五個 phase、五個實際畫面（實機 webui 截圖）</h2>
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:.22in .42in;">
+    <figure class="ui-shot"><img src="assets/screenshots/ui-standby.png"><figcaption>standby · 歡迎光臨（輕觸螢幕開始點餐）</figcaption></figure>
+    <figure class="ui-shot"><img src="assets/screenshots/ui-ordering-empty.png"><figcaption>ordering · 餐點選單（購物車空）</figcaption></figure>
+    <figure class="ui-shot"><img src="assets/screenshots/ui-ordering-filled.png"><figcaption>ordering · 購物車逐項長出</figcaption></figure>
+    <figure class="ui-shot"><img src="assets/screenshots/ui-confirm.png"><figcaption>checkout_confirm · 結帳前確認卡</figcaption></figure>
+    <figure class="ui-shot"><img src="assets/screenshots/ui-checkout.png"><figcaption>checkout · 掃碼付款 QR</figcaption></figure>
+    <figure class="ui-shot"><img src="assets/screenshots/ui-thankyou.png"><figcaption>thankyou · 謝謝惠顧</figcaption></figure>
+  </div>
+  <span class="folio">21</span>
 </section>
 
 <script>
