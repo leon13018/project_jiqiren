@@ -37,6 +37,7 @@
 
 - **任何「檔案在哪 / 專案結構」問題 → 務必第一優先查 `.claude/code_map.md`**（本層索引，單一事實來源）。**逐層下沉導航**：要深入任何目錄 → 讀 `<該目錄>/.claude/code_map.md`（每層只索引自己那層、越深越細；某目錄無此檔 = 尚未建子索引，以上層說明為準）。讀子目錄 code_map 時 Claude Code 會自動載入該層 `CLAUDE.md`（按需）。
 - 優先 `Read` / `Edit` / `Write` / `Glob` / `Grep` — Windows shell 只給 git 用。
+- 語意級查詢（追引用 / 呼叫鏈 / 跳定義 / 型別）→ 適時用 **LSP**（`findReferences` / `goToDefinition` / `incomingCalls` / `outgoingCalls`），別只靠 grep（grep 限文字／廣度掃描，解不開晚綁定與虛擬派發）；`goToImplementation` 對 Python 無意義、勿用。
 - 規劃階段（還沒確定要做什麼）→ 暫停確認，不要先 commit。
 - 任務完成回報：(1) 改了什麼 (2) 是否寫了 pineedtodo (3) Pi 是否同步成功 (4) 是否需使用者後續行動。
 
